@@ -1,0 +1,99 @@
+"use client";
+
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShoppingCart, Loader2 } from "lucide-react";
+
+export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+      callbackUrl: "/dashboard",
+    });
+
+    if (result?.error) {
+      setError("Email atau password salah");
+      setLoading(false);
+    } else {
+      router.replace(result?.url || "/dashboard");
+      router.refresh();
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <Card className="w-full max-w-md shadow-xl rounded-2xl">
+        <CardHeader className="text-center space-y-2">
+          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-2">
+            <ShoppingCart className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <CardTitle className="text-2xl font-bold">POS System</CardTitle>
+          <CardDescription>Masuk ke akun Anda untuk melanjutkan</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="admin@pos.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="rounded-xl"
+              />
+            </div>
+            <Button type="submit" className="w-full rounded-xl h-11" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                "Masuk"
+              )}
+            </Button>
+            <div className="text-center text-xs text-muted-foreground mt-4">
+              <p>Demo: admin@pos.com / password123</p>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

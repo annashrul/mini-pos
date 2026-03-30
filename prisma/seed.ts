@@ -1,0 +1,1423 @@
+import type { PaymentMethod } from "@prisma/client";
+import { PrismaClient, Role, StockMovementType } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+const MENU_SEED = [
+  {
+    key: "dashboard",
+    name: "Dashboard",
+    path: "/dashboard",
+    group: "Utama",
+    sortOrder: 1,
+    actions: ["view", "export"],
+  },
+  {
+    key: "pos",
+    name: "Kasir (POS)",
+    path: "/pos",
+    group: "Utama",
+    sortOrder: 2,
+    actions: ["view", "create", "void", "refund", "open_shift", "close_shift"],
+  },
+  {
+    key: "transactions",
+    name: "Riwayat Transaksi",
+    path: "/transactions",
+    group: "Utama",
+    sortOrder: 3,
+    actions: ["view", "export", "void", "refund"],
+  },
+  {
+    key: "shifts",
+    name: "Shift Kasir",
+    path: "/shifts",
+    group: "Utama",
+    sortOrder: 4,
+    actions: ["view", "create", "update", "close_shift"],
+  },
+  {
+    key: "products",
+    name: "Produk",
+    path: "/products",
+    group: "Master Data",
+    sortOrder: 1,
+    actions: ["view", "create", "update", "delete", "export"],
+  },
+  {
+    key: "categories",
+    name: "Kategori",
+    path: "/categories",
+    group: "Master Data",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "brands",
+    name: "Brand",
+    path: "/brands",
+    group: "Master Data",
+    sortOrder: 3,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "suppliers",
+    name: "Supplier",
+    path: "/suppliers",
+    group: "Master Data",
+    sortOrder: 4,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "customers",
+    name: "Customer",
+    path: "/customers",
+    group: "Master Data",
+    sortOrder: 5,
+    actions: ["view", "create", "update", "delete", "export"],
+  },
+  {
+    key: "stock",
+    name: "Manajemen Stok",
+    path: "/stock",
+    group: "Inventori",
+    sortOrder: 1,
+    actions: ["view", "create", "update", "export"],
+  },
+  {
+    key: "purchases",
+    name: "Purchase Order",
+    path: "/purchases",
+    group: "Inventori",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "approve", "receive"],
+  },
+  {
+    key: "stock-opname",
+    name: "Stock Opname",
+    path: "/stock-opname",
+    group: "Inventori",
+    sortOrder: 3,
+    actions: ["view", "create", "update", "approve"],
+  },
+  {
+    key: "stock-transfers",
+    name: "Transfer Stok",
+    path: "/stock-transfers",
+    group: "Inventori",
+    sortOrder: 4,
+    actions: ["view", "create", "update", "approve", "receive"],
+  },
+  {
+    key: "expenses",
+    name: "Pengeluaran",
+    path: "/expenses",
+    group: "Keuangan",
+    sortOrder: 1,
+    actions: ["view", "create", "update", "delete", "export"],
+  },
+  {
+    key: "promotions",
+    name: "Promo",
+    path: "/promotions",
+    group: "Keuangan",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "reports",
+    name: "Laporan",
+    path: "/reports",
+    group: "Analitik",
+    sortOrder: 1,
+    actions: ["view", "export"],
+  },
+  {
+    key: "analytics",
+    name: "Business Intelligence",
+    path: "/analytics",
+    group: "Analitik",
+    sortOrder: 2,
+    actions: ["view", "export"],
+  },
+  {
+    key: "customer-intelligence",
+    name: "Customer Intel",
+    path: "/customer-intelligence",
+    group: "Analitik",
+    sortOrder: 3,
+    actions: ["view", "export"],
+  },
+  {
+    key: "branches",
+    name: "Cabang",
+    path: "/branches",
+    group: "Admin",
+    sortOrder: 1,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "branch-prices",
+    name: "Harga Cabang",
+    path: "/branch-prices",
+    group: "Admin",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "audit-logs",
+    name: "Audit Log",
+    path: "/audit-logs",
+    group: "Admin",
+    sortOrder: 3,
+    actions: ["view", "export"],
+  },
+  {
+    key: "users",
+    name: "Pengguna",
+    path: "/users",
+    group: "Admin",
+    sortOrder: 4,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "settings",
+    name: "Pengaturan",
+    path: "/settings",
+    group: "Admin",
+    sortOrder: 5,
+    actions: ["view", "update"],
+  },
+  {
+    key: "access-control",
+    name: "Hak Akses",
+    path: "/access-control",
+    group: "Admin",
+    sortOrder: 6,
+    actions: ["view", "manage"],
+  },
+] as const;
+
+const MENU_ACCESS_BY_ROLE: Record<Role, string[]> = {
+  SUPER_ADMIN: MENU_SEED.map((menu) => menu.key),
+  ADMIN: MENU_SEED.map((menu) => menu.key).filter(
+    (key) => key !== "audit-logs",
+  ),
+  MANAGER: [
+    "dashboard",
+    "pos",
+    "transactions",
+    "shifts",
+    "products",
+    "categories",
+    "brands",
+    "suppliers",
+    "customers",
+    "stock",
+    "purchases",
+    "stock-opname",
+    "stock-transfers",
+    "expenses",
+    "promotions",
+    "reports",
+    "analytics",
+    "customer-intelligence",
+  ],
+  CASHIER: ["dashboard", "pos", "transactions", "shifts"],
+};
+
+async function main() {
+  console.log("Seeding database...");
+
+  // Clean existing data
+  await prisma.activityLog.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.roleActionPermission.deleteMany();
+  await prisma.roleMenuPermission.deleteMany();
+  await prisma.menuAction.deleteMany();
+  await prisma.appMenu.deleteMany();
+  await prisma.goodsReceiptItem.deleteMany();
+  await prisma.goodsReceipt.deleteMany();
+  await prisma.purchaseOrderItem.deleteMany();
+  await prisma.purchaseOrder.deleteMany();
+  await prisma.stockTransferItem.deleteMany();
+  await prisma.stockTransfer.deleteMany();
+  await prisma.stockOpnameItem.deleteMany();
+  await prisma.stockOpname.deleteMany();
+  await prisma.stockMovement.deleteMany();
+  await prisma.cashMovement.deleteMany();
+  await prisma.cashierShift.deleteMany();
+  await prisma.refund.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.transactionItem.deleteMany();
+  await prisma.transaction.deleteMany();
+  await prisma.voucher.deleteMany();
+  await prisma.promotion.deleteMany();
+  await prisma.expense.deleteMany();
+  await prisma.supplierPayment.deleteMany();
+  await prisma.customerPointHistory.deleteMany();
+  await prisma.productUnit.deleteMany();
+  await prisma.productBarcode.deleteMany();
+  await prisma.productPriceHistory.deleteMany();
+  await prisma.branchProductPrice.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.brand.deleteMany();
+  await prisma.supplier.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.branch.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.setting.deleteMany();
+  await prisma.roleActionPermission.deleteMany();
+  await prisma.roleMenuPermission.deleteMany();
+  await prisma.menuAction.deleteMany();
+  await prisma.appMenu.deleteMany();
+  await prisma.appRole.deleteMany();
+
+  // Create Users
+  const hashedPassword = await bcrypt.hash("password123", 10);
+
+  const admin = await prisma.user.create({
+    data: {
+      name: "Super Admin",
+      email: "admin@pos.com",
+      password: hashedPassword,
+      role: Role.SUPER_ADMIN,
+    },
+  });
+
+  const manager = await prisma.user.create({
+    data: {
+      name: "Manager Toko",
+      email: "manager@pos.com",
+      password: hashedPassword,
+      role: Role.MANAGER,
+    },
+  });
+
+  const cashier1 = await prisma.user.create({
+    data: {
+      name: "Kasir Satu",
+      email: "kasir1@pos.com",
+      password: hashedPassword,
+      role: Role.CASHIER,
+    },
+  });
+
+  const cashier2 = await prisma.user.create({
+    data: {
+      name: "Kasir Dua",
+      email: "kasir2@pos.com",
+      password: hashedPassword,
+      role: Role.CASHIER,
+    },
+  });
+
+  for (const menu of MENU_SEED) {
+    const createdMenu = await prisma.appMenu.create({
+      data: {
+        key: menu.key,
+        name: menu.name,
+        path: menu.path,
+        group: menu.group,
+        sortOrder: menu.sortOrder,
+      },
+    });
+
+    for (let index = 0; index < menu.actions.length; index += 1) {
+      const actionKey = menu.actions[index];
+      const action = await prisma.menuAction.create({
+        data: {
+          menuId: createdMenu.id,
+          key: actionKey,
+          name: actionKey.toUpperCase(),
+          sortOrder: index + 1,
+        },
+      });
+
+      for (const role of Object.values(Role)) {
+        const isMenuAllowed = MENU_ACCESS_BY_ROLE[role].includes(menu.key);
+        await prisma.roleActionPermission.create({
+          data: {
+            role,
+            menuActionId: action.id,
+            allowed: isMenuAllowed,
+          },
+        });
+      }
+    }
+
+    for (const role of Object.values(Role)) {
+      const isMenuAllowed = MENU_ACCESS_BY_ROLE[role].includes(menu.key);
+      await prisma.roleMenuPermission.create({
+        data: {
+          role,
+          menuId: createdMenu.id,
+          allowed: isMenuAllowed,
+        },
+      });
+    }
+  }
+
+  // Create Brands
+  const brands = await Promise.all([
+    prisma.brand.create({ data: { name: "Indofood" } }),
+    prisma.brand.create({ data: { name: "Coca-Cola" } }),
+    prisma.brand.create({ data: { name: "Unilever" } }),
+    prisma.brand.create({ data: { name: "Faber-Castell" } }),
+    prisma.brand.create({ data: { name: "Wings" } }),
+    prisma.brand.create({ data: { name: "Aqua" } }),       // 5
+    prisma.brand.create({ data: { name: "Mayora" } }),      // 6
+    prisma.brand.create({ data: { name: "Mondelez" } }),    // 7
+    prisma.brand.create({ data: { name: "Glico" } }),       // 8
+    prisma.brand.create({ data: { name: "SC Johnson" } }),  // 9
+    prisma.brand.create({ data: { name: "P&G" } }),         // 10
+    prisma.brand.create({ data: { name: "Sidu" } }),        // 11
+    prisma.brand.create({ data: { name: "Staedtler" } }),   // 12
+    prisma.brand.create({ data: { name: "Sosro" } }),       // 13
+    prisma.brand.create({ data: { name: "Garudafood" } }),  // 14
+    prisma.brand.create({ data: { name: "ABC" } }),         // 15
+    prisma.brand.create({ data: { name: "Frisian Flag" } }),// 16
+    prisma.brand.create({ data: { name: "Kapal Api" } }),   // 17
+    prisma.brand.create({ data: { name: "Nestle" } }),      // 18
+    prisma.brand.create({ data: { name: "Kalbe" } }),       // 19
+    prisma.brand.create({ data: { name: "Kimia Farma" } }), // 20
+    prisma.brand.create({ data: { name: "Sasa" } }),        // 21
+    prisma.brand.create({ data: { name: "Bimoli" } }),      // 22
+    prisma.brand.create({ data: { name: "So Good" } }),     // 23
+    prisma.brand.create({ data: { name: "Orang Tua" } }),   // 24
+    prisma.brand.create({ data: { name: "Ajinomoto" } }),   // 25
+    prisma.brand.create({ data: { name: "Wardah" } }),      // 26
+    prisma.brand.create({ data: { name: "Mie Sedaap" } }),  // 27
+    prisma.brand.create({ data: { name: "Sari Roti" } }),   // 28
+    prisma.brand.create({ data: { name: "Ultramilk" } }),   // 29
+  ]);
+
+  // Create Suppliers
+  const suppliers = await Promise.all([
+    prisma.supplier.create({
+      data: {
+        name: "PT Indofood Sukses Makmur",
+        contact: "021-5555-1234",
+        email: "order@indofood.co.id",
+        address: "Jakarta",
+      },
+    }),
+    prisma.supplier.create({
+      data: {
+        name: "PT Coca-Cola Indonesia",
+        contact: "021-5555-5678",
+        email: "order@coca-cola.co.id",
+        address: "Bekasi",
+      },
+    }),
+    prisma.supplier.create({
+      data: {
+        name: "PT Unilever Indonesia",
+        contact: "021-5555-9012",
+        email: "order@unilever.co.id",
+        address: "Tangerang",
+      },
+    }),
+  ]);
+
+  // Create Customers
+  await Promise.all([
+    prisma.customer.create({
+      data: {
+        name: "Budi Santoso",
+        phone: "08123456789",
+        email: "budi@email.com",
+        memberLevel: "GOLD",
+        totalSpending: 2500000,
+        points: 250,
+      },
+    }),
+    prisma.customer.create({
+      data: {
+        name: "Siti Rahayu",
+        phone: "08234567890",
+        email: "siti@email.com",
+        memberLevel: "SILVER",
+        totalSpending: 1200000,
+        points: 120,
+      },
+    }),
+    prisma.customer.create({
+      data: {
+        name: "Ahmad Wijaya",
+        phone: "08345678901",
+        memberLevel: "REGULAR",
+        totalSpending: 350000,
+        points: 35,
+      },
+    }),
+  ]);
+
+  // Create Branches
+  await Promise.all([
+    prisma.branch.create({
+      data: {
+        name: "Pusat - Jakarta",
+        address: "Jl. Sudirman No. 1, Jakarta",
+        phone: "021-1234567",
+      },
+    }),
+    prisma.branch.create({
+      data: {
+        name: "Cabang Bandung",
+        address: "Jl. Asia Afrika No. 10, Bandung",
+        phone: "022-1234567",
+      },
+    }),
+    prisma.branch.create({
+      data: {
+        name: "Cabang Surabaya",
+        address: "Jl. Tunjungan No. 5, Surabaya",
+        phone: "031-1234567",
+      },
+    }),
+  ]);
+
+  // Create Categories
+  const categories = await Promise.all([
+    prisma.category.create({
+      data: { name: "Makanan", description: "Produk makanan ringan dan berat" },
+    }),
+    prisma.category.create({
+      data: {
+        name: "Minuman",
+        description: "Produk minuman kemasan dan segar",
+      },
+    }),
+    prisma.category.create({
+      data: { name: "Snack", description: "Makanan ringan dan cemilan" },
+    }),
+    prisma.category.create({
+      data: {
+        name: "Kebersihan",
+        description: "Produk kebersihan rumah tangga",
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: "Perawatan Tubuh",
+        description: "Sabun, shampoo, dan lainnya",
+      },
+    }),
+    prisma.category.create({
+      data: {
+        name: "Alat Tulis",
+        description: "Perlengkapan alat tulis kantor",
+      },
+    }),
+    prisma.category.create({
+      data: { name: "Rokok", description: "Produk tembakau dan rokok" },
+    }),
+    prisma.category.create({
+      data: { name: "Bumbu & Dapur", description: "Bumbu masak dan kebutuhan dapur" },
+    }),
+    prisma.category.create({
+      data: { name: "Susu & Olahan", description: "Susu, keju, yogurt" },
+    }),
+    prisma.category.create({
+      data: { name: "Frozen Food", description: "Makanan beku siap saji" },
+    }),
+    prisma.category.create({
+      data: { name: "Obat & Kesehatan", description: "Obat-obatan dan suplemen" },
+    }),
+  ]);
+
+  // Extra brands & suppliers for tobacco
+  const brandSampoerna = await prisma.brand.create({
+    data: { name: "Sampoerna" },
+  });
+  const brandGudangGaram = await prisma.brand.create({
+    data: { name: "Gudang Garam" },
+  });
+  const brandDjarum = await prisma.brand.create({ data: { name: "Djarum" } });
+  const supplierTobacco = await prisma.supplier.create({
+    data: {
+      name: "PT Distributor Tembakau Nusantara",
+      contact: "021-7777-1234",
+      email: "order@dtn.co.id",
+      address: "Jakarta",
+    },
+  });
+
+  // Helper: product placeholder image
+  const productImage = (name: string, bg = "e2e8f0", fg = "334155") =>
+    `https://placehold.co/400x400/${bg}/${fg}/png?text=${encodeURIComponent(name.replace(/ /g, "\\n"))}`;
+
+  // Create Products
+  const productsData = [
+    {
+      code: "PRD001",
+      name: "Indomie Goreng",
+      categoryId: categories[0].id,
+      brandId: brands[0].id,
+      supplierId: suppliers[0].id,
+      purchasePrice: 2500,
+      sellingPrice: 3500,
+      stock: 100,
+      barcode: "8886008101053",
+      unit: "pcs",
+      imageUrl: productImage("Indomie\\nGoreng", "fef3c7", "92400e"),
+    },
+    {
+      code: "PRD002",
+      name: "Indomie Soto",
+      categoryId: categories[0].id,
+      brandId: brands[0].id,
+      supplierId: suppliers[0].id,
+      purchasePrice: 2500,
+      sellingPrice: 3500,
+      stock: 80,
+      barcode: "8886008101060",
+      unit: "pcs",
+      imageUrl: productImage("Indomie\\nSoto", "fef3c7", "92400e"),
+    },
+    {
+      code: "PRD003",
+      name: "Nasi Goreng Instan",
+      categoryId: categories[0].id,
+      brandId: brands[0].id,
+      supplierId: suppliers[0].id,
+      purchasePrice: 3000,
+      sellingPrice: 4500,
+      stock: 50,
+      barcode: "8886008101077",
+      unit: "pcs",
+      imageUrl: productImage("Nasi Goreng\\nInstan", "fef3c7", "92400e"),
+    },
+    {
+      code: "PRD004",
+      name: "Aqua 600ml",
+      categoryId: categories[1].id,
+      brandId: brands[5].id,
+      purchasePrice: 2000,
+      sellingPrice: 3000,
+      stock: 200,
+      barcode: "8886008101084",
+      unit: "botol",
+      imageUrl: productImage("Aqua\\n600ml", "dbeafe", "1e3a5f"),
+    },
+    {
+      code: "PRD005",
+      name: "Coca Cola 330ml",
+      categoryId: categories[1].id,
+      brandId: brands[1].id,
+      supplierId: suppliers[1].id,
+      purchasePrice: 4000,
+      sellingPrice: 6000,
+      stock: 60,
+      barcode: "8886008101091",
+      unit: "kaleng",
+      imageUrl: productImage("Coca Cola\\n330ml", "fecaca", "991b1b"),
+    },
+    {
+      code: "PRD006",
+      name: "Teh Pucuk 350ml",
+      categoryId: categories[1].id,
+      brandId: brands[6].id,
+      purchasePrice: 2500,
+      sellingPrice: 4000,
+      stock: 90,
+      barcode: "8886008101107",
+      unit: "botol",
+      imageUrl: productImage("Teh Pucuk\\n350ml", "d1fae5", "065f46"),
+    },
+    {
+      code: "PRD007",
+      name: "Chitato Original 68g",
+      categoryId: categories[2].id,
+      brandId: brands[0].id,
+      supplierId: suppliers[0].id,
+      purchasePrice: 7000,
+      sellingPrice: 10000,
+      stock: 40,
+      barcode: "8886008101114",
+      unit: "pcs",
+      imageUrl: productImage("Chitato\\nOriginal", "fef9c3", "854d0e"),
+    },
+    {
+      code: "PRD008",
+      name: "Oreo 137g",
+      categoryId: categories[2].id,
+      brandId: brands[7].id,
+      purchasePrice: 8000,
+      sellingPrice: 12000,
+      stock: 35,
+      barcode: "8886008101121",
+      unit: "pcs",
+      imageUrl: productImage("Oreo\\n137g", "1e293b", "f1f5f9"),
+    },
+    {
+      code: "PRD009",
+      name: "Pocky Chocolate",
+      categoryId: categories[2].id,
+      brandId: brands[8].id,
+      purchasePrice: 6000,
+      sellingPrice: 9000,
+      stock: 45,
+      barcode: "8886008101138",
+      unit: "pcs",
+      imageUrl: productImage("Pocky\\nChocolate", "fce7f3", "9d174d"),
+    },
+    {
+      code: "PRD010",
+      name: "Sunlight 400ml",
+      categoryId: categories[3].id,
+      brandId: brands[2].id,
+      supplierId: suppliers[2].id,
+      purchasePrice: 5000,
+      sellingPrice: 7500,
+      stock: 30,
+      barcode: "8886008101145",
+      unit: "botol",
+      imageUrl: productImage("Sunlight\\n400ml", "fef9c3", "854d0e"),
+    },
+    {
+      code: "PRD011",
+      name: "Rinso 800g",
+      categoryId: categories[3].id,
+      brandId: brands[2].id,
+      supplierId: suppliers[2].id,
+      purchasePrice: 12000,
+      sellingPrice: 16000,
+      stock: 25,
+      barcode: "8886008101152",
+      unit: "pcs",
+      imageUrl: productImage("Rinso\\n800g", "dbeafe", "1e3a5f"),
+    },
+    {
+      code: "PRD012",
+      name: "Baygon Aerosol",
+      categoryId: categories[3].id,
+      brandId: brands[9].id,
+      purchasePrice: 25000,
+      sellingPrice: 32000,
+      stock: 15,
+      barcode: "8886008101169",
+      unit: "pcs",
+      imageUrl: productImage("Baygon\\nAerosol", "d1fae5", "065f46"),
+    },
+    {
+      code: "PRD013",
+      name: "Lifebuoy Sabun Mandi",
+      categoryId: categories[4].id,
+      brandId: brands[2].id,
+      supplierId: suppliers[2].id,
+      purchasePrice: 3000,
+      sellingPrice: 4500,
+      stock: 50,
+      barcode: "8886008101176",
+      unit: "pcs",
+      imageUrl: productImage("Lifebuoy\\nSabun", "fecaca", "991b1b"),
+    },
+    {
+      code: "PRD014",
+      name: "Shampoo Pantene 160ml",
+      categoryId: categories[4].id,
+      brandId: brands[10].id,
+      supplierId: suppliers[2].id,
+      purchasePrice: 15000,
+      sellingPrice: 22000,
+      stock: 20,
+      barcode: "8886008101183",
+      unit: "botol",
+      imageUrl: productImage("Pantene\\n160ml", "ede9fe", "5b21b6"),
+    },
+    {
+      code: "PRD015",
+      name: "Pasta Gigi Pepsodent",
+      categoryId: categories[4].id,
+      brandId: brands[2].id,
+      supplierId: suppliers[2].id,
+      purchasePrice: 5000,
+      sellingPrice: 8000,
+      stock: 40,
+      barcode: "8886008101190",
+      unit: "pcs",
+      imageUrl: productImage("Pepsodent", "dbeafe", "1e3a5f"),
+    },
+    {
+      code: "PRD016",
+      name: "Pensil 2B Faber",
+      categoryId: categories[5].id,
+      brandId: brands[3].id,
+      purchasePrice: 2000,
+      sellingPrice: 3500,
+      stock: 100,
+      barcode: "8886008101206",
+      unit: "pcs",
+      imageUrl: productImage("Pensil 2B\\nFaber", "e2e8f0", "334155"),
+    },
+    {
+      code: "PRD017",
+      name: "Buku Tulis 58 Lembar",
+      categoryId: categories[5].id,
+      brandId: brands[11].id,
+      purchasePrice: 3000,
+      sellingPrice: 5000,
+      stock: 3,
+      barcode: "8886008101213",
+      unit: "pcs",
+      imageUrl: productImage("Buku Tulis\\n58 Lbr", "e2e8f0", "334155"),
+    },
+    {
+      code: "PRD018",
+      name: "Penghapus Staedtler",
+      categoryId: categories[5].id,
+      brandId: brands[12].id,
+      purchasePrice: 2000,
+      sellingPrice: 4000,
+      stock: 2,
+      barcode: "8886008101220",
+      unit: "pcs",
+      imageUrl: productImage("Penghapus\\nStaedtler", "e2e8f0", "334155"),
+    },
+    {
+      code: "PRD019",
+      name: "Teh Botol Sosro 450ml",
+      categoryId: categories[1].id,
+      brandId: brands[13].id,
+      purchasePrice: 3000,
+      sellingPrice: 5000,
+      stock: 70,
+      barcode: "8886008101237",
+      unit: "botol",
+      imageUrl: productImage("Teh Sosro\\n450ml", "d1fae5", "065f46"),
+    },
+    {
+      code: "PRD020",
+      name: "Good Day Cappucino",
+      categoryId: categories[1].id,
+      brandId: brands[14].id,
+      purchasePrice: 3500,
+      sellingPrice: 5500,
+      stock: 55,
+      barcode: "8886008101244",
+      unit: "botol",
+      imageUrl: productImage("Good Day\\nCappucino", "fef3c7", "92400e"),
+    },
+    // === PRD021-030: Makanan ===
+    { code: "PRD021", name: "Mie Sedaap Goreng", categoryId: categories[0].id, brandId: brands[27].id, purchasePrice: 2500, sellingPrice: 3500, stock: 120, barcode: "8886008102001", unit: "pcs", imageUrl: productImage("Mie Sedaap\\nGoreng", "fef3c7", "92400e") },
+    { code: "PRD022", name: "Mie Sedaap Soto", categoryId: categories[0].id, brandId: brands[27].id, purchasePrice: 2500, sellingPrice: 3500, stock: 90, barcode: "8886008102002", unit: "pcs", imageUrl: productImage("Mie Sedaap\\nSoto", "fef3c7", "92400e") },
+    { code: "PRD023", name: "Sari Roti Tawar", categoryId: categories[0].id, brandId: brands[28].id, purchasePrice: 10000, sellingPrice: 14000, stock: 30, barcode: "8886008102003", unit: "pcs", imageUrl: productImage("Sari Roti\\nTawar", "fef3c7", "92400e") },
+    { code: "PRD024", name: "Sari Roti Coklat", categoryId: categories[0].id, brandId: brands[28].id, purchasePrice: 3000, sellingPrice: 4500, stock: 40, barcode: "8886008102004", unit: "pcs", imageUrl: productImage("Sari Roti\\nCoklat", "fef3c7", "92400e") },
+    { code: "PRD025", name: "Kopi Kapal Api Special", categoryId: categories[0].id, brandId: brands[17].id, purchasePrice: 1000, sellingPrice: 2000, stock: 200, barcode: "8886008102005", unit: "sachet", imageUrl: productImage("Kapal Api\\nSpecial", "fef3c7", "92400e") },
+    { code: "PRD026", name: "Kopi ABC Susu", categoryId: categories[0].id, brandId: brands[15].id, purchasePrice: 1200, sellingPrice: 2500, stock: 180, barcode: "8886008102006", unit: "sachet", imageUrl: productImage("ABC Susu\\nKopi", "fef3c7", "92400e") },
+    { code: "PRD027", name: "Nescafe Classic Sachet", categoryId: categories[0].id, brandId: brands[18].id, purchasePrice: 1500, sellingPrice: 2500, stock: 150, barcode: "8886008102007", unit: "sachet", imageUrl: productImage("Nescafe\\nClassic", "fef3c7", "92400e") },
+    { code: "PRD028", name: "Pop Mie Ayam", categoryId: categories[0].id, brandId: brands[0].id, purchasePrice: 4000, sellingPrice: 6000, stock: 60, barcode: "8886008102008", unit: "pcs", imageUrl: productImage("Pop Mie\\nAyam", "fef3c7", "92400e") },
+    { code: "PRD029", name: "Supermi Ayam Bawang", categoryId: categories[0].id, brandId: brands[0].id, purchasePrice: 2000, sellingPrice: 3000, stock: 100, barcode: "8886008102009", unit: "pcs", imageUrl: productImage("Supermi\\nAyam Bawang", "fef3c7", "92400e") },
+    { code: "PRD030", name: "Sarimi Isi 2 Ayam", categoryId: categories[0].id, brandId: brands[0].id, purchasePrice: 2500, sellingPrice: 3500, stock: 80, barcode: "8886008102010", unit: "pcs", imageUrl: productImage("Sarimi\\nIsi 2", "fef3c7", "92400e") },
+    // === PRD031-045: Minuman ===
+    { code: "PRD031", name: "Sprite 390ml", categoryId: categories[1].id, brandId: brands[1].id, purchasePrice: 3500, sellingPrice: 5500, stock: 72, barcode: "8886008102011", unit: "botol", imageUrl: productImage("Sprite\\n390ml", "d1fae5", "065f46") },
+    { code: "PRD032", name: "Fanta Strawberry 390ml", categoryId: categories[1].id, brandId: brands[1].id, purchasePrice: 3500, sellingPrice: 5500, stock: 60, barcode: "8886008102012", unit: "botol", imageUrl: productImage("Fanta\\nStrawberry", "fecaca", "991b1b") },
+    { code: "PRD033", name: "Aqua 1500ml", categoryId: categories[1].id, brandId: brands[5].id, purchasePrice: 3500, sellingPrice: 5000, stock: 100, barcode: "8886008102013", unit: "botol", imageUrl: productImage("Aqua\\n1500ml", "dbeafe", "1e3a5f") },
+    { code: "PRD034", name: "Aqua 330ml", categoryId: categories[1].id, brandId: brands[5].id, purchasePrice: 1000, sellingPrice: 2000, stock: 240, barcode: "8886008102014", unit: "botol", imageUrl: productImage("Aqua\\n330ml", "dbeafe", "1e3a5f") },
+    { code: "PRD035", name: "Pocari Sweat 500ml", categoryId: categories[1].id, brandId: brands[8].id, purchasePrice: 5000, sellingPrice: 7500, stock: 48, barcode: "8886008102015", unit: "botol", imageUrl: productImage("Pocari\\nSweat", "dbeafe", "1e3a5f") },
+    { code: "PRD036", name: "Mizone Lychee 500ml", categoryId: categories[1].id, brandId: brands[5].id, purchasePrice: 3500, sellingPrice: 5500, stock: 60, barcode: "8886008102016", unit: "botol", imageUrl: productImage("Mizone\\nLychee", "dbeafe", "1e3a5f") },
+    { code: "PRD037", name: "Teh Kotak Jasmine 300ml", categoryId: categories[1].id, brandId: brands[29].id, purchasePrice: 2500, sellingPrice: 4000, stock: 80, barcode: "8886008102017", unit: "pcs", imageUrl: productImage("Teh Kotak\\n300ml", "d1fae5", "065f46") },
+    { code: "PRD038", name: "Floridina Orange 350ml", categoryId: categories[1].id, brandId: brands[4].id, purchasePrice: 3000, sellingPrice: 5000, stock: 60, barcode: "8886008102018", unit: "botol", imageUrl: productImage("Floridina\\nOrange", "fef9c3", "854d0e") },
+    { code: "PRD039", name: "Le Minerale 600ml", categoryId: categories[1].id, brandId: brands[6].id, purchasePrice: 2000, sellingPrice: 3000, stock: 150, barcode: "8886008102019", unit: "botol", imageUrl: productImage("Le Minerale\\n600ml", "dbeafe", "1e3a5f") },
+    { code: "PRD040", name: "Yakult Original", categoryId: categories[1].id, brandId: brands[18].id, purchasePrice: 2000, sellingPrice: 3000, stock: 80, barcode: "8886008102020", unit: "botol", imageUrl: productImage("Yakult\\nOriginal", "fecaca", "991b1b") },
+    { code: "PRD041", name: "Nutrisari Jeruk Sachet", categoryId: categories[1].id, brandId: brands[18].id, purchasePrice: 800, sellingPrice: 1500, stock: 200, barcode: "8886008102021", unit: "sachet", imageUrl: productImage("Nutrisari\\nJeruk", "fef9c3", "854d0e") },
+    { code: "PRD042", name: "Frestea Jasmine 350ml", categoryId: categories[1].id, brandId: brands[1].id, purchasePrice: 2500, sellingPrice: 4000, stock: 72, barcode: "8886008102022", unit: "botol", imageUrl: productImage("Frestea\\n350ml", "d1fae5", "065f46") },
+    { code: "PRD043", name: "Ultra Milk Coklat 250ml", categoryId: categories[1].id, brandId: brands[29].id, purchasePrice: 4500, sellingPrice: 6500, stock: 48, barcode: "8886008102023", unit: "pcs", imageUrl: productImage("Ultra Milk\\nCoklat", "fef3c7", "92400e") },
+    { code: "PRD044", name: "Teh Gelas 180ml", categoryId: categories[1].id, brandId: brands[24].id, purchasePrice: 1000, sellingPrice: 2000, stock: 120, barcode: "8886008102024", unit: "pcs", imageUrl: productImage("Teh Gelas\\n180ml", "d1fae5", "065f46") },
+    { code: "PRD045", name: "Fruit Tea Apple 350ml", categoryId: categories[1].id, brandId: brands[13].id, purchasePrice: 3000, sellingPrice: 5000, stock: 60, barcode: "8886008102025", unit: "botol", imageUrl: productImage("Fruit Tea\\nApple", "fecaca", "991b1b") },
+    // === PRD046-060: Snack ===
+    { code: "PRD046", name: "Taro Net BBQ 36g", categoryId: categories[2].id, brandId: brands[0].id, purchasePrice: 3000, sellingPrice: 5000, stock: 60, barcode: "8886008102026", unit: "pcs", imageUrl: productImage("Taro Net\\nBBQ", "fef9c3", "854d0e") },
+    { code: "PRD047", name: "Lays Rumput Laut 68g", categoryId: categories[2].id, brandId: brands[0].id, purchasePrice: 7000, sellingPrice: 10000, stock: 36, barcode: "8886008102027", unit: "pcs", imageUrl: productImage("Lays\\nRumput Laut", "d1fae5", "065f46") },
+    { code: "PRD048", name: "Cheetos Jagung Bakar", categoryId: categories[2].id, brandId: brands[0].id, purchasePrice: 5000, sellingPrice: 7500, stock: 40, barcode: "8886008102028", unit: "pcs", imageUrl: productImage("Cheetos\\nJagung", "fef9c3", "854d0e") },
+    { code: "PRD049", name: "Biskuit Roma Kelapa", categoryId: categories[2].id, brandId: brands[6].id, purchasePrice: 3000, sellingPrice: 5000, stock: 50, barcode: "8886008102029", unit: "pcs", imageUrl: productImage("Roma\\nKelapa", "fef3c7", "92400e") },
+    { code: "PRD050", name: "Wafer Tango Coklat", categoryId: categories[2].id, brandId: brands[24].id, purchasePrice: 4000, sellingPrice: 6500, stock: 45, barcode: "8886008102030", unit: "pcs", imageUrl: productImage("Tango\\nCoklat", "1e293b", "f1f5f9") },
+    { code: "PRD051", name: "Beng Beng Maxx", categoryId: categories[2].id, brandId: brands[6].id, purchasePrice: 3500, sellingPrice: 5000, stock: 60, barcode: "8886008102031", unit: "pcs", imageUrl: productImage("Beng Beng\\nMaxx", "fce7f3", "9d174d") },
+    { code: "PRD052", name: "Silverqueen Chunky Bar", categoryId: categories[2].id, brandId: brands[14].id, purchasePrice: 8000, sellingPrice: 12000, stock: 30, barcode: "8886008102032", unit: "pcs", imageUrl: productImage("Silverqueen\\nChunky", "ede9fe", "5b21b6") },
+    { code: "PRD053", name: "Permen Kopiko", categoryId: categories[2].id, brandId: brands[6].id, purchasePrice: 500, sellingPrice: 1000, stock: 200, barcode: "8886008102033", unit: "pcs", imageUrl: productImage("Kopiko\\nPermen", "1e293b", "f1f5f9") },
+    { code: "PRD054", name: "Kacang Garuda Rasa Bawang", categoryId: categories[2].id, brandId: brands[14].id, purchasePrice: 5000, sellingPrice: 8000, stock: 40, barcode: "8886008102034", unit: "pcs", imageUrl: productImage("Garuda\\nBawang", "fef9c3", "854d0e") },
+    { code: "PRD055", name: "Richeese Nabati Keju", categoryId: categories[2].id, brandId: brands[18].id, purchasePrice: 2000, sellingPrice: 3500, stock: 80, barcode: "8886008102035", unit: "pcs", imageUrl: productImage("Nabati\\nKeju", "fef9c3", "854d0e") },
+    { code: "PRD056", name: "Permen Relaxa", categoryId: categories[2].id, brandId: brands[24].id, purchasePrice: 500, sellingPrice: 1000, stock: 150, barcode: "8886008102036", unit: "pcs", imageUrl: productImage("Relaxa", "dbeafe", "1e3a5f") },
+    { code: "PRD057", name: "Potabee Ayam BBQ 68g", categoryId: categories[2].id, brandId: brands[14].id, purchasePrice: 7000, sellingPrice: 10000, stock: 36, barcode: "8886008102037", unit: "pcs", imageUrl: productImage("Potabee\\nAyam BBQ", "fecaca", "991b1b") },
+    { code: "PRD058", name: "Qtela Tempe Original", categoryId: categories[2].id, brandId: brands[0].id, purchasePrice: 5000, sellingPrice: 8000, stock: 40, barcode: "8886008102038", unit: "pcs", imageUrl: productImage("Qtela\\nTempe", "d1fae5", "065f46") },
+    { code: "PRD059", name: "Tic Tac Grape", categoryId: categories[2].id, brandId: brands[18].id, purchasePrice: 3000, sellingPrice: 5000, stock: 50, barcode: "8886008102039", unit: "pcs", imageUrl: productImage("Tic Tac\\nGrape", "ede9fe", "5b21b6") },
+    { code: "PRD060", name: "Sari Gandum Sandwich", categoryId: categories[2].id, brandId: brands[14].id, purchasePrice: 2000, sellingPrice: 3500, stock: 60, barcode: "8886008102040", unit: "pcs", imageUrl: productImage("Sari Gandum\\nSandwich", "fef3c7", "92400e") },
+    // === PRD061-070: Kebersihan ===
+    { code: "PRD061", name: "Molto Pewangi 800ml", categoryId: categories[3].id, brandId: brands[2].id, purchasePrice: 12000, sellingPrice: 16000, stock: 20, barcode: "8886008102041", unit: "pcs", imageUrl: productImage("Molto\\nPewangi", "ede9fe", "5b21b6") },
+    { code: "PRD062", name: "Super Pell Lavender 770ml", categoryId: categories[3].id, brandId: brands[4].id, purchasePrice: 9000, sellingPrice: 13000, stock: 25, barcode: "8886008102042", unit: "botol", imageUrl: productImage("Super Pell\\nLavender", "ede9fe", "5b21b6") },
+    { code: "PRD063", name: "Wipol Karbol 800ml", categoryId: categories[3].id, brandId: brands[2].id, purchasePrice: 8000, sellingPrice: 12000, stock: 20, barcode: "8886008102043", unit: "botol", imageUrl: productImage("Wipol\\nKarbol", "d1fae5", "065f46") },
+    { code: "PRD064", name: "SOS Pembersih Lantai 750ml", categoryId: categories[3].id, brandId: brands[4].id, purchasePrice: 10000, sellingPrice: 14000, stock: 18, barcode: "8886008102044", unit: "botol", imageUrl: productImage("SOS\\nLantai", "dbeafe", "1e3a5f") },
+    { code: "PRD065", name: "Mama Lemon 400ml", categoryId: categories[3].id, brandId: brands[4].id, purchasePrice: 6000, sellingPrice: 9000, stock: 30, barcode: "8886008102045", unit: "botol", imageUrl: productImage("Mama Lemon\\n400ml", "fef9c3", "854d0e") },
+    { code: "PRD066", name: "Soklin Lantai 900ml", categoryId: categories[3].id, brandId: brands[4].id, purchasePrice: 7000, sellingPrice: 10000, stock: 22, barcode: "8886008102046", unit: "botol", imageUrl: productImage("Soklin\\nLantai", "dbeafe", "1e3a5f") },
+    { code: "PRD067", name: "Hit Obat Nyamuk Spray", categoryId: categories[3].id, brandId: brands[9].id, purchasePrice: 20000, sellingPrice: 28000, stock: 12, barcode: "8886008102047", unit: "pcs", imageUrl: productImage("Hit\\nSpray", "d1fae5", "065f46") },
+    { code: "PRD068", name: "Tisu Paseo 250 Sheet", categoryId: categories[3].id, brandId: brands[24].id, purchasePrice: 10000, sellingPrice: 14000, stock: 30, barcode: "8886008102048", unit: "pcs", imageUrl: productImage("Paseo\\n250 Sheet", "e2e8f0", "334155") },
+    { code: "PRD069", name: "Softex Comfort Slim", categoryId: categories[3].id, brandId: brands[2].id, purchasePrice: 7000, sellingPrice: 10000, stock: 25, barcode: "8886008102049", unit: "pcs", imageUrl: productImage("Softex\\nSlim", "fce7f3", "9d174d") },
+    { code: "PRD070", name: "Trash Bag Kresek Hitam", categoryId: categories[3].id, brandId: brands[4].id, purchasePrice: 5000, sellingPrice: 8000, stock: 40, barcode: "8886008102050", unit: "pack", imageUrl: productImage("Kresek\\nHitam", "1e293b", "f1f5f9") },
+    // === PRD071-080: Perawatan Tubuh ===
+    { code: "PRD071", name: "Clear Shampoo 160ml", categoryId: categories[4].id, brandId: brands[2].id, purchasePrice: 14000, sellingPrice: 20000, stock: 20, barcode: "8886008102051", unit: "botol", imageUrl: productImage("Clear\\n160ml", "dbeafe", "1e3a5f") },
+    { code: "PRD072", name: "Dove Sabun Batang", categoryId: categories[4].id, brandId: brands[2].id, purchasePrice: 4000, sellingPrice: 6500, stock: 40, barcode: "8886008102052", unit: "pcs", imageUrl: productImage("Dove\\nSabun", "dbeafe", "1e3a5f") },
+    { code: "PRD073", name: "Rexona Deo Roll On", categoryId: categories[4].id, brandId: brands[2].id, purchasePrice: 15000, sellingPrice: 22000, stock: 15, barcode: "8886008102053", unit: "pcs", imageUrl: productImage("Rexona\\nRoll On", "dbeafe", "1e3a5f") },
+    { code: "PRD074", name: "Wardah Sunscreen SPF30", categoryId: categories[4].id, brandId: brands[26].id, purchasePrice: 18000, sellingPrice: 28000, stock: 12, barcode: "8886008102054", unit: "pcs", imageUrl: productImage("Wardah\\nSunscreen", "fce7f3", "9d174d") },
+    { code: "PRD075", name: "Lux Sabun Cair 250ml", categoryId: categories[4].id, brandId: brands[2].id, purchasePrice: 12000, sellingPrice: 18000, stock: 18, barcode: "8886008102055", unit: "botol", imageUrl: productImage("Lux\\nSabun Cair", "ede9fe", "5b21b6") },
+    { code: "PRD076", name: "Ciptadent Pasta Gigi 120g", categoryId: categories[4].id, brandId: brands[4].id, purchasePrice: 5000, sellingPrice: 8000, stock: 30, barcode: "8886008102056", unit: "pcs", imageUrl: productImage("Ciptadent\\n120g", "dbeafe", "1e3a5f") },
+    { code: "PRD077", name: "Vaseline Lotion 200ml", categoryId: categories[4].id, brandId: brands[2].id, purchasePrice: 16000, sellingPrice: 24000, stock: 14, barcode: "8886008102057", unit: "pcs", imageUrl: productImage("Vaseline\\nLotion", "fef9c3", "854d0e") },
+    { code: "PRD078", name: "Biore Body Foam 250ml", categoryId: categories[4].id, brandId: brands[18].id, purchasePrice: 14000, sellingPrice: 20000, stock: 16, barcode: "8886008102058", unit: "botol", imageUrl: productImage("Biore\\nBody Foam", "dbeafe", "1e3a5f") },
+    { code: "PRD079", name: "Emeron Shampoo 170ml", categoryId: categories[4].id, brandId: brands[4].id, purchasePrice: 10000, sellingPrice: 15000, stock: 20, barcode: "8886008102059", unit: "botol", imageUrl: productImage("Emeron\\n170ml", "d1fae5", "065f46") },
+    { code: "PRD080", name: "Gatsby Hair Gel 75g", categoryId: categories[4].id, brandId: brands[18].id, purchasePrice: 12000, sellingPrice: 18000, stock: 15, barcode: "8886008102060", unit: "pcs", imageUrl: productImage("Gatsby\\nHair Gel", "1e293b", "f1f5f9") },
+    // === PRD081-085: Alat Tulis ===
+    { code: "PRD081", name: "Pulpen Pilot G2", categoryId: categories[5].id, brandId: brands[3].id, purchasePrice: 5000, sellingPrice: 8000, stock: 60, barcode: "8886008102061", unit: "pcs", imageUrl: productImage("Pilot G2\\nPulpen", "e2e8f0", "334155") },
+    { code: "PRD082", name: "Spidol Snowman", categoryId: categories[5].id, brandId: brands[12].id, purchasePrice: 4000, sellingPrice: 7000, stock: 40, barcode: "8886008102062", unit: "pcs", imageUrl: productImage("Snowman\\nSpidol", "e2e8f0", "334155") },
+    { code: "PRD083", name: "Tip-X Correction Pen", categoryId: categories[5].id, brandId: brands[3].id, purchasePrice: 6000, sellingPrice: 10000, stock: 30, barcode: "8886008102063", unit: "pcs", imageUrl: productImage("Tip-X\\nPen", "e2e8f0", "334155") },
+    { code: "PRD084", name: "Lem Fox Putih 150g", categoryId: categories[5].id, brandId: brands[3].id, purchasePrice: 8000, sellingPrice: 12000, stock: 20, barcode: "8886008102064", unit: "pcs", imageUrl: productImage("Lem Fox\\n150g", "e2e8f0", "334155") },
+    { code: "PRD085", name: "Selotip Bening 1 inch", categoryId: categories[5].id, brandId: brands[3].id, purchasePrice: 3000, sellingPrice: 5000, stock: 50, barcode: "8886008102065", unit: "pcs", imageUrl: productImage("Selotip\\nBening", "e2e8f0", "334155") },
+    // === PRD086-090: Bumbu & Dapur ===
+    { code: "PRD086", name: "Kecap ABC Manis 135ml", categoryId: categories[7].id, brandId: brands[15].id, purchasePrice: 4000, sellingPrice: 6500, stock: 40, barcode: "8886008102066", unit: "botol", imageUrl: productImage("ABC Kecap\\nManis", "fef3c7", "92400e") },
+    { code: "PRD087", name: "Saus Sambal ABC 135ml", categoryId: categories[7].id, brandId: brands[15].id, purchasePrice: 3500, sellingPrice: 5500, stock: 45, barcode: "8886008102067", unit: "botol", imageUrl: productImage("ABC Sambal\\n135ml", "fecaca", "991b1b") },
+    { code: "PRD088", name: "Masako Ayam 250g", categoryId: categories[7].id, brandId: brands[25].id, purchasePrice: 5000, sellingPrice: 8000, stock: 35, barcode: "8886008102068", unit: "pcs", imageUrl: productImage("Masako\\nAyam", "fef9c3", "854d0e") },
+    { code: "PRD089", name: "Minyak Goreng Bimoli 1L", categoryId: categories[7].id, brandId: brands[22].id, purchasePrice: 16000, sellingPrice: 22000, stock: 25, barcode: "8886008102069", unit: "botol", imageUrl: productImage("Bimoli\\n1 Liter", "fef9c3", "854d0e") },
+    { code: "PRD090", name: "Gula Pasir Gulaku 1kg", categoryId: categories[7].id, brandId: brands[21].id, purchasePrice: 14000, sellingPrice: 18000, stock: 30, barcode: "8886008102070", unit: "pcs", imageUrl: productImage("Gulaku\\n1kg", "e2e8f0", "334155") },
+    // === PRD091-095: Susu & Olahan ===
+    { code: "PRD091", name: "Susu Frisian Flag Coklat 225ml", categoryId: categories[8].id, brandId: brands[16].id, purchasePrice: 4000, sellingPrice: 6000, stock: 48, barcode: "8886008102071", unit: "pcs", imageUrl: productImage("FF Coklat\\n225ml", "fef3c7", "92400e") },
+    { code: "PRD092", name: "Susu Bendera Kental Manis 385g", categoryId: categories[8].id, brandId: brands[16].id, purchasePrice: 9000, sellingPrice: 13000, stock: 30, barcode: "8886008102072", unit: "kaleng", imageUrl: productImage("Bendera\\nKental", "fef3c7", "92400e") },
+    { code: "PRD093", name: "Susu Ultra Full Cream 1L", categoryId: categories[8].id, brandId: brands[29].id, purchasePrice: 16000, sellingPrice: 22000, stock: 20, barcode: "8886008102073", unit: "pcs", imageUrl: productImage("Ultra\\nFull Cream", "dbeafe", "1e3a5f") },
+    { code: "PRD094", name: "Keju Kraft Singles 10 slices", categoryId: categories[8].id, brandId: brands[7].id, purchasePrice: 15000, sellingPrice: 22000, stock: 15, barcode: "8886008102074", unit: "pcs", imageUrl: productImage("Kraft\\nSingles", "fef9c3", "854d0e") },
+    { code: "PRD095", name: "Bear Brand 189ml", categoryId: categories[8].id, brandId: brands[18].id, purchasePrice: 7000, sellingPrice: 10000, stock: 36, barcode: "8886008102075", unit: "kaleng", imageUrl: productImage("Bear Brand\\n189ml", "e2e8f0", "334155") },
+    // === PRD096-098: Frozen Food ===
+    { code: "PRD096", name: "So Good Nugget 200g", categoryId: categories[9].id, brandId: brands[23].id, purchasePrice: 15000, sellingPrice: 22000, stock: 20, barcode: "8886008102076", unit: "pcs", imageUrl: productImage("So Good\\nNugget", "fef9c3", "854d0e") },
+    { code: "PRD097", name: "Fiesta Sosis Ayam 300g", categoryId: categories[9].id, brandId: brands[23].id, purchasePrice: 18000, sellingPrice: 25000, stock: 15, barcode: "8886008102077", unit: "pcs", imageUrl: productImage("Fiesta\\nSosis", "fecaca", "991b1b") },
+    { code: "PRD098", name: "Bernardi Bakso Sapi 250g", categoryId: categories[9].id, brandId: brands[23].id, purchasePrice: 16000, sellingPrice: 23000, stock: 12, barcode: "8886008102078", unit: "pcs", imageUrl: productImage("Bernardi\\nBakso", "fecaca", "991b1b") },
+    // === PRD099-100: Obat & Kesehatan ===
+    { code: "PRD099", name: "Paracetamol Tablet Strip", categoryId: categories[10].id, brandId: brands[19].id, purchasePrice: 3000, sellingPrice: 5000, stock: 50, barcode: "8886008102079", unit: "strip", imageUrl: productImage("Paracetamol\\nTablet", "d1fae5", "065f46") },
+    { code: "PRD100", name: "Hansaplast Plester 10s", categoryId: categories[10].id, brandId: brands[19].id, purchasePrice: 5000, sellingPrice: 8000, stock: 30, barcode: "8886008102080", unit: "pcs", imageUrl: productImage("Hansaplast\\nPlester", "fecaca", "991b1b") },
+  ];
+
+  const products = await Promise.all(
+    productsData.map((p) => prisma.product.create({ data: p })),
+  );
+
+  // Create stock movements for initial stock
+  await Promise.all(
+    products.map((p) =>
+      prisma.stockMovement.create({
+        data: {
+          productId: p.id,
+          type: StockMovementType.IN,
+          quantity: p.stock,
+          note: "Stok awal",
+          reference: "INIT",
+        },
+      }),
+    ),
+  );
+
+  // ===========================
+  // Create Cigarette Products with Multi-Unit
+  // ===========================
+  const rokokCategory = categories[6]; // "Rokok" is index 6
+
+  // Sampoerna Mild 16
+  const sampoernaMild = await prisma.product.create({
+    data: {
+      code: "RKK001",
+      name: "Sampoerna A Mild 16",
+      categoryId: rokokCategory.id,
+      brandId: brandSampoerna.id,
+      supplierId: supplierTobacco.id,
+      purchasePrice: 1800,
+      sellingPrice: 2500,
+      stock: 4800,
+      minStock: 320,
+      barcode: "8991234501001",
+      unit: "batang",
+      imageUrl: productImage("Sampoerna\\nA Mild 16", "fecaca", "991b1b"),
+    },
+  });
+  await prisma.productUnit.createMany({
+    data: [
+      {
+        productId: sampoernaMild.id,
+        name: "Bungkus",
+        conversionQty: 16,
+        sellingPrice: 31000,
+        purchasePrice: 27000,
+        barcode: "8991234501002",
+        sortOrder: 1,
+      },
+      {
+        productId: sampoernaMild.id,
+        name: "Slop",
+        conversionQty: 160,
+        sellingPrice: 300000,
+        purchasePrice: 265000,
+        barcode: "8991234501003",
+        sortOrder: 2,
+      },
+    ],
+  });
+
+  // Gudang Garam Surya 16
+  const ggSurya = await prisma.product.create({
+    data: {
+      code: "RKK002",
+      name: "Gudang Garam Surya 16",
+      categoryId: rokokCategory.id,
+      brandId: brandGudangGaram.id,
+      supplierId: supplierTobacco.id,
+      purchasePrice: 1700,
+      sellingPrice: 2300,
+      stock: 3200,
+      minStock: 320,
+      barcode: "8991234502001",
+      unit: "batang",
+      imageUrl: productImage("GG Surya\\n16", "fef3c7", "92400e"),
+    },
+  });
+  await prisma.productUnit.createMany({
+    data: [
+      {
+        productId: ggSurya.id,
+        name: "Bungkus",
+        conversionQty: 16,
+        sellingPrice: 29500,
+        purchasePrice: 26000,
+        barcode: "8991234502002",
+        sortOrder: 1,
+      },
+      {
+        productId: ggSurya.id,
+        name: "Slop",
+        conversionQty: 160,
+        sellingPrice: 285000,
+        purchasePrice: 255000,
+        barcode: "8991234502003",
+        sortOrder: 2,
+      },
+    ],
+  });
+
+  // Djarum Super 12
+  const djarumSuper = await prisma.product.create({
+    data: {
+      code: "RKK003",
+      name: "Djarum Super 12",
+      categoryId: rokokCategory.id,
+      brandId: brandDjarum.id,
+      supplierId: supplierTobacco.id,
+      purchasePrice: 1600,
+      sellingPrice: 2200,
+      stock: 2400,
+      minStock: 240,
+      barcode: "8991234503001",
+      unit: "batang",
+      imageUrl: productImage("Djarum\\nSuper 12", "1e293b", "f1f5f9"),
+    },
+  });
+  await prisma.productUnit.createMany({
+    data: [
+      {
+        productId: djarumSuper.id,
+        name: "Bungkus",
+        conversionQty: 12,
+        sellingPrice: 22000,
+        purchasePrice: 18500,
+        barcode: "8991234503002",
+        sortOrder: 1,
+      },
+      {
+        productId: djarumSuper.id,
+        name: "Slop",
+        conversionQty: 120,
+        sellingPrice: 210000,
+        purchasePrice: 180000,
+        barcode: "8991234503003",
+        sortOrder: 2,
+      },
+    ],
+  });
+
+  // Sampoerna Kretek 12
+  const sampoernaKretek = await prisma.product.create({
+    data: {
+      code: "RKK004",
+      name: "Sampoerna Kretek 12",
+      categoryId: rokokCategory.id,
+      brandId: brandSampoerna.id,
+      supplierId: supplierTobacco.id,
+      purchasePrice: 1200,
+      sellingPrice: 1800,
+      stock: 3600,
+      minStock: 240,
+      barcode: "8991234504001",
+      unit: "batang",
+      imageUrl: productImage("Sampoerna\\nKretek 12", "fecaca", "991b1b"),
+    },
+  });
+  await prisma.productUnit.createMany({
+    data: [
+      {
+        productId: sampoernaKretek.id,
+        name: "Bungkus",
+        conversionQty: 12,
+        sellingPrice: 18000,
+        purchasePrice: 14000,
+        barcode: "8991234504002",
+        sortOrder: 1,
+      },
+      {
+        productId: sampoernaKretek.id,
+        name: "Slop",
+        conversionQty: 120,
+        sellingPrice: 170000,
+        purchasePrice: 135000,
+        barcode: "8991234504003",
+        sortOrder: 2,
+      },
+      {
+        productId: sampoernaKretek.id,
+        name: "Box",
+        conversionQty: 1200,
+        sellingPrice: 1650000,
+        purchasePrice: 1300000,
+        barcode: "8991234504004",
+        sortOrder: 3,
+      },
+    ],
+  });
+
+  // Gudang Garam Filter 12
+  const ggFilter = await prisma.product.create({
+    data: {
+      code: "RKK005",
+      name: "Gudang Garam International",
+      categoryId: rokokCategory.id,
+      brandId: brandGudangGaram.id,
+      supplierId: supplierTobacco.id,
+      purchasePrice: 1500,
+      sellingPrice: 2000,
+      stock: 2880,
+      minStock: 240,
+      barcode: "8991234505001",
+      unit: "batang",
+      imageUrl: productImage("GG\\nInternational", "fef3c7", "92400e"),
+    },
+  });
+  await prisma.productUnit.createMany({
+    data: [
+      {
+        productId: ggFilter.id,
+        name: "Bungkus",
+        conversionQty: 12,
+        sellingPrice: 20000,
+        purchasePrice: 17000,
+        barcode: "8991234505002",
+        sortOrder: 1,
+      },
+      {
+        productId: ggFilter.id,
+        name: "Slop",
+        conversionQty: 120,
+        sellingPrice: 195000,
+        purchasePrice: 165000,
+        barcode: "8991234505003",
+        sortOrder: 2,
+      },
+    ],
+  });
+
+  // Stock movements for cigarette products
+  const cigaretteProducts = [
+    sampoernaMild,
+    ggSurya,
+    djarumSuper,
+    sampoernaKretek,
+    ggFilter,
+  ];
+  await Promise.all(
+    cigaretteProducts.map((p) =>
+      prisma.stockMovement.create({
+        data: {
+          productId: p.id,
+          type: StockMovementType.IN,
+          quantity: p.stock,
+          note: "Stok awal rokok",
+          reference: "INIT",
+        },
+      }),
+    ),
+  );
+
+  console.log(
+    `Created ${cigaretteProducts.length} cigarette products with multi-unit`,
+  );
+
+  // Create sample transactions
+  const now = new Date();
+  const transactions = [];
+
+  for (let i = 0; i < 30; i++) {
+    const daysAgo = Math.floor(Math.random() * 30);
+    const date = new Date(now);
+    date.setDate(date.getDate() - daysAgo);
+    date.setHours(Math.floor(Math.random() * 12) + 8);
+
+    const itemCount = Math.floor(Math.random() * 4) + 1;
+    const selectedProducts = [...products]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, itemCount);
+
+    const items = selectedProducts.map((p) => {
+      const qty = Math.floor(Math.random() * 5) + 1;
+      return {
+        productId: p.id,
+        productName: p.name,
+        productCode: p.code,
+        quantity: qty,
+        unitPrice: p.sellingPrice,
+        discount: 0,
+        subtotal: p.sellingPrice * qty,
+      };
+    });
+
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const taxAmount = Math.round(subtotal * 0.11);
+    const grandTotal = subtotal + taxAmount;
+    const paymentAmount = Math.ceil(grandTotal / 1000) * 1000;
+
+    const cashier = Math.random() > 0.5 ? cashier1 : cashier2;
+    const methods: PaymentMethod[] = ["CASH", "TRANSFER", "QRIS"];
+    const method = methods[
+      Math.floor(Math.random() * methods.length)
+    ] as PaymentMethod;
+
+    const invoiceNum = `INV-${date.getFullYear().toString().slice(-2)}${(date.getMonth() + 1).toString().padStart(2, "0")}${date.getDate().toString().padStart(2, "0")}-${String(i + 1).padStart(4, "0")}`;
+
+    const tx = await prisma.transaction.create({
+      data: {
+        invoiceNumber: invoiceNum,
+        userId: cashier.id,
+        subtotal,
+        taxAmount,
+        grandTotal,
+        paymentMethod: method,
+        paymentAmount,
+        changeAmount: paymentAmount - grandTotal,
+        status: "COMPLETED",
+        createdAt: date,
+        items: { create: items },
+      },
+    });
+
+    transactions.push(tx);
+  }
+
+  // Create Expenses
+  const expenseCategories = [
+    "Listrik",
+    "Air",
+    "Sewa",
+    "Gaji",
+    "Transport",
+    "Lainnya",
+  ];
+  for (let i = 0; i < 10; i++) {
+    const daysAgo = Math.floor(Math.random() * 30);
+    const date = new Date(now);
+    date.setDate(date.getDate() - daysAgo);
+    await prisma.expense.create({
+      data: {
+        category:
+          expenseCategories[
+            Math.floor(Math.random() * expenseCategories.length)
+          ],
+        description: `Pengeluaran operasional ${i + 1}`,
+        amount: Math.floor(Math.random() * 500000) + 50000,
+        date,
+      },
+    });
+  }
+
+  // Create Promotions
+  const promoStart = new Date(now);
+  promoStart.setDate(promoStart.getDate() - 15);
+  const promoEnd = new Date(now);
+  promoEnd.setDate(promoEnd.getDate() + 30);
+
+  await Promise.all([
+    prisma.promotion.create({
+      data: {
+        name: "Diskon Minuman 10%",
+        type: "DISCOUNT_PERCENT",
+        value: 10,
+        categoryId: categories[1].id,
+        isActive: true,
+        startDate: promoStart,
+        endDate: promoEnd,
+      },
+    }),
+    prisma.promotion.create({
+      data: {
+        name: "Potongan Rp 5.000",
+        type: "DISCOUNT_AMOUNT",
+        value: 5000,
+        minPurchase: 50000,
+        isActive: true,
+        startDate: promoStart,
+        endDate: promoEnd,
+      },
+    }),
+    prisma.promotion.create({
+      data: {
+        name: "Voucher HEMAT20",
+        type: "VOUCHER",
+        value: 20000,
+        voucherCode: "HEMAT20",
+        minPurchase: 100000,
+        isActive: true,
+        startDate: promoStart,
+        endDate: promoEnd,
+      },
+    }),
+  ]);
+
+  // Create Audit Logs
+  await Promise.all([
+    prisma.auditLog.create({
+      data: {
+        userId: admin.id,
+        action: "LOGIN",
+        entity: "User",
+        details: "Super Admin logged in",
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        userId: admin.id,
+        action: "CREATE",
+        entity: "Product",
+        details: "Created 20 products via seed",
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        userId: manager.id,
+        action: "LOGIN",
+        entity: "User",
+        details: "Manager logged in",
+      },
+    }),
+  ]);
+
+  // Seed system roles
+  await Promise.all([
+    prisma.appRole.create({ data: { key: "SUPER_ADMIN", name: "Super Admin", description: "Akses penuh ke seluruh sistem", color: "bg-red-100 text-red-700", isSystem: true } }),
+    prisma.appRole.create({ data: { key: "ADMIN", name: "Admin", description: "Mengelola operasional & konfigurasi", color: "bg-blue-100 text-blue-700", isSystem: true } }),
+    prisma.appRole.create({ data: { key: "MANAGER", name: "Manager", description: "Mengelola produk, stok & laporan", color: "bg-purple-100 text-purple-700", isSystem: true } }),
+    prisma.appRole.create({ data: { key: "CASHIER", name: "Kasir", description: "Transaksi POS & shift kasir", color: "bg-green-100 text-green-700", isSystem: true } }),
+  ]);
+
+  // Seed point settings
+  const pointSettings = [
+    {
+      key: "points.earnRate",
+      value: "10000",
+      label: "Rupiah per 1 poin",
+      group: "points",
+    },
+    {
+      key: "points.redeemValue",
+      value: "1000",
+      label: "Nilai tukar 1 poin (Rp)",
+      group: "points",
+    },
+    {
+      key: "points.redeemMin",
+      value: "10",
+      label: "Minimum poin redeem",
+      group: "points",
+    },
+    {
+      key: "points.multiplierRegular",
+      value: "1",
+      label: "Multiplier Regular",
+      group: "points",
+    },
+    {
+      key: "points.multiplierSilver",
+      value: "1.5",
+      label: "Multiplier Silver",
+      group: "points",
+    },
+    {
+      key: "points.multiplierGold",
+      value: "2",
+      label: "Multiplier Gold",
+      group: "points",
+    },
+    {
+      key: "points.multiplierPlatinum",
+      value: "3",
+      label: "Multiplier Platinum",
+      group: "points",
+    },
+    {
+      key: "points.levelSilver",
+      value: "1000000",
+      label: "Threshold Silver (Rp)",
+      group: "points",
+    },
+    {
+      key: "points.levelGold",
+      value: "5000000",
+      label: "Threshold Gold (Rp)",
+      group: "points",
+    },
+    {
+      key: "points.levelPlatinum",
+      value: "10000000",
+      label: "Threshold Platinum (Rp)",
+      group: "points",
+    },
+    {
+      key: "points.pointsEnabled",
+      value: "true",
+      label: "Sistem poin aktif",
+      group: "points",
+    },
+  ];
+  for (const s of pointSettings) {
+    await prisma.setting.upsert({
+      where: { key: s.key },
+      update: {},
+      create: s,
+    });
+  }
+
+  console.log("Seeding completed!");
+  console.log(`Created ${await prisma.user.count()} users`);
+  console.log(`Created ${await prisma.category.count()} categories`);
+  console.log(`Created ${await prisma.product.count()} products`);
+  console.log(`Created ${await prisma.transaction.count()} transactions`);
+  console.log(`Created ${await prisma.brand.count()} brands`);
+  console.log(`Created ${await prisma.supplier.count()} suppliers`);
+  console.log(`Created ${await prisma.customer.count()} customers`);
+  console.log(`Created ${await prisma.branch.count()} branches`);
+  console.log(`Created ${await prisma.expense.count()} expenses`);
+  console.log(`Created ${await prisma.promotion.count()} promotions`);
+  console.log("");
+  console.log("Login credentials:");
+  console.log("  Admin:   admin@pos.com / password123");
+  console.log("  Manager: manager@pos.com / password123");
+  console.log("  Kasir:   kasir1@pos.com / password123");
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
