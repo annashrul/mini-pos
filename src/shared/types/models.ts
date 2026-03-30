@@ -297,7 +297,7 @@ export interface DashboardStats {
     _sum: { quantity: number | null; subtotal: number | null };
   }[];
   dailySales: { date: string; total: number; count: number }[];
-  monthlySales: { month: string; total: number; count: number }[];
+  yearlyComparison: { month: string; thisYear: number; lastYear: number; thisYearCount: number; lastYearCount: number }[];
   paymentBreakdown: { method: string; total: number; count: number }[];
   topCashiers: { name: string; total: number; count: number }[];
   categoryBreakdown: { name: string; total: number; qty: number }[];

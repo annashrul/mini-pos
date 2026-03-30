@@ -106,7 +106,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }
             return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
         };
-        const applyMenus = (menus: AccessMenu[], role: string, nextRoleColor?: string) => {
+        const applyMenus = (menus: AccessMenu[], role: string, nextRoleColor?: string | null) => {
             queueMicrotask(() => {
                 if (!active) return;
                 setDynamicMenuGroups(buildGroups(menus, role));

@@ -1213,6 +1213,61 @@ async function main() {
     transactions.push(tx);
   }
 
+  // Create last year transactions (100 transactions spread across 12 months)
+  const lastYear = now.getFullYear() - 1;
+  for (let i = 0; i < 100; i++) {
+    const month = Math.floor(Math.random() * 12);
+    const day = Math.floor(Math.random() * 28) + 1;
+    const hour = Math.floor(Math.random() * 12) + 8;
+    const date = new Date(lastYear, month, day, hour, Math.floor(Math.random() * 60));
+
+    const itemCount = Math.floor(Math.random() * 5) + 1;
+    const selectedProducts = [...products]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, itemCount);
+
+    const items = selectedProducts.map((p) => {
+      const qty = Math.floor(Math.random() * 5) + 1;
+      return {
+        productId: p.id,
+        productName: p.name,
+        productCode: p.code,
+        quantity: qty,
+        unitPrice: p.sellingPrice,
+        discount: 0,
+        subtotal: p.sellingPrice * qty,
+      };
+    });
+
+    const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const taxAmount = Math.round(subtotal * 0.11);
+    const grandTotal = subtotal + taxAmount;
+    const paymentAmount = Math.ceil(grandTotal / 1000) * 1000;
+
+    const cashier = Math.random() > 0.5 ? cashier1 : cashier2;
+    const methods: PaymentMethod[] = ["CASH", "TRANSFER", "QRIS"];
+    const method = methods[Math.floor(Math.random() * methods.length)] as PaymentMethod;
+
+    const lyInvoice = `INV-${String(lastYear).slice(-2)}${String(month + 1).padStart(2, "0")}${String(day).padStart(2, "0")}-${String(i + 1).padStart(4, "0")}`;
+
+    await prisma.transaction.create({
+      data: {
+        invoiceNumber: lyInvoice,
+        userId: cashier.id,
+        subtotal,
+        taxAmount,
+        grandTotal,
+        paymentMethod: method,
+        paymentAmount,
+        changeAmount: paymentAmount - grandTotal,
+        status: "COMPLETED",
+        createdAt: date,
+        items: { create: items },
+      },
+    });
+  }
+  console.log("Created 100 last year transactions");
+
   // Create Expenses
   const expenseCategories = [
     "Listrik",

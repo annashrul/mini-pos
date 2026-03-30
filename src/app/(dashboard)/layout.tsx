@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { AppLayout } from "@/components/layouts";
 import { hasMenuAccessByPath } from "@/lib/access-control";
 import { headers } from "next/headers";
@@ -16,5 +17,9 @@ export default async function DashboardLayout({
     redirect("/dashboard");
   }
 
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <AppLayout>
+      <Suspense>{children}</Suspense>
+    </AppLayout>
+  );
 }

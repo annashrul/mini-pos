@@ -129,7 +129,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 })), false);
             });
             getProductTierPrices(product.id).then((tiers) => {
-                applyTierPrices(tiers.map((tier) => ({
+                applyTierPrices(tiers.map((tier: TierPriceFormValues) => ({
                     minQty: tier.minQty,
                     price: tier.price,
                 })), false);

@@ -69,6 +69,36 @@ function getTierUnitPrice(basePrice: number, tiers: ProductTierPrice[] | undefin
     return price;
 }
 
+type RawPosProduct = {
+    id: string;
+    code: string;
+    name: string;
+    sellingPrice: number;
+    purchasePrice: number;
+    stock: number;
+    minStock: number;
+    unit: string;
+    imageUrl?: string | null;
+    tierPrices?: ProductTierPrice[];
+    category?: { name: string } | null;
+};
+
+function toProductSearchResult(product: RawPosProduct): ProductSearchResult {
+    return {
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        sellingPrice: product.sellingPrice,
+        purchasePrice: product.purchasePrice,
+        stock: product.stock,
+        minStock: product.minStock,
+        unit: product.unit,
+        imageUrl: product.imageUrl ?? null,
+        tierPrices: product.tierPrices ?? [],
+        category: { name: product.category?.name ?? "" },
+    };
+}
+
 const posSessionSetupSchema = z.object({
     branchId: z.string().min(1, "Pilih lokasi terlebih dahulu"),
     register: z.string().trim().min(1, "Isi nama kassa terlebih dahulu"),
@@ -233,8 +263,8 @@ export default function POSPage() {
 
     const handleBarcodeInput = useCallback(async (value: string) => {
         setSearchQuery(value); if (value.length < 1) { setSearchResults([]); return; }
-        if (/^\d{8,}$/.test(value)) { const p = await findByBarcode(value, activeBranchId); if (p) { addToCart(p as ProductSearchResult); setSearchQuery(""); setSearchResults([]); return; } }
-        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r as ProductSearchResult[]); setSearching(false);
+        if (/^\d{8,}$/.test(value)) { const p = await findByBarcode(value, activeBranchId); if (p) { addToCart(toProductSearchResult(p as RawPosProduct)); setSearchQuery(""); setSearchResults([]); return; } }
+        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); setSearching(false);
     }, [activeBranchId, addToCart]);
 
     const updateQuantity = (id: string, d: number) => {
@@ -301,10 +331,11 @@ export default function POSPage() {
                 branchId: branchId ?? activeBranchId,
                 ...(catId ? { categoryId: catId } : {}),
             });
+            const normalizedProducts = result.products.map((item) => toProductSearchResult(item as RawPosProduct));
             if (reset) {
-                setBrowseItems(result.products as ProductSearchResult[]);
+                setBrowseItems(normalizedProducts);
             } else {
-                setBrowseItems((prev) => [...prev, ...(result.products as ProductSearchResult[])]);
+                setBrowseItems((prev) => [...prev, ...normalizedProducts]);
             }
             setBrowsePage(page);
             setBrowseHasMore(result.hasMore);
@@ -649,7 +680,7 @@ export default function POSPage() {
                 <div className="flex-1 overflow-y-auto px-3 pb-3">
                     <div className="grid grid-cols-2 gap-2 pt-2">
                         {browseItems.map((p) => (
-                            <button key={p.id} onClick={() => addToCart(p as ProductSearchResult)}
+                            <button key={p.id} onClick={() => addToCart(p)}
                                 className="text-left p-3 rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white">
                                 <p className="text-xs font-medium truncate group-hover:text-primary transition-colors leading-tight">{p.name}</p>
                                 <p className="text-[10px] text-muted-foreground mt-1">Stok: {p.stock}</p>
@@ -930,7 +961,7 @@ export default function POSPage() {
             {/* ====== DIALOGS ====== */}
             <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
                 <DialogContent className="rounded-2xl max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><Search className="w-4 h-4" />Cari Produk</DialogTitle></DialogHeader>
-                    <Input placeholder="Ketik nama / kode produk..." autoFocus className="rounded-xl h-11" onChange={async (e) => { if (e.target.value.length > 0) { const r = await searchProducts(e.target.value, activeBranchId); setSearchResults(r as ProductSearchResult[]); } }} />
+                    <Input placeholder="Ketik nama / kode produk..." autoFocus className="rounded-xl h-11" onChange={async (e) => { if (e.target.value.length > 0) { const r = await searchProducts(e.target.value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); } else { setSearchResults([]); } }} />
                     <ScrollArea className="max-h-[300px]"><div className="space-y-1">{searchResults.map((p) => (<button key={p.id} onClick={() => { addToCart(p); setShowSearchDialog(false); }} className="w-full flex justify-between p-3 hover:bg-accent/50 rounded-xl text-left transition-colors"><div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary text-sm">{formatCurrency(p.sellingPrice)}</p></button>))}</div></ScrollArea>
                 </DialogContent>
             </Dialog>

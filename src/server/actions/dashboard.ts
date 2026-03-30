@@ -60,7 +60,7 @@ export async function getDashboardStats() {
     // Daily sales 30 days
     getDailySalesData(30),
     // Monthly sales 6 months
-    getMonthlySalesData(6),
+    getYearlyComparison(),
     // Payment method breakdown this month
     prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...completedWhere } }),
     // Top cashiers this month
@@ -103,7 +103,7 @@ export async function getDashboardStats() {
     recentTransactions,
     topProducts,
     dailySales,
-    monthlySales,
+    yearlyComparison: monthlySales as { month: string; thisYear: number; lastYear: number; thisYearCount: number; lastYearCount: number }[],
     paymentBreakdown: paymentBreakdown.map((p) => ({
       method: p.paymentMethod,
       total: p._sum.grandTotal || 0,
@@ -127,15 +127,33 @@ async function getDailySalesData(days: number) {
   return result;
 }
 
-async function getMonthlySalesData(months: number) {
-  const result = [];
+async function getYearlyComparison() {
   const today = new Date();
-  for (let i = months - 1; i >= 0; i--) {
-    const start = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const end = new Date(today.getFullYear(), today.getMonth() - i + 1, 1);
-    const sales = await prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: start, lt: end }, status: "COMPLETED" } });
-    result.push({ month: start.toLocaleDateString("id-ID", { month: "short", year: "2-digit" }), total: sales._sum.grandTotal || 0, count: sales._count });
+  const thisYear = today.getFullYear();
+  const lastYear = thisYear - 1;
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const result = [];
+
+  for (let m = 0; m < 12; m++) {
+    const thisStart = new Date(thisYear, m, 1);
+    const thisEnd = new Date(thisYear, m + 1, 1);
+    const lastStart = new Date(lastYear, m, 1);
+    const lastEnd = new Date(lastYear, m + 1, 1);
+
+    const [thisSales, lastSales] = await Promise.all([
+      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: thisStart, lt: thisEnd }, status: "COMPLETED" } }),
+      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: lastStart, lt: lastEnd }, status: "COMPLETED" } }),
+    ]);
+
+    result.push({
+      month: monthNames[m]!,
+      thisYear: thisSales._sum.grandTotal || 0,
+      lastYear: lastSales._sum.grandTotal || 0,
+      thisYearCount: thisSales._count,
+      lastYearCount: lastSales._count,
+    });
   }
+
   return result;
 }
 

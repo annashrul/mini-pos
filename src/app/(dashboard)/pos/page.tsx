@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useForm, Controller } from "react-hook-form";
@@ -33,6 +34,34 @@ import {
 import { toast } from "sonner";
 import type { CartItem, ProductSearchResult, Branch } from "@/types";
 import type { ReceiptConfig } from "@/lib/receipt-config";
+
+type RawPosProduct = {
+    id: string;
+    code: string;
+    name: string;
+    sellingPrice: number;
+    purchasePrice: number;
+    stock: number;
+    minStock: number;
+    unit: string;
+    imageUrl?: string | null;
+    category?: { name: string } | null;
+};
+
+function toProductSearchResult(product: RawPosProduct): ProductSearchResult {
+    return {
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        sellingPrice: product.sellingPrice,
+        purchasePrice: product.purchasePrice,
+        stock: product.stock,
+        minStock: product.minStock,
+        unit: product.unit,
+        imageUrl: product.imageUrl ?? null,
+        category: { name: product.category?.name ?? "" },
+    };
+}
 
 type PaymentMethodType = "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD";
 const STORAGE_KEY = "pos-draft-cart";
@@ -255,12 +284,12 @@ export default function POSPage() {
             return [...prev, { productId: product.id, productName: product.name, productCode: product.code, quantity: 1, unitPrice: product.sellingPrice, purchasePrice: product.purchasePrice, discount: 0, subtotal: product.sellingPrice, maxStock: product.stock }];
         });
         setSearchQuery(""); setSearchResults([]); barcodeInputRef.current?.focus();
-    }, [initCache]);
+    }, []);
 
     const handleBarcodeInput = useCallback(async (value: string) => {
         setSearchQuery(value); if (value.length < 1) { setSearchResults([]); return; }
-        if (/^\d{8,}$/.test(value)) { const p = await findByBarcode(value, activeBranchId); if (p) { addToCart(p as ProductSearchResult); setSearchQuery(""); setSearchResults([]); return; } }
-        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r as ProductSearchResult[]); setSearching(false);
+        if (/^\d{8,}$/.test(value)) { const p = await findByBarcode(value, activeBranchId); if (p) { addToCart(toProductSearchResult(p as RawPosProduct)); setSearchQuery(""); setSearchResults([]); return; } }
+        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); setSearching(false);
     }, [activeBranchId, addToCart]);
 
     const updateQuantity = (id: string, d: number) => { setCart((prev) => prev.map((i) => { if (i.productId !== id) return i; const n = i.quantity + d; if (n <= 0 || n > i.maxStock) { if (n > i.maxStock) toast.error("Stok tidak cukup"); return i; } return { ...i, quantity: n, subtotal: n * i.unitPrice - i.discount }; })); };
@@ -394,7 +423,7 @@ export default function POSPage() {
                 branchId: branchId ?? activeBranchId,
                 ...(catId ? { categoryId: catId } : {}),
             });
-            const newItems = result.products as ProductSearchResult[];
+            const newItems = result.products.map((item) => toProductSearchResult(item as RawPosProduct));
             if (reset) {
                 setBrowseItems(newItems);
             } else {
@@ -432,7 +461,7 @@ export default function POSPage() {
                 }
             });
         }
-    }, []);
+    }, [initCache]);
 
     useEffect(() => {
         const initialize = async () => {
@@ -1194,7 +1223,7 @@ export default function POSPage() {
             {/* ====== DIALOGS ====== */}
             <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
                 <DialogContent className="rounded-2xl max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><Search className="w-4 h-4" />Cari Produk</DialogTitle></DialogHeader>
-                    <Input placeholder="Ketik nama / kode produk..." autoFocus className="rounded-xl h-11" onChange={async (e) => { if (e.target.value.length > 0) { const r = await searchProducts(e.target.value, activeBranchId); setSearchResults(r as ProductSearchResult[]); } }} />
+                    <Input placeholder="Ketik nama / kode produk..." autoFocus className="rounded-xl h-11" onChange={async (e) => { if (e.target.value.length > 0) { const r = await searchProducts(e.target.value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); } else { setSearchResults([]); } }} />
                     <ScrollArea className="max-h-[300px]"><div className="space-y-1">{searchResults.map((p) => (<button key={p.id} onClick={() => { addToCart(p); setShowSearchDialog(false); }} className="w-full flex justify-between p-3 hover:bg-accent/50 rounded-xl text-left transition-colors"><div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary text-sm">{formatCurrency(p.sellingPrice)}</p></button>))}</div></ScrollArea>
                 </DialogContent>
             </Dialog>

@@ -96,36 +96,52 @@ export function DashboardContent({ stats }: { stats: DashboardStats }) {
         </Card>
       </div>
 
-      {/* ===== ROW 2: Monthly Comparison + Daily Sales ===== */}
+      {/* ===== ROW 2: Yearly Comparison + Payment ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Monthly Comparison Chart */}
+        {/* Yearly Comparison Chart */}
         <Card className="lg:col-span-3 rounded-2xl shadow-sm border-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-muted-foreground" /> Perbandingan Penjualan Bulanan
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" /> Perbandingan Tahunan
+              </CardTitle>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-sm bg-[#3b82f6]" />
+                  <span className="text-muted-foreground">{new Date().getFullYear()}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-sm bg-[#10b981]" />
+                  <span className="text-muted-foreground">{new Date().getFullYear() - 1}</span>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={stats.monthlySales}>
+              <BarChart data={stats.yearlyComparison} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => `${(v / 1000000).toFixed(1)}jt`} />
-                <Tooltip formatter={(value) => [formatCurrency(Number(value)), "Penjualan"]} contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", fontSize: "12px" }} />
-                <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}jt` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+                <Tooltip
+                  contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)", fontSize: "12px" }}
+                  formatter={(value, name) => [formatCurrency(Number(value)), name === "thisYear" ? `Tahun ${new Date().getFullYear()}` : `Tahun ${new Date().getFullYear() - 1}`]}
+                />
+                <Bar dataKey="thisYear" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="lastYear" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
-            {/* Month vs Month comparison */}
+            {/* Summary */}
             <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border/30">
-              <div className="rounded-xl bg-muted/30 p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Bulan Ini</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(stats.monthRevenue)}</p>
-                <p className="text-xs text-muted-foreground">{stats.monthTransactionCount} transaksi</p>
+              <div className="rounded-xl bg-blue-50/60 p-3">
+                <p className="text-[10px] text-blue-600 uppercase tracking-wider font-medium">{new Date().getFullYear()}</p>
+                <p className="text-lg font-bold tabular-nums text-blue-700">{formatCurrency(stats.yearlyComparison.reduce((s, m) => s + m.thisYear, 0))}</p>
+                <p className="text-xs text-blue-500">{stats.yearlyComparison.reduce((s, m) => s + m.thisYearCount, 0)} transaksi</p>
               </div>
-              <div className="rounded-xl bg-muted/30 p-3">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Bulan Lalu</p>
-                <p className="text-lg font-bold tabular-nums">{formatCurrency(stats.prevMonthRevenue)}</p>
-                <p className="text-xs text-muted-foreground">{stats.prevMonthTransactionCount} transaksi</p>
+              <div className="rounded-xl bg-emerald-50/60 p-3">
+                <p className="text-[10px] text-emerald-600 uppercase tracking-wider font-medium">{new Date().getFullYear() - 1}</p>
+                <p className="text-lg font-bold tabular-nums text-emerald-700">{formatCurrency(stats.yearlyComparison.reduce((s, m) => s + m.lastYear, 0))}</p>
+                <p className="text-xs text-emerald-500">{stats.yearlyComparison.reduce((s, m) => s + m.lastYearCount, 0)} transaksi</p>
               </div>
             </div>
           </CardContent>
