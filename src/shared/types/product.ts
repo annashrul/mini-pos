@@ -29,6 +29,7 @@ export interface ProductSearchResult {
   id: string;
   code: string;
   name: string;
+  categoryId?: string;
   sellingPrice: number;
   purchasePrice: number;
   stock: number;
@@ -40,7 +41,9 @@ export interface ProductSearchResult {
 }
 
 export interface CartItem {
+  lineId?: string;
   productId: string;
+  categoryId?: string;
   productName: string;
   productCode: string;
   quantity: number;
@@ -51,4 +54,6 @@ export interface CartItem {
   maxStock: number;
   baseUnitPrice?: number;
   tierPrices?: ProductTierPrice[];
+  tebusPromoId?: string;
+  tebusPromoName?: string;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { createExpense, updateExpense, deleteExpense, getExpenses } from "@/features/expenses";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import type { Expense } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 
 interface Props {
     initialData: {
@@ -42,6 +43,11 @@ export function ExpensesContent({ initialData }: Props) {
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+    }, [selectedBranchId]);
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
@@ -52,6 +58,7 @@ export function ExpensesContent({ initialData }: Props) {
                 page: params.page ?? page,
                 perPage: params.pageSize ?? pageSize,
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
             });
             setData(result);
         });
@@ -120,6 +127,11 @@ export function ExpensesContent({ initialData }: Props) {
             key: "date", header: "Tanggal", sortable: true, width: "130px",
             render: (row) => <span className="text-xs text-muted-foreground whitespace-nowrap">{format(new Date(row.date), "dd MMM yyyy", { locale: idLocale })}</span>,
             exportValue: (row) => format(new Date(row.date), "dd/MM/yyyy"),
+        },
+        {
+            key: "branch", header: "Lokasi",
+            render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+            exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
         },
         {
             key: "category", header: "Kategori", sortable: true,

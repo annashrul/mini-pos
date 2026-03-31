@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createUser, getActiveRoles, updateUser } from "@/features/users";
+import { useBranch } from "@/components/providers/branch-provider";
 import { userFormSchema, type UserFormValues } from "@/shared/schemas/user";
 import { useDirtyFormGuard, useFormErrorHandler, useFormSubmit } from "@/hooks";
 import { FormCheckbox, FormInput, FormSelect, FormTextarea } from "@/components/forms";
@@ -32,6 +33,8 @@ export function UserForm({
     const [loadingDefault, setLoadingDefault] = useState(false);
     const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([]);
     const isEdit = Boolean(userId);
+    const { branches } = useBranch();
+    const branchOptions = [{ value: "", label: "Semua Lokasi" }, ...branches.map((b) => ({ value: b.id, label: b.name }))];
 
     const form = useForm<UserFormValues>({
         resolver: zodResolver(userFormSchema),
@@ -41,6 +44,7 @@ export function UserForm({
             email: initialValues?.email ?? "",
             password: "",
             role: initialValues?.role ?? "",
+            branchId: (initialValues as Record<string, unknown>)?.branchId as string ?? "",
             isActive: initialValues?.isActive ?? true,
             profile: {
                 phone: initialValues?.profile?.phone ?? "",
@@ -86,6 +90,7 @@ export function UserForm({
                 email: values.email ?? "",
                 password: "",
                 role: values.role ?? "",
+                branchId: (values as Record<string, unknown>).branchId as string ?? "",
                 isActive: values.isActive ?? true,
                 profile: {
                     phone: values.profile?.phone ?? "",
@@ -117,6 +122,7 @@ export function UserForm({
                 formData.set("name", values.name);
                 formData.set("email", values.email);
                 formData.set("role", values.role);
+                formData.set("branchId", values.branchId || "");
                 formData.set("isActive", String(values.isActive));
                 if (values.password) formData.set("password", values.password);
                 const response = userId
@@ -181,6 +187,7 @@ export function UserForm({
                 </TabsContent>
                 <TabsContent value="access" className="mt-4 space-y-3">
                     <FormSelect control={control} name="role" label="Role" required options={roleOptions} />
+                    <FormSelect control={control} name="branchId" label="Lokasi" options={branchOptions} />
                     <FormCheckbox control={control} name="isActive" label="Aktifkan akun" />
                     <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                         Hak akses ditentukan oleh konfigurasi role di menu Hak Akses.

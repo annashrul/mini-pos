@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { createStockMovement, getStockMovements } from "@/features/stock";
 import { formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
 import { SmartSelect } from "@/components/ui/smart-select";
+import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import { Plus, BoxesIcon } from "lucide-react";
 import { toast } from "sonner";
 import type { StockMovement, ProductBasic } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 
 const typeConfig: Record<string, { label: string; color: string }> = {
     IN: { label: "Masuk", color: "bg-green-100 text-green-700" },
@@ -26,16 +28,18 @@ const typeConfig: Record<string, { label: string; color: string }> = {
 interface Props {
     data: { movements: StockMovement[]; total: number; totalPages: number; currentPage: number };
     products: ProductBasic[];
+    branches: { id: string; name: string }[];
     filters: Record<string, string | undefined>;
 }
 
-export function StockContent({ data: initialData, products, filters: initialFilters }: Props) {
+export function StockContent({ data: initialData, products, branches, filters: initialFilters }: Props) {
     const [data, setData] = useState(initialData);
     const [open, setOpen] = useState(false);
     const [page, setPage] = useState(initialData.currentPage);
-    const [pageSize, setPageSize] = useState(15);
+    const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
     const [selectedProductId, setSelectedProductId] = useState("");
+    const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(branches.map((b) => b.id));
     const [selectedType, setSelectedType] = useState("IN");
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
         type: initialFilters.type || "ALL",
@@ -43,6 +47,11 @@ export function StockContent({ data: initialData, products, filters: initialFilt
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+    }, [selectedBranchId]);
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
@@ -54,6 +63,7 @@ export function StockContent({ data: initialData, products, filters: initialFilt
                 perPage: params.pageSize ?? pageSize,
                 search: params.search ?? search,
                 ...(f.type !== "ALL" ? { type: f.type } : {}),
+                ...(f.branchId && f.branchId !== "ALL" ? { branchId: f.branchId } : selectedBranchId ? { branchId: selectedBranchId } : {}),
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
@@ -85,6 +95,11 @@ export function StockContent({ data: initialData, products, filters: initialFilt
                 </div>
             ),
             exportValue: (row) => `${row.product.name} (${row.product.code})`,
+        },
+        {
+            key: "branch", header: "Lokasi",
+            render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+            exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
         },
         {
             key: "type", header: "Tipe", align: "center",
@@ -126,6 +141,10 @@ export function StockContent({ data: initialData, products, filters: initialFilt
     ];
 
     const filters: SmartFilter[] = [
+        {
+            key: "branchId", label: "Cabang", type: "select",
+            options: branches.map((b) => ({ value: b.id, label: b.name })),
+        },
         {
             key: "type", label: "Tipe", type: "select",
             options: [
@@ -180,6 +199,16 @@ export function StockContent({ data: initialData, products, filters: initialFilt
                 <DialogContent className="rounded-2xl">
                     <DialogHeader><DialogTitle>Tambah Pergerakan Stok</DialogTitle></DialogHeader>
                     <form action={handleSubmit} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-sm">Lokasi <span className="text-red-400">*</span></Label>
+                            <BranchMultiSelect
+                                branches={branches}
+                                value={selectedBranchIds}
+                                onChange={setSelectedBranchIds}
+                                placeholder="Pilih lokasi"
+                            />
+                            <input type="hidden" name="branchIds" value={JSON.stringify(selectedBranchIds)} />
+                        </div>
                         <div className="space-y-1.5">
                             <Label className="text-sm">Produk <span className="text-red-400">*</span></Label>
                             <SmartSelect

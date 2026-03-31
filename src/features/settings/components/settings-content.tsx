@@ -1,28 +1,45 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { savePointConfig, saveReceiptConfig } from "@/features/settings";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { savePointConfig, saveReceiptConfig, savePosConfig, getPointConfig, getReceiptConfig, getPosConfig } from "@/features/settings";
+import { useBranch } from "@/components/providers/branch-provider";
 import type { PointConfig } from "@/lib/point-config";
 import type { ReceiptConfig } from "@/lib/receipt-config";
+import type { PosConfig } from "@/server/actions/settings";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Star, Coins, ArrowRightLeft, TrendingUp, Award, Gift, FileText, Store } from "lucide-react";
+import { Settings, Save, Loader2, Star, Coins, ArrowRightLeft, TrendingUp, Award, Gift, FileText, Store, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
     pointConfig: PointConfig;
     receiptConfig: ReceiptConfig;
+    posConfig: PosConfig;
 }
 
-export function SettingsContent({ pointConfig: initialPoint, receiptConfig: initialReceipt }: Props) {
+export function SettingsContent({ pointConfig: initialPoint, receiptConfig: initialReceipt, posConfig: initialPos }: Props) {
     const [pointCfg, setPointCfg] = useState<PointConfig>(initialPoint);
     const [receiptCfg, setReceiptCfg] = useState<ReceiptConfig>(initialReceipt);
+    const [posCfg, setPosCfg] = useState<PosConfig>(initialPos);
     const [isSaving, startTransition] = useTransition();
     const [hasChanges, setHasChanges] = useState(false);
+    const { selectedBranchId, selectedBranchName } = useBranch();
+
+    // Reload settings when branch changes
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId || selectedBranchId) {
+            prevBranchRef.current = selectedBranchId;
+            const bid = selectedBranchId || undefined;
+            Promise.all([getPointConfig(bid), getReceiptConfig(bid), getPosConfig(bid)]).then(([p, r, pos]) => {
+                setPointCfg(p); setReceiptCfg(r); setPosCfg(pos); setHasChanges(false);
+            });
+        }
+    }, [selectedBranchId]);
 
     const updatePoint = (key: keyof PointConfig, value: number | boolean) => {
         setPointCfg((prev) => ({ ...prev, [key]: value }));
@@ -35,9 +52,10 @@ export function SettingsContent({ pointConfig: initialPoint, receiptConfig: init
     };
 
     const handleSave = () => {
+        const bid = selectedBranchId || undefined;
         startTransition(async () => {
-            await Promise.all([savePointConfig(pointCfg), saveReceiptConfig(receiptCfg)]);
-            toast.success("Pengaturan berhasil disimpan");
+            await Promise.all([savePointConfig(pointCfg, bid), saveReceiptConfig(receiptCfg, bid), savePosConfig(posCfg, bid)]);
+            toast.success(`Pengaturan berhasil disimpan${selectedBranchId ? ` untuk ${selectedBranchName}` : " (global)"}`);
             setHasChanges(false);
         });
     };
@@ -53,7 +71,11 @@ export function SettingsContent({ pointConfig: initialPoint, receiptConfig: init
                     <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                         <Settings className="w-6 h-6 text-primary" /> Pengaturan
                     </h1>
-                    <p className="text-muted-foreground text-sm mt-1">Konfigurasi toko, struk, dan loyalty point</p>
+                    <p className="text-muted-foreground text-sm mt-1">
+                        {selectedBranchId
+                            ? <>Pengaturan untuk <strong>{selectedBranchName}</strong> — berbeda dari global</>
+                            : "Pengaturan global (berlaku untuk semua lokasi)"}
+                    </p>
                 </div>
                 <Button className="rounded-lg" onClick={handleSave} disabled={isSaving || !hasChanges}>
                     {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
@@ -62,8 +84,9 @@ export function SettingsContent({ pointConfig: initialPoint, receiptConfig: init
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="store" className="space-y-5">
-                <TabsList className="rounded-xl h-10 grid grid-cols-4 w-full max-w-2xl">
+            <Tabs defaultValue="pos" className="space-y-5">
+                <TabsList className="rounded-xl h-10 grid grid-cols-5 w-full max-w-3xl">
+                    <TabsTrigger value="pos" className="rounded-lg text-xs gap-1.5"><ShoppingCart className="w-3.5 h-3.5" /> POS</TabsTrigger>
                     <TabsTrigger value="store" className="rounded-lg text-xs gap-1.5"><Store className="w-3.5 h-3.5" /> Toko & Struk</TabsTrigger>
                     <TabsTrigger value="earn" className="rounded-lg text-xs gap-1.5"><Coins className="w-3.5 h-3.5" /> Perolehan Poin</TabsTrigger>
                     <TabsTrigger value="redeem" className="rounded-lg text-xs gap-1.5"><ArrowRightLeft className="w-3.5 h-3.5" /> Penukaran</TabsTrigger>
@@ -71,6 +94,50 @@ export function SettingsContent({ pointConfig: initialPoint, receiptConfig: init
                 </TabsList>
 
                 {/* ====== Tab Toko & Struk ====== */}
+                {/* POS Settings */}
+                <TabsContent value="pos" className="space-y-5">
+                    <div className="rounded-2xl bg-white border border-border/40 p-6 space-y-5 max-w-2xl">
+                        <div>
+                            <h3 className="text-base font-semibold">Pengaturan POS</h3>
+                            <p className="text-sm text-muted-foreground mt-0.5">Konfigurasi perilaku kasir</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between rounded-xl border border-border/40 p-4">
+                                <div>
+                                    <p className="text-sm font-medium">Validasi Stok</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Cek ketersediaan stok saat transaksi. Jika dimatikan, produk bisa dijual melebihi stok.</p>
+                                </div>
+                                <Switch checked={posCfg.validateStock} onCheckedChange={(v) => { setPosCfg({ ...posCfg, validateStock: v }); setHasChanges(true); }} />
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-xl border border-border/40 p-4">
+                                <div>
+                                    <p className="text-sm font-medium">Izinkan Stok Negatif</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Stok bisa menjadi minus jika validasi stok aktif tapi tetap ingin transaksi berjalan.</p>
+                                </div>
+                                <Switch checked={posCfg.allowNegativeStock} onCheckedChange={(v) => { setPosCfg({ ...posCfg, allowNegativeStock: v }); setHasChanges(true); }} />
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-xl border border-border/40 p-4">
+                                <div>
+                                    <p className="text-sm font-medium">Wajib Input Customer</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Kasir harus memilih customer sebelum proses pembayaran.</p>
+                                </div>
+                                <Switch checked={posCfg.requireCustomer} onCheckedChange={(v) => { setPosCfg({ ...posCfg, requireCustomer: v }); setHasChanges(true); }} />
+                            </div>
+
+                            <div className="rounded-xl border border-border/40 p-4 space-y-2">
+                                <div>
+                                    <p className="text-sm font-medium">Pajak Default (%)</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Persentase pajak yang otomatis diterapkan di POS.</p>
+                                </div>
+                                <Input type="number" min={0} max={100} value={posCfg.defaultTaxPercent} onChange={(e) => { setPosCfg({ ...posCfg, defaultTaxPercent: Number(e.target.value) }); setHasChanges(true); }} className="w-32 rounded-lg" />
+                            </div>
+                        </div>
+                    </div>
+                </TabsContent>
+
                 <TabsContent value="store" className="space-y-5">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                         {/* Store Info */}

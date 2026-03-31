@@ -1,6 +1,9 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useBranch } from "@/components/providers/branch-provider";
+import { getDashboardStats } from "@/server/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -33,7 +36,17 @@ function GrowthBadge({ value }: { value: number }) {
   );
 }
 
-export function DashboardContent({ stats }: { stats: DashboardStats }) {
+export function DashboardContent({ stats: initialStats }: { stats: DashboardStats }) {
+  const [stats, setStats] = useState(initialStats);
+  const { selectedBranchId } = useBranch();
+  const prevBranchRef = useRef(selectedBranchId);
+  useEffect(() => {
+    if (prevBranchRef.current !== selectedBranchId || selectedBranchId) {
+      prevBranchRef.current = selectedBranchId;
+      getDashboardStats(selectedBranchId || undefined).then(setStats);
+    }
+  }, [selectedBranchId]);
+
   return (
     <div className="space-y-6">
       <div>

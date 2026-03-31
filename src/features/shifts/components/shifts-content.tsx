@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { openShift, closeShift, getShifts } from "@/features/shifts";
 import { formatCurrency } from "@/lib/utils";
 import type { SmartColumn } from "@/components/ui/smart-table";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import type { Shift } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 
 interface Props {
   initialData: { shifts: Shift[]; total: number; totalPages: number };
@@ -35,6 +36,11 @@ export function ShiftsContent({ initialData, activeShift: initialActive }: Props
   const [sortKey, setSortKey] = useState<string>("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [loading, startTransition] = useTransition();
+  const { selectedBranchId } = useBranch();
+  const prevBranchRef = useRef(selectedBranchId);
+  useEffect(() => {
+    if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+  }, [selectedBranchId]);
 
   const fetchData = (params: { search?: string; page?: number; pageSize?: number; sortKey?: string; sortDir?: "asc" | "desc" }) => {
     startTransition(async () => {
@@ -45,6 +51,7 @@ export function ShiftsContent({ initialData, activeShift: initialActive }: Props
         page: params.page ?? page,
         perPage: params.pageSize ?? pageSize,
         ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+        ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       };
       const result = await getShifts(query);
       setData(result);
@@ -82,6 +89,11 @@ export function ShiftsContent({ initialData, activeShift: initialActive }: Props
       key: "user", header: "Kasir", sortable: true,
       render: (row) => <span className="font-medium text-sm">{row.user.name}</span>,
       exportValue: (row) => row.user.name,
+    },
+    {
+      key: "branch", header: "Lokasi",
+      render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+      exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
     },
     {
       key: "openedAt", header: "Dibuka", sortable: true,

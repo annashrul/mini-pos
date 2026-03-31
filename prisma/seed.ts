@@ -19,7 +19,20 @@ const MENU_SEED = [
     path: "/pos",
     group: "Utama",
     sortOrder: 2,
-    actions: ["view", "create", "void", "refund", "open_shift", "close_shift"],
+    actions: [
+      "view",
+      "create",
+      "void",
+      "refund",
+      "open_shift",
+      "close_shift",
+      "hold",
+      "discount",
+      "history",
+      "reprint",
+      "voucher",
+      "redeem_points",
+    ],
   },
   {
     key: "transactions",
@@ -456,7 +469,7 @@ async function main() {
   ]);
 
   // Create Branches
-  await Promise.all([
+  const branchRecords = await Promise.all([
     prisma.branch.create({
       data: {
         name: "Pusat - Jakarta",
@@ -913,6 +926,20 @@ async function main() {
     ),
   );
 
+  // Create branch stock for all products in all branches
+  const branchStockData = [];
+  for (const branch of branchRecords) {
+    for (const product of products) {
+      branchStockData.push({
+        branchId: branch.id,
+        productId: product.id,
+        quantity: product.stock,
+        minStock: product.minStock,
+      });
+    }
+  }
+  await prisma.branchStock.createMany({ data: branchStockData });
+
   // ===========================
   // Create Cigarette Products with Multi-Unit
   // ===========================
@@ -1148,6 +1175,20 @@ async function main() {
       }),
     ),
   );
+
+  // Create branch stock for cigarette products
+  const cigBranchStockData = [];
+  for (const branch of branchRecords) {
+    for (const product of cigaretteProducts) {
+      cigBranchStockData.push({
+        branchId: branch.id,
+        productId: product.id,
+        quantity: product.stock,
+        minStock: product.minStock,
+      });
+    }
+  }
+  await prisma.branchStock.createMany({ data: cigBranchStockData });
 
   console.log(
     `Created ${cigaretteProducts.length} cigarette products with multi-unit`,
@@ -1443,11 +1484,8 @@ async function main() {
     },
   ];
   for (const s of pointSettings) {
-    await prisma.setting.upsert({
-      where: { key: s.key },
-      update: {},
-      create: s,
-    });
+    const existing = await prisma.setting.findFirst({ where: { key: s.key, branchId: null } });
+    if (!existing) await prisma.setting.create({ data: s });
   }
 
   console.log("Seeding completed!");

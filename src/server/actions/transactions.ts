@@ -8,12 +8,22 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 
 interface CartItem {
   productId: string;
+  categoryId?: string;
   productName: string;
   productCode: string;
+  lineId?: string;
+  tebusPromoId?: string;
+  tebusPromoName?: string;
   quantity: number;
   unitPrice: number;
   discount: number;
   subtotal: number;
+}
+
+interface PaymentEntry {
+  method: "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD";
+  amount: number;
+  reference?: string;
 }
 
 interface CreateTransactionInput {
@@ -31,8 +41,11 @@ interface CreateTransactionInput {
     | "CREDIT_CARD";
   paymentAmount: number;
   changeAmount: number;
+  payments?: PaymentEntry[];
   customerId?: string;
+  branchId?: string;
   promoApplied?: string;
+  promoIds?: string[];
   notes?: string;
   redeemPoints?: number;
 }
@@ -93,34 +106,88 @@ export async function createTransaction(input: CreateTransactionInput) {
   }
   const invoiceNumber = `${prefix}-${String(sequence).padStart(4, "0")}`;
 
+  // Check if stock validation is enabled (branch-specific first, then global)
+  let validateStockSetting = input.branchId
+    ? await prisma.setting.findFirst({ where: { key: "pos.validateStock", branchId: input.branchId } })
+    : null;
+  if (!validateStockSetting) {
+    validateStockSetting = await prisma.setting.findFirst({ where: { key: "pos.validateStock", branchId: null } });
+  }
+  const shouldValidateStock = validateStockSetting?.value !== "false";
+
   try {
     const transaction = await prisma.$transaction(async (tx) => {
-      // Check stock availability
+      // Check stock availability (skip if validation disabled)
+      if (shouldValidateStock) {
+        for (const item of input.items) {
+          if (input.branchId) {
+            const branchStock = await tx.branchStock.findUnique({
+              where: {
+                branchId_productId: {
+                  branchId: input.branchId,
+                  productId: item.productId,
+                },
+              },
+            });
+            const available = branchStock?.quantity ?? 0;
+            if (available < item.quantity) {
+              throw new Error(
+                `Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`,
+              );
+            }
+          } else {
+            const product = await tx.product.findUnique({
+              where: { id: item.productId },
+            });
+            if (!product)
+              throw new Error(`Produk ${item.productName} tidak ditemukan`);
+            if (product.stock < item.quantity) {
+              throw new Error(
+                `Stok ${item.productName} tidak mencukupi (sisa: ${product.stock})`,
+              );
+            }
+          }
+        }
+      }
+
+      // Validate all products exist
+      const productIds = input.items.map((i) => i.productId);
+      const existingProducts = await tx.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingProducts.map((p) => p.id));
       for (const item of input.items) {
-        const product = await tx.product.findUnique({
-          where: { id: item.productId },
-        });
-        if (!product)
-          throw new Error(`Produk ${item.productName} tidak ditemukan`);
-        if (product.stock < item.quantity) {
+        if (!existingIds.has(item.productId)) {
           throw new Error(
-            `Stok ${item.productName} tidak mencukupi (sisa: ${product.stock})`,
+            `Produk "${item.productName}" tidak ditemukan. Muat ulang halaman POS.`,
           );
         }
       }
+
+      // Determine primary payment method (highest amount or first)
+      const paymentsData =
+        input.payments && input.payments.length > 0
+          ? input.payments
+          : [{ method: input.paymentMethod, amount: input.paymentAmount }];
+      const primaryMethod = paymentsData.reduce((a, b) =>
+        a.amount >= b.amount ? a : b,
+      ).method;
+      const totalPaid = paymentsData.reduce((s, p) => s + p.amount, 0);
 
       // Create transaction
       const newTx = await tx.transaction.create({
         data: {
           invoiceNumber,
           userId,
+          branchId: input.branchId || null,
           customerId: input.customerId || null,
           subtotal: input.subtotal,
           discountAmount: input.discountAmount,
           taxAmount: input.taxAmount,
           grandTotal: input.grandTotal,
-          paymentMethod: input.paymentMethod as never,
-          paymentAmount: input.paymentAmount,
+          paymentMethod: primaryMethod as never,
+          paymentAmount: totalPaid,
           changeAmount: input.changeAmount,
           promoApplied: input.promoApplied || null,
           notes: input.notes || null,
@@ -136,20 +203,49 @@ export async function createTransaction(input: CreateTransactionInput) {
               subtotal: item.subtotal,
             })),
           },
+          payments: {
+            create: paymentsData.map((p) => ({
+              method: p.method as never,
+              amount: p.amount,
+              reference: (p as PaymentEntry).reference || null,
+            })),
+          },
         },
         include: { items: true },
       });
 
+      if (input.promoIds && input.promoIds.length > 0) {
+        await tx.promotion.updateMany({
+          where: { id: { in: Array.from(new Set(input.promoIds)) } },
+          data: { usageCount: { increment: 1 } },
+        });
+      }
+
       // Update stock & create stock movements
       for (const item of input.items) {
+        // Always update global stock
         await tx.product.update({
           where: { id: item.productId },
           data: { stock: { decrement: item.quantity } },
         });
 
+        // Update branch stock if applicable
+        if (input.branchId) {
+          await tx.branchStock.update({
+            where: {
+              branchId_productId: {
+                branchId: input.branchId,
+                productId: item.productId,
+              },
+            },
+            data: { quantity: { decrement: item.quantity } },
+          });
+        }
+
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
+            branchId: input.branchId || null,
             type: "OUT",
             quantity: item.quantity,
             note: `Penjualan ${invoiceNumber}`,
@@ -209,6 +305,7 @@ interface GetTransactionsParams {
   dateFrom?: string;
   dateTo?: string;
   status?: string;
+  branchId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }
@@ -221,6 +318,7 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     dateFrom,
     dateTo,
     status,
+    branchId,
     sortBy,
     sortDir = "desc",
   } = params;
@@ -246,6 +344,7 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
   if (status && status !== "all") {
     where.status = status;
   }
+  if (branchId) where.branchId = branchId;
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -264,7 +363,12 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
       where,
       include: {
         user: { select: { name: true } },
+        branch: { select: { name: true } },
         items: true,
+        payments: {
+          orderBy: { amount: "desc" },
+          select: { id: true, method: true, amount: true },
+        },
       },
       orderBy,
       skip,
@@ -287,6 +391,7 @@ export async function getTransactionById(id: string) {
     include: {
       user: { select: { name: true, email: true } },
       items: { include: { product: true } },
+      payments: { orderBy: { amount: "desc" } },
     },
   });
 }

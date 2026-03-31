@@ -14,6 +14,7 @@ export async function getPurchaseOrders(params?: {
   sortDir?: "asc" | "desc";
   dateFrom?: string;
   dateTo?: string;
+  branchId?: string;
 }) {
   const {
     search,
@@ -24,6 +25,7 @@ export async function getPurchaseOrders(params?: {
     sortDir = "desc",
     dateFrom,
     dateTo,
+    branchId,
   } = params || {};
   const where: Record<string, unknown> = {};
 
@@ -42,6 +44,7 @@ export async function getPurchaseOrders(params?: {
     if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59");
     where.createdAt = createdAt;
   }
+  if (branchId && branchId !== "ALL") where.branchId = branchId;
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -61,6 +64,7 @@ export async function getPurchaseOrders(params?: {
       take: perPage,
       include: {
         supplier: { select: { name: true } },
+        branch: { select: { name: true } },
         _count: { select: { items: true } },
       },
     }),
@@ -92,6 +96,8 @@ interface POItem {
 
 export async function createPurchaseOrder(data: {
   supplierId: string;
+  branchId?: string;
+  branchIds?: string[];
   expectedDate?: string;
   notes?: string;
   items: POItem[];
@@ -123,6 +129,7 @@ export async function createPurchaseOrder(data: {
       data: {
         orderNumber,
         supplierId: data.supplierId,
+        branchId: data.branchIds?.[0] ?? data.branchId ?? null,
         totalAmount,
         notes: data.notes || null,
         expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,

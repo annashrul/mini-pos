@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createUser, updateUser, deleteUser, getUsers } from "@/features/users";
+import { useBranch } from "@/components/providers/branch-provider";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { SmartTable } from "@/components/ui/smart-table";
 import { SmartSelect } from "@/components/ui/smart-select";
 import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
-import type { User } from "@/types";
+import type { Branch, User } from "@/types";
 
 import { DEFAULT_ROLE_COLOR } from "@/constants/roles";
 
@@ -27,34 +28,41 @@ interface AppRoleData {
 interface Props {
     initialData: { users: User[]; total: number; totalPages: number };
     roles: AppRoleData[];
+    branches: Branch[];
 }
 
-export function UsersContent({ initialData, roles }: Props) {
+export function UsersContent({ initialData, roles, branches }: Props) {
+    const { selectedBranchId } = useBranch();
     const roleColors = Object.fromEntries(roles.map((r) => [r.key, r.color ?? DEFAULT_ROLE_COLOR]));
     const roleOptions = roles.filter((role) => role.isActive).map((role) => ({ value: role.key, label: role.name }));
+    const branchOptions = branches.map((branch) => ({ value: branch.id, label: branch.name }));
     const defaultRole = roleOptions[0]?.value ?? "";
     const [data, setData] = useState(initialData);
     const [open, setOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formRole, setFormRole] = useState(defaultRole);
+    const [formBranchId, setFormBranchId] = useState("");
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ role: "ALL" });
+    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ role: "ALL", branchId: "ALL" });
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
+    const effectiveFilters = selectedBranchId ? { ...activeFilters, branchId: selectedBranchId } : activeFilters;
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string> }) => {
         startTransition(async () => {
-            const f = params.filters ?? activeFilters;
+            const sourceFilters = params.filters ?? activeFilters;
+            const f = selectedBranchId ? { ...sourceFilters, branchId: selectedBranchId } : sourceFilters;
             const query = {
                 search: params.search ?? search,
                 page: params.page ?? page,
                 perPage: params.pageSize ?? pageSize,
                 ...(f.role !== "ALL" ? { role: f.role } : {}),
+                ...(f.branchId !== "ALL" ? { branchId: f.branchId } : {}),
             };
             const result = await getUsers(query);
             setData(result);
@@ -81,12 +89,14 @@ export function UsersContent({ initialData, roles }: Props) {
     const openCreateDialog = () => {
         setEditingUser(null);
         setFormRole(defaultRole);
+        setFormBranchId("");
         setOpen(true);
     };
 
     const openEditDialog = (user: User) => {
         setEditingUser(user);
         setFormRole(user.role);
+        setFormBranchId(user.branchId ?? "");
         setOpen(true);
     };
 
@@ -94,11 +104,13 @@ export function UsersContent({ initialData, roles }: Props) {
         setOpen(false);
         setEditingUser(null);
         setFormRole(defaultRole);
+        setFormBranchId("");
     };
 
     const columns: SmartColumn<User>[] = [
         { key: "name", header: "Nama", sortable: true, render: (row) => <span className="font-medium text-sm">{row.name}</span>, exportValue: (row) => row.name },
         { key: "email", header: "Email", sortable: true, render: (row) => <span className="text-xs text-muted-foreground">{row.email}</span>, exportValue: (row) => row.email },
+        { key: "branch", header: "Lokasi", sortable: true, render: (row) => <span className="text-xs">{row.branch?.name ?? "-"}</span>, exportValue: (row) => row.branch?.name ?? "-" },
         { key: "role", header: "Role", align: "center", render: (row) => <Badge className={`rounded-lg ${roleColors[row.role]}`}>{row.role}</Badge>, exportValue: (row) => row.role },
         { key: "transactions", header: "Transaksi", align: "center", sortable: true, render: (row) => <span className="text-xs">{row._count.transactions}</span>, exportValue: (row) => row._count.transactions },
         { key: "status", header: "Status", align: "center", render: (row) => <Badge className={row.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}>{row.isActive ? "Aktif" : "Nonaktif"}</Badge>, exportValue: (row) => row.isActive ? "Aktif" : "Nonaktif" },
@@ -120,6 +132,12 @@ export function UsersContent({ initialData, roles }: Props) {
                 ...roleOptions,
             ]
         },
+        {
+            key: "branchId", label: "Lokasi", type: "select", options: [
+                { value: "ALL", label: "Semua Lokasi" },
+                ...branchOptions,
+            ]
+        },
     ];
 
     return (
@@ -132,7 +150,7 @@ export function UsersContent({ initialData, roles }: Props) {
                 currentPage={page} pageSize={pageSize} loading={loading} title="Daftar Pengguna" titleIcon={<Users className="w-4 h-4 text-muted-foreground" />}
                 searchPlaceholder="Cari user..." onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }} onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
-                filters={filters} activeFilters={activeFilters} onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                filters={filters} activeFilters={effectiveFilters} onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} exportFilename="users"
                 emptyIcon={<Users className="w-10 h-10 text-muted-foreground/30" />} emptyTitle="Belum ada user"
             />
@@ -153,6 +171,18 @@ export function UsersContent({ initialData, roles }: Props) {
                                 }
                             />
                             <input type="hidden" name="role" value={formRole} required />
+                        </div>
+                        <div className="space-y-1.5"><Label className="text-sm">Lokasi</Label>
+                            <SmartSelect
+                                value={formBranchId}
+                                onChange={setFormBranchId}
+                                initialOptions={branchOptions}
+                                placeholder="Pilih lokasi (opsional)"
+                                onSearch={async (query) =>
+                                    branchOptions.filter((opt) => opt.label.toLowerCase().includes(query.toLowerCase()))
+                                }
+                            />
+                            <input type="hidden" name="branchId" value={formBranchId} />
                         </div>
                         {editingUser && <input type="hidden" name="isActive" value={editingUser.isActive ? "true" : "false"} />}
                         <div className="flex justify-end gap-2">

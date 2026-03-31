@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useForm, Controller } from "react-hook-form";
@@ -73,6 +73,7 @@ type RawPosProduct = {
     id: string;
     code: string;
     name: string;
+    categoryId?: string;
     sellingPrice: number;
     purchasePrice: number;
     stock: number;
@@ -88,6 +89,7 @@ function toProductSearchResult(product: RawPosProduct): ProductSearchResult {
         id: product.id,
         code: product.code,
         name: product.name,
+        ...(product.categoryId ? { categoryId: product.categoryId } : {}),
         sellingPrice: product.sellingPrice,
         purchasePrice: product.purchasePrice,
         stock: product.stock,
@@ -173,6 +175,7 @@ export default function POSPage() {
     const [voucherCode, setVoucherCode] = useState("");
     const [voucherDiscount, setVoucherDiscount] = useState(0);
     const [voucherApplied, setVoucherApplied] = useState("");
+    const [voucherPromoId, setVoucherPromoId] = useState("");
     const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig | null>(null);
     // Redeem points
     const [redeemPointsInput, setRedeemPointsInput] = useState(0);
@@ -194,6 +197,31 @@ export default function POSPage() {
     const negativeMarginItems = cart.filter((item) => item.unitPrice <= item.purchasePrice);
     const lowStockItems = cart.filter((item) => item.quantity >= item.maxStock - 2);
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const promoMeta = useMemo(() => {
+        const byItem: Record<string, { names: string[]; discount: number }> = {};
+        const cartPromos: { promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[] = [];
+        const freeQtyByItem: Record<string, number> = {};
+        appliedPromos.forEach((promo) => {
+            if (promo.appliedTo === "cart") {
+                cartPromos.push(promo);
+                return;
+            }
+            const current = byItem[promo.appliedTo] ?? { names: [], discount: 0 };
+            current.names.push(promo.promoName);
+            current.discount += promo.discountAmount;
+            byItem[promo.appliedTo] = current;
+            if (promo.type === "BUY_X_GET_Y" || promo.type === "BUNDLE") {
+                const item = cart.find((cartItem) => cartItem.productId === promo.appliedTo);
+                if (item && item.unitPrice > 0) {
+                    const freeQty = Math.max(0, Math.round(promo.discountAmount / item.unitPrice));
+                    if (freeQty > 0) {
+                        freeQtyByItem[promo.appliedTo] = (freeQtyByItem[promo.appliedTo] ?? 0) + freeQty;
+                    }
+                }
+            }
+        });
+        return { byItem, cartPromos, freeQtyByItem };
+    }, [appliedPromos, cart]);
     const quickStep =
         grandTotal <= 10000 ? 1000 :
             grandTotal <= 100000 ? 5000 :
@@ -211,7 +239,14 @@ export default function POSPage() {
     useEffect(() => {
         const run = async () => {
             if (cart.length === 0) { setAppliedPromos([]); setPromoDiscount(0); return; }
-            const items = cart.map((c) => ({ productId: c.productId, productName: c.productName, quantity: c.quantity, unitPrice: c.unitPrice, subtotal: c.subtotal }));
+            const items = cart.map((c) => ({
+                productId: c.productId,
+                productName: c.productName,
+                ...(c.categoryId ? { categoryId: c.categoryId } : {}),
+                quantity: c.quantity,
+                unitPrice: c.unitPrice,
+                subtotal: c.subtotal
+            }));
             const result = await calculateAutoPromo(items, subtotal);
             setAppliedPromos(result.promos); setPromoDiscount(result.totalDiscount);
         };
@@ -222,7 +257,7 @@ export default function POSPage() {
 
     // Handlers
     const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); toast.success(`Member: ${c.name}`); } else setDetectedCustomer(null); } else setDetectedCustomer(null); };
-    const handleApplyVoucher = async () => { if (!voucherCode) return; const r = await validateVoucher(voucherCode, subtotal); if (r.error) toast.error(r.error); else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); } };
+    const handleApplyVoucher = async () => { if (!voucherCode) return; const r = await validateVoucher(voucherCode, subtotal); if (r.error) { setVoucherPromoId(""); toast.error(r.error); } else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); setVoucherPromoId(r.promoId!); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); } };
 
     const handleRedeemPoints = async () => {
         if (!detectedCustomer || redeemPointsInput <= 0) return;
@@ -246,6 +281,7 @@ export default function POSPage() {
             const initialUnitPrice = getTierUnitPrice(product.sellingPrice, product.tierPrices, 1);
             return [...prev, {
                 productId: product.id,
+                ...(product.categoryId ? { categoryId: product.categoryId } : {}),
                 productName: product.name,
                 productCode: product.code,
                 quantity: 1,
@@ -302,7 +338,16 @@ export default function POSPage() {
         setLoading(true);
         const pn = appliedPromos.map((p) => p.promoName); if (voucherApplied) pn.push(voucherApplied);
         const payload = {
-            items: cart.map((item) => ({ productId: item.productId, productName: item.productName, productCode: item.productCode, quantity: item.quantity, unitPrice: item.unitPrice, discount: item.discount, subtotal: item.subtotal })),
+            items: cart.map((item) => ({
+                productId: item.productId,
+                ...(item.categoryId ? { categoryId: item.categoryId } : {}),
+                productName: item.productName,
+                productCode: item.productCode,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                subtotal: item.subtotal
+            })),
             subtotal,
             discountAmount,
             taxAmount,
@@ -312,13 +357,14 @@ export default function POSPage() {
             changeAmount: paymentMethod === "CASH" ? changeAmount : 0,
             ...(detectedCustomer?.id ? { customerId: detectedCustomer.id } : {}),
             ...(pn.length > 0 ? { promoApplied: pn.join(", ") } : {}),
+            ...(appliedPromos.length > 0 || voucherPromoId ? { promoIds: Array.from(new Set([...appliedPromos.map((p) => p.promoId), ...(voucherPromoId ? [voucherPromoId] : [])])) } : {}),
             ...(redeemDiscount > 0 ? { redeemPoints: redeemPointsInput } : {}),
         };
         const r = await createTransaction(payload);
         setLoading(false); if (r.error) toast.error(r.error); else { setShowPaymentDialog(false); setSuccess(r.invoiceNumber!); setPointsEarnedResult(r.pointsEarned || 0); localStorage.removeItem(STORAGE_KEY); }
     };
 
-    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setPaymentAmount(""); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
+    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setPaymentAmount(""); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
 
     const loadProducts = useCallback(async (mode: "favorites" | "category" = "favorites", catId?: string, page = 1, reset = true, branchId?: string) => {
         if (browseLoading) return;
@@ -638,7 +684,7 @@ export default function POSPage() {
             {/* ============================================ */}
             {/* LEFT PANEL: Products */}
             {/* ============================================ */}
-            <div className="w-[320px] bg-white border-r border-border/40 flex flex-col shrink-0">
+            <div className="w-[220px] bg-white border-r border-border/40 flex flex-col shrink-0">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => router.push("/dashboard")}>
@@ -827,39 +873,52 @@ export default function POSPage() {
                                 </div>
                             ) : (
                                 <div className="p-3 space-y-1.5">
-                                    {cart.map((item, idx) => (
-                                        <div key={item.productId}
-                                            className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted/30 transition-colors group">
-                                            {/* Index */}
-                                            <span className="text-xs text-muted-foreground/50 w-5 text-center tabular-nums">{idx + 1}</span>
-                                            {/* Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-sm truncate">{item.productName}</p>
-                                                <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.unitPrice)}</p>
-                                                {item.tierPrices && item.tierPrices.length > 0 && (
-                                                    <p className="text-[10px] text-emerald-600">
-                                                        {item.baseUnitPrice && item.unitPrice < item.baseUnitPrice ? "Harga tier aktif" : "Produk memiliki harga tier"}
-                                                    </p>
+                                    {cart.map((item, idx) => {
+                                        const itemPromo = promoMeta.byItem[item.productId];
+                                        const freeQty = promoMeta.freeQtyByItem[item.productId] ?? 0;
+                                        const displayQty = item.quantity + freeQty;
+                                        return (
+                                            <div key={item.productId}
+                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted/30 transition-colors group">
+                                                {/* Index */}
+                                                <span className="text-xs text-muted-foreground/50 w-5 text-center tabular-nums">{idx + 1}</span>
+                                                {/* Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-sm truncate">{item.productName}</p>
+                                                    <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.unitPrice)}</p>
+                                                    {item.tierPrices && item.tierPrices.length > 0 && (
+                                                        <p className="text-[10px] text-emerald-600">
+                                                            {item.baseUnitPrice && item.unitPrice < item.baseUnitPrice ? "Harga tier aktif" : "Produk memiliki harga tier"}
+                                                        </p>
+                                                    )}
+                                                    {itemPromo && (
+                                                        <p className="text-[10px] text-green-600 truncate">
+                                                            {itemPromo.names.join(", ")} · -{formatCurrency(itemPromo.discount)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                {/* Qty */}
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, -1)} disabled={item.quantity <= 1}>
+                                                        <Minus className="w-3 h-3" />
+                                                    </Button>
+                                                    <span className="w-9 text-center font-bold text-sm tabular-nums">{displayQty}</span>
+                                                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, 1)}>
+                                                        <Plus className="w-3 h-3" />
+                                                    </Button>
+                                                </div>
+                                                {freeQty > 0 && (
+                                                    <span className="text-[10px] text-green-600 shrink-0">+{freeQty} gratis</span>
                                                 )}
+                                                {/* Subtotal */}
+                                                <p className="w-28 text-right font-bold text-sm tabular-nums shrink-0">{formatCurrency(item.subtotal)}</p>
+                                                {/* Delete */}
+                                                <button onClick={() => removeItem(item.productId)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 p-1">
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
-                                            {/* Qty */}
-                                            <div className="flex items-center gap-1 shrink-0">
-                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, -1)} disabled={item.quantity <= 1}>
-                                                    <Minus className="w-3 h-3" />
-                                                </Button>
-                                                <span className="w-9 text-center font-bold text-sm tabular-nums">{item.quantity}</span>
-                                                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, 1)}>
-                                                    <Plus className="w-3 h-3" />
-                                                </Button>
-                                            </div>
-                                            {/* Subtotal */}
-                                            <p className="w-28 text-right font-bold text-sm tabular-nums shrink-0">{formatCurrency(item.subtotal)}</p>
-                                            {/* Delete */}
-                                            <button onClick={() => removeItem(item.productId)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 p-1">
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>
@@ -870,7 +929,7 @@ export default function POSPage() {
             {/* ============================================ */}
             {/* RIGHT PANEL: Payment */}
             {/* ============================================ */}
-            <div className="w-[340px] bg-white border-l border-border/40 flex flex-col shrink-0">
+            <div className="w-[240px] bg-white border-l border-border/40 flex flex-col shrink-0">
                 {/* Scrollable content area */}
                 <div className="flex-1 overflow-y-auto min-h-0">
                     <div className="p-5 space-y-4">
@@ -894,12 +953,17 @@ export default function POSPage() {
                         {appliedPromos.length > 0 && (
                             <div className="space-y-1">
                                 <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">Promo Aktif</p>
-                                {appliedPromos.map((p, i) => (
+                                {promoMeta.cartPromos.map((p, i) => (
                                     <div key={i} className="flex justify-between text-xs bg-green-50/60 rounded-lg px-3 py-1.5">
                                         <span className="text-green-700 truncate">{p.promoName}</span>
                                         <span className="text-green-600 font-medium ml-2">-{formatCurrency(p.discountAmount)}</span>
                                     </div>
                                 ))}
+                                {Object.keys(promoMeta.byItem).length > 0 && (
+                                    <div className="text-[11px] text-green-700 bg-green-50/60 rounded-lg px-3 py-1.5">
+                                        Promo item aktif di {Object.keys(promoMeta.byItem).length} produk (lihat di baris produk)
+                                    </div>
+                                )}
                             </div>
                         )}
 

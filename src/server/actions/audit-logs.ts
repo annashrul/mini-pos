@@ -7,13 +7,15 @@ import { auth } from "@/lib/auth";
 export async function getAuditLogs(params?: {
   search?: string;
   entity?: string;
+  branchId?: string;
   page?: number;
   perPage?: number;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }) {
-  const { search, entity, page = 1, perPage = 15, sortBy, sortDir = "desc" } = params || {};
+  const { search, entity, branchId, page = 1, perPage = 15, sortBy, sortDir = "desc" } = params || {};
   const where: Record<string, unknown> = {};
+  if (branchId) where.branchId = branchId;
 
   if (search) {
     where.OR = [
@@ -40,7 +42,7 @@ export async function getAuditLogs(params?: {
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { name: true, email: true } }, branch: { select: { name: true } } },
     }),
     prisma.auditLog.count({ where }),
   ]);

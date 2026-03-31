@@ -28,7 +28,10 @@ type SmartSelectSearchResult =
 
 interface SmartSelectProps {
     value?: string | undefined;
-    onChange: (value: string) => void;
+    onChange?: ((value: string) => void) | undefined;
+    multiple?: boolean | undefined;
+    values?: string[] | undefined;
+    onValuesChange?: ((values: string[]) => void) | undefined;
     onSearch: (query: string, page: number) => Promise<SmartSelectSearchResult>;
     placeholder?: string | undefined;
     label?: string | undefined;
@@ -44,6 +47,9 @@ interface SmartSelectProps {
 export function SmartSelect({
     value,
     onChange,
+    multiple = false,
+    values,
+    onValuesChange,
     onSearch,
     placeholder = "Pilih...",
     label,
@@ -68,17 +74,22 @@ export function SmartSelect({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const requestIdRef = useRef(0);
+    const listContainerRef = useRef<HTMLDivElement>(null);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
     const canCreateInline = Boolean(createLabel && onCreateSubmit && createFields?.length);
+    const selectedValues = multiple ? (values ?? []) : (value ? [value] : []);
+    const selectedSet = new Set(selectedValues);
 
 
 
     // Set selected label from value
     useEffect(() => {
+        if (multiple) return;
         if (value) {
             const found = [...initialOptions, ...options].find((o) => o.value === value);
             if (found) setSelectedLabel(found.label);
         }
-    }, [value, options, initialOptions]);
+    }, [multiple, value, options, initialOptions]);
 
     const loadOptions = useCallback(async (query: string, nextPage = 1, append = false) => {
         const currentRequestId = ++requestIdRef.current;
@@ -139,8 +150,32 @@ export function SmartSelect({
         }
     };
 
+    useEffect(() => {
+        if (!open || !hasMore || loading || loadingMore) return;
+        const root = listContainerRef.current;
+        const target = loadMoreRef.current;
+        if (!root || !target) return;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const entry = entries[0];
+                if (!entry?.isIntersecting) return;
+                void loadOptions(searchQuery, page + 1, true);
+            },
+            { root, rootMargin: "48px", threshold: 0.1 }
+        );
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [open, hasMore, loading, loadingMore, loadOptions, page, searchQuery]);
+
     const handleSelect = (opt: SmartSelectOption) => {
-        onChange(opt.value);
+        if (multiple) {
+            const nextValues = selectedSet.has(opt.value)
+                ? selectedValues.filter((item) => item !== opt.value)
+                : [...selectedValues, opt.value];
+            onValuesChange?.(nextValues);
+            return;
+        }
+        onChange?.(opt.value);
         setSelectedLabel(opt.label);
         setOpen(false);
         setSearchQuery("");
@@ -150,7 +185,11 @@ export function SmartSelect({
         if (!onCreateSubmit) return;
         const result = await onCreateSubmit(formData);
         if ("error" in result) return;
-        onChange(result.id);
+        if (multiple) {
+            onValuesChange?.([...(values ?? []), result.id]);
+        } else {
+            onChange?.(result.id);
+        }
         setSelectedLabel(result.name);
         setCreateOpen(false);
         setOpen(false);
@@ -181,10 +220,14 @@ export function SmartSelect({
                         disabled={disabled}
                         className={cn(
                             "w-full justify-between rounded-lg font-normal h-9 text-sm",
-                            !value && "text-muted-foreground"
+                            selectedValues.length === 0 && "text-muted-foreground"
                         )}
                     >
-                        <span className="truncate">{value ? selectedLabel || placeholder : placeholder}</span>
+                        <span className="truncate">
+                            {multiple
+                                ? (selectedValues.length > 0 ? `${selectedValues.length} dipilih` : placeholder)
+                                : (value ? selectedLabel || placeholder : placeholder)}
+                        </span>
                         <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
@@ -207,7 +250,7 @@ export function SmartSelect({
                         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin opacity-50" />}
                     </div>
                     {/* Options */}
-                    <div className="max-h-[220px] overflow-y-auto overscroll-contain p-1" onScroll={handleScroll}>
+                    <div ref={listContainerRef} className="max-h-[220px] overflow-y-auto overscroll-contain p-1" onScroll={handleScroll}>
                         {options.length === 0 && !loading && (
                             <div className="py-4 text-center text-sm text-muted-foreground">
                                 <p>Tidak ditemukan</p>
@@ -225,14 +268,15 @@ export function SmartSelect({
                         )}
                         {options.map((opt) => (
                             <button
+                                type="button"
                                 key={opt.value}
                                 onClick={() => handleSelect(opt)}
                                 className={cn(
                                     "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent",
-                                    value === opt.value && "bg-accent"
+                                    selectedSet.has(opt.value) && "bg-accent"
                                 )}
                             >
-                                <Check className={cn("h-3.5 w-3.5 shrink-0", value === opt.value ? "opacity-100" : "opacity-0")} />
+                                <Check className={cn("h-3.5 w-3.5 shrink-0", selectedSet.has(opt.value) ? "opacity-100" : "opacity-0")} />
                                 <div className="text-left min-w-0">
                                     <p className="truncate">{opt.label}</p>
                                     {opt.description && <p className="text-xs text-muted-foreground truncate">{opt.description}</p>}
@@ -245,11 +289,13 @@ export function SmartSelect({
                                 Memuat data...
                             </div>
                         )}
+                        <div ref={loadMoreRef} className="h-0.5" />
                     </div>
                     {/* Create button at bottom */}
                     {canCreateInline && options.length > 0 && (
                         <div className="border-t p-1">
                             <button
+                                type="button"
                                 onClick={openCreateModal}
                                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-primary hover:bg-accent transition-colors"
                             >

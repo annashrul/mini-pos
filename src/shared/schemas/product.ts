@@ -31,6 +31,8 @@ export const branchPriceSchema = z.object({
   branchName: z.string().min(1),
   sellingPrice: z.number().min(1, "Harga jual cabang wajib diisi"),
   purchasePrice: z.number().min(0, "Harga beli cabang tidak valid"),
+  stock: z.number().int().min(0),
+  minStock: z.number().int().min(0),
 });
 
 export const tierPriceSchema = z.object({

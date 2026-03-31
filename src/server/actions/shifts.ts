@@ -35,6 +35,7 @@ export async function getShifts(params?: {
   search?: string;
   page?: number;
   perPage?: number;
+  branchId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }) {
@@ -42,10 +43,12 @@ export async function getShifts(params?: {
     search,
     page = 1,
     perPage = 10,
+    branchId,
     sortBy,
     sortDir = "desc",
   } = params || {};
   const where: Record<string, unknown> = {};
+  if (branchId) where.branchId = branchId;
   if (search) {
     where.user = {
       OR: [
@@ -75,7 +78,7 @@ export async function getShifts(params?: {
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
-      include: { user: { select: { name: true, email: true } } },
+      include: { user: { select: { name: true, email: true } }, branch: { select: { name: true } } },
     }),
     prisma.cashierShift.count({ where }),
   ]);
@@ -112,11 +115,14 @@ export async function openShift(data: FormData) {
   if (!parsed.success)
     return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
+  const branchId = (data.get("branchId") as string) || null;
+
   try {
     await prisma.cashierShift.create({
       data: {
         userId: resolvedUserId,
         openingCash: parsed.data.openingCash,
+        branchId,
       },
     });
     revalidatePath("/shifts");

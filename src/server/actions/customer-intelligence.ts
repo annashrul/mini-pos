@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 
 // Repeat customer detection
-export async function getRepeatCustomers() {
+export async function getRepeatCustomers(_branchId?: string) {
   const customers = await prisma.customer.findMany({
     include: {
       _count: { select: { transactions: true } },
@@ -26,7 +26,7 @@ export async function getRepeatCustomers() {
 }
 
 // Favorite products per customer
-export async function getCustomerFavorites(customerId: string) {
+export async function getCustomerFavorites(customerId: string, _branchId?: string) {
   const items = await prisma.transactionItem.groupBy({
     by: ["productId", "productName"],
     where: {
@@ -48,7 +48,7 @@ export async function getCustomerFavorites(customerId: string) {
 }
 
 // Shopping frequency analysis
-export async function getShoppingFrequency() {
+export async function getShoppingFrequency(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -91,7 +91,7 @@ export async function getShoppingFrequency() {
 }
 
 // Loyalty points summary
-export async function getLoyaltySummary() {
+export async function getLoyaltySummary(_branchId?: string) {
   const levels = await prisma.customer.groupBy({
     by: ["memberLevel"],
     _count: true,

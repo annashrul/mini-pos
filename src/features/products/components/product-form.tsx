@@ -112,11 +112,13 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     useEffect(() => {
         if (product) {
             getProductBranchPrices(product.id).then((bps) => {
-                applyBranchPrices(bps.map((bp) => ({
+                applyBranchPrices(bps.map((bp: { branchId: string; branch: { name: string }; sellingPrice: number; purchasePrice: number | null; stock?: number; minStock?: number }) => ({
                     branchId: bp.branchId,
                     branchName: bp.branch.name,
                     sellingPrice: bp.sellingPrice,
                     purchasePrice: bp.purchasePrice ?? product.purchasePrice,
+                    stock: bp.stock ?? 0,
+                    minStock: bp.minStock ?? 5,
                 })), false);
             });
             getProductUnits(product.id).then((units) => {
@@ -194,11 +196,22 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     const addBranchPrice = (branchId: string) => {
         const branch = branches.find((b) => b.id === branchId);
         if (!branch || branchPrices.some((bp) => bp.branchId === branchId)) return;
-        const next = [...branchPrices, { branchId, branchName: branch.name, sellingPrice: sellingPrice || 0, purchasePrice: purchasePrice || 0 }];
+        const stock = form.getValues("stock");
+        const mStock = form.getValues("minStock");
+        const next = [...branchPrices, { branchId, branchName: branch.name, sellingPrice: sellingPrice || 0, purchasePrice: purchasePrice || 0, stock: stock || 0, minStock: mStock || 5 }];
         applyBranchPrices(next);
     };
 
-    const updateBranchPrice = (branchId: string, field: "sellingPrice" | "purchasePrice" | "margin", value: number) => {
+    const addAllBranches = () => {
+        const stock = form.getValues("stock");
+        const mStock = form.getValues("minStock");
+        const newItems = branches
+            .filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id))
+            .map((b) => ({ branchId: b.id, branchName: b.name, sellingPrice: sellingPrice || 0, purchasePrice: purchasePrice || 0, stock: stock || 0, minStock: mStock || 5 }));
+        if (newItems.length > 0) applyBranchPrices([...branchPrices, ...newItems]);
+    };
+
+    const updateBranchPrice = (branchId: string, field: "sellingPrice" | "purchasePrice" | "margin" | "stock" | "minStock", value: number) => {
         const next = branchPrices.map((bp) => {
             if (bp.branchId !== branchId) return bp;
             if (field === "purchasePrice") {
@@ -651,9 +664,16 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-4">
-                    <p className="text-sm text-muted-foreground">
-                        Set harga berbeda per cabang. Tanpa harga khusus = <strong>harga default</strong>.
-                    </p>
+                    <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                            Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
+                        </p>
+                        {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
+                            <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs shrink-0" onClick={addAllBranches}>
+                                <Plus className="w-3 h-3 mr-1" /> Semua Cabang
+                            </Button>
+                        )}
+                    </div>
 
                     {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
@@ -694,6 +714,16 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                         {getErrorText(currentBranchError?.sellingPrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.sellingPrice?.message)}</p>}
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border/30">
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Stok</Label>
+                                        <Input type="number" value={bp.stock ?? 0} onChange={(e) => updateBranchPrice(bp.branchId, "stock", Number(e.target.value))} className="h-9 rounded-lg" min={0} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Stok Minimum</Label>
+                                        <Input type="number" value={bp.minStock ?? 5} onChange={(e) => updateBranchPrice(bp.branchId, "minStock", Number(e.target.value))} className="h-9 rounded-lg" min={0} />
+                                    </div>
+                                </div>
                                 {bp.purchasePrice > 0 && bp.sellingPrice > 0 && (
                                     <div className="flex items-center gap-3 text-xs flex-wrap">
                                         <span className="text-muted-foreground">Profit:</span>
@@ -709,7 +739,8 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     {branchPrices.length === 0 && (
                         <div className="text-center py-6 text-muted-foreground/40">
                             <Building2 className="w-10 h-10 mx-auto mb-2" />
-                            <p className="text-sm">Semua cabang pakai harga default</p>
+                            <p className="text-sm font-medium">Belum ada cabang ditambahkan</p>
+                            <p className="text-xs mt-1">Tambahkan cabang untuk mengatur stok & harga per lokasi</p>
                         </div>
                     )}
                 </TabsContent>

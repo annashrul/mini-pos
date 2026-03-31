@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 
 // Margin analyzer per product
-export async function getMarginAnalysis() {
+export async function getMarginAnalysis(_branchId?: string) {
   const products = await prisma.product.findMany({
     where: { isActive: true },
     select: {
@@ -29,7 +29,7 @@ export async function getMarginAnalysis() {
 }
 
 // Margin analyzer per category
-export async function getCategoryMarginAnalysis() {
+export async function getCategoryMarginAnalysis(_branchId?: string) {
   const categories = await prisma.category.findMany({
     include: {
       products: {
@@ -65,7 +65,7 @@ export async function getCategoryMarginAnalysis() {
 }
 
 // Dead stock detection (no sales in 30 days)
-export async function getDeadStock() {
+export async function getDeadStock(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -98,7 +98,7 @@ export async function getDeadStock() {
 }
 
 // Slow moving products (sold < 5 in 30 days)
-export async function getSlowMoving() {
+export async function getSlowMoving(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -132,7 +132,7 @@ export async function getSlowMoving() {
 }
 
 // Peak hours analysis
-export async function getPeakHours() {
+export async function getPeakHours(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -161,7 +161,7 @@ export async function getPeakHours() {
 }
 
 // Smart reorder alerts
-export async function getReorderAlerts() {
+export async function getReorderAlerts(_branchId?: string) {
   return prisma.$queryRaw<
     {
       id: string;
@@ -183,7 +183,7 @@ export async function getReorderAlerts() {
 }
 
 // Fraud detection - void abuse
-export async function getVoidAbuseDetection() {
+export async function getVoidAbuseDetection(_branchId?: string) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -213,7 +213,7 @@ export async function getVoidAbuseDetection() {
 }
 
 // Daily profit (last 30 days)
-export async function getDailyProfit() {
+export async function getDailyProfit(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -254,7 +254,7 @@ export async function getDailyProfit() {
 }
 
 // Profit per shift
-export async function getShiftProfit() {
+export async function getShiftProfit(_branchId?: string) {
   const shifts = await prisma.cashierShift.findMany({
     where: { isOpen: false, closedAt: { not: null } },
     include: { user: { select: { name: true } } },
@@ -288,7 +288,7 @@ export async function getShiftProfit() {
 }
 
 // Supplier ranking
-export async function getSupplierRanking() {
+export async function getSupplierRanking(_branchId?: string) {
   const suppliers = await prisma.supplier.findMany({
     where: { isActive: true },
     include: {
@@ -313,7 +313,7 @@ export async function getSupplierRanking() {
 }
 
 // Supplier debt tracking
-export async function getSupplierDebt() {
+export async function getSupplierDebt(_branchId?: string) {
   const suppliers = await prisma.supplier.findMany({
     where: { isActive: true },
     include: {
@@ -349,7 +349,7 @@ export async function getSupplierDebt() {
 }
 
 // Unusual discount detection
-export async function getUnusualDiscounts() {
+export async function getUnusualDiscounts(_branchId?: string) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -382,7 +382,7 @@ export async function getUnusualDiscounts() {
 }
 
 // Promo effectiveness report
-export async function getPromoEffectiveness() {
+export async function getPromoEffectiveness(_branchId?: string) {
   const promotions = await prisma.promotion.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -430,7 +430,7 @@ export async function getPromoEffectiveness() {
 }
 
 // Auto reorder recommendation
-export async function getReorderRecommendations() {
+export async function getReorderRecommendations(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -492,7 +492,7 @@ export async function getReorderRecommendations() {
 }
 
 // Cashier performance
-export async function getCashierPerformance() {
+export async function getCashierPerformance(_branchId?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const thirtyDaysAgo = new Date();

@@ -3,9 +3,9 @@ import { getAllCategories } from "@/server/actions/categories";
 import { getAllBranches } from "@/server/actions/branches";
 import { createTransaction } from "@/server/actions/transactions";
 import { getActiveShift, openShift, closeShift, getShiftSummary } from "@/server/actions/shifts";
-import { calculateAutoPromo, validateVoucher, findCustomerByPhone } from "@/server/actions/promo-engine";
+import { calculateAutoPromo, validateVoucher, findCustomerByPhone, getTebusMurahOptions } from "@/server/actions/promo-engine";
 import { redeemPoints } from "@/server/actions/points";
-import { getReceiptConfig } from "@/server/actions/settings";
+import { getReceiptConfig, getPosConfig } from "@/server/actions/settings";
 
 export const posService = {
   searchProducts,
@@ -19,8 +19,10 @@ export const posService = {
   closeShift,
   getShiftSummary,
   calculateAutoPromo,
+  getTebusMurahOptions,
   validateVoucher,
   findCustomerByPhone,
   redeemPoints,
   getReceiptConfig,
+  getPosConfig,
 };

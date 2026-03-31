@@ -19,6 +19,7 @@ interface ReceiptData {
   paymentMethod: string;
   paymentAmount: number;
   change: number;
+  payments?: { method: string; amount: number }[] | undefined;
   promos?: string[] | undefined;
   storeName?: string | undefined;
   storeAddress?: string | undefined;
@@ -103,23 +104,23 @@ export function printThermalReceipt(data: ReceiptData) {
   </div>`;
   }
 
-  if (showPaymentMethod) {
-    receipt += `
-  <div style="text-align: center;">${line}</div>
-  <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
-    <span>TOTAL</span><span>Rp ${formatNum(data.grandTotal)}</span>
-  </div>
-  <div style="text-align: center;">${line}</div>
-  <div style="display: flex; justify-content: space-between;">
-    <span>${paymentLabels[data.paymentMethod] || data.paymentMethod}</span><span>${formatNum(data.paymentAmount)}</span>
-  </div>`;
-  } else {
-    receipt += `
+  receipt += `
   <div style="text-align: center;">${line}</div>
   <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
     <span>TOTAL</span><span>Rp ${formatNum(data.grandTotal)}</span>
   </div>
   <div style="text-align: center;">${line}</div>`;
+
+  if (showPaymentMethod) {
+    const paymentsList = data.payments && data.payments.length > 0
+      ? data.payments
+      : [{ method: data.paymentMethod, amount: data.paymentAmount }];
+    for (const p of paymentsList) {
+      receipt += `
+  <div style="display: flex; justify-content: space-between;">
+    <span>${paymentLabels[p.method] || p.method}</span><span>${formatNum(p.amount)}</span>
+  </div>`;
+    }
   }
 
   if (data.change > 0) {

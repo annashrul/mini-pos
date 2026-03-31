@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import {
     getStockTransfers,
     getStockTransferById,
@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import type { StockTransfer, Branch, TransferCartItem, StockTransferDetail } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 
 interface Props {
     initialData: { transfers: StockTransfer[]; total: number; totalPages: number; currentPage: number };
@@ -65,6 +66,11 @@ export function StockTransfersContent({ initialData, branches }: Props) {
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+    }, [selectedBranchId]);
 
     // Create state
     const [fromBranch, setFromBranch] = useState("");
@@ -96,6 +102,7 @@ export function StockTransfersContent({ initialData, branches }: Props) {
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
             };
             const result = await getStockTransfers(query);
             setData(result);

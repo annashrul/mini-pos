@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { getAuditLogs } from "@/features/audit-logs";
+import { useBranch } from "@/components/providers/branch-provider";
 import { Badge } from "@/components/ui/badge";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
@@ -35,6 +36,12 @@ export function AuditLogsContent({ initialData }: Props) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [loading, startTransition] = useTransition();
 
+  const { selectedBranchId } = useBranch();
+  const prevBranchRef = useRef(selectedBranchId);
+  useEffect(() => {
+    if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+  }, [selectedBranchId]);
+
   const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
     startTransition(async () => {
       const f = params.filters ?? activeFilters;
@@ -46,6 +53,7 @@ export function AuditLogsContent({ initialData }: Props) {
         perPage: params.pageSize ?? pageSize,
         ...(f.entity !== "ALL" ? { entity: f.entity } : {}),
         ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+        ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       };
       const result = await getAuditLogs(query);
       setData(result);
@@ -62,6 +70,11 @@ export function AuditLogsContent({ initialData }: Props) {
       key: "user", header: "User", sortable: true,
       render: (row) => <span className="text-sm font-medium">{row.user.name}</span>,
       exportValue: (row) => row.user.name,
+    },
+    {
+      key: "branch", header: "Lokasi",
+      render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+      exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
     },
     {
       key: "action", header: "Aksi",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import {
     createPurchaseOrder,
     getPurchaseOrders,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
+import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -32,6 +33,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import type { PurchaseOrder, Supplier, POCartItem, PurchaseOrderDetail, Category, Branch } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 import { ProductFormDialog } from "@/features/products";
 
 interface CreatedProductResult {
@@ -90,8 +92,14 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+    }, [selectedBranchId]);
 
     // Create PO state
+    const [selectedPoBranches, setSelectedPoBranches] = useState<string[]>([]);
     const [selectedSupplier, setSelectedSupplier] = useState("");
     const [expectedDate, setExpectedDate] = useState("");
     const [poNotes, setPoNotes] = useState("");
@@ -114,6 +122,7 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
                 search: params.search ?? search,
                 page: params.page ?? page,
                 ...(f.status !== "ALL" ? { status: f.status } : {}),
+                ...(f.branchId && f.branchId !== "ALL" ? { branchId: f.branchId } : selectedBranchId ? { branchId: selectedBranchId } : {}),
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
@@ -210,6 +219,7 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
 
         const payload = {
             supplierId: selectedSupplier,
+            ...(selectedPoBranches.length > 0 ? { branchIds: selectedPoBranches } : {}),
             items: cartItems.map((item) => ({
                 productId: item.productId,
                 quantity: item.quantity,
@@ -275,6 +285,11 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
             exportValue: (row) => row.orderNumber,
         },
         {
+            key: "branch", header: "Lokasi",
+            render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+            exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
+        },
+        {
             key: "supplier", header: "Supplier", sortable: true,
             render: (row) => <span className="text-sm">{row.supplier.name}</span>,
             exportValue: (row) => row.supplier.name,
@@ -328,6 +343,10 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
 
     const filters: SmartFilter[] = [
         {
+            key: "branchId", label: "Cabang", type: "select",
+            options: branches.filter((b) => b.isActive).map((b) => ({ value: b.id, label: b.name })),
+        },
+        {
             key: "status", label: "Status", type: "select",
             options: [
                 { value: "DRAFT", label: "Draft" },
@@ -359,7 +378,16 @@ export function PurchasesContent({ initialData, suppliers, categories, branches,
                             <DialogTitle>Buat Purchase Order</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-5">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Lokasi</Label>
+                                    <BranchMultiSelect
+                                        branches={branches.filter((b) => b.isActive)}
+                                        value={selectedPoBranches}
+                                        onChange={setSelectedPoBranches}
+                                        placeholder="Pilih lokasi"
+                                    />
+                                </div>
                                 <div className="space-y-2">
                                     <Label>Supplier</Label>
                                     <SmartSelect

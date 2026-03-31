@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useBranch } from "@/components/providers/branch-provider";
 import { getClosingReportList, getClosingReport, recloseShift } from "@/server/actions/closing-report";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,9 @@ export function ClosingReportsContent({ initialData }: Props) {
     const [search, setSearch] = useState("");
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => { if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); } }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Detail
     const [detailOpen, setDetailOpen] = useState(false);
@@ -78,6 +82,7 @@ export function ClosingReportsContent({ initialData }: Props) {
                 perPage: params.pageSize ?? pageSize,
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
             });
             setData(result as typeof data);
         });
@@ -168,6 +173,11 @@ export function ClosingReportsContent({ initialData }: Props) {
             key: "user", header: "Kasir", sortable: true,
             render: (row) => <span className="text-sm font-medium">{row.user.name}</span>,
             exportValue: (row) => row.user.name,
+        },
+        {
+            key: "branch", header: "Lokasi",
+            render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
+            exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
         },
         {
             key: "openedAt", header: "Dibuka", sortable: true,

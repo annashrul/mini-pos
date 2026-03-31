@@ -121,9 +121,10 @@ export async function getClosingReport(shiftId: string) {
   };
 }
 
-export async function getClosingReportList(params?: { page?: number; perPage?: number; search?: string; dateFrom?: string; dateTo?: string }) {
-  const { page = 1, perPage = 10, search, dateFrom, dateTo } = params || {};
+export async function getClosingReportList(params?: { page?: number; perPage?: number; search?: string; dateFrom?: string; dateTo?: string; branchId?: string }) {
+  const { page = 1, perPage = 10, search, dateFrom, dateTo, branchId } = params || {};
   const where: Record<string, unknown> = { isOpen: false };
+  if (branchId) where.branchId = branchId;
 
   if (search) {
     where.user = { OR: [
@@ -142,7 +143,7 @@ export async function getClosingReportList(params?: { page?: number; perPage?: n
   const [shifts, total] = await Promise.all([
     prisma.cashierShift.findMany({
       where,
-      include: { user: { select: { name: true } } },
+      include: { user: { select: { name: true } }, branch: { select: { name: true } } },
       orderBy: { closedAt: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,

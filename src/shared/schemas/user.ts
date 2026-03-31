@@ -5,6 +5,7 @@ export const userFormSchema = z.object({
   email: z.string().email("Format email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter").optional(),
   role: z.string().min(1, "Role wajib dipilih"),
+  branchId: z.string().optional(),
   isActive: z.boolean(),
   profile: z.object({
     phone: z.string().optional(),

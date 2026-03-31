@@ -4,6 +4,18 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
+function parseIdList(data: FormData, key: string) {
+  const raw = data.get(key);
+  if (typeof raw !== "string" || !raw.trim()) return [] as string[];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+  } catch {
+    return raw.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export async function getPromotions(params?: {
   search?: string | undefined;
   type?: string | undefined;
@@ -52,29 +64,39 @@ export async function getPromotions(params?: {
 export async function createPromotion(data: FormData) {
   const type = data.get("type") as string;
   const scope = data.get("scope") as string || "all";
+  const productIds = parseIdList(data, "productIds");
+  const categoryIds = parseIdList(data, "categoryIds");
 
   try {
-    await prisma.promotion.create({
+    const baseData = {
+      name: data.get("name") as string,
+      type: type as never,
+      value: Number(data.get("value")) || 0,
+      scope,
+      minPurchase: data.get("minPurchase") ? Number(data.get("minPurchase")) : null,
+      maxDiscount: data.get("maxDiscount") ? Number(data.get("maxDiscount")) : null,
+      buyQty: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (Number(data.get("buyQty")) || null) : null,
+      getQty: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (Number(data.get("getQty")) || null) : null,
+      getProductId: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (data.get("getProductId") as string || null) : null,
+      voucherCode: type === "VOUCHER" ? (data.get("voucherCode") as string || null) : null,
+      usageLimit: data.get("usageLimit") ? Number(data.get("usageLimit")) : null,
+      description: (data.get("description") as string) || null,
+      isActive: data.get("isActive") === "true",
+      startDate: new Date(data.get("startDate") as string),
+      endDate: new Date(data.get("endDate") as string),
+    };
+    const targets = scope === "product"
+      ? (productIds.length > 0 ? productIds : [((data.get("productId") as string) || "")]).filter(Boolean).map((id) => ({ productId: id, categoryId: null as string | null }))
+      : scope === "category"
+        ? (categoryIds.length > 0 ? categoryIds : [((data.get("categoryId") as string) || "")]).filter(Boolean).map((id) => ({ productId: null as string | null, categoryId: id }))
+        : [{ productId: null as string | null, categoryId: null as string | null }];
+    await prisma.$transaction(targets.map((target) => prisma.promotion.create({
       data: {
-        name: data.get("name") as string,
-        type: type as never,
-        value: Number(data.get("value")) || 0,
-        scope,
-        minPurchase: data.get("minPurchase") ? Number(data.get("minPurchase")) : null,
-        maxDiscount: data.get("maxDiscount") ? Number(data.get("maxDiscount")) : null,
-        categoryId: scope === "category" ? (data.get("categoryId") as string || null) : null,
-        productId: scope === "product" ? (data.get("productId") as string || null) : null,
-        buyQty: type === "BUY_X_GET_Y" ? (Number(data.get("buyQty")) || null) : null,
-        getQty: type === "BUY_X_GET_Y" ? (Number(data.get("getQty")) || null) : null,
-        getProductId: type === "BUY_X_GET_Y" ? (data.get("getProductId") as string || null) : null,
-        voucherCode: type === "VOUCHER" ? (data.get("voucherCode") as string || null) : null,
-        usageLimit: data.get("usageLimit") ? Number(data.get("usageLimit")) : null,
-        description: (data.get("description") as string) || null,
-        isActive: data.get("isActive") === "true",
-        startDate: new Date(data.get("startDate") as string),
-        endDate: new Date(data.get("endDate") as string),
+        ...baseData,
+        productId: target.productId,
+        categoryId: target.categoryId,
       },
-    });
+    })));
     revalidatePath("/promotions");
     return { success: true };
   } catch {
@@ -85,30 +107,52 @@ export async function createPromotion(data: FormData) {
 export async function updatePromotion(id: string, data: FormData) {
   const type = data.get("type") as string;
   const scope = data.get("scope") as string || "all";
+  const productIds = parseIdList(data, "productIds");
+  const categoryIds = parseIdList(data, "categoryIds");
 
   try {
+    const baseData = {
+      name: data.get("name") as string,
+      type: type as never,
+      value: Number(data.get("value")) || 0,
+      scope,
+      minPurchase: data.get("minPurchase") ? Number(data.get("minPurchase")) : null,
+      maxDiscount: data.get("maxDiscount") ? Number(data.get("maxDiscount")) : null,
+      buyQty: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (Number(data.get("buyQty")) || null) : null,
+      getQty: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (Number(data.get("getQty")) || null) : null,
+      getProductId: type === "BUY_X_GET_Y" || type === "BUNDLE" ? (data.get("getProductId") as string || null) : null,
+      voucherCode: type === "VOUCHER" ? (data.get("voucherCode") as string || null) : null,
+      usageLimit: data.get("usageLimit") ? Number(data.get("usageLimit")) : null,
+      description: (data.get("description") as string) || null,
+      isActive: data.get("isActive") === "true",
+      startDate: new Date(data.get("startDate") as string),
+      endDate: new Date(data.get("endDate") as string),
+    };
+    const targets = scope === "product"
+      ? (productIds.length > 0 ? productIds : [((data.get("productId") as string) || "")]).filter(Boolean).map((item) => ({ productId: item, categoryId: null as string | null }))
+      : scope === "category"
+        ? (categoryIds.length > 0 ? categoryIds : [((data.get("categoryId") as string) || "")]).filter(Boolean).map((item) => ({ productId: null as string | null, categoryId: item }))
+        : [{ productId: null as string | null, categoryId: null as string | null }];
+    const first = targets[0] ?? { productId: null as string | null, categoryId: null as string | null };
     await prisma.promotion.update({
       where: { id },
       data: {
-        name: data.get("name") as string,
-        type: type as never,
-        value: Number(data.get("value")) || 0,
-        scope,
-        minPurchase: data.get("minPurchase") ? Number(data.get("minPurchase")) : null,
-        maxDiscount: data.get("maxDiscount") ? Number(data.get("maxDiscount")) : null,
-        categoryId: scope === "category" ? (data.get("categoryId") as string || null) : null,
-        productId: scope === "product" ? (data.get("productId") as string || null) : null,
-        buyQty: type === "BUY_X_GET_Y" ? (Number(data.get("buyQty")) || null) : null,
-        getQty: type === "BUY_X_GET_Y" ? (Number(data.get("getQty")) || null) : null,
-        getProductId: type === "BUY_X_GET_Y" ? (data.get("getProductId") as string || null) : null,
-        voucherCode: type === "VOUCHER" ? (data.get("voucherCode") as string || null) : null,
-        usageLimit: data.get("usageLimit") ? Number(data.get("usageLimit")) : null,
-        description: (data.get("description") as string) || null,
-        isActive: data.get("isActive") === "true",
-        startDate: new Date(data.get("startDate") as string),
-        endDate: new Date(data.get("endDate") as string),
+        ...baseData,
+        productId: first.productId,
+        categoryId: first.categoryId,
       },
     });
+    for (let index = 1; index < targets.length; index += 1) {
+      const target = targets[index];
+      if (!target) continue;
+      await prisma.promotion.create({
+        data: {
+          ...baseData,
+          productId: target.productId,
+          categoryId: target.categoryId,
+        },
+      });
+    }
     revalidatePath("/promotions");
     return { success: true };
   } catch {

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  ensureAccessSeeded,
   getAccessMatrix,
   getCurrentRole,
   getMenusForRole,
@@ -18,9 +17,16 @@ async function ensureManageAccess() {
   return null;
 }
 
+async function ensureViewAccess() {
+  const allowed = await hasMenuActionAccess("access-control", "view");
+  if (!allowed) {
+    return { error: "Anda tidak memiliki hak akses melihat permission" };
+  }
+  return null;
+}
+
 export async function getAccessControlMatrix() {
-  await ensureAccessSeeded();
-  const denied = await ensureManageAccess();
+  const denied = await ensureViewAccess();
   if (denied) return { error: denied.error, roles: [] as string[], menus: [] };
   return getAccessMatrix();
 }
@@ -68,7 +74,6 @@ export async function updateRoleActionPermission(input: {
 }
 
 export async function getSidebarMenuAccess() {
-  await ensureAccessSeeded();
   const role = await getCurrentRole();
   const [menus, appRole] = await Promise.all([
     getMenusForRole(role),

@@ -18,6 +18,8 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  branchId?: string | null;
+  branch?: { id: string; name: string } | null;
   isActive: boolean;
   createdAt: string | Date;
   _count: { transactions: number };
@@ -84,7 +86,9 @@ export interface Transaction {
   status: string;
   createdAt: string | Date;
   user: { name: string };
+  branch?: { name: string } | null;
   items: TransactionItem[];
+  payments?: { id: string; method: string; amount: number }[];
 }
 
 export interface TransactionItem {
@@ -261,6 +265,42 @@ export interface ProfitLoss {
   period: string;
 }
 
+export interface PaymentMethodReport {
+  method: string;
+  total: number;
+  transactions: number;
+}
+
+export interface HourlySalesReport {
+  hour: string;
+  total: number;
+  transactions: number;
+}
+
+export interface ReportCashierPerformance {
+  userId: string;
+  name: string;
+  transactions: number;
+  revenue: number;
+}
+
+export interface ReportCategorySales {
+  category: string;
+  total: number;
+  quantity: number;
+}
+
+export interface ReportOverview {
+  revenue: number;
+  transactions: number;
+  totalItemsSold: number;
+  averageTicket: number;
+  totalDiscount: number;
+  totalTax: number;
+  topCashiers: ReportCashierPerformance[];
+  categorySales: ReportCategorySales[];
+}
+
 // --- Dashboard ---
 
 export interface DashboardStats {
@@ -401,6 +441,7 @@ export interface TransactionDetail {
   notes: string | null;
   createdAt: string | Date;
   items: TransactionItemDetail[];
+  payments?: { id: string; method: string; amount: number }[];
 }
 
 export interface TransactionItemDetail {

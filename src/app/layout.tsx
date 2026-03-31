@@ -5,6 +5,7 @@ import { SessionProvider } from "@/components/providers/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import NextTopLoader from "nextjs-toploader";
 import { FetchProgressProvider } from "@/components/providers/fetch-progress-provider";
+import { BranchProvider } from "@/components/providers/branch-provider";
 
 const fontSans = Plus_Jakarta_Sans({
     subsets: ["latin"],
@@ -26,10 +27,12 @@ export default function RootLayout({
         <html lang="id">
             <body className={`${fontSans.variable} font-sans antialiased`}>
                 <SessionProvider>
+                    <BranchProvider>
                     <NextTopLoader />
                     <FetchProgressProvider />
                     {children}
                     <Toaster richColors position="top-right" />
+                    </BranchProvider>
                 </SessionProvider>
             </body>
         </html>

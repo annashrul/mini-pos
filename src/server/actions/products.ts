@@ -190,7 +190,7 @@ export async function createProduct(formData: FormData) {
       });
     }
 
-    // Save branch prices if provided
+    // Save branch prices + create branch stock for each branch
     if (branchPricesResult.data.length > 0) {
       await prisma.branchProductPrice.createMany({
         data: branchPricesResult.data.map((bp) => ({
@@ -200,6 +200,31 @@ export async function createProduct(formData: FormData) {
           purchasePrice: bp.purchasePrice,
         })),
       });
+
+      // Create branch stock for each branch with per-branch stock
+      await prisma.branchStock.createMany({
+        data: branchPricesResult.data.map((bp) => ({
+          branchId: bp.branchId,
+          productId: product.id,
+          quantity: bp.stock ?? parsed.data.stock,
+          minStock: bp.minStock ?? parsed.data.minStock,
+        })),
+      });
+
+      // Create stock movement per branch
+      const branchMovements = branchPricesResult.data
+        .filter((bp) => (bp.stock ?? parsed.data.stock) > 0)
+        .map((bp) => ({
+          productId: product.id,
+          branchId: bp.branchId,
+          type: "IN" as const,
+          quantity: bp.stock ?? parsed.data.stock,
+          note: "Stok awal cabang",
+          reference: "INIT",
+        }));
+      if (branchMovements.length > 0) {
+        await prisma.stockMovement.createMany({ data: branchMovements });
+      }
     }
 
     // Save product units if provided
@@ -306,10 +331,8 @@ export async function updateProduct(id: string, formData: FormData) {
     };
     await prisma.product.update({ where: { id }, data });
 
-    // Update branch prices if provided
-    await prisma.branchProductPrice.deleteMany({
-      where: { productId: id },
-    });
+    // Update branch prices + branch stock
+    await prisma.branchProductPrice.deleteMany({ where: { productId: id } });
     if (branchPricesResult.data.length > 0) {
       await prisma.branchProductPrice.createMany({
         data: branchPricesResult.data.map((bp) => ({
@@ -318,6 +341,21 @@ export async function updateProduct(id: string, formData: FormData) {
           sellingPrice: bp.sellingPrice,
           purchasePrice: bp.purchasePrice,
         })),
+      });
+
+      // Upsert branch stock for each branch
+      for (const bp of branchPricesResult.data) {
+        await prisma.branchStock.upsert({
+          where: { branchId_productId: { branchId: bp.branchId, productId: id } },
+          create: { branchId: bp.branchId, productId: id, quantity: bp.stock ?? parsed.data.stock, minStock: bp.minStock ?? parsed.data.minStock },
+          update: { minStock: bp.minStock ?? parsed.data.minStock },
+        });
+      }
+
+      // Remove branch stock for branches no longer in the list
+      const branchIds = branchPricesResult.data.map((bp) => bp.branchId);
+      await prisma.branchStock.deleteMany({
+        where: { productId: id, branchId: { notIn: branchIds } },
       });
     }
 
@@ -384,9 +422,20 @@ export async function checkProductCodeExists(
 }
 
 export async function getProductBranchPrices(productId: string) {
-  return prisma.branchProductPrice.findMany({
-    where: { productId },
-    include: { branch: { select: { name: true } } },
+  const [prices, stocks] = await Promise.all([
+    prisma.branchProductPrice.findMany({
+      where: { productId },
+      include: { branch: { select: { name: true } } },
+    }),
+    prisma.branchStock.findMany({
+      where: { productId },
+      select: { branchId: true, quantity: true, minStock: true },
+    }),
+  ]);
+  const stockMap = new Map(stocks.map((s) => [s.branchId, s]));
+  return prices.map((p) => {
+    const bs = stockMap.get(p.branchId);
+    return { ...p, stock: bs?.quantity ?? 0, minStock: bs?.minStock ?? 5 };
   });
 }
 
@@ -409,7 +458,6 @@ export async function searchProducts(query: string, branchId?: string | null) {
   const products = await prisma.product.findMany({
     where: {
       isActive: true,
-      stock: { gt: 0 },
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { code: { contains: query, mode: "insensitive" } },
@@ -420,27 +468,28 @@ export async function searchProducts(query: string, branchId?: string | null) {
       category: true,
       units: { orderBy: { conversionQty: "asc" } },
       tierPrices: { orderBy: { minQty: "asc" } },
-      ...(branchId ? { branchPrices: { where: { branchId }, take: 1 } } : {}),
+      ...(branchId ? {
+        branchPrices: { where: { branchId }, take: 1 },
+        branchStocks: { where: { branchId }, take: 1 },
+      } : {}),
     },
     take: 10,
   });
 
-  // Overlay branch prices if available
+  // Overlay branch prices and stock if available
   return products.map((p) => {
-    const bp = (
-      p as typeof p & {
-        branchPrices?: { sellingPrice: number; purchasePrice: number | null }[];
-      }
-    ).branchPrices?.[0];
-    if (bp) {
-      return {
-        ...p,
-        sellingPrice: bp.sellingPrice,
-        purchasePrice: bp.purchasePrice ?? p.purchasePrice,
-        branchPrices: undefined,
-      };
-    }
-    return { ...p, branchPrices: undefined };
+    const ext = p as Record<string, unknown>;
+    const bpArr = ext.branchPrices as { sellingPrice: number; purchasePrice: number | null }[] | undefined;
+    const bsArr = ext.branchStocks as { quantity: number }[] | undefined;
+    const bp = bpArr?.[0];
+    const bs = bsArr?.[0];
+    return {
+      ...p,
+      ...(bp ? { sellingPrice: bp.sellingPrice, purchasePrice: bp.purchasePrice ?? p.purchasePrice } : {}),
+      ...(bs !== undefined ? { stock: bs.quantity } : {}),
+      branchPrices: undefined,
+      branchStocks: undefined,
+    };
   });
 }
 
@@ -457,21 +506,26 @@ export async function findByBarcode(barcode: string, branchId?: string | null) {
       category: true,
       units: { orderBy: { conversionQty: "asc" } },
       tierPrices: { orderBy: { minQty: "asc" } },
-      ...(branchId ? { branchPrices: { where: { branchId }, take: 1 } } : {}),
+      ...(branchId ? {
+        branchPrices: { where: { branchId }, take: 1 },
+        branchStocks: { where: { branchId }, take: 1 },
+      } : {}),
     },
   });
 
   if (product) {
-    const bp = (
-      product as typeof product & {
-        branchPrices?: { sellingPrice: number; purchasePrice: number | null }[];
-      }
-    ).branchPrices?.[0];
+    const ext = product as Record<string, unknown>;
+    const bpArr = ext.branchPrices as { sellingPrice: number; purchasePrice: number | null }[] | undefined;
+    const bsArr = ext.branchStocks as { quantity: number }[] | undefined;
+    const bp = bpArr?.[0];
+    const bs = bsArr?.[0];
     const result = {
       ...product,
       sellingPrice: bp?.sellingPrice ?? product.sellingPrice,
       purchasePrice: bp?.purchasePrice ?? product.purchasePrice,
+      ...(bs !== undefined ? { stock: bs.quantity } : {}),
       branchPrices: undefined,
+      branchStocks: undefined,
       // Include unit info
       matchedUnit: null as {
         name: string;
@@ -552,26 +606,28 @@ export async function browseProducts(params: {
 }) {
   const { categoryId, mode = "all", page = 1, perPage = 20, branchId } = params;
 
-  // Helper to overlay branch prices
-  const applyBranchPrices = async <
-    T extends { id: string; sellingPrice: number; purchasePrice: number },
+  // Helper to overlay branch prices + stock
+  const applyBranchOverlay = async <
+    T extends { id: string; sellingPrice: number; purchasePrice: number; stock: number },
   >(
     products: T[],
   ): Promise<T[]> => {
     if (!branchId || products.length === 0) return products;
-    const branchPrices = await prisma.branchProductPrice.findMany({
-      where: { branchId, productId: { in: products.map((p) => p.id) } },
-    });
+    const ids = products.map((p) => p.id);
+    const [branchPrices, branchStocks] = await Promise.all([
+      prisma.branchProductPrice.findMany({ where: { branchId, productId: { in: ids } } }),
+      prisma.branchStock.findMany({ where: { branchId, productId: { in: ids } } }),
+    ]);
     const priceMap = new Map(branchPrices.map((bp) => [bp.productId, bp]));
+    const stockMap = new Map(branchStocks.map((bs) => [bs.productId, bs.quantity]));
     return products.map((p) => {
       const bp = priceMap.get(p.id);
-      if (bp)
-        return {
-          ...p,
-          sellingPrice: bp.sellingPrice,
-          purchasePrice: bp.purchasePrice ?? p.purchasePrice,
-        };
-      return p;
+      const bsQty = stockMap.get(p.id);
+      return {
+        ...p,
+        ...(bp ? { sellingPrice: bp.sellingPrice, purchasePrice: bp.purchasePrice ?? p.purchasePrice } : {}),
+        ...(bsQty !== undefined ? { stock: bsQty } : {}),
+      };
     });
   };
 
@@ -602,7 +658,7 @@ export async function browseProducts(params: {
       .filter(Boolean);
 
     return {
-      products: await applyBranchPrices(sorted as typeof products),
+      products: await applyBranchOverlay(sorted as typeof products),
       total: totalAgg.length,
       hasMore: page * perPage < totalAgg.length,
     };
@@ -623,7 +679,7 @@ export async function browseProducts(params: {
   ]);
 
   return {
-    products: await applyBranchPrices(products),
+    products: await applyBranchOverlay(products),
     total,
     hasMore: page * perPage < total,
   };
@@ -794,6 +850,19 @@ export async function importProducts(rows: ImportProductRow[]) {
             note: "Stok awal (import)",
             reference: "IMPORT",
           },
+        });
+      }
+
+      // Create branch stock for all active branches
+      const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true } });
+      if (activeBranches.length > 0) {
+        await prisma.branchStock.createMany({
+          data: activeBranches.map((b) => ({
+            branchId: b.id,
+            productId: product.id,
+            quantity: stock,
+            minStock,
+          })),
         });
       }
 

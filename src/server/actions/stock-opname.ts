@@ -14,6 +14,7 @@ interface GetStockOpnamesParams {
   sortDir?: "asc" | "desc";
   dateFrom?: string;
   dateTo?: string;
+  branchId?: string;
 }
 
 export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
@@ -26,6 +27,7 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
     sortDir = "desc",
     dateFrom,
     dateTo,
+    branchId,
   } = params;
   const skip = (page - 1) * limit;
 
@@ -45,6 +47,7 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
     if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59");
     where.createdAt = createdAt;
   }
+  if (branchId && branchId !== "ALL") where.branchId = branchId;
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -92,9 +95,10 @@ export async function getStockOpnameById(id: string) {
 }
 
 export async function createStockOpname(
-  branchId: string | null,
+  branchIdOrIds: string | string[] | null,
   notes?: string,
 ) {
+  const branchId = Array.isArray(branchIdOrIds) ? (branchIdOrIds[0] ?? null) : branchIdOrIds;
   await assertMenuActionAccess("stock-opname", "create");
   try {
     const today = new Date();

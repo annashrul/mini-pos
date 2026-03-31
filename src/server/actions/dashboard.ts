@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 
-export async function getDashboardStats() {
+export async function getDashboardStats(branchId?: string) {
+  const branchFilter = branchId ? { branchId } : {};
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -16,7 +17,7 @@ export async function getDashboardStats() {
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  const completedWhere = { status: "COMPLETED" as const };
+  const completedWhere = { status: "COMPLETED" as const, ...branchFilter };
 
   const [
     todaySales,
@@ -58,17 +59,17 @@ export async function getDashboardStats() {
     // Top products
     prisma.transactionItem.groupBy({ by: ["productName"], _sum: { quantity: true, subtotal: true }, orderBy: { _sum: { quantity: "desc" } }, take: 5 }),
     // Daily sales 30 days
-    getDailySalesData(30),
+    getDailySalesData(30, branchFilter),
     // Monthly sales 6 months
-    getYearlyComparison(),
+    getYearlyComparison(branchFilter),
     // Payment method breakdown this month
     prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...completedWhere } }),
     // Top cashiers this month
-    getTopCashiers(monthStart, monthEnd),
+    getTopCashiers(monthStart, monthEnd, branchFilter),
     // Category breakdown
-    getCategoryBreakdown(monthStart, monthEnd),
+    getCategoryBreakdown(monthStart, monthEnd, branchFilter),
     // Hourly sales today
-    getHourlySalesData(today, tomorrow),
+    getHourlySalesData(today, tomorrow, branchFilter),
   ]);
 
   // Low stock
@@ -115,19 +116,19 @@ export async function getDashboardStats() {
   };
 }
 
-async function getDailySalesData(days: number) {
+async function getDailySalesData(days: number, bf: Record<string, string> = {}) {
   const result = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(today); date.setDate(date.getDate() - i); date.setHours(0, 0, 0, 0);
     const next = new Date(date); next.setDate(next.getDate() + 1);
-    const sales = await prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: date, lt: next }, status: "COMPLETED" } });
+    const sales = await prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: date, lt: next }, status: "COMPLETED", ...bf } });
     result.push({ date: date.toLocaleDateString("id-ID", { day: "numeric", month: "short" }), total: sales._sum.grandTotal || 0, count: sales._count });
   }
   return result;
 }
 
-async function getYearlyComparison() {
+async function getYearlyComparison(bf: Record<string, string> = {}) {
   const today = new Date();
   const thisYear = today.getFullYear();
   const lastYear = thisYear - 1;
@@ -141,8 +142,8 @@ async function getYearlyComparison() {
     const lastEnd = new Date(lastYear, m + 1, 1);
 
     const [thisSales, lastSales] = await Promise.all([
-      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: thisStart, lt: thisEnd }, status: "COMPLETED" } }),
-      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: lastStart, lt: lastEnd }, status: "COMPLETED" } }),
+      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: thisStart, lt: thisEnd }, status: "COMPLETED", ...bf } }),
+      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: lastStart, lt: lastEnd }, status: "COMPLETED", ...bf } }),
     ]);
 
     result.push({
@@ -157,17 +158,17 @@ async function getYearlyComparison() {
   return result;
 }
 
-async function getTopCashiers(start: Date, end: Date) {
-  const txByUser = await prisma.transaction.groupBy({ by: ["userId"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: start, lt: end }, status: "COMPLETED" }, orderBy: { _sum: { grandTotal: "desc" } }, take: 5 });
+async function getTopCashiers(start: Date, end: Date, bf: Record<string, string> = {}) {
+  const txByUser = await prisma.transaction.groupBy({ by: ["userId"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: start, lt: end }, status: "COMPLETED", ...bf }, orderBy: { _sum: { grandTotal: "desc" } }, take: 5 });
   const userIds = txByUser.map((t) => t.userId);
   const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
   const userMap = new Map(users.map((u) => [u.id, u.name]));
   return txByUser.map((t) => ({ name: userMap.get(t.userId) || "Unknown", total: t._sum.grandTotal || 0, count: t._count }));
 }
 
-async function getCategoryBreakdown(start: Date, end: Date) {
+async function getCategoryBreakdown(start: Date, end: Date, bf: Record<string, string> = {}) {
   const items = await prisma.transactionItem.findMany({
-    where: { transaction: { createdAt: { gte: start, lt: end }, status: "COMPLETED" } },
+    where: { transaction: { createdAt: { gte: start, lt: end }, status: "COMPLETED", ...bf } },
     select: { subtotal: true, quantity: true, product: { select: { category: { select: { name: true } } } } },
   });
   const map = new Map<string, { total: number; qty: number }>();
@@ -181,9 +182,9 @@ async function getCategoryBreakdown(start: Date, end: Date) {
   return Array.from(map.entries()).map(([name, data]) => ({ name, total: data.total, qty: data.qty })).sort((a, b) => b.total - a.total);
 }
 
-async function getHourlySalesData(start: Date, end: Date) {
+async function getHourlySalesData(start: Date, end: Date, bf: Record<string, string> = {}) {
   const txs = await prisma.transaction.findMany({
-    where: { createdAt: { gte: start, lt: end }, status: "COMPLETED" },
+    where: { createdAt: { gte: start, lt: end }, status: "COMPLETED", ...bf },
     select: { createdAt: true, grandTotal: true },
   });
   const hours = Array.from({ length: 24 }, (_, i) => ({ hour: `${String(i).padStart(2, "0")}:00`, total: 0, count: 0 }));

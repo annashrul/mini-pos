@@ -21,7 +21,20 @@ const menuDefinitions = [
     path: "/pos",
     group: "Utama",
     sortOrder: 2,
-    actions: ["view", "create", "void", "refund", "open_shift", "close_shift"],
+    actions: [
+      "view",
+      "create",
+      "void",
+      "refund",
+      "open_shift",
+      "close_shift",
+      "hold",
+      "discount",
+      "history",
+      "reprint",
+      "voucher",
+      "redeem_points",
+    ],
   },
   {
     key: "transactions",
@@ -256,49 +269,74 @@ export async function getCurrentRole() {
 }
 
 export async function ensureAccessSeeded() {
-  // Sync missing menus (handles new menu additions without full reseed)
+  // Sync menus + actions (handles additions without full reseed)
   for (const menu of menuDefinitions) {
-    const existing = await prisma.appMenu.findFirst({ where: { key: menu.key } });
-    if (existing) continue;
-
-    const appMenu = await prisma.appMenu.create({
-      data: {
-        key: menu.key,
-        name: menu.name,
-        path: menu.path,
-        group: menu.group,
-        sortOrder: menu.sortOrder,
-      },
+    const existing = await prisma.appMenu.findFirst({
+      where: { key: menu.key },
+      include: { actions: true },
     });
+    const appMenu = existing
+      ? await prisma.appMenu.update({
+          where: { id: existing.id },
+          data: {
+            name: menu.name,
+            path: menu.path,
+            group: menu.group,
+            sortOrder: menu.sortOrder,
+            isActive: true,
+          },
+          include: { actions: true },
+        })
+      : await prisma.appMenu.create({
+          data: {
+            key: menu.key,
+            name: menu.name,
+            path: menu.path,
+            group: menu.group,
+            sortOrder: menu.sortOrder,
+          },
+          include: { actions: true },
+        });
 
     for (const role of Object.values(Role)) {
-      await prisma.roleMenuPermission.create({
-        data: {
+      await prisma.roleMenuPermission.upsert({
+        where: { role_menuId: { role, menuId: appMenu.id } },
+        create: {
           role,
           menuId: appMenu.id,
           allowed: menuAccessByRole[role].includes(menu.key),
         },
+        update: {},
       });
     }
 
     for (let index = 0; index < menu.actions.length; index += 1) {
       const actionKey = menu.actions[index];
       if (!actionKey) continue;
-      const action = await prisma.menuAction.create({
-        data: {
+      const action = await prisma.menuAction.upsert({
+        where: { menuId_key: { menuId: appMenu.id, key: actionKey } },
+        create: {
           menuId: appMenu.id,
           key: actionKey,
           name: actionKey.toUpperCase(),
           sortOrder: index + 1,
+          isActive: true,
+        },
+        update: {
+          name: actionKey.toUpperCase(),
+          sortOrder: index + 1,
+          isActive: true,
         },
       });
       for (const role of Object.values(Role)) {
-        await prisma.roleActionPermission.create({
-          data: {
+        await prisma.roleActionPermission.upsert({
+          where: { role_menuActionId: { role, menuActionId: action.id } },
+          create: {
             role,
             menuActionId: action.id,
             allowed: menuAccessByRole[role].includes(menu.key),
           },
+          update: {},
         });
       }
     }
@@ -306,7 +344,7 @@ export async function ensureAccessSeeded() {
 }
 
 export async function getMenusForRole(role: string): Promise<AccessMenu[]> {
-  await ensureAccessSeeded();
+  if (!_seeded) { await ensureAccessSeeded(); _seeded = true; }
   const menus = await prisma.appMenu.findMany({
     where: { isActive: true },
     orderBy: [{ group: "asc" }, { sortOrder: "asc" }],
@@ -353,7 +391,7 @@ export async function getAccessMatrix(): Promise<{
   menus: AccessMenu[];
   roles: string[];
 }> {
-  await ensureAccessSeeded();
+  if (!_seeded) { await ensureAccessSeeded(); _seeded = true; }
   const role = await getCurrentRole();
   const roles = await prisma.appRole.findMany({
     where: { isActive: true },
@@ -412,11 +450,12 @@ export async function getAccessMatrix(): Promise<{
   };
 }
 
+let _seeded = false;
 export async function hasMenuAccessByPath(
   pathname: string,
   requiredAction = "view",
 ) {
-  await ensureAccessSeeded();
+  if (!_seeded) { await ensureAccessSeeded(); _seeded = true; }
   const role = await getCurrentRole();
   const targetPath = normalizePath(pathname);
   const menu = await prisma.appMenu.findFirst({
@@ -447,7 +486,7 @@ export async function hasMenuAccessByPath(
 }
 
 export async function hasMenuActionAccess(menuKey: string, actionKey = "view") {
-  await ensureAccessSeeded();
+  if (!_seeded) { await ensureAccessSeeded(); _seeded = true; }
   const role = await getCurrentRole();
   const menu = await prisma.appMenu.findFirst({
     where: { key: menuKey, isActive: true },

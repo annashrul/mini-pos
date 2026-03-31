@@ -14,17 +14,29 @@ interface GetStockMovementsParams {
   type?: string;
   dateFrom?: string;
   dateTo?: string;
+  branchId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }
 
 export async function getStockMovements(params: GetStockMovementsParams = {}) {
-  const { page = 1, search, productId, type, dateFrom, dateTo, sortBy, sortDir = "desc" } = params;
-  const perPage = params.perPage || params.limit || 15;
+  const {
+    page = 1,
+    search,
+    productId,
+    type,
+    dateFrom,
+    dateTo,
+    branchId,
+    sortBy,
+    sortDir = "desc",
+  } = params;
+  const perPage = params.perPage || params.limit || 10;
   const skip = (page - 1) * perPage;
 
   const where: Record<string, unknown> = {};
   if (productId) where.productId = productId;
+  if (branchId) where.branchId = branchId;
   if (type && type !== "all") where.type = type;
   if (search) {
     where.product = {
@@ -41,17 +53,20 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
     where.createdAt = createdAt;
   }
 
-  const direction = sortDir === "asc" ? "asc" as const : "desc" as const;
+  const direction = sortDir === "asc" ? ("asc" as const) : ("desc" as const);
   const orderBy =
-    sortBy === "product" ? { product: { name: direction } }
-    : sortBy === "type" ? { type: direction }
-    : sortBy === "quantity" ? { quantity: direction }
-    : { createdAt: direction };
+    sortBy === "product"
+      ? { product: { name: direction } }
+      : sortBy === "type"
+        ? { type: direction }
+        : sortBy === "quantity"
+          ? { quantity: direction }
+          : { createdAt: direction };
 
   const [movements, total] = await Promise.all([
     prisma.stockMovement.findMany({
       where,
-      include: { product: { select: { name: true, code: true, stock: true } } },
+      include: { product: { select: { name: true, code: true, stock: true } }, branch: { select: { name: true } } },
       orderBy,
       skip,
       take: perPage,
@@ -59,7 +74,12 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
     prisma.stockMovement.count({ where }),
   ]);
 
-  return { movements, total, totalPages: Math.ceil(total / perPage), currentPage: page };
+  return {
+    movements,
+    total,
+    totalPages: Math.ceil(total / perPage),
+    currentPage: page,
+  };
 }
 
 export async function createStockMovement(formData: FormData) {
@@ -70,6 +90,11 @@ export async function createStockMovement(formData: FormData) {
     quantity: Number(formData.get("quantity")),
     note: (formData.get("note") as string) || null,
   };
+  const branchIdsRaw = (formData.get("branchIds") as string) || "";
+  const branchIds: string[] = branchIdsRaw ? JSON.parse(branchIdsRaw) : [];
+  // For backward compat, also check single branchId
+  const singleBranchId = (formData.get("branchId") as string) || null;
+  if (singleBranchId && branchIds.length === 0) branchIds.push(singleBranchId);
 
   const parsed = stockMovementSchema.safeParse(data);
   if (!parsed.success) {
@@ -81,33 +106,40 @@ export async function createStockMovement(formData: FormData) {
       const product = await tx.product.findUnique({ where: { id: parsed.data.productId } });
       if (!product) throw new Error("Produk tidak ditemukan");
 
-      if (parsed.data.type === "OUT" && product.stock < parsed.data.quantity) {
-        throw new Error(`Stok tidak mencukupi (sisa: ${product.stock})`);
+      const stockChange = parsed.data.type === "IN" ? parsed.data.quantity : parsed.data.type === "OUT" ? -parsed.data.quantity : 0;
+
+      if (branchIds.length > 0) {
+        // Per-branch operation
+        for (const bid of branchIds) {
+          const bs = await tx.branchStock.findUnique({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } } });
+          if (parsed.data.type === "OUT" && (bs?.quantity ?? 0) < parsed.data.quantity) {
+            const branchName = (await tx.branch.findUnique({ where: { id: bid }, select: { name: true } }))?.name ?? bid;
+            throw new Error(`Stok di ${branchName} tidak mencukupi (sisa: ${bs?.quantity ?? 0})`);
+          }
+
+          await tx.stockMovement.create({ data: { productId: parsed.data.productId, branchId: bid, type: parsed.data.type, quantity: parsed.data.quantity, note: parsed.data.note ?? null } });
+
+          if (parsed.data.type === "ADJUSTMENT") {
+            await tx.branchStock.upsert({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } }, create: { branchId: bid, productId: parsed.data.productId, quantity: parsed.data.quantity }, update: { quantity: parsed.data.quantity } });
+          } else if (bs) {
+            await tx.branchStock.update({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } }, data: { quantity: { increment: stockChange } } });
+          } else if (stockChange > 0) {
+            await tx.branchStock.create({ data: { branchId: bid, productId: parsed.data.productId, quantity: stockChange } });
+          }
+        }
+      } else {
+        // Global operation (no branch)
+        if (parsed.data.type === "OUT" && product.stock < parsed.data.quantity) {
+          throw new Error(`Stok tidak mencukupi (sisa: ${product.stock})`);
+        }
+        await tx.stockMovement.create({ data: { productId: parsed.data.productId, type: parsed.data.type, quantity: parsed.data.quantity, note: parsed.data.note ?? null } });
       }
 
-      await tx.stockMovement.create({
-        data: {
-          productId: parsed.data.productId,
-          type: parsed.data.type,
-          quantity: parsed.data.quantity,
-          note: parsed.data.note ?? null,
-        },
-      });
-
-      const stockChange = parsed.data.type === "IN" ? parsed.data.quantity
-        : parsed.data.type === "OUT" ? -parsed.data.quantity
-        : 0;
-
+      // Update global stock
       if (parsed.data.type === "ADJUSTMENT") {
-        await tx.product.update({
-          where: { id: parsed.data.productId },
-          data: { stock: parsed.data.quantity },
-        });
+        await tx.product.update({ where: { id: parsed.data.productId }, data: { stock: parsed.data.quantity } });
       } else {
-        await tx.product.update({
-          where: { id: parsed.data.productId },
-          data: { stock: { increment: stockChange } },
-        });
+        await tx.product.update({ where: { id: parsed.data.productId }, data: { stock: { increment: stockChange } } });
       }
     });
 
@@ -115,7 +147,10 @@ export async function createStockMovement(formData: FormData) {
     revalidatePath("/products");
     return { success: true };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "Gagal menyimpan pergerakan stok" };
+    return {
+      error:
+        err instanceof Error ? err.message : "Gagal menyimpan pergerakan stok",
+    };
   }
 }
 

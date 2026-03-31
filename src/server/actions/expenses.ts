@@ -10,11 +10,13 @@ export async function getExpenses(params?: {
   search?: string;
   page?: number;
   perPage?: number;
+  branchId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }) {
-  const { search, page = 1, perPage = 10, sortBy, sortDir = "desc" } = params || {};
+  const { search, page = 1, perPage = 10, branchId, sortBy, sortDir = "desc" } = params || {};
   const where: Record<string, unknown> = {};
+  if (branchId) where.branchId = branchId;
 
   if (search) {
     where.OR = [
@@ -38,6 +40,7 @@ export async function getExpenses(params?: {
   const [expenses, total] = await Promise.all([
     prisma.expense.findMany({
       where,
+      include: { branch: { select: { name: true } } },
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,

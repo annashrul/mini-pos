@@ -211,6 +211,14 @@ model Branch {
   stockTransfersTo   StockTransfer[] @relation("TransferTo")
   stockOpnames    StockOpname[]
   productPrices   BranchProductPrice[]
+  branchStocks    BranchStock[]
+  stockMovements  StockMovement[]
+  transactions    Transaction[]
+  purchaseOrders  PurchaseOrder[]
+  cashierShifts   CashierShift[]
+  expenses        Expense[]
+  auditLogs       AuditLog[]
+  settings        Setting[]
 
   @@map("branches")
 }
@@ -230,6 +238,23 @@ model BranchProductPrice {
   @@index([branchId])
   @@index([productId])
   @@map("branch_product_prices")
+}
+
+model BranchStock {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int      @default(0)
+  minStock  Int      @default(5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, productId])
+  @@index([branchId])
+  @@index([productId])
+  @@map("branch_stocks")
 }
 
 // ===========================
@@ -292,6 +317,7 @@ model Product {
   purchaseOrderItems PurchaseOrderItem[]
   stockOpnameItems StockOpnameItem[]
   branchPrices     BranchProductPrice[]
+  branchStocks     BranchStock[]
   units            ProductUnit[]
   tierPrices       ProductTierPrice[]
 
@@ -455,6 +481,8 @@ model Transaction {
   invoiceNumber   String            @unique
   userId          String
   user            User              @relation(fields: [userId], references: [id])
+  branchId        String?
+  branch          Branch?           @relation(fields: [branchId], references: [id])
   customerId      String?
   customer        Customer?         @relation(fields: [customerId], references: [id])
   subtotal        Float
@@ -476,6 +504,7 @@ model Transaction {
 
   @@index([invoiceNumber])
   @@index([userId])
+  @@index([branchId])
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
@@ -541,6 +570,8 @@ model StockMovement {
   id        String            @id @default(cuid())
   productId String
   product   Product           @relation(fields: [productId], references: [id])
+  branchId  String?
+  branch    Branch?           @relation(fields: [branchId], references: [id])
   type      StockMovementType
   quantity  Int
   note      String?
@@ -549,6 +580,7 @@ model StockMovement {
   createdAt DateTime          @default(now())
 
   @@index([productId])
+  @@index([branchId])
   @@index([type])
   @@index([createdAt])
   @@index([reference])
@@ -638,6 +670,8 @@ model PurchaseOrder {
   orderNumber   String              @unique
   supplierId    String
   supplier      Supplier            @relation(fields: [supplierId], references: [id])
+  branchId      String?
+  branch        Branch?             @relation(fields: [branchId], references: [id])
   status        PurchaseOrderStatus @default(DRAFT)
   totalAmount   Float               @default(0)
   paidAmount    Float               @default(0)
@@ -652,6 +686,7 @@ model PurchaseOrder {
   goodsReceipts GoodsReceipt[]
 
   @@index([supplierId])
+  @@index([branchId])
   @@index([status])
   @@index([orderDate])
   @@map("purchase_orders")
@@ -712,6 +747,8 @@ model CashierShift {
   id             String         @id @default(cuid())
   userId         String
   user           User           @relation(fields: [userId], references: [id])
+  branchId       String?
+  branch         Branch?        @relation(fields: [branchId], references: [id])
   openedAt       DateTime       @default(now())
   closedAt       DateTime?
   openingCash    Float
@@ -725,6 +762,7 @@ model CashierShift {
   cashMovements  CashMovement[]
 
   @@index([userId])
+  @@index([branchId])
   @@index([isOpen])
   @@index([openedAt])
   @@map("cashier_shifts")
@@ -754,12 +792,15 @@ model Expense {
   description String
   amount      Float
   date        DateTime @default(now())
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
   createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([date])
   @@index([category])
+  @@index([branchId])
   @@map("expenses")
 }
 
@@ -822,13 +863,18 @@ model Voucher {
 // ===========================
 
 model Setting {
-  key       String   @id
+  id        String   @id @default(cuid())
+  key       String
   value     String   // JSON string
   label     String?
   group     String?
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   updatedAt DateTime @updatedAt
 
+  @@unique([key, branchId])
   @@index([group])
+  @@index([branchId])
   @@map("settings")
 }
 
@@ -840,6 +886,8 @@ model AuditLog {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   action    String
   entity    String
   entityId  String?
@@ -848,6 +896,7 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([branchId])
   @@index([entity])
   @@index([createdAt])
   @@map("audit_logs")

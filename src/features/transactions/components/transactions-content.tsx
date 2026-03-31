@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useBranch } from "@/components/providers/branch-provider";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { printThermalReceipt } from "@/lib/thermal-receipt";
 import { getTransactions, getTransactionById, voidTransaction, refundTransaction } from "@/features/transactions";
@@ -18,6 +19,7 @@ import {
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
 import { History, Eye, Printer, Ban, RotateCcw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Transaction, TransactionDetail } from "@/types";
 
 interface Props {
@@ -52,6 +54,12 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
         status: initialFilters.status || "ALL",
     });
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); }
+        else if (selectedBranchId) { fetchData({}); } // initial load with branch
+    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
@@ -75,6 +83,7 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                 ...(f.status !== "ALL" ? { status: f.status } : {}),
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
             };
             const result = await getTransactions(query);
@@ -109,6 +118,11 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
             exportValue: (row) => row.invoiceNumber,
         },
         {
+            key: "branch", header: "Lokasi",
+            render: (row) => <span className="text-xs">{row.branch?.name ?? "Semua"}</span>,
+            exportValue: (row) => row.branch?.name ?? "Semua",
+        },
+        {
             key: "createdAt", header: "Tanggal", sortable: true,
             render: (row) => <span className="text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>,
             exportValue: (row) => formatDateTime(row.createdAt),
@@ -120,8 +134,44 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
         },
         {
             key: "paymentMethod", header: "Pembayaran",
-            render: (row) => <Badge variant="secondary" className="rounded-lg text-xs">{paymentLabels[row.paymentMethod] || row.paymentMethod}</Badge>,
-            exportValue: (row) => paymentLabels[row.paymentMethod] || row.paymentMethod,
+            render: (row) => {
+                const payments = row.payments;
+                if (!payments || payments.length <= 1) {
+                    return <Badge variant="secondary" className="rounded-lg text-xs">{paymentLabels[row.paymentMethod] || row.paymentMethod}</Badge>;
+                }
+                const shown = payments.slice(0, 2);
+                const rest = payments.slice(2);
+                return (
+                    <div className="flex items-center gap-1 flex-wrap">
+                        {shown.map((p, i) => (
+                            <Badge key={i} variant="secondary" className="rounded-lg text-[10px]">{paymentLabels[p.method] || p.method}</Badge>
+                        ))}
+                        {rest.length > 0 && (
+                            <TooltipProvider delayDuration={0}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="rounded-lg text-[10px] cursor-default">+{rest.length}</Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs space-y-0.5">
+                                        {rest.map((p, i) => (
+                                            <div key={i} className="flex justify-between gap-4">
+                                                <span>{paymentLabels[p.method] || p.method}</span>
+                                                <span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span>
+                                            </div>
+                                        ))}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </div>
+                );
+            },
+            exportValue: (row) => {
+                if (row.payments && row.payments.length > 1) {
+                    return row.payments.map((p) => `${paymentLabels[p.method] || p.method}: ${p.amount}`).join(", ");
+                }
+                return paymentLabels[row.paymentMethod] || row.paymentMethod;
+            },
         },
         {
             key: "grandTotal", header: "Total", sortable: true, align: "right",
@@ -264,7 +314,20 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                                     <div className="flex justify-between font-bold text-base border-t pt-1">
                                         <span>Grand Total</span><span>{formatCurrency(selectedTx.grandTotal)}</span>
                                     </div>
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Dibayar</span><span>{formatCurrency(selectedTx.paymentAmount)}</span></div>
+                                    {/* Payment breakdown */}
+                                    {selectedTx.payments && selectedTx.payments.length > 1 ? (
+                                        <div className="space-y-1 border-t pt-1">
+                                            <p className="text-xs text-muted-foreground font-medium">Pembayaran:</p>
+                                            {selectedTx.payments.map((p: { id: string; method: string; amount: number }, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-xs">
+                                                    <span className="text-muted-foreground">{paymentLabels[p.method] || p.method}</span>
+                                                    <span>{formatCurrency(p.amount)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-between"><span className="text-muted-foreground">Dibayar ({paymentLabels[selectedTx.paymentMethod] || selectedTx.paymentMethod})</span><span>{formatCurrency(selectedTx.paymentAmount)}</span></div>
+                                    )}
                                     {selectedTx.changeAmount > 0 && (
                                         <div className="flex justify-between"><span className="text-muted-foreground">Kembalian</span><span>{formatCurrency(selectedTx.changeAmount)}</span></div>
                                     )}
@@ -290,6 +353,9 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                                         paymentMethod: selectedTx.paymentMethod,
                                         paymentAmount: selectedTx.paymentAmount,
                                         change: selectedTx.changeAmount,
+                                        payments: selectedTx.payments && selectedTx.payments.length > 1
+                                            ? selectedTx.payments.map((p: { method: string; amount: number }) => ({ method: p.method, amount: p.amount }))
+                                            : undefined,
                                         promos: selectedTx.promoApplied ? [selectedTx.promoApplied] : undefined,
                                     });
                                 }}>

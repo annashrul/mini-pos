@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { toast } from "sonner";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
 import { getSidebarMenuAccess } from "@/features/access-control";
+import { getAllBranches } from "@/server/actions/branches";
+import { useBranch } from "@/components/providers/branch-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,7 +43,11 @@ import {
     DollarSign,
     ShieldCheck,
     FileText,
+    MapPin,
 } from "lucide-react";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { DEFAULT_ROLE_COLOR } from "@/constants/roles";
 import type { AccessMenu } from "@/types";
 
@@ -90,6 +97,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const currentRole = (session?.user?.role || "") as string;
     const [dynamicMenuGroups, setDynamicMenuGroups] = useState<{ title: string; items: MenuItem[] }[]>([]);
     const [roleColor, setRoleColor] = useState<string>(DEFAULT_ROLE_COLOR);
+    const { branches, selectedBranchId, setBranches, setSelectedBranchId } = useBranch();
+
+    // Load branches
+    useEffect(() => {
+        getAllBranches().then((data) => {
+            const active = data.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
+            setBranches(active);
+        });
+    }, [setBranches]);
 
     useEffect(() => {
         let active = true;
@@ -153,6 +169,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             ),
         [pathname, visibleMenuGroups]
     );
+    const handleMenuClick = (event: React.MouseEvent, href: string) => {
+        if (href === "/pos" && !selectedBranchId) {
+            event.preventDefault();
+            toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS");
+        }
+    };
 
     return (
         <div
@@ -186,6 +208,32 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 </Button>
             </div>
 
+            {/* Branch Selector */}
+            {branches.length > 0 && (
+                <div className="px-3 py-2 border-b border-slate-100">
+                    {collapsed ? (
+                        <Button variant="ghost" size="icon" className="w-full h-9 rounded-lg" title={selectedBranchId ? branches.find((b) => b.id === selectedBranchId)?.name : "Semua Lokasi"}>
+                            <MapPin className="w-4 h-4 text-primary" />
+                        </Button>
+                    ) : (
+                        <Select value={selectedBranchId || "__all__"} onValueChange={(v) => setSelectedBranchId(v === "__all__" ? "" : v)}>
+                            <SelectTrigger className="h-9 rounded-lg text-xs bg-primary/5 border-primary/20 text-primary">
+                                <div className="flex items-center gap-1.5">
+                                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                    <SelectValue placeholder="Pilih Lokasi" />
+                                </div>
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">Semua Lokasi</SelectItem>
+                                {branches.map((b) => (
+                                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                </div>
+            )}
+
             {/* Navigation */}
             <ScrollArea className="flex-1 min-h-0 py-4">
                 <nav className="px-3">
@@ -193,19 +241,35 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         <div className="space-y-1">
                             {visibleMenuItems.map((item) => {
                                 const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                                const isPosBlocked = item.href === "/pos" && !selectedBranchId;
                                 return (
-                                    <Link
-                                        key={item.href}
-                                        href={item.href}
-                                        className={cn(
-                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                            isActive
-                                                ? "bg-primary text-primary-foreground shadow-md"
-                                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                        )}
-                                    >
-                                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                                    </Link>
+                                    isPosBlocked ? (
+                                        <button
+                                            key={item.href}
+                                            type="button"
+                                            onClick={() => toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS")}
+                                            className={cn(
+                                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                                "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                            )}
+                                        >
+                                            <item.icon className="h-5 w-5 flex-shrink-0" />
+                                        </button>
+                                    ) : (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            onClick={(event) => handleMenuClick(event, item.href)}
+                                            className={cn(
+                                                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                                isActive
+                                                    ? "bg-primary text-primary-foreground shadow-md"
+                                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                            )}
+                                        >
+                                            <item.icon className="h-5 w-5 flex-shrink-0" />
+                                        </Link>
+                                    )
                                 );
                             })}
                         </div>
@@ -236,20 +300,37 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                                         {group.items.map((item) => {
                                             const isActive =
                                                 pathname === item.href || pathname.startsWith(item.href + "/");
+                                            const isPosBlocked = item.href === "/pos" && !selectedBranchId;
                                             return (
-                                                <Link
-                                                    key={item.href}
-                                                    href={item.href}
-                                                    className={cn(
-                                                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                                        isActive
-                                                            ? "bg-primary text-primary-foreground shadow-md"
-                                                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                                    )}
-                                                >
-                                                    <item.icon className="h-5 w-5 flex-shrink-0" />
-                                                    <span>{item.label}</span>
-                                                </Link>
+                                                isPosBlocked ? (
+                                                    <button
+                                                        key={item.href}
+                                                        type="button"
+                                                        onClick={() => toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS")}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                                            "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                                        )}
+                                                    >
+                                                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                                                        <span>{item.label}</span>
+                                                    </button>
+                                                ) : (
+                                                    <Link
+                                                        key={item.href}
+                                                        href={item.href}
+                                                        onClick={(event) => handleMenuClick(event, item.href)}
+                                                        className={cn(
+                                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                                            isActive
+                                                                ? "bg-primary text-primary-foreground shadow-md"
+                                                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                                        )}
+                                                    >
+                                                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                                                        <span>{item.label}</span>
+                                                    </Link>
+                                                )
                                             );
                                         })}
                                     </div>

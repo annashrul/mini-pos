@@ -212,6 +212,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const totalMenus = data.menus.length;
+    console.log("####", data)
 
     if (data.error) {
         return (

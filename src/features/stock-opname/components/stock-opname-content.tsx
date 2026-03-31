@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import {
     getStockOpnames,
     getStockOpnameById,
@@ -14,6 +14,7 @@ import { SmartTable } from "@/components/ui/smart-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -29,9 +30,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import type { StockOpname, StockOpnameDetail } from "@/types";
+import { useBranch } from "@/components/providers/branch-provider";
 
 interface Props {
     initialData: { opnames: StockOpname[]; total: number; totalPages: number; currentPage: number };
+    branches: { id: string; name: string }[];
 }
 
 const statusColors: Record<string, string> = {
@@ -48,7 +51,7 @@ const statusLabels: Record<string, string> = {
     CANCELLED: "Dibatalkan",
 };
 
-export function StockOpnameContent({ initialData }: Props) {
+export function StockOpnameContent({ initialData, branches }: Props) {
     const [data, setData] = useState(initialData);
     const [createOpen, setCreateOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -60,9 +63,15 @@ export function StockOpnameContent({ initialData }: Props) {
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { selectedBranchId } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
+    useEffect(() => {
+        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
+    }, [selectedBranchId]);
 
     // Create state
     const [createNotes, setCreateNotes] = useState("");
+    const [createBranchIds, setCreateBranchIds] = useState<string[]>(branches.map((b) => b.id));
 
     // Detail edit state
     const [editedItems, setEditedItems] = useState<Record<string, number>>({});
@@ -79,6 +88,7 @@ export function StockOpnameContent({ initialData }: Props) {
                 search: params.search ?? search,
                 page: params.page ?? page,
                 ...(f.status !== "ALL" ? { status: f.status } : {}),
+                ...(f.branchId && f.branchId !== "ALL" ? { branchId: f.branchId } : selectedBranchId ? { branchId: selectedBranchId } : {}),
                 ...(f.date_from ? { dateFrom: f.date_from } : {}),
                 ...(f.date_to ? { dateTo: f.date_to } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
@@ -101,7 +111,7 @@ export function StockOpnameContent({ initialData }: Props) {
     };
 
     const handleCreate = async () => {
-        const result = await createStockOpname(null, createNotes || undefined);
+        const result = await createStockOpname(createBranchIds.length === branches.length ? null : createBranchIds, createNotes || undefined);
         if (result.error) {
             toast.error(result.error);
         } else {
@@ -218,6 +228,10 @@ export function StockOpnameContent({ initialData }: Props) {
 
     const filters: SmartFilter[] = [
         {
+            key: "branchId", label: "Cabang", type: "select",
+            options: branches.map((b) => ({ value: b.id, label: b.name })),
+        },
+        {
             key: "status", label: "Status", type: "select",
             options: [
                 { value: "DRAFT", label: "Draft" },
@@ -251,6 +265,15 @@ export function StockOpnameContent({ initialData }: Props) {
                             <p className="text-sm text-slate-500">
                                 Semua produk aktif akan dimuat dengan stok sistem saat ini. Anda dapat memasukkan stok aktual setelah opname dibuat.
                             </p>
+                            <div className="space-y-2">
+                                <Label>Lokasi <span className="text-red-400">*</span></Label>
+                                <BranchMultiSelect
+                                    branches={branches}
+                                    value={createBranchIds}
+                                    onChange={setCreateBranchIds}
+                                    placeholder="Pilih lokasi"
+                                />
+                            </div>
                             <div className="space-y-2">
                                 <Label>Catatan (opsional)</Label>
                                 <Input

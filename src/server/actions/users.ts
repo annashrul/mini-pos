@@ -6,8 +6,8 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { assertMenuActionAccess } from "@/lib/access-control";
 
-export async function getUsers(params?: { search?: string; role?: string; page?: number; perPage?: number }) {
-  const { search, role, page = 1, perPage = 10 } = params || {};
+export async function getUsers(params?: { search?: string; role?: string; branchId?: string; page?: number; perPage?: number }) {
+  const { search, role, branchId, page = 1, perPage = 10 } = params || {};
   const where: Record<string, unknown> = {};
   if (search) {
     where.OR = [
@@ -18,6 +18,9 @@ export async function getUsers(params?: { search?: string; role?: string; page?:
   if (role && role !== "all") {
     where.role = role;
   }
+  if (branchId && branchId !== "ALL") {
+    where.branchId = branchId;
+  }
 
   const [users, total] = await Promise.all([
     prisma.user.findMany({
@@ -27,6 +30,8 @@ export async function getUsers(params?: { search?: string; role?: string; page?:
         name: true,
         email: true,
         role: true,
+        branchId: true,
+        branch: { select: { id: true, name: true } },
         isActive: true,
         createdAt: true,
         _count: { select: { transactions: true } },
@@ -43,6 +48,7 @@ export async function getUsers(params?: { search?: string; role?: string; page?:
 
 export async function createUser(formData: FormData) {
   await assertMenuActionAccess("users", "create");
+  const branchId = (formData.get("branchId") as string) || null;
   const data = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
@@ -69,6 +75,7 @@ export async function createUser(formData: FormData) {
         password: hashedPassword,
         role: parsed.data.role,
         isActive: parsed.data.isActive,
+        branchId,
       },
     });
     revalidatePath("/users");
@@ -80,11 +87,13 @@ export async function createUser(formData: FormData) {
 
 export async function updateUser(id: string, formData: FormData) {
   await assertMenuActionAccess("users", "update");
+  const branchId = (formData.get("branchId") as string) || null;
   const data: Record<string, unknown> = {
     name: formData.get("name") as string,
     email: formData.get("email") as string,
     role: formData.get("role") as string,
     isActive: formData.get("isActive") === "true",
+    branchId,
   };
 
   const password = formData.get("password") as string;
