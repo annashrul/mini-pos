@@ -18,7 +18,7 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, categori
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[92vh] max-h-[92vh] max-w-3xl flex-col overflow-hidden rounded-2xl p-0">
-                <div className="sticky top-0 z-10 shrink-0 border-b border-border/40 bg-background px-6 py-4">
+                <div className="sticky top-0 z-10 shrink-0  bg-background px-6 py-4">
                     <DialogHeader>
                         <DialogTitle className="text-lg">{editingProduct ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
                     </DialogHeader>

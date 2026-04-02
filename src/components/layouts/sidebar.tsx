@@ -11,39 +11,13 @@ import { useBranch } from "@/components/providers/branch-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
-    LayoutDashboard,
-    ShoppingCart,
-    Package,
-    FolderTree,
-    History,
-    Users,
-    BarChart3,
-    BoxesIcon,
-    LogOut,
-    ChevronLeft,
-    ShoppingBag,
-    Tag,
-    Truck,
-    UserCheck,
-    Wallet,
-    Clock,
-    ScrollText,
-    Percent,
-    Building2,
-    ClipboardList,
-    BrainCircuit,
-    HeartHandshake,
-    ClipboardCheck,
-    ArrowLeftRight,
-    ChevronDown,
-    Settings,
-    DollarSign,
-    ShieldCheck,
-    FileText,
-    MapPin,
+    LayoutDashboard, ShoppingCart, Package, FolderTree, History, Users,
+    BarChart3, BoxesIcon, LogOut, ChevronLeft, Tag, Truck, UserCheck,
+    Wallet, Clock, ScrollText, Percent, Building2, ClipboardList,
+    BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
+    ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
 } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -59,39 +33,26 @@ type MenuItem = {
 };
 
 const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>> = {
-    dashboard: LayoutDashboard,
-    pos: ShoppingCart,
-    transactions: History,
-    shifts: Clock,
-    products: Package,
-    categories: FolderTree,
-    brands: Tag,
-    suppliers: Truck,
-    customers: UserCheck,
-    stock: BoxesIcon,
-    purchases: ClipboardList,
-    "stock-opname": ClipboardCheck,
-    "stock-transfers": ArrowLeftRight,
-    expenses: Wallet,
-    promotions: Percent,
-    reports: BarChart3,
-    analytics: BrainCircuit,
-    "customer-intelligence": HeartHandshake,
-    branches: Building2,
-    "branch-prices": DollarSign,
-    "audit-logs": ScrollText,
-    "closing-reports": FileText,
-    users: Users,
-    settings: Settings,
+    dashboard: LayoutDashboard, pos: ShoppingCart, transactions: History,
+    shifts: Clock, products: Package, categories: FolderTree, brands: Tag,
+    suppliers: Truck, customers: UserCheck, stock: BoxesIcon,
+    purchases: ClipboardList, "stock-opname": ClipboardCheck,
+    "stock-transfers": ArrowLeftRight, expenses: Wallet, promotions: Percent,
+    reports: BarChart3, analytics: BrainCircuit, "customer-intelligence": HeartHandshake,
+    branches: Building2, "branch-prices": DollarSign, "audit-logs": ScrollText,
+    "closing-reports": FileText, users: Users, settings: Settings,
     "access-control": ShieldCheck,
+    debts: Landmark,
+    "cashier-performance": Users,
 };
 
 interface SidebarProps {
     collapsed: boolean;
     onToggle: () => void;
+    onMobileClose?: () => void;
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
     const currentRole = (session?.user?.role || "") as string;
@@ -99,15 +60,30 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const [roleColor, setRoleColor] = useState<string>(DEFAULT_ROLE_COLOR);
     const { branches, selectedBranchId, setBranches, setSelectedBranchId } = useBranch();
 
-    // Load branches
-    useEffect(() => {
-        getAllBranches().then((data) => {
-            const active = data.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
-            setBranches(active);
-        });
-    }, [setBranches]);
+    // Load branches based on user role
+    const userBranchId = (session?.user as Record<string, unknown> | undefined)?.branchId as string | null | undefined;
+    const isAdminRole = currentRole === "SUPER_ADMIN" || currentRole === "ADMIN";
 
     useEffect(() => {
+        if (!session?.user || branches.length > 0) return;
+        if (isAdminRole) {
+            getAllBranches().then((data) => {
+                const active = data.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
+                setBranches(active);
+            });
+        } else if (userBranchId) {
+            getAllBranches().then((data) => {
+                const userBranch = data.find((b) => b.id === userBranchId && b.isActive);
+                if (userBranch) {
+                    setBranches([{ id: userBranch.id, name: userBranch.name }]);
+                    setSelectedBranchId(userBranch.id);
+                }
+            });
+        }
+    }, [session?.user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!currentRole) return;
         let active = true;
         const CACHE_KEY = "sidebar-menus";
 
@@ -123,14 +99,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
         };
         const applyMenus = (menus: AccessMenu[], role: string, nextRoleColor?: string | null) => {
-            queueMicrotask(() => {
-                if (!active) return;
-                setDynamicMenuGroups(buildGroups(menus, role));
-                if (nextRoleColor) setRoleColor(nextRoleColor);
-            });
+            if (!active) return;
+            setDynamicMenuGroups(buildGroups(menus, role));
+            if (nextRoleColor) setRoleColor(nextRoleColor);
         };
 
-        // Try cache first
         try {
             const cached = sessionStorage.getItem(CACHE_KEY);
             if (cached) {
@@ -142,7 +115,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }
         } catch { /* ignore */ }
 
-        // Fetch from server
         const loadMenus = async () => {
             const result = await getSidebarMenuAccess();
             if (!active) return;
@@ -160,71 +132,98 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     );
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
     const defaultOpenGroups = useMemo(
-        () =>
-            Object.fromEntries(
-                visibleMenuGroups.map((group) => [
-                    group.title,
-                    group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
-                ])
-            ),
+        () => Object.fromEntries(
+            visibleMenuGroups.map((group) => [
+                group.title,
+                group.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/")),
+            ])
+        ),
         [pathname, visibleMenuGroups]
     );
+
     const handleMenuClick = (event: React.MouseEvent, href: string) => {
         if (href === "/pos" && !selectedBranchId) {
             event.preventDefault();
-            toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS");
+            toast.error("Pilih lokasi terlebih dahulu");
+            return;
         }
+        onMobileClose?.();
+    };
+
+    const renderNavItem = (item: MenuItem, showLabel: boolean) => {
+        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        const isPosBlocked = item.href === "/pos" && !selectedBranchId;
+        const cls = cn(
+            "flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150",
+            isActive
+                ? "bg-gradient-to-r from-primary to-primary/90 text-white shadow-md shadow-primary/25"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+        );
+        const iconCls = cn("h-[18px] w-[18px] shrink-0", isActive ? "text-white" : "text-slate-400");
+        const content = <><item.icon className={iconCls} />{showLabel && <span className="truncate">{item.label}</span>}</>;
+
+        if (isPosBlocked) {
+            return <button key={item.href} type="button" onClick={() => toast.error("Pilih lokasi terlebih dahulu")} className={cn(cls, "w-full")}>{content}</button>;
+        }
+        return <Link key={item.href} href={item.href} onClick={(e) => handleMenuClick(e, item.href)} className={cls}>{content}</Link>;
     };
 
     return (
-        <div
-            className={cn(
-                "h-dvh max-h-dvh overflow-hidden bg-white border-r border-slate-200 flex flex-col transition-all duration-300 shadow-sm",
-                collapsed ? "w-[70px]" : "w-[260px]"
-            )}
-        >
-            {/* Header */}
-            <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100">
-                {!collapsed && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                            <ShoppingBag className="w-4 h-4 text-primary-foreground" />
+        <div className={cn(
+            "h-dvh max-h-dvh overflow-hidden bg-white border-r border-slate-200/80 flex flex-col shrink-0",
+            collapsed ? "w-[68px]" : "w-[256px]"
+        )}>
+            {/* Logo / Brand */}
+            <div className="h-14 flex items-center justify-between px-4 border-b border-slate-100/80">
+                {!collapsed ? (
+                    <Link href="/dashboard" className="flex items-center gap-2.5 group">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm shadow-primary/20 group-hover:shadow-md group-hover:shadow-primary/30 transition-shadow">
+                            <Zap className="w-4 h-4 text-white" />
                         </div>
-                        <span className="font-bold text-lg">POS</span>
-                    </div>
+                        <div className="flex flex-col">
+                            <span className="text-[15px] font-bold tracking-tight text-foreground leading-none">NusaPOS</span>
+                            <span className="text-[9px] text-muted-foreground/60 font-medium tracking-wider uppercase">Point of Sale</span>
+                        </div>
+                    </Link>
+                ) : (
+                    <Link href="/dashboard" className="w-full flex justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm">
+                            <Zap className="w-4 h-4 text-white" />
+                        </div>
+                    </Link>
                 )}
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onToggle}
-                    className="h-8 w-8 rounded-lg"
-                >
-                    <ChevronLeft
-                        className={cn(
-                            "h-4 w-4 transition-transform",
-                            collapsed && "rotate-180"
-                        )}
-                    />
+                {/* Collapse button (desktop) */}
+                <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7 rounded-lg hidden lg:flex shrink-0">
+                    <ChevronLeft className={cn("h-4 w-4 transition-transform duration-300", collapsed && "rotate-180")} />
+                </Button>
+                {/* Close button (mobile) */}
+                <Button variant="ghost" size="icon" onClick={onMobileClose} className="h-7 w-7 rounded-lg lg:hidden shrink-0">
+                    <X className="h-4 w-4" />
                 </Button>
             </div>
 
             {/* Branch Selector */}
             {branches.length > 0 && (
-                <div className="px-3 py-2 border-b border-slate-100">
+                <div className="px-3 py-2.5 border-b border-slate-100/80">
                     {collapsed ? (
-                        <Button variant="ghost" size="icon" className="w-full h-9 rounded-lg" title={selectedBranchId ? branches.find((b) => b.id === selectedBranchId)?.name : "Semua Lokasi"}>
+                        <Button variant="ghost" size="icon" className="w-full h-8 rounded-lg" title={selectedBranchId ? branches.find((b) => b.id === selectedBranchId)?.name : "Semua Lokasi"}>
                             <MapPin className="w-4 h-4 text-primary" />
                         </Button>
+                    ) : !isAdminRole && branches.length === 1 ? (
+                        <div className="h-8 rounded-lg text-xs bg-primary/5 border border-primary/10 text-primary flex items-center gap-1.5 px-3 font-medium">
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{branches[0]?.name}</span>
+                        </div>
                     ) : (
                         <Select value={selectedBranchId || "__all__"} onValueChange={(v) => setSelectedBranchId(v === "__all__" ? "" : v)}>
-                            <SelectTrigger className="h-9 rounded-lg text-xs bg-primary/5 border-primary/20 text-primary">
+                            <SelectTrigger className="h-8 rounded-lg text-xs bg-primary/5 border-primary/10 text-primary font-medium">
                                 <div className="flex items-center gap-1.5">
                                     <MapPin className="w-3.5 h-3.5 shrink-0" />
                                     <SelectValue placeholder="Pilih Lokasi" />
                                 </div>
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="__all__">Semua Lokasi</SelectItem>
+                                {isAdminRole && <SelectItem value="__all__">Semua Lokasi</SelectItem>}
                                 {branches.map((b) => (
                                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                                 ))}
@@ -235,153 +234,75 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             )}
 
             {/* Navigation */}
-            <ScrollArea className="flex-1 min-h-0 py-4">
+            <ScrollArea className="flex-1 min-h-0 py-3">
                 <nav className="px-3">
                     {collapsed ? (
-                        <div className="space-y-1">
-                            {visibleMenuItems.map((item) => {
-                                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                                const isPosBlocked = item.href === "/pos" && !selectedBranchId;
-                                return (
-                                    isPosBlocked ? (
-                                        <button
-                                            key={item.href}
-                                            type="button"
-                                            onClick={() => toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS")}
-                                            className={cn(
-                                                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                                "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                            )}
-                                        >
-                                            <item.icon className="h-5 w-5 flex-shrink-0" />
-                                        </button>
-                                    ) : (
-                                        <Link
-                                            key={item.href}
-                                            href={item.href}
-                                            onClick={(event) => handleMenuClick(event, item.href)}
-                                            className={cn(
-                                                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                                isActive
-                                                    ? "bg-primary text-primary-foreground shadow-md"
-                                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                            )}
-                                        >
-                                            <item.icon className="h-5 w-5 flex-shrink-0" />
-                                        </Link>
-                                    )
-                                );
-                            })}
+                        <div className="space-y-0.5">
+                            {visibleMenuItems.map((item) => renderNavItem(item, false))}
                         </div>
                     ) : (
-                        visibleMenuGroups.map((group) => (
-                            <div key={group.title} className="mb-3 last:mb-0">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() =>
-                                        setOpenGroups((prev) => ({
-                                            ...prev,
-                                            [group.title]: !(prev[group.title] ?? defaultOpenGroups[group.title] ?? false),
-                                        }))
-                                    }
-                                    className="w-full h-8 px-3 mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-                                >
-                                    <span>{group.title}</span>
-                                    <ChevronDown
-                                        className={cn(
-                                            "h-4 w-4 transition-transform",
-                                            openGroups[group.title] ? "rotate-0" : "-rotate-90"
-                                        )}
-                                    />
-                                </Button>
-                                {(openGroups[group.title] ?? defaultOpenGroups[group.title] ?? false) && (
-                                    <div className="space-y-1">
-                                        {group.items.map((item) => {
-                                            const isActive =
-                                                pathname === item.href || pathname.startsWith(item.href + "/");
-                                            const isPosBlocked = item.href === "/pos" && !selectedBranchId;
-                                            return (
-                                                isPosBlocked ? (
-                                                    <button
-                                                        key={item.href}
-                                                        type="button"
-                                                        onClick={() => toast.error("Pilih lokasi terlebih dahulu di filter lokasi sidebar untuk membuka POS")}
-                                                        className={cn(
-                                                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                                            "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                                        )}
-                                                    >
-                                                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                                                        <span>{item.label}</span>
-                                                    </button>
-                                                ) : (
-                                                    <Link
-                                                        key={item.href}
-                                                        href={item.href}
-                                                        onClick={(event) => handleMenuClick(event, item.href)}
-                                                        className={cn(
-                                                            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                                                            isActive
-                                                                ? "bg-primary text-primary-foreground shadow-md"
-                                                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                                        )}
-                                                    >
-                                                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                                                        <span>{item.label}</span>
-                                                    </Link>
-                                                )
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        ))
+                        visibleMenuGroups.map((group) => {
+                            const isOpen = openGroups[group.title] ?? defaultOpenGroups[group.title] ?? false;
+                            return (
+                                <div key={group.title} className="mb-1.5 last:mb-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setOpenGroups((prev) => ({ ...prev, [group.title]: !isOpen }))}
+                                        className="w-full h-7 px-3 mb-0.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors"
+                                    >
+                                        <span>{group.title}</span>
+                                        <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", !isOpen && "-rotate-90")} />
+                                    </button>
+                                    {isOpen && (
+                                        <div className="space-y-0.5">
+                                            {group.items.map((item) => renderNavItem(item, true))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     )}
                 </nav>
             </ScrollArea>
 
             {/* User section */}
-            <div className="border-t border-slate-100 p-3">
+            <div className="border-t border-slate-100/80 p-3">
                 {!collapsed ? (
-                    <div className="flex items-center gap-3 p-2">
-                        <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                                {session?.user?.name?.charAt(0) || "U"}
-                            </AvatarFallback>
-                        </Avatar>
+                    <div className="flex items-center gap-2.5 px-2 py-1.5">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
+                            {session?.user?.name?.charAt(0) || "U"}
+                        </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                                {session?.user?.name}
-                            </p>
-                            <Badge
-                                variant="secondary"
-                                className={cn(
-                                    "text-[10px] px-1.5 py-0",
-                                    roleColor
-                                )}
-                            >
-                                {session?.user?.role}
+                            <p className="text-[13px] font-semibold text-foreground truncate leading-tight">{session?.user?.name}</p>
+                            <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 mt-0.5", roleColor)}>
+                                {currentRole}
                             </Badge>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 rounded-lg text-slate-400 hover:text-red-500"
+                            className="h-8 w-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
                             onClick={() => signOut({ callbackUrl: "/login" })}
+                            title="Logout"
                         >
                             <LogOut className="h-4 w-4" />
                         </Button>
                     </div>
                 ) : (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="w-full h-10 rounded-lg text-slate-400 hover:text-red-500"
-                        onClick={() => signOut({ callbackUrl: "/login" })}
-                    >
-                        <LogOut className="h-4 w-4" />
-                    </Button>
+                    <div className="flex flex-col items-center gap-1.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-white text-xs font-bold">
+                            {session?.user?.name?.charAt(0) || "U"}
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            onClick={() => signOut({ callbackUrl: "/login" })}
+                            title="Logout"
+                        >
+                            <LogOut className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
                 )}
             </div>
         </div>

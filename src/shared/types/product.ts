@@ -25,6 +25,15 @@ export interface ProductTierPrice {
   price: number;
 }
 
+export interface ProductUnitOption {
+  id: string;
+  name: string;
+  conversionQty: number;
+  sellingPrice: number;
+  purchasePrice: number | null;
+  barcode: string | null;
+}
+
 export interface ProductSearchResult {
   id: string;
   code: string;
@@ -38,6 +47,13 @@ export interface ProductSearchResult {
   category: { name: string };
   imageUrl?: string | null;
   tierPrices?: ProductTierPrice[];
+  units?: ProductUnitOption[];
+  /** Set when scanned via unit barcode */
+  matchedUnit?: {
+    name: string;
+    conversionQty: number;
+    sellingPrice: number;
+  } | null;
 }
 
 export interface CartItem {
@@ -56,4 +72,8 @@ export interface CartItem {
   tierPrices?: ProductTierPrice[];
   tebusPromoId?: string;
   tebusPromoName?: string;
+  /** Unit name for display, e.g. "Karung", "Kg" */
+  unitName?: string;
+  /** How many base units per this unit, e.g. 1 Karung = 25 Kg => conversionQty=25 */
+  conversionQty?: number;
 }

@@ -20,7 +20,7 @@ enum Role {
 }
 
 model AppRole {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   key         String   @unique // e.g. "SUPER_ADMIN", "CUSTOM_SALES"
   name        String   // Display name
   description String?
@@ -57,6 +57,7 @@ enum PaymentMethod {
   EWALLET
   DEBIT
   CREDIT_CARD
+  TERMIN
 }
 
 enum MemberLevel {
@@ -107,7 +108,7 @@ enum CashMovementType {
 // ===========================
 
 model User {
-  id             String          @id @default(cuid())
+  id             String          @id @default(uuid())
   name           String
   email          String          @unique
   password       String
@@ -122,6 +123,8 @@ model User {
   auditLogs      AuditLog[]
   activityLogs   ActivityLog[]
   cashierShifts  CashierShift[]
+  debtsCreated   Debt[]
+  debtPayments   DebtPayment[]
 
   @@index([email])
   @@index([role])
@@ -130,7 +133,7 @@ model User {
 }
 
 model AppMenu {
-  id            String               @id @default(cuid())
+  id            String               @id @default(uuid())
   key           String               @unique
   name          String
   path          String               @unique
@@ -149,7 +152,7 @@ model AppMenu {
 }
 
 model MenuAction {
-  id            String                 @id @default(cuid())
+  id            String                 @id @default(uuid())
   menuId        String
   menu          AppMenu                @relation(fields: [menuId], references: [id], onDelete: Cascade)
   key           String
@@ -168,7 +171,7 @@ model MenuAction {
 }
 
 model RoleMenuPermission {
-  id            String      @id @default(cuid())
+  id            String      @id @default(uuid())
   role          String
   menuId        String
   menu          AppMenu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
@@ -183,7 +186,7 @@ model RoleMenuPermission {
 }
 
 model RoleActionPermission {
-  id            String       @id @default(cuid())
+  id            String       @id @default(uuid())
   role          String
   menuActionId  String
   menuAction    MenuAction   @relation(fields: [menuActionId], references: [id], onDelete: Cascade)
@@ -198,7 +201,7 @@ model RoleActionPermission {
 }
 
 model Branch {
-  id              String          @id @default(cuid())
+  id              String          @id @default(uuid())
   name            String          @unique
   code            String?         @unique
   address         String?
@@ -219,12 +222,13 @@ model Branch {
   expenses        Expense[]
   auditLogs       AuditLog[]
   settings        Setting[]
+  debts           Debt[]
 
   @@map("branches")
 }
 
 model BranchProductPrice {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   branchId      String
   branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   productId     String
@@ -241,7 +245,7 @@ model BranchProductPrice {
 }
 
 model BranchStock {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   productId String
@@ -262,7 +266,7 @@ model BranchStock {
 // ===========================
 
 model Category {
-  id          String        @id @default(cuid())
+  id          String        @id @default(uuid())
   name        String        @unique
   description String?
   parentId    String?
@@ -278,7 +282,7 @@ model Category {
 }
 
 model Brand {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   name      String    @unique
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -288,7 +292,7 @@ model Brand {
 }
 
 model Product {
-  id               String              @id @default(cuid())
+  id               String              @id @default(uuid())
   code             String              @unique
   name             String
   categoryId       String
@@ -331,7 +335,7 @@ model Product {
 }
 
 model ProductBarcode {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   productId String
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   barcode   String   @unique
@@ -344,7 +348,7 @@ model ProductBarcode {
 }
 
 model ProductPriceHistory {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   productId     String
   product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   oldBuyPrice   Float
@@ -361,7 +365,7 @@ model ProductPriceHistory {
 }
 
 model ProductUnit {
-  id              String   @id @default(cuid())
+  id              String   @id @default(uuid())
   productId       String
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   name            String   // e.g. "Box", "Bungkus", "Batang"
@@ -381,7 +385,7 @@ model ProductUnit {
 }
 
 model ProductTierPrice {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   productId  String
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   minQty     Int
@@ -400,7 +404,7 @@ model ProductTierPrice {
 // ===========================
 
 model Supplier {
-  id              String            @id @default(cuid())
+  id              String            @id @default(uuid())
   name            String
   contact         String?
   address         String?
@@ -416,7 +420,7 @@ model Supplier {
 }
 
 model SupplierPayment {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   supplierId  String
   supplier    Supplier @relation(fields: [supplierId], references: [id])
   poId        String?
@@ -437,7 +441,7 @@ model SupplierPayment {
 // ===========================
 
 model Customer {
-  id              String           @id @default(cuid())
+  id              String           @id @default(uuid())
   name            String
   phone           String?          @unique
   email           String?
@@ -458,7 +462,7 @@ model Customer {
 }
 
 model CustomerPointHistory {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   customerId  String
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   points      Int
@@ -477,7 +481,7 @@ model CustomerPointHistory {
 // ===========================
 
 model Transaction {
-  id              String            @id @default(cuid())
+  id              String            @id @default(uuid())
   invoiceNumber   String            @unique
   userId          String
   user            User              @relation(fields: [userId], references: [id])
@@ -513,7 +517,7 @@ model Transaction {
 }
 
 model TransactionItem {
-  id            String      @id @default(cuid())
+  id            String      @id @default(uuid())
   transactionId String
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   productId     String
@@ -521,6 +525,9 @@ model TransactionItem {
   productName   String
   productCode   String
   quantity      Int
+  unitName      String    @default("PCS")
+  conversionQty Int       @default(1)
+  baseQty       Int?
   unitPrice     Float
   discount      Float       @default(0)
   subtotal      Float
@@ -534,7 +541,7 @@ model TransactionItem {
 }
 
 model Payment {
-  id            String        @id @default(cuid())
+  id            String        @id @default(uuid())
   transactionId String
   transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   method        PaymentMethod
@@ -547,7 +554,7 @@ model Payment {
 }
 
 model Refund {
-  id              String      @id @default(cuid())
+  id              String      @id @default(uuid())
   transactionId   String      @unique
   transaction     Transaction @relation(fields: [transactionId], references: [id])
   reason          String
@@ -567,7 +574,7 @@ model Refund {
 // ===========================
 
 model StockMovement {
-  id        String            @id @default(cuid())
+  id        String            @id @default(uuid())
   productId String
   product   Product           @relation(fields: [productId], references: [id])
   branchId  String?
@@ -588,7 +595,7 @@ model StockMovement {
 }
 
 model StockOpname {
-  id          String            @id @default(cuid())
+  id          String            @id @default(uuid())
   opnameNumber String           @unique
   branchId    String?
   branch      Branch?           @relation(fields: [branchId], references: [id])
@@ -607,7 +614,7 @@ model StockOpname {
 }
 
 model StockOpnameItem {
-  id            String      @id @default(cuid())
+  id            String      @id @default(uuid())
   stockOpnameId String
   stockOpname   StockOpname @relation(fields: [stockOpnameId], references: [id], onDelete: Cascade)
   productId     String
@@ -624,7 +631,7 @@ model StockOpnameItem {
 }
 
 model StockTransfer {
-  id              String              @id @default(cuid())
+  id              String              @id @default(uuid())
   transferNumber  String              @unique
   fromBranchId    String
   fromBranch      Branch              @relation("TransferFrom", fields: [fromBranchId], references: [id])
@@ -648,7 +655,7 @@ model StockTransfer {
 }
 
 model StockTransferItem {
-  id              String        @id @default(cuid())
+  id              String        @id @default(uuid())
   stockTransferId String
   stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
   productId       String
@@ -666,7 +673,7 @@ model StockTransferItem {
 // ===========================
 
 model PurchaseOrder {
-  id            String              @id @default(cuid())
+  id            String              @id @default(uuid())
   orderNumber   String              @unique
   supplierId    String
   supplier      Supplier            @relation(fields: [supplierId], references: [id])
@@ -693,7 +700,7 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String        @id @default(cuid())
+  id              String        @id @default(uuid())
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   productId       String
@@ -710,7 +717,7 @@ model PurchaseOrderItem {
 }
 
 model GoodsReceipt {
-  id              String        @id @default(cuid())
+  id              String        @id @default(uuid())
   receiptNumber   String        @unique
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
@@ -725,7 +732,7 @@ model GoodsReceipt {
 }
 
 model GoodsReceiptItem {
-  id              String       @id @default(cuid())
+  id              String       @id @default(uuid())
   goodsReceiptId  String
   goodsReceipt    GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
   productId       String
@@ -744,7 +751,7 @@ model GoodsReceiptItem {
 // ===========================
 
 model CashierShift {
-  id             String         @id @default(cuid())
+  id             String         @id @default(uuid())
   userId         String
   user           User           @relation(fields: [userId], references: [id])
   branchId       String?
@@ -769,7 +776,7 @@ model CashierShift {
 }
 
 model CashMovement {
-  id          String           @id @default(cuid())
+  id          String           @id @default(uuid())
   shiftId     String
   shift       CashierShift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   type        CashMovementType
@@ -787,7 +794,7 @@ model CashMovement {
 // ===========================
 
 model Expense {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   category    String
   description String
   amount      Float
@@ -809,7 +816,7 @@ model Expense {
 // ===========================
 
 model Promotion {
-  id            String    @id @default(cuid())
+  id            String    @id @default(uuid())
   name          String
   type          PromoType
   value         Float
@@ -843,7 +850,7 @@ model Promotion {
 }
 
 model Voucher {
-  id          String    @id @default(cuid())
+  id          String    @id @default(uuid())
   code        String    @unique
   promotionId String
   promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
@@ -863,7 +870,7 @@ model Voucher {
 // ===========================
 
 model Setting {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   key       String
   value     String   // JSON string
   label     String?
@@ -883,7 +890,7 @@ model Setting {
 // ===========================
 
 model AuditLog {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   branchId  String?
@@ -893,6 +900,7 @@ model AuditLog {
   entityId  String?
   details   String?
   ipAddress String?
+  userAgent String?
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -903,7 +911,7 @@ model AuditLog {
 }
 
 model ActivityLog {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   action      String
@@ -916,3 +924,65 @@ model ActivityLog {
   @@index([createdAt])
   @@map("activity_logs")
 }
+
+// ===========================
+// HUTANG PIUTANG (Debt & Receivable)
+// ===========================
+
+model Debt {
+  id              String        @id @default(uuid())
+  type            DebtType      // PAYABLE (hutang - kita berhutang) or RECEIVABLE (piutang - orang lain berhutang ke kita)
+  referenceType   String?       // "TRANSACTION", "PURCHASE", "OTHER"
+  referenceId     String?       // linked transaction or purchase order ID
+  partyType       String        // "CUSTOMER" or "SUPPLIER" or "OTHER"
+  partyId         String?       // customer or supplier ID
+  partyName       String        // name for display
+  description     String?
+  totalAmount     Float         // total debt amount
+  paidAmount      Float         @default(0) // how much has been paid
+  remainingAmount Float         // totalAmount - paidAmount
+  status          DebtStatus    @default(UNPAID)
+  dueDate         DateTime?
+  branchId        String?
+  branch          Branch?       @relation(fields: [branchId], references: [id])
+  createdBy       String
+  creator         User          @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  payments        DebtPayment[]
+
+  @@index([type])
+  @@index([status])
+  @@index([partyId])
+  @@index([branchId])
+  @@index([createdAt])
+  @@map("debts")
+}
+
+model DebtPayment {
+  id          String   @id @default(uuid())
+  debtId      String
+  debt        Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  amount      Float
+  method      String   @default("CASH") // CASH, TRANSFER, etc
+  notes       String?
+  paidBy      String
+  payer       User     @relation(fields: [paidBy], references: [id])
+  paidAt      DateTime @default(now())
+
+  @@index([debtId])
+  @@map("debt_payments")
+}
+
+enum DebtType {
+  PAYABLE    // Hutang (kita berhutang ke supplier/orang lain)
+  RECEIVABLE // Piutang (customer/orang lain berhutang ke kita)
+}
+
+enum DebtStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+

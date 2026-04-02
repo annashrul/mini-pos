@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { supplierSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getSuppliers(params?: { search?: string; status?: string; page?: number; perPage?: number }) {
   const { search, status, page = 1, perPage = 10 } = params || {};
@@ -56,6 +57,7 @@ export async function createSupplier(data: FormData) {
         isActive: parsed.data.isActive,
       },
     });
+    createAuditLog({ action: "CREATE", entity: "Supplier", details: { data: { name: parsed.data.name, contact: parsed.data.contact ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
     revalidatePath("/suppliers");
     return { success: true };
   } catch {
@@ -75,6 +77,7 @@ export async function updateSupplier(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Data supplier tidak valid" };
 
   try {
+    const oldSupplier = await prisma.supplier.findUniqueOrThrow({ where: { id } });
     await prisma.supplier.update({
       where: { id },
       data: {
@@ -85,6 +88,7 @@ export async function updateSupplier(id: string, data: FormData) {
         isActive: parsed.data.isActive,
       },
     });
+    createAuditLog({ action: "UPDATE", entity: "Supplier", entityId: id, details: { before: { name: oldSupplier.name, contact: oldSupplier.contact, email: oldSupplier.email, address: oldSupplier.address, isActive: oldSupplier.isActive }, after: { name: parsed.data.name, contact: parsed.data.contact ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
     revalidatePath("/suppliers");
     return { success: true };
   } catch {
@@ -99,7 +103,9 @@ export async function deleteSupplier(id: string) {
     if (productsCount > 0) {
       return { error: `Supplier masih memiliki ${productsCount} produk` };
     }
+    const supplier = await prisma.supplier.findUniqueOrThrow({ where: { id } });
     await prisma.supplier.delete({ where: { id } });
+    createAuditLog({ action: "DELETE", entity: "Supplier", entityId: id, details: { deleted: { name: supplier.name, contact: supplier.contact, email: supplier.email } } }).catch(() => {});
     revalidatePath("/suppliers");
     return { success: true };
   } catch {

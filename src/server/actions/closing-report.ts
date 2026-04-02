@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getClosingReport(shiftId: string) {
   const shift = await prisma.cashierShift.findUnique({
@@ -50,7 +51,8 @@ export async function getClosingReport(shiftId: string) {
     totalTax += tx.taxAmount;
 
     const method = tx.paymentMethod;
-    if (!paymentSummary[method]) paymentSummary[method] = { count: 0, total: 0 };
+    if (!paymentSummary[method])
+      paymentSummary[method] = { count: 0, total: 0 };
     paymentSummary[method]!.count++;
     paymentSummary[method]!.total += tx.grandTotal;
 
@@ -61,10 +63,24 @@ export async function getClosingReport(shiftId: string) {
 
   // Void/refund during shift
   const voidCount = await prisma.transaction.count({
-    where: { userId: shift.userId, createdAt: { gte: shift.openedAt, ...(shift.closedAt ? { lte: shift.closedAt } : {}) }, status: "VOIDED" },
+    where: {
+      userId: shift.userId,
+      createdAt: {
+        gte: shift.openedAt,
+        ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+      },
+      status: "VOIDED",
+    },
   });
   const refundCount = await prisma.transaction.count({
-    where: { userId: shift.userId, createdAt: { gte: shift.openedAt, ...(shift.closedAt ? { lte: shift.closedAt } : {}) }, status: "REFUNDED" },
+    where: {
+      userId: shift.userId,
+      createdAt: {
+        gte: shift.openedAt,
+        ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+      },
+      status: "REFUNDED",
+    },
   });
 
   // Cash movements during shift
@@ -73,11 +89,16 @@ export async function getClosingReport(shiftId: string) {
     orderBy: { createdAt: "asc" },
   });
 
-  const cashMovementIn = cashMovements.filter((m) => m.type === "CASH_IN").reduce((s, m) => s + m.amount, 0);
-  const cashMovementOut = cashMovements.filter((m) => m.type === "CASH_OUT").reduce((s, m) => s + m.amount, 0);
+  const cashMovementIn = cashMovements
+    .filter((m) => m.type === "CASH_IN")
+    .reduce((s, m) => s + m.amount, 0);
+  const cashMovementOut = cashMovements
+    .filter((m) => m.type === "CASH_OUT")
+    .reduce((s, m) => s + m.amount, 0);
 
   // Expected cash = opening + cash sales + cash_in movements - cash_out movements
-  const expectedCash = shift.openingCash + cashIn + cashMovementIn - cashMovementOut;
+  const expectedCash =
+    shift.openingCash + cashIn + cashMovementIn - cashMovementOut;
 
   return {
     shift: {
@@ -89,7 +110,8 @@ export async function getClosingReport(shiftId: string) {
       openingCash: shift.openingCash,
       closingCash: shift.closingCash,
       expectedCash,
-      cashDifference: shift.closingCash != null ? shift.closingCash - expectedCash : null,
+      cashDifference:
+        shift.closingCash != null ? shift.closingCash - expectedCash : null,
       notes: shift.notes,
       isOpen: shift.isOpen,
     },
@@ -98,7 +120,8 @@ export async function getClosingReport(shiftId: string) {
       totalSales,
       totalDiscount,
       totalTax,
-      averageTransaction: transactions.length > 0 ? totalSales / transactions.length : 0,
+      averageTransaction:
+        transactions.length > 0 ? totalSales / transactions.length : 0,
       voidCount,
       refundCount,
     },
@@ -114,36 +137,60 @@ export async function getClosingReport(shiftId: string) {
       cashMovementOut,
       expectedCash,
       actualCash: shift.closingCash,
-      difference: shift.closingCash != null ? shift.closingCash - expectedCash : null,
+      difference:
+        shift.closingCash != null ? shift.closingCash - expectedCash : null,
     },
     cashMovements,
     transactions,
   };
 }
 
-export async function getClosingReportList(params?: { page?: number; perPage?: number; search?: string; dateFrom?: string; dateTo?: string; branchId?: string }) {
-  const { page = 1, perPage = 10, search, dateFrom, dateTo, branchId } = params || {};
+export async function getClosingReportList(params?: {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  branchId?: string;
+}) {
+  const {
+    page = 1,
+    perPage = 10,
+    search,
+    dateFrom,
+    dateTo,
+    branchId,
+  } = params || {};
   const where: Record<string, unknown> = { isOpen: false };
   if (branchId) where.branchId = branchId;
 
   if (search) {
-    where.user = { OR: [
-      { name: { contains: search, mode: "insensitive" } },
-      { email: { contains: search, mode: "insensitive" } },
-    ]};
+    where.user = {
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+      ],
+    };
   }
 
   if (dateFrom || dateTo) {
-    const closedAtFilter: Record<string, Date> = {};
-    if (dateFrom) closedAtFilter.gte = new Date(dateFrom + "T00:00:00");
-    if (dateTo) closedAtFilter.lte = new Date(dateTo + "T23:59:59");
-    where.closedAt = closedAtFilter;
+    const dateFilter: Record<string, Date> = {};
+    if (dateFrom) dateFilter.gte = new Date(`${dateFrom}T00:00:00.000`);
+    if (dateTo) dateFilter.lte = new Date(`${dateTo}T23:59:59.999`);
+    where.AND = [
+      {
+        OR: [
+          { closedAt: dateFilter },
+          { AND: [{ closedAt: null }, { openedAt: dateFilter }] },
+        ],
+      },
+    ];
   }
 
   const [shifts, total] = await Promise.all([
     prisma.cashierShift.findMany({
       where,
-      include: { user: { select: { name: true } }, branch: { select: { name: true } } },
+      include: { user: { select: { name: true } } },
       orderBy: { closedAt: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -154,8 +201,14 @@ export async function getClosingReportList(params?: { page?: number; perPage?: n
   return { shifts, total, totalPages: Math.ceil(total / perPage) };
 }
 
-export async function recloseShift(shiftId: string, closingCash: number, notes?: string) {
-  const shift = await prisma.cashierShift.findUnique({ where: { id: shiftId } });
+export async function recloseShift(
+  shiftId: string,
+  closingCash: number,
+  notes?: string,
+) {
+  const shift = await prisma.cashierShift.findUnique({
+    where: { id: shiftId },
+  });
   if (!shift) return { error: "Shift tidak ditemukan" };
   if (shift.isOpen) return { error: "Shift masih aktif, gunakan Close Shift" };
 
@@ -163,18 +216,31 @@ export async function recloseShift(shiftId: string, closingCash: number, notes?:
   const transactions = await prisma.transaction.findMany({
     where: {
       userId: shift.userId,
-      createdAt: { gte: shift.openedAt, ...(shift.closedAt ? { lte: shift.closedAt } : {}) },
+      createdAt: {
+        gte: shift.openedAt,
+        ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+      },
       status: "COMPLETED",
       paymentMethod: "CASH",
     },
     select: { paymentAmount: true, changeAmount: true },
   });
 
-  const cashIn = transactions.reduce((s, tx) => s + tx.paymentAmount - tx.changeAmount, 0);
-  const cashMovements = await prisma.cashMovement.findMany({ where: { shiftId } });
-  const cashMovementIn = cashMovements.filter((m) => m.type === "CASH_IN").reduce((s, m) => s + m.amount, 0);
-  const cashMovementOut = cashMovements.filter((m) => m.type === "CASH_OUT").reduce((s, m) => s + m.amount, 0);
-  const expectedCash = shift.openingCash + cashIn + cashMovementIn - cashMovementOut;
+  const cashIn = transactions.reduce(
+    (s, tx) => s + tx.paymentAmount - tx.changeAmount,
+    0,
+  );
+  const cashMovements = await prisma.cashMovement.findMany({
+    where: { shiftId },
+  });
+  const cashMovementIn = cashMovements
+    .filter((m) => m.type === "CASH_IN")
+    .reduce((s, m) => s + m.amount, 0);
+  const cashMovementOut = cashMovements
+    .filter((m) => m.type === "CASH_OUT")
+    .reduce((s, m) => s + m.amount, 0);
+  const expectedCash =
+    shift.openingCash + cashIn + cashMovementIn - cashMovementOut;
 
   await prisma.cashierShift.update({
     where: { id: shiftId },
@@ -183,11 +249,13 @@ export async function recloseShift(shiftId: string, closingCash: number, notes?:
       expectedCash,
       cashDifference: closingCash - expectedCash,
       notes: notes || shift.notes,
-      closedAt: new Date(),
     },
   });
 
   revalidatePath("/closing-reports");
   revalidatePath("/shifts");
+
+  createAuditLog({ action: "UPDATE", entity: "CashierShift", entityId: shiftId, details: { data: { shiftId, newClosingCash: closingCash, notes: notes || shift.notes } } }).catch(() => {});
+
   return { success: true };
 }

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { createAuditLog } from "@/lib/audit";
 
 // Get all branch prices for a specific branch
 export async function getBranchPrices(params: {
@@ -64,6 +65,11 @@ export async function setBranchPrice(
 ) {
   if (sellingPrice < 0) return { error: "Harga jual tidak boleh negatif" };
 
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { name: true },
+  });
+
   await prisma.branchProductPrice.upsert({
     where: { branchId_productId: { branchId, productId } },
     update: {
@@ -77,6 +83,12 @@ export async function setBranchPrice(
       purchasePrice: purchasePrice ?? null,
     },
   });
+
+  createAuditLog({
+    action: "UPDATE",
+    entity: "BranchPrice",
+    details: { data: { productName: product?.name ?? productId, purchasePrice: purchasePrice ?? null, sellingPrice, branchId } }, branchId,
+  }).catch(() => {});
 
   revalidatePath("/branch-prices");
   return { success: true };
@@ -114,6 +126,12 @@ export async function removeBranchPrice(branchId: string, productId: string) {
   await prisma.branchProductPrice.deleteMany({
     where: { branchId, productId },
   });
+
+  createAuditLog({
+    action: "DELETE",
+    entity: "BranchPrice",
+    details: { data: { productId, branchId } }, branchId,
+  }).catch(() => {});
 
   revalidatePath("/branch-prices");
   return { success: true };
@@ -161,6 +179,12 @@ export async function copyBranchPrices(fromBranchId: string, toBranchId: string)
       })
     )
   );
+
+  createAuditLog({
+    action: "COPY",
+    entity: "BranchPrice",
+    details: { data: { fromBranchId, toBranchId, count: sourcePrices.length } },
+  }).catch(() => {});
 
   revalidatePath("/branch-prices");
   return { success: true, count: sourcePrices.length };

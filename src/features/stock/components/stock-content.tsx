@@ -1,59 +1,80 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
-import { createStockMovement, getStockMovements } from "@/features/stock";
+import { useState, useEffect, useRef, useTransition, useMemo } from "react";
+import { createStockMovement, getStockMovements, getProductsForSelect } from "@/features/stock";
+import { getAllBranches } from "@/features/branches";
+import { useMenuActionAccess } from "@/features/access-control";
 import { formatDateTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
-import { SmartTable } from "@/components/ui/smart-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { SmartSelect } from "@/components/ui/smart-select";
 import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
-import { Plus, BoxesIcon } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Plus, BoxesIcon, ArrowDownLeft, ArrowUpRight, RefreshCw, ArrowLeftRight, ClipboardCheck,
+    Minus, Search, Loader2, CalendarDays, MapPin,
+} from "lucide-react";
 import { toast } from "sonner";
-import type { StockMovement, ProductBasic } from "@/types";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import type { ProductBasic } from "@/types";
+import { PaginationControl } from "@/components/ui/pagination-control";
 import { useBranch } from "@/components/providers/branch-provider";
 
-const typeConfig: Record<string, { label: string; color: string }> = {
-    IN: { label: "Masuk", color: "bg-green-100 text-green-700" },
-    OUT: { label: "Keluar", color: "bg-red-100 text-red-700" },
-    ADJUSTMENT: { label: "Penyesuaian", color: "bg-blue-100 text-blue-700" },
-    TRANSFER: { label: "Transfer", color: "bg-purple-100 text-purple-700" },
-    OPNAME: { label: "Opname", color: "bg-orange-100 text-orange-700" },
+type StockMovementsData = Awaited<ReturnType<typeof getStockMovements>>;
+type StockMovementRow = StockMovementsData["movements"][number];
+
+const typeConfig: Record<string, { label: string; color: string; icon: React.ElementType; borderColor: string; bgColor: string }> = {
+    IN: { label: "Masuk", color: "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200", icon: ArrowDownLeft, borderColor: "border-l-emerald-500", bgColor: "from-emerald-50 to-green-50" },
+    OUT: { label: "Keluar", color: "bg-gradient-to-r from-red-100 to-rose-100 text-red-700 border border-red-200", icon: ArrowUpRight, borderColor: "border-l-red-500", bgColor: "from-red-50 to-rose-50" },
+    ADJUSTMENT: { label: "Penyesuaian", color: "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200", icon: RefreshCw, borderColor: "border-l-amber-500", bgColor: "from-amber-50 to-orange-50" },
+    TRANSFER: { label: "Transfer", color: "bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border border-purple-200", icon: ArrowLeftRight, borderColor: "border-l-purple-500", bgColor: "from-purple-50 to-violet-50" },
+    OPNAME: { label: "Opname", color: "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border border-orange-200", icon: ClipboardCheck, borderColor: "border-l-orange-500", bgColor: "from-orange-50 to-amber-50" },
 };
 
-interface Props {
-    data: { movements: StockMovement[]; total: number; totalPages: number; currentPage: number };
-    products: ProductBasic[];
-    branches: { id: string; name: string }[];
-    filters: Record<string, string | undefined>;
+function formatRelativeTime(date: Date | string): string {
+    const now = new Date();
+    const d = new Date(date);
+    const diffMs = now.getTime() - d.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    if (diffSec < 60) return "Baru saja";
+    if (diffMin < 60) return `${diffMin} menit lalu`;
+    if (diffHour < 24) return `${diffHour} jam lalu`;
+    if (diffDay < 7) return `${diffDay} hari lalu`;
+    return formatDateTime(d);
 }
 
-export function StockContent({ data: initialData, products, branches, filters: initialFilters }: Props) {
-    const [data, setData] = useState(initialData);
+export function StockContent() {
+    const [data, setData] = useState<StockMovementsData>({ movements: [], total: 0, totalPages: 0, currentPage: 1 });
+    const [products, setProducts] = useState<ProductBasic[]>([]);
+    const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
     const [open, setOpen] = useState(false);
-    const [page, setPage] = useState(initialData.currentPage);
+    const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
     const [selectedProductId, setSelectedProductId] = useState("");
-    const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(branches.map((b) => b.id));
+    const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
     const [selectedType, setSelectedType] = useState("IN");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-        type: initialFilters.type || "ALL",
+    const [activeFilters] = useState<Record<string, string>>({
+        type: "ALL",
     });
-    const [sortKey, setSortKey] = useState<string>("");
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+    const [sortKey] = useState<string>("");
+    const [sortDir] = useState<"asc" | "desc">("desc");
     const [loading, startTransition] = useTransition();
-    const { selectedBranchId } = useBranch();
+    const { canAction, cannotMessage } = useMenuActionAccess("stock");
+    const canCreate = canAction("create");
+    const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
-    useEffect(() => {
-        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); } else if (selectedBranchId) { fetchData({}); }
-    }, [selectedBranchId]);
 
-    const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
+    function fetchData(params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) {
         startTransition(async () => {
             const f = params.filters ?? activeFilters;
             const sk = params.sortKey ?? sortKey;
@@ -71,9 +92,34 @@ export function StockContent({ data: initialData, products, branches, filters: i
             const result = await getStockMovements(query);
             setData(result);
         });
-    };
+    }
+
+    useEffect(() => {
+        startTransition(async () => {
+            const [productsData, allBranches] = await Promise.all([
+                getProductsForSelect(),
+                getAllBranches(),
+            ]);
+            setProducts(productsData);
+            const activeBranches = allBranches.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
+            setBranches(activeBranches);
+            setSelectedBranchIds(activeBranches.map((b) => b.id));
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!branchReady) return;
+        if (prevBranchRef.current !== selectedBranchId) {
+            prevBranchRef.current = selectedBranchId;
+            setPage(1);
+            fetchData({ page: 1 });
+        } else {
+            fetchData({});
+        }
+    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (formData: FormData) => {
+        if (!canCreate) { toast.error(cannotMessage("create")); return; }
         const result = await createStockMovement(formData);
         if (result.error) toast.error(result.error);
         else {
@@ -85,179 +131,363 @@ export function StockContent({ data: initialData, products, branches, filters: i
         }
     };
 
-    const columns: SmartColumn<StockMovement>[] = [
-        {
-            key: "product", header: "Produk", sortable: true,
-            render: (row) => (
-                <div>
-                    <p className="font-medium text-sm">{row.product.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{row.product.code}</p>
-                </div>
-            ),
-            exportValue: (row) => `${row.product.name} (${row.product.code})`,
-        },
-        {
-            key: "branch", header: "Lokasi",
-            render: (row) => <span className="text-xs">{(row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua"}</span>,
-            exportValue: (row) => (row as unknown as { branch?: { name: string } | null }).branch?.name ?? "Semua",
-        },
-        {
-            key: "type", header: "Tipe", align: "center",
-            render: (row) => {
-                const cfg = typeConfig[row.type] || { label: row.type, color: "bg-slate-100 text-slate-700" };
-                return <Badge className={cfg.color}>{cfg.label}</Badge>;
-            },
-            exportValue: (row) => typeConfig[row.type]?.label || row.type,
-        },
-        {
-            key: "quantity", header: "Qty", align: "center", sortable: true,
-            render: (row) => (
-                <span className={`font-semibold text-sm ${row.type === "IN" ? "text-green-600" : row.type === "OUT" ? "text-red-600" : "text-blue-600"}`}>
-                    {row.type === "OUT" ? "-" : "+"}{row.quantity}
-                </span>
-            ),
-            exportValue: (row) => row.quantity,
-        },
-        {
-            key: "currentStock", header: "Stok Sekarang", align: "center",
-            render: (row) => <span className="text-sm">{row.product.stock}</span>,
-            exportValue: (row) => row.product.stock,
-        },
-        {
-            key: "note", header: "Catatan",
-            render: (row) => <span className="text-xs text-muted-foreground">{row.note || "-"}</span>,
-            exportValue: (row) => row.note || "-",
-        },
-        {
-            key: "reference", header: "Referensi",
-            render: (row) => <span className="text-xs font-mono text-muted-foreground">{row.reference || "-"}</span>,
-            exportValue: (row) => row.reference || "-",
-        },
-        {
-            key: "createdAt", header: "Waktu", sortable: true,
-            render: (row) => <span className="text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>,
-            exportValue: (row) => formatDateTime(row.createdAt),
-        },
-    ];
+    const stats = useMemo(() => {
+        const inCount = data.movements.filter((m) => m.type === "IN").length;
+        const outCount = data.movements.filter((m) => m.type === "OUT").length;
+        const adjCount = data.movements.filter((m) => m.type === "ADJUSTMENT").length;
+        return { inCount, outCount, adjCount };
+    }, [data.movements]);
 
-    const filters: SmartFilter[] = [
-        {
-            key: "branchId", label: "Cabang", type: "select",
-            options: branches.map((b) => ({ value: b.id, label: b.name })),
-        },
-        {
-            key: "type", label: "Tipe", type: "select",
-            options: [
-                { value: "IN", label: "Stok Masuk" },
-                { value: "OUT", label: "Stok Keluar" },
-                { value: "ADJUSTMENT", label: "Penyesuaian" },
-                { value: "TRANSFER", label: "Transfer" },
-                { value: "OPNAME", label: "Opname" },
-            ],
-        },
-        { key: "date", label: "Tanggal", type: "daterange" },
+    const getProductMeta = (row: StockMovementRow) => {
+        const fallback = products.find((p) => p.id === row.productId);
+        return {
+            name: (row as unknown as { product?: { name?: string } }).product?.name ?? fallback?.name ?? "-",
+            code: (row as unknown as { product?: { code?: string } }).product?.code ?? fallback?.code ?? "-",
+            stock: (row as unknown as { product?: { stock?: number } }).product?.stock ?? fallback?.stock ?? 0,
+        };
+    };
+
+    const grouped = useMemo(() => {
+        const groups: { date: string; items: StockMovementRow[] }[] = [];
+        let cur = "";
+        for (const m of data.movements) {
+            const d = format(new Date(m.createdAt), "yyyy-MM-dd");
+            if (d !== cur) { cur = d; groups.push({ date: d, items: [] }); }
+            groups[groups.length - 1]!.items.push(m);
+        }
+        return groups;
+    }, [data.movements]);
+
+    const handleSearch = (q: string) => {
+        setSearch(q);
+        setPage(1);
+        fetchData({ search: q, page: 1 });
+    };
+
+
+    const typeCards: { value: string; label: string; icon: React.ElementType; gradient: string; selectedBorder: string }[] = [
+        { value: "IN", label: "Masuk", icon: ArrowDownLeft, gradient: "from-emerald-50 to-green-50 text-emerald-700", selectedBorder: "ring-2 ring-emerald-500 border-emerald-400" },
+        { value: "OUT", label: "Keluar", icon: ArrowUpRight, gradient: "from-red-50 to-rose-50 text-red-700", selectedBorder: "ring-2 ring-red-500 border-red-400" },
+        { value: "ADJUSTMENT", label: "Penyesuaian", icon: RefreshCw, gradient: "from-blue-50 to-indigo-50 text-blue-700", selectedBorder: "ring-2 ring-blue-500 border-blue-400" },
     ];
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-6">
+            {/* Header */}
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Manajemen Stok</h1>
-                    <p className="text-muted-foreground text-sm">Kelola pergerakan stok produk</p>
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <BoxesIcon className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Manajemen Stok</h1>
+                        <p className="text-muted-foreground text-sm flex items-center gap-2">
+                            Kelola pergerakan stok produk
+                            <Badge variant="secondary" className="text-xs font-normal">{data.total} pergerakan</Badge>
+                        </p>
+                    </div>
                 </div>
-                <Button className="rounded-lg" onClick={() => setOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
-                </Button>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <Button
+                        disabled={!canCreate}
+                        className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
+                        onClick={() => setOpen(true)}
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
+                    </Button>
+                </DisabledActionTooltip>
             </div>
 
-            <SmartTable<StockMovement>
-                data={data.movements}
-                columns={columns}
-                totalItems={data.total}
-                totalPages={data.totalPages}
-                currentPage={page}
-                pageSize={pageSize}
-                loading={loading}
-                title="Pergerakan Stok"
-                titleIcon={<BoxesIcon className="w-4 h-4 text-muted-foreground" />}
-                searchPlaceholder="Cari produk..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
+            {/* Stats Bar */}
+            <div className="flex items-center gap-3">
+                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-4 py-2">
+                    <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                    <span className="text-sm font-semibold text-emerald-700">{stats.inCount}</span>
+                    <span className="text-xs text-emerald-600">Masuk</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 px-4 py-2">
+                    <ArrowUpRight className="w-4 h-4 text-red-600" />
+                    <span className="text-sm font-semibold text-red-700">{stats.outCount}</span>
+                    <span className="text-xs text-red-600">Keluar</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-4 py-2">
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-semibold text-blue-700">{stats.adjCount}</span>
+                    <span className="text-xs text-blue-600">Penyesuaian</span>
+                </div>
+            </div>
+
+            {/* Movement List */}
+            <div className="rounded-2xl border border-border/30 bg-white shadow-sm">
+                {/* Search bar */}
+                <div className="flex items-center gap-3 p-4 border-b border-border/20">
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+                        <Input
+                            placeholder="Cari produk..."
+                            className="pl-9 pr-9 rounded-xl h-10 border-border/40"
+                            defaultValue={search}
+                            onChange={(e) => handleSearch(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Grouped movement list */}
+                <div className="p-4 space-y-6">
+                    {loading && data.movements.length === 0 ? (
+                        <div className="space-y-6">
+                            {Array.from({ length: 2 }).map((_, gi) => (
+                                <div key={gi}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Skeleton className="w-4 h-4 rounded" />
+                                        <Skeleton className="h-4 w-48" />
+                                        <div className="flex-1 h-px bg-border/40" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        {Array.from({ length: gi === 0 ? 3 : 2 }).map((_, i) => (
+                                            <div key={i} className="rounded-xl border border-border/30 bg-white px-4 py-3 flex items-center gap-4">
+                                                <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+                                                <div className="flex-1 min-w-0 space-y-1.5">
+                                                    <Skeleton className="h-4 w-40" />
+                                                    <Skeleton className="h-3 w-24 rounded-full" />
+                                                </div>
+                                                <Skeleton className="h-6 w-16" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : data.movements.length === 0 && !loading ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <BoxesIcon className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                            <p className="text-sm font-medium text-slate-500">Belum ada pergerakan stok</p>
+                            <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                                <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-full mt-3" onClick={() => setOpen(true)}>
+                                    <Plus className="w-3 h-3 mr-1" /> Tambah Pergerakan
+                                </Button>
+                            </DisabledActionTooltip>
+                        </div>
+                    ) : (
+                        <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : ""}>
+                            {grouped.map((group) => (
+                                <div key={group.date} className="mb-6 last:mb-0">
+                                    {/* Date header */}
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <CalendarDays className="w-4 h-4 text-slate-400" />
+                                        <span className="text-sm font-semibold text-slate-700">
+                                            {format(new Date(group.date), "EEEE, dd MMMM yyyy", { locale: idLocale })}
+                                        </span>
+                                        <div className="flex-1 h-px bg-border/40" />
+                                    </div>
+
+                                    {/* Movement items */}
+                                    <div className="space-y-2">
+                                        {group.items.map((movement) => {
+                                            const cfg = typeConfig[movement.type] || { label: movement.type, color: "bg-slate-100 text-slate-700", icon: RefreshCw, borderColor: "border-l-slate-400", bgColor: "from-slate-50 to-gray-50" };
+                                            const IconComp = cfg.icon;
+                                            const productMeta = getProductMeta(movement);
+                                            const branchName = (movement as unknown as { branch?: { name: string } | null }).branch?.name;
+                                            const isIn = movement.type === "IN";
+                                            const isOut = movement.type === "OUT";
+                                            const qtySign = isOut ? "-" : "+";
+                                            const qtyColor = isIn
+                                                ? "text-emerald-700"
+                                                : isOut
+                                                    ? "text-red-700"
+                                                    : "text-amber-700";
+
+                                            return (
+                                                <div
+                                                    key={movement.id}
+                                                    className={`rounded-xl border border-border/30 border-l-4 ${cfg.borderColor} bg-white hover:shadow-sm transition-all group px-4 py-3 flex items-center gap-4`}
+                                                >
+                                                    {/* Left: type icon */}
+                                                    <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${cfg.bgColor} flex items-center justify-center shrink-0 shadow-sm`}>
+                                                        <IconComp className="w-4 h-4" />
+                                                    </div>
+
+                                                    {/* Middle: product info */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-slate-800 truncate">{productMeta.name}</p>
+                                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                            <Badge className={`${cfg.color} gap-1 px-2 py-0 text-[11px]`}>
+                                                                {cfg.label}
+                                                            </Badge>
+                                                            {movement.note && (
+                                                                <TooltipProvider>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <span className="text-[11px] text-muted-foreground truncate max-w-[150px] cursor-help">
+                                                                                {movement.note.length > 30 ? `${movement.note.slice(0, 30)}...` : movement.note}
+                                                                            </span>
+                                                                        </TooltipTrigger>
+                                                                        {movement.note.length > 30 && (
+                                                                            <TooltipContent><p className="max-w-xs">{movement.note}</p></TooltipContent>
+                                                                        )}
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+                                                            )}
+                                                            {branchName && (
+                                                                <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                                                                    <MapPin className="w-3 h-3" />
+                                                                    {branchName}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Right: quantity & time */}
+                                                    <div className="flex items-center gap-3 shrink-0">
+                                                        <div className="text-right">
+                                                            <span className={`text-base font-bold font-mono tabular-nums ${qtyColor}`}>
+                                                                {qtySign}{movement.quantity}
+                                                            </span>
+                                                            <p className="text-[11px] text-muted-foreground">{formatRelativeTime(movement.createdAt)}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Pagination */}
+                <div className="px-4 py-3 border-t border-border/20">
+                    <PaginationControl
+                        currentPage={page}
+                        totalPages={data.totalPages}
+                        totalItems={data.total}
+                        pageSize={pageSize}
+                        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
-                filters={filters}
-                activeFilters={activeFilters}
-                onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
-                exportFilename="stock-movements"
-                emptyIcon={<BoxesIcon className="w-10 h-10 text-muted-foreground/30" />}
-                emptyTitle="Belum ada pergerakan stok"
-            />
+                    />
+                </div>
+            </div>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="rounded-2xl">
-                    <DialogHeader><DialogTitle>Tambah Pergerakan Stok</DialogTitle></DialogHeader>
-                    <form action={handleSubmit} className="space-y-4">
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Lokasi <span className="text-red-400">*</span></Label>
-                            <BranchMultiSelect
-                                branches={branches}
-                                value={selectedBranchIds}
-                                onChange={setSelectedBranchIds}
-                                placeholder="Pilih lokasi"
-                            />
-                            <input type="hidden" name="branchIds" value={JSON.stringify(selectedBranchIds)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Produk <span className="text-red-400">*</span></Label>
-                            <SmartSelect
-                                value={selectedProductId}
-                                onChange={setSelectedProductId}
-                                placeholder="Pilih Produk"
-                                onSearch={async (query) =>
-                                    products
-                                        .filter((p) => {
-                                            const q = query.toLowerCase();
-                                            return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
-                                        })
-                                        .map((p) => ({
-                                            value: p.id,
-                                            label: `${p.code} - ${p.name}`,
-                                            description: `Stok: ${p.stock}`,
-                                        }))
-                                }
-                            />
-                            <input type="hidden" name="productId" value={selectedProductId} required />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Tipe <span className="text-red-400">*</span></Label>
-                            <SmartSelect
-                                value={selectedType}
-                                onChange={setSelectedType}
-                                onSearch={async (query) =>
-                                    [
-                                        { value: "IN", label: "Stok Masuk" },
-                                        { value: "OUT", label: "Stok Keluar" },
-                                        { value: "ADJUSTMENT", label: "Penyesuaian" },
-                                    ].filter((opt) => opt.label.toLowerCase().includes(query.toLowerCase()))
-                                }
-                            />
-                            <input type="hidden" name="type" value={selectedType} required />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Quantity <span className="text-red-400">*</span></Label>
-                            <Input name="quantity" type="number" min={1} required className="rounded-lg" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Catatan</Label>
-                            <Input name="note" className="rounded-lg" />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-lg">Batal</Button>
-                            <Button type="submit" className="rounded-lg">Simpan</Button>
-                        </div>
-                    </form>
+                <DialogContent className="rounded-2xl max-w-lg p-0 overflow-hidden">
+                    {/* Gradient accent line */}
+                    <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500" />
+                    <div className="p-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-lg font-bold">Tambah Pergerakan Stok</DialogTitle>
+                        </DialogHeader>
+                        <form action={handleSubmit} className={!canCreate ? "pointer-events-none opacity-70" : ""}>
+                            <DialogBody className="space-y-5 py-2">
+                                <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                    <BranchMultiSelect
+                                        branches={branches}
+                                        value={selectedBranchIds}
+                                        onChange={setSelectedBranchIds}
+                                        placeholder="Pilih lokasi"
+                                    />
+                                    <input type="hidden" name="branchIds" value={JSON.stringify(selectedBranchIds)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
+                                    <SmartSelect
+                                        value={selectedProductId}
+                                        onChange={setSelectedProductId}
+                                        placeholder="Pilih Produk"
+                                        onSearch={async (query) =>
+                                            products
+                                                .filter((p) => {
+                                                    const q = query.toLowerCase();
+                                                    return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+                                                })
+                                                .map((p) => ({
+                                                    value: p.id,
+                                                    label: `${p.code} - ${p.name}`,
+                                                    description: `Stok: ${p.stock}`,
+                                                }))
+                                        }
+                                    />
+                                    <input type="hidden" name="productId" value={selectedProductId} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Tipe <span className="text-red-400">*</span></Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {typeCards.map((card) => {
+                                            const IconComp = card.icon;
+                                            const isSelected = selectedType === card.value;
+                                            return (
+                                                <button
+                                                    key={card.value}
+                                                    type="button"
+                                                    onClick={() => setSelectedType(card.value)}
+                                                    className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all bg-gradient-to-br ${card.gradient} ${isSelected ? card.selectedBorder + " shadow-sm" : "border-transparent opacity-60 hover:opacity-90"
+                                                        }`}
+                                                >
+                                                    <IconComp className="w-5 h-5" />
+                                                    <span className="text-xs font-semibold">{card.label}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <input type="hidden" name="type" value={selectedType} required />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Quantity <span className="text-red-400">*</span></Label>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="rounded-xl h-12 w-12 shrink-0"
+                                            onClick={() => {
+                                                const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
+                                                if (input) { const v = Math.max(1, Number(input.value || 1) - 1); input.value = String(v); }
+                                            }}
+                                        >
+                                            <Minus className="w-4 h-4" />
+                                        </Button>
+                                        <Input
+                                            name="quantity"
+                                            type="number"
+                                            min={1}
+                                            defaultValue={1}
+                                            required
+                                            className="rounded-xl h-12 text-xl font-bold text-center"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="rounded-xl h-12 w-12 shrink-0"
+                                            onClick={() => {
+                                                const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
+                                                if (input) { const v = Number(input.value || 0) + 1; input.value = String(v); }
+                                            }}
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium">Catatan</Label>
+                                    <textarea
+                                        name="note"
+                                        rows={2}
+                                        className="flex w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                                        placeholder="Tambahkan catatan..."
+                                    />
+                                </div>
+                            </DialogBody>
+                            <DialogFooter className="pb-4">
+                                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Batal</Button>
+                                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                                    <Button disabled={!canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white">Simpan</Button>
+                                </DisabledActionTooltip>
+                            </DialogFooter>
+                        </form>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { brandSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getBrands(params?: { search?: string; page?: number; perPage?: number }) {
   const { search, page = 1, perPage = 10 } = params || {};
@@ -33,6 +34,7 @@ export async function createBrand(data: FormData) {
 
   try {
     const brand = await prisma.brand.create({ data: parsed.data });
+    createAuditLog({ action: "CREATE", entity: "Brand", entityId: brand.id, details: { data: { name: parsed.data.name } } }).catch(() => {});
     revalidatePath("/brands");
     return { success: true, id: brand.id };
   } catch {
@@ -46,7 +48,9 @@ export async function updateBrand(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
+    const oldBrand = await prisma.brand.findUniqueOrThrow({ where: { id } });
     await prisma.brand.update({ where: { id }, data: parsed.data });
+    createAuditLog({ action: "UPDATE", entity: "Brand", entityId: id, details: { before: { name: oldBrand.name }, after: { name: parsed.data.name } } }).catch(() => {});
     revalidatePath("/brands");
     return { success: true };
   } catch {
@@ -61,7 +65,9 @@ export async function deleteBrand(id: string) {
     if (productsCount > 0) {
       return { error: `Brand masih memiliki ${productsCount} produk` };
     }
+    const brand = await prisma.brand.findUniqueOrThrow({ where: { id } });
     await prisma.brand.delete({ where: { id } });
+    createAuditLog({ action: "DELETE", entity: "Brand", entityId: id, details: { deleted: { name: brand.name } } }).catch(() => {});
     revalidatePath("/brands");
     return { success: true };
   } catch {

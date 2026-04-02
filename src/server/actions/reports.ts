@@ -238,6 +238,214 @@ export async function getHourlySalesReport(
   }));
 }
 
+export async function getCategorySalesReport(
+  dateFrom?: string,
+  dateTo?: string,
+  branchId?: string,
+) {
+  const where: Record<string, unknown> = {
+    transaction: { status: "COMPLETED" },
+  };
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom)
+      (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom);
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setDate(to.getDate() + 1);
+      (where.createdAt as Record<string, unknown>).lt = to;
+    }
+  }
+  if (branchId)
+    where.transaction = { ...(where.transaction as object), branchId };
+
+  const items = await prisma.transactionItem.findMany({
+    where,
+    select: {
+      quantity: true,
+      unitPrice: true,
+      subtotal: true,
+      product: {
+        select: {
+          id: true,
+          name: true,
+          categoryId: true,
+          category: { select: { id: true, name: true } },
+          purchasePrice: true,
+        },
+      },
+    },
+  });
+
+  const categoryMap = new Map<
+    string,
+    {
+      categoryId: string;
+      categoryName: string;
+      totalQuantity: number;
+      totalRevenue: number;
+      totalCost: number;
+      profit: number;
+      transactionCount: number;
+      products: Map<string, { name: string; quantity: number; revenue: number }>;
+    }
+  >();
+
+  for (const item of items) {
+    const catId = item.product.categoryId;
+    const catName = item.product.category?.name || "Tanpa Kategori";
+
+    if (!categoryMap.has(catId)) {
+      categoryMap.set(catId, {
+        categoryId: catId,
+        categoryName: catName,
+        totalQuantity: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        profit: 0,
+        transactionCount: 0,
+        products: new Map(),
+      });
+    }
+    const cat = categoryMap.get(catId)!;
+    cat.totalQuantity += item.quantity;
+    cat.totalRevenue += item.subtotal;
+    cat.totalCost += item.product.purchasePrice * item.quantity;
+    cat.transactionCount += 1;
+
+    const prodKey = item.product.id;
+    if (!cat.products.has(prodKey)) {
+      cat.products.set(prodKey, {
+        name: item.product.name,
+        quantity: 0,
+        revenue: 0,
+      });
+    }
+    const prod = cat.products.get(prodKey)!;
+    prod.quantity += item.quantity;
+    prod.revenue += item.subtotal;
+  }
+
+  return Array.from(categoryMap.values())
+    .map((cat) => ({
+      categoryId: cat.categoryId,
+      categoryName: cat.categoryName,
+      totalQuantity: cat.totalQuantity,
+      totalRevenue: cat.totalRevenue,
+      totalCost: cat.totalCost,
+      profit: cat.totalRevenue - cat.totalCost,
+      transactionCount: cat.transactionCount,
+      topProducts: Array.from(cat.products.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
+
+export async function getSupplierSalesReport(
+  dateFrom?: string,
+  dateTo?: string,
+  branchId?: string,
+) {
+  const where: Record<string, unknown> = {
+    transaction: { status: "COMPLETED" },
+  };
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom)
+      (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom);
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setDate(to.getDate() + 1);
+      (where.createdAt as Record<string, unknown>).lt = to;
+    }
+  }
+  if (branchId)
+    where.transaction = { ...(where.transaction as object), branchId };
+
+  const items = await prisma.transactionItem.findMany({
+    where,
+    select: {
+      quantity: true,
+      unitPrice: true,
+      subtotal: true,
+      product: {
+        select: {
+          id: true,
+          name: true,
+          supplierId: true,
+          supplier: { select: { id: true, name: true } },
+          purchasePrice: true,
+        },
+      },
+    },
+  });
+
+  const supplierMap = new Map<
+    string,
+    {
+      supplierId: string | null;
+      supplierName: string;
+      totalQuantity: number;
+      totalRevenue: number;
+      totalCost: number;
+      profit: number;
+      products: Map<string, { name: string; quantity: number; revenue: number }>;
+    }
+  >();
+
+  const NO_SUPPLIER_KEY = "__no_supplier__";
+
+  for (const item of items) {
+    const supId = item.product.supplierId;
+    const supName = item.product.supplier?.name || "Tanpa Supplier";
+    const mapKey = supId || NO_SUPPLIER_KEY;
+
+    if (!supplierMap.has(mapKey)) {
+      supplierMap.set(mapKey, {
+        supplierId: supId,
+        supplierName: supName,
+        totalQuantity: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        profit: 0,
+        products: new Map(),
+      });
+    }
+    const sup = supplierMap.get(mapKey)!;
+    sup.totalQuantity += item.quantity;
+    sup.totalRevenue += item.subtotal;
+    sup.totalCost += item.product.purchasePrice * item.quantity;
+
+    const prodKey = item.product.id;
+    if (!sup.products.has(prodKey)) {
+      sup.products.set(prodKey, {
+        name: item.product.name,
+        quantity: 0,
+        revenue: 0,
+      });
+    }
+    const prod = sup.products.get(prodKey)!;
+    prod.quantity += item.quantity;
+    prod.revenue += item.subtotal;
+  }
+
+  return Array.from(supplierMap.values())
+    .map((sup) => ({
+      supplierId: sup.supplierId,
+      supplierName: sup.supplierName,
+      totalQuantity: sup.totalQuantity,
+      totalRevenue: sup.totalRevenue,
+      totalCost: sup.totalCost,
+      profit: sup.totalRevenue - sup.totalCost,
+      productCount: sup.products.size,
+      topProducts: Array.from(sup.products.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
+
 export async function getReportOverview(
   dateFrom?: string,
   dateTo?: string,
@@ -311,4 +519,113 @@ export async function getReportOverview(
       .sort((a, b) => b.total - a.total)
       .slice(0, 8),
   };
+}
+
+// ===========================
+// CASHIER SALES REPORT
+// ===========================
+
+export async function getCashierSalesReport(
+  dateFrom?: string,
+  dateTo?: string,
+  branchId?: string
+) {
+  const where: Record<string, unknown> = { status: "COMPLETED" };
+  const dateFilter = buildTransactionDateWhere(dateFrom, dateTo);
+  if (dateFilter) where.createdAt = dateFilter;
+  if (branchId) where.branchId = branchId;
+
+  const items = await prisma.transactionItem.findMany({
+    where: { transaction: where },
+    select: {
+      quantity: true,
+      subtotal: true,
+      discount: true,
+      product: { select: { purchasePrice: true } },
+      transaction: { select: { userId: true } },
+    },
+  });
+
+  const transactions = await prisma.transaction.findMany({
+    where,
+    select: {
+      id: true,
+      userId: true,
+      grandTotal: true,
+      discountAmount: true,
+      createdAt: true,
+    },
+  });
+
+  const userIds = [...new Set(transactions.map((t) => t.userId))];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, name: true, email: true, role: true },
+  });
+
+  const cashierMap = new Map<string, {
+    userId: string;
+    name: string;
+    email: string;
+    role: string;
+    totalRevenue: number;
+    totalCost: number;
+    profit: number;
+    totalDiscount: number;
+    transactionCount: number;
+    itemsSold: number;
+    averageTicket: number;
+    topProducts: Map<string, { name: string; quantity: number; revenue: number }>;
+  }>();
+
+  // Init cashier map from users
+  for (const user of users) {
+    cashierMap.set(user.id, {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      totalRevenue: 0,
+      totalCost: 0,
+      profit: 0,
+      totalDiscount: 0,
+      transactionCount: 0,
+      itemsSold: 0,
+      averageTicket: 0,
+      topProducts: new Map(),
+    });
+  }
+
+  // Aggregate transactions
+  for (const tx of transactions) {
+    const c = cashierMap.get(tx.userId);
+    if (!c) continue;
+    c.totalRevenue += tx.grandTotal;
+    c.totalDiscount += tx.discountAmount;
+    c.transactionCount += 1;
+  }
+
+  // Aggregate items
+  for (const item of items) {
+    const c = cashierMap.get(item.transaction.userId);
+    if (!c) continue;
+    c.itemsSold += item.quantity;
+    c.totalCost += item.product.purchasePrice * item.quantity;
+  }
+
+  return Array.from(cashierMap.values())
+    .map((c) => ({
+      userId: c.userId,
+      name: c.name,
+      email: c.email,
+      role: c.role,
+      totalRevenue: c.totalRevenue,
+      totalCost: c.totalCost,
+      profit: c.totalRevenue - c.totalCost,
+      totalDiscount: c.totalDiscount,
+      transactionCount: c.transactionCount,
+      itemsSold: c.itemsSold,
+      averageTicket: c.transactionCount > 0 ? Math.round(c.totalRevenue / c.transactionCount) : 0,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
 }

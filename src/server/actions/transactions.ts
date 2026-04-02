@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 interface CartItem {
   productId: string;
@@ -15,13 +16,15 @@ interface CartItem {
   tebusPromoId?: string;
   tebusPromoName?: string;
   quantity: number;
+  unitName?: string;
+  conversionQty?: number;
   unitPrice: number;
   discount: number;
   subtotal: number;
 }
 
 interface PaymentEntry {
-  method: "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD";
+  method: "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD" | "TERMIN";
   amount: number;
   reference?: string;
 }
@@ -38,7 +41,8 @@ interface CreateTransactionInput {
     | "QRIS"
     | "EWALLET"
     | "DEBIT"
-    | "CREDIT_CARD";
+    | "CREDIT_CARD"
+    | "TERMIN";
   paymentAmount: number;
   changeAmount: number;
   payments?: PaymentEntry[];
@@ -130,7 +134,8 @@ export async function createTransaction(input: CreateTransactionInput) {
               },
             });
             const available = branchStock?.quantity ?? 0;
-            if (available < item.quantity) {
+            const baseQtyNeeded = item.quantity * (item.conversionQty || 1);
+            if (available < baseQtyNeeded) {
               throw new Error(
                 `Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`,
               );
@@ -141,7 +146,8 @@ export async function createTransaction(input: CreateTransactionInput) {
             });
             if (!product)
               throw new Error(`Produk ${item.productName} tidak ditemukan`);
-            if (product.stock < item.quantity) {
+            const baseQtyNeeded = item.quantity * (item.conversionQty || 1);
+            if (product.stock < baseQtyNeeded) {
               throw new Error(
                 `Stok ${item.productName} tidak mencukupi (sisa: ${product.stock})`,
               );
@@ -198,6 +204,9 @@ export async function createTransaction(input: CreateTransactionInput) {
               productName: item.productName,
               productCode: item.productCode,
               quantity: item.quantity,
+              unitName: item.unitName || "PCS",
+              conversionQty: item.conversionQty || 1,
+              baseQty: item.quantity * (item.conversionQty || 1),
               unitPrice: item.unitPrice,
               discount: item.discount,
               subtotal: item.subtotal,
@@ -223,10 +232,11 @@ export async function createTransaction(input: CreateTransactionInput) {
 
       // Update stock & create stock movements
       for (const item of input.items) {
-        // Always update global stock
+        // Always update global stock (use base qty)
+        const baseQty = item.quantity * (item.conversionQty || 1);
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
+          data: { stock: { decrement: baseQty } },
         });
 
         // Update branch stock if applicable
@@ -238,7 +248,7 @@ export async function createTransaction(input: CreateTransactionInput) {
                 productId: item.productId,
               },
             },
-            data: { quantity: { decrement: item.quantity } },
+            data: { quantity: { decrement: baseQty } },
           });
         }
 
@@ -247,7 +257,7 @@ export async function createTransaction(input: CreateTransactionInput) {
             productId: item.productId,
             branchId: input.branchId || null,
             type: "OUT",
-            quantity: item.quantity,
+            quantity: baseQty,
             note: `Penjualan ${invoiceNumber}`,
             reference: invoiceNumber,
           },
@@ -256,6 +266,36 @@ export async function createTransaction(input: CreateTransactionInput) {
 
       return newTx;
     });
+
+    // Auto-create receivable debt for TERMIN payment
+    const terminPayment = (input.payments ?? []).find(p => p.method === "TERMIN");
+    if (terminPayment && terminPayment.amount > 0) {
+      let partyName = "Customer";
+      if (input.customerId) {
+        const customer = await prisma.customer.findUnique({
+          where: { id: input.customerId },
+          select: { name: true },
+        });
+        partyName = customer?.name || "Customer";
+      }
+      await prisma.debt.create({
+        data: {
+          type: "RECEIVABLE",
+          referenceType: "TRANSACTION",
+          referenceId: transaction.id,
+          partyType: input.customerId ? "CUSTOMER" : "OTHER",
+          partyId: input.customerId || null,
+          partyName,
+          description: `Termin pembayaran invoice ${transaction.invoiceNumber}`,
+          totalAmount: terminPayment.amount,
+          paidAmount: 0,
+          remainingAmount: terminPayment.amount,
+          status: "UNPAID",
+          branchId: input.branchId || null,
+          createdBy: userId,
+        },
+      });
+    }
 
     // Loyalty points: earn + redeem
     let pointsEarned = 0;
@@ -285,6 +325,11 @@ export async function createTransaction(input: CreateTransactionInput) {
     revalidatePath("/transactions");
     revalidatePath("/products");
     revalidatePath("/customers");
+    if (terminPayment && terminPayment.amount > 0) {
+      revalidatePath("/debts");
+    }
+
+    createAuditLog({ action: "CREATE", entity: "Transaction", entityId: transaction.id, details: { data: { invoiceNumber, grandTotal: input.grandTotal, paymentMethod: input.paymentMethod, itemCount: input.items.length, ...(terminPayment && terminPayment.amount > 0 ? { terminAmount: terminPayment.amount } : {}) } } }).catch(() => {});
 
     return {
       success: true,
@@ -306,6 +351,8 @@ interface GetTransactionsParams {
   dateTo?: string;
   status?: string;
   branchId?: string;
+  userId?: string;
+  shiftId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }
@@ -319,6 +366,8 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     dateTo,
     status,
     branchId,
+    userId,
+    shiftId,
     sortBy,
     sortDir = "desc",
   } = params;
@@ -345,6 +394,8 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     where.status = status;
   }
   if (branchId) where.branchId = branchId;
+  if (userId) where.userId = userId;
+  if (shiftId) where.shiftId = shiftId;
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -403,6 +454,8 @@ export async function voidTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
+    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true } });
+
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id },
@@ -413,18 +466,19 @@ export async function voidTransaction(id: string, reason: string) {
       if (transaction.status !== "COMPLETED")
         throw new Error("Hanya transaksi COMPLETED yang bisa di-void");
 
-      // Restore stock
+      // Restore stock (use baseQty which accounts for unit conversion)
       for (const item of transaction.items) {
+        const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+          data: { stock: { increment: restoreQty } },
         });
 
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
             type: "IN",
-            quantity: item.quantity,
+            quantity: restoreQty,
             note: `Void transaksi ${transaction.invoiceNumber}`,
             reference: transaction.invoiceNumber,
           },
@@ -454,6 +508,9 @@ export async function voidTransaction(id: string, reason: string) {
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
     revalidatePath("/products");
+
+    createAuditLog({ action: "VOID", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     return {
@@ -469,6 +526,8 @@ export async function refundTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
+    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true } });
+
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
         where: { id },
@@ -479,18 +538,19 @@ export async function refundTransaction(id: string, reason: string) {
       if (transaction.status !== "COMPLETED")
         throw new Error("Hanya transaksi COMPLETED yang bisa di-refund");
 
-      // Restore stock
+      // Restore stock (use baseQty which accounts for unit conversion)
       for (const item of transaction.items) {
+        const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+          data: { stock: { increment: restoreQty } },
         });
 
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
             type: "IN",
-            quantity: item.quantity,
+            quantity: restoreQty,
             note: `Refund transaksi ${transaction.invoiceNumber}`,
             reference: transaction.invoiceNumber,
           },
@@ -520,6 +580,9 @@ export async function refundTransaction(id: string, reason: string) {
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
     revalidatePath("/products");
+
+    createAuditLog({ action: "REFUND", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     return {

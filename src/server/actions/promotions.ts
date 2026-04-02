@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { createAuditLog } from "@/lib/audit";
 
 function parseIdList(data: FormData, key: string) {
   const raw = data.get(key);
@@ -98,6 +99,7 @@ export async function createPromotion(data: FormData) {
       },
     })));
     revalidatePath("/promotions");
+    createAuditLog({ action: "CREATE", entity: "Promotion", details: { data: { name: baseData.name, type: baseData.type, value: baseData.value, startDate: baseData.startDate, endDate: baseData.endDate } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menambahkan promo" };
@@ -111,6 +113,11 @@ export async function updatePromotion(id: string, data: FormData) {
   const categoryIds = parseIdList(data, "categoryIds");
 
   try {
+    const oldPromo = await prisma.promotion.findUnique({
+      where: { id },
+      select: { name: true, type: true, value: true, isActive: true, startDate: true, endDate: true, minPurchase: true, maxDiscount: true, voucherCode: true, scope: true },
+    });
+
     const baseData = {
       name: data.get("name") as string,
       type: type as never,
@@ -154,6 +161,9 @@ export async function updatePromotion(id: string, data: FormData) {
       });
     }
     revalidatePath("/promotions");
+    if (oldPromo) {
+      createAuditLog({ action: "UPDATE", entity: "Promotion", entityId: id, details: { before: oldPromo, after: { name: baseData.name, type: baseData.type, value: baseData.value, isActive: baseData.isActive, startDate: baseData.startDate, endDate: baseData.endDate, minPurchase: baseData.minPurchase, maxDiscount: baseData.maxDiscount, voucherCode: baseData.voucherCode, scope: baseData.scope } } }).catch(() => {});
+    }
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate promo" };
@@ -162,8 +172,14 @@ export async function updatePromotion(id: string, data: FormData) {
 
 export async function deletePromotion(id: string) {
   try {
+    const oldPromo = await prisma.promotion.findUnique({
+      where: { id },
+      select: { name: true, type: true },
+    });
+
     await prisma.promotion.delete({ where: { id } });
     revalidatePath("/promotions");
+    createAuditLog({ action: "DELETE", entity: "Promotion", entityId: id, details: { deleted: oldPromo } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menghapus promo" };

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { POINT_DEFAULTS, type PointConfig } from "@/lib/point-config";
 import { RECEIPT_DEFAULTS, type ReceiptConfig } from "@/lib/receipt-config";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 type PrimitiveSettingValue = string | number | boolean;
 
@@ -155,6 +156,11 @@ export async function setSetting(
       },
     });
   }
+  createAuditLog({
+    action: "UPDATE",
+    entity: "Setting",
+    details: { data: { key, value, branchId: branchId ?? null } }, ...(branchId ? { branchId } : {}),
+  }).catch(() => {});
   revalidatePath("/settings");
 }
 
@@ -188,6 +194,11 @@ export async function setSettings(
         },
       });
     }
+    createAuditLog({
+      action: "UPDATE",
+      entity: "Setting",
+      details: { data: { key: e.key, value: e.value, branchId: branchId ?? null } }, ...(branchId ? { branchId } : {}),
+    }).catch(() => {});
   }
   revalidatePath("/settings");
 }

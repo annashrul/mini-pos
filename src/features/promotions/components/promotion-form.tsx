@@ -207,29 +207,29 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
-            <DialogBody className="space-y-4">
+            <DialogBody className="space-y-5">
+                <div className="h-1 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
                 {/* Nama */}
-                <div className="space-y-1.5">
-                    <Label className="text-sm">Nama Promo <span className="text-red-400">*</span></Label>
-                    <Input {...register("name")} className={`rounded-lg ${fieldError("name") ? "border-red-400" : ""}`} autoFocus placeholder="cth: Diskon Weekend 20%" />
+                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <Label className="text-sm font-semibold text-slate-700">Nama Promo <span className="text-red-400">*</span></Label>
+                    <Input {...register("name")} className={`rounded-xl h-10 ${fieldError("name") ? "border-red-400" : "border-slate-200"}`} autoFocus placeholder="cth: Diskon Weekend 20%" />
                     {fieldError("name") && <p className="text-xs text-red-500">{fieldError("name")}</p>}
-                </div>
-
-                <div className="space-y-1.5">
-                    <Label className="text-sm">Deskripsi</Label>
-                    <Input {...register("description")} className="rounded-lg" placeholder="Opsional" />
+                    <div className="space-y-1.5">
+                        <Label className="text-sm font-semibold text-slate-700">Deskripsi</Label>
+                        <Input {...register("description")} className="rounded-xl h-10 border-slate-200" placeholder="Opsional" />
+                    </div>
                 </div>
 
                 {/* Tipe */}
-                <div className="space-y-2">
-                    <Label className="text-sm">Tipe Promo <span className="text-red-400">*</span></Label>
+                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <Label className="text-sm font-semibold text-slate-700">Tipe Promo <span className="text-red-400">*</span></Label>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                         {typeOptions.map(({ key, label, icon: Icon }) => (
                             <label key={key} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border cursor-pointer transition-all
-                                ${type === key ? "border-primary bg-primary/5" : "border-border/50 hover:border-border"}`}>
+                                ${type === key ? "border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm" : "border-border/50 hover:border-slate-300"}`}>
                                 <input type="radio" value={key} {...register("type")} className="sr-only" />
-                                <Icon className={`w-5 h-5 ${type === key ? "text-primary" : "text-muted-foreground"}`} />
-                                <span className="text-xs font-medium text-center">{label}</span>
+                                <Icon className={`w-5 h-5 ${type === key ? "text-blue-600" : "text-muted-foreground"}`} />
+                                <span className={`text-xs font-medium text-center ${type === key ? "text-blue-700" : "text-slate-600"}`}>{label}</span>
                             </label>
                         ))}
                     </div>
@@ -238,13 +238,13 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 <Separator />
 
                 {/* Scope */}
-                <div className="space-y-2">
-                    <Label className="text-sm">Berlaku Untuk</Label>
+                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <Label className="text-sm font-semibold text-slate-700">Berlaku Untuk</Label>
                     <div className="flex gap-2">
                         {scopeOptions.map(({ key, label }) => (
                             <button key={key} type="button" onClick={() => setValue("scope", key, { shouldValidate: true })}
                                 className={`flex-1 text-xs py-2 rounded-lg border font-medium transition-all
-                                    ${scope === key ? "border-primary bg-primary/5 text-primary" : "border-border/50 text-muted-foreground hover:border-border"}`}>
+                                    ${scope === key ? "border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700" : "border-border/50 text-muted-foreground hover:border-slate-300"}`}>
                                 {label}
                             </button>
                         ))}
@@ -252,8 +252,8 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 </div>
 
                 {scope === "product" && (
-                    <div className="space-y-1.5">
-                        <Label className="text-sm">Pilih Produk <span className="text-red-400">*</span></Label>
+                    <div className="space-y-1.5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+                        <Label className="text-sm font-semibold text-slate-700">Pilih Produk <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="productId"
@@ -276,8 +276,8 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {scope === "category" && (
-                    <div className="space-y-1.5">
-                        <Label className="text-sm">Pilih Kategori <span className="text-red-400">*</span></Label>
+                    <div className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
+                        <Label className="text-sm font-semibold text-slate-700">Pilih Kategori <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="categoryId"
@@ -303,39 +303,39 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
                 {/* Type-specific fields */}
                 {(type === "DISCOUNT_PERCENT" || type === "DISCOUNT_AMOUNT") && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
                         <div className="space-y-1.5">
-                            <Label className="text-sm">{type === "DISCOUNT_PERCENT" ? "Diskon (%)" : "Diskon (Rp)"} <span className="text-red-400">*</span></Label>
-                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-lg ${fieldError("value") ? "border-red-400" : ""}`} min={0} />
+                            <Label className="text-sm font-semibold text-slate-700">{type === "DISCOUNT_PERCENT" ? "Diskon (%)" : "Diskon (Rp)"} <span className="text-red-400">*</span></Label>
+                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                             {fieldError("value") && <p className="text-xs text-red-500">{fieldError("value")}</p>}
                         </div>
                         {type === "DISCOUNT_PERCENT" && (
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Maks. Diskon (Rp)</Label>
-                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-lg" min={0} placeholder="Tanpa batas" />
+                                <Label className="text-sm font-semibold text-slate-700">Maks. Diskon (Rp)</Label>
+                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa batas" />
                             </div>
                         )}
                     </div>
                 )}
 
                 {type === "BUY_X_GET_Y" && (
-                    <div className="space-y-3">
-                        <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground">
+                    <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                        <div className="bg-emerald-50 rounded-xl p-3 text-xs text-emerald-700">
                             <p className="font-medium text-foreground mb-1">Beli X Gratis Y</p>
                             <p>Pelanggan beli sejumlah produk dan mendapat produk gratis</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Beli (qty) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-lg" min={1} />
+                                <Label className="text-sm font-semibold text-slate-700">Beli (qty) <span className="text-red-400">*</span></Label>
+                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Gratis (qty) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-lg" min={1} />
+                                <Label className="text-sm font-semibold text-slate-700">Gratis (qty) <span className="text-red-400">*</span></Label>
+                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm">Produk Gratis</Label>
+                            <Label className="text-sm font-semibold text-slate-700">Produk Gratis</Label>
                             <Controller
                                 control={control}
                                 name="getProductId"
@@ -355,31 +355,31 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {type === "BUNDLE" && (
-                    <div className="space-y-3">
-                        <div className="bg-muted/30 rounded-xl p-3 text-xs text-muted-foreground">
+                    <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                        <div className="bg-pink-50 rounded-xl p-3 text-xs text-pink-700">
                             <p className="font-medium text-foreground mb-1">Promo Tebus Murah</p>
                             <p>Setelah syarat tercapai, pelanggan dapat menebus produk tertentu dengan harga khusus.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Syarat Qty (Beli) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-lg" min={1} />
+                                <Label className="text-sm font-semibold text-slate-700">Syarat Qty (Beli) <span className="text-red-400">*</span></Label>
+                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Qty Tebus <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-lg" min={1} />
+                                <Label className="text-sm font-semibold text-slate-700">Qty Tebus <span className="text-red-400">*</span></Label>
+                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Harga Tebus (Rp) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-lg ${fieldError("value") ? "border-red-400" : ""}`} min={0} />
+                                <Label className="text-sm font-semibold text-slate-700">Harga Tebus (Rp) <span className="text-red-400">*</span></Label>
+                                <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm">Maks Qty Tebus / Transaksi</Label>
-                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-lg" min={1} placeholder="Sesuai kelipatan" />
+                                <Label className="text-sm font-semibold text-slate-700">Maks Qty Tebus / Transaksi</Label>
+                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Sesuai kelipatan" />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm">Produk Tebus <span className="text-red-400">*</span></Label>
+                            <Label className="text-sm font-semibold text-slate-700">Produk Tebus <span className="text-red-400">*</span></Label>
                             <Controller
                                 control={control}
                                 name="getProductId"
@@ -398,33 +398,33 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {type === "VOUCHER" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
                         <div className="space-y-1.5">
-                            <Label className="text-sm">Kode Voucher <span className="text-red-400">*</span></Label>
-                            <Input {...register("voucherCode")} className={`rounded-lg font-mono ${fieldError("voucherCode") ? "border-red-400" : ""}`} placeholder="HEMAT20" />
+                            <Label className="text-sm font-semibold text-slate-700">Kode Voucher <span className="text-red-400">*</span></Label>
+                            <Input {...register("voucherCode")} className={`rounded-xl h-10 font-mono ${fieldError("voucherCode") ? "border-red-400" : "border-slate-200"}`} placeholder="HEMAT20" />
                             {fieldError("voucherCode") && <p className="text-xs text-red-500">{fieldError("voucherCode")}</p>}
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm">Nilai Diskon (Rp) <span className="text-red-400">*</span></Label>
-                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-lg ${fieldError("value") ? "border-red-400" : ""}`} min={0} />
+                            <Label className="text-sm font-semibold text-slate-700">Nilai Diskon (Rp) <span className="text-red-400">*</span></Label>
+                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm">Batas Penggunaan</Label>
-                            <Input type="number" {...register("usageLimit", { valueAsNumber: true })} className="rounded-lg" min={1} placeholder="Tanpa batas" />
+                            <Label className="text-sm font-semibold text-slate-700">Batas Penggunaan</Label>
+                            <Input type="number" {...register("usageLimit", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Tanpa batas" />
                         </div>
                     </div>
                 )}
 
                 {/* Min purchase */}
-                <div className="space-y-1.5">
-                    <Label className="text-sm">Min. Pembelian (Rp)</Label>
-                    <Input type="number" {...register("minPurchase", { valueAsNumber: true })} className="rounded-lg" min={0} placeholder="Tanpa minimum" />
+                <div className="space-y-1.5 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <Label className="text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
+                    <Input type="number" {...register("minPurchase", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa minimum" />
                 </div>
 
                 {/* Period */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
                     <div className="space-y-1.5">
-                        <Label className="text-sm">Mulai <span className="text-red-400">*</span></Label>
+                        <Label className="text-sm font-semibold text-slate-700">Mulai <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="startDate"
@@ -440,7 +440,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                         {fieldError("startDate") && <p className="text-xs text-red-500">{fieldError("startDate")}</p>}
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-sm">Berakhir <span className="text-red-400">*</span></Label>
+                        <Label className="text-sm font-semibold text-slate-700">Berakhir <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="endDate"
@@ -458,9 +458,9 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 </div>
             </DialogBody>
 
-            <DialogFooter>
-                <Button type="button" variant="outline" onClick={onCancel} className="rounded-lg">Batal</Button>
-                <Button type="submit" className="rounded-lg" disabled={isSubmitting}>
+            <DialogFooter className="border-t border-border/40 pt-4">
+                <Button type="button" variant="outline" onClick={onCancel} className="rounded-full px-5">Batal</Button>
+                <Button type="submit" className="rounded-full px-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200 hover:shadow-lg hover:shadow-blue-300" disabled={isSubmitting}>
                     {isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}
                 </Button>
             </DialogFooter>

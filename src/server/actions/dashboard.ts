@@ -72,9 +72,67 @@ export async function getDashboardStats(branchId?: string) {
     getHourlySalesData(today, tomorrow, branchFilter),
   ]);
 
+  // Week start (Monday)
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - mondayOffset);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const [
+    weekSalesAgg,
+    refundCount,
+    voidCount,
+    activePromotions,
+    pendingPurchaseOrders,
+    todayProfitItems,
+  ] = await Promise.all([
+    // Week sales (Monday to now)
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: weekStart }, ...completedWhere } }),
+    // Refunded transactions today
+    prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, status: "REFUNDED" as const, ...branchFilter } }),
+    // Voided transactions today
+    prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, status: "VOIDED" as const, ...branchFilter } }),
+    // Active promotions
+    prisma.promotion.count({ where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } } }),
+    // Pending purchase orders
+    prisma.purchaseOrder.count({ where: { status: { in: ["DRAFT", "ORDERED"] }, ...branchFilter } }),
+    // Today's profit: fetch transaction items with product purchasePrice
+    prisma.transactionItem.findMany({
+      where: { transaction: { createdAt: { gte: today, lt: tomorrow }, ...completedWhere } },
+      select: { quantity: true, unitPrice: true, product: { select: { purchasePrice: true } } },
+    }),
+  ]);
+
   // Low stock
   const lowStockRaw = await prisma.product.findMany({ where: { isActive: true }, include: { category: true }, orderBy: { stock: "asc" } });
   const lowStockProducts = lowStockRaw.filter((p) => p.stock <= p.minStock).slice(0, 10);
+
+  // Branch performance (only when viewing all locations)
+  let branchPerformance: { branchId: string; branchName: string; todaySales: number; todayTransactions: number; monthSales: number; monthTransactions: number }[] = [];
+  if (!branchId) {
+    const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true } });
+    branchPerformance = await Promise.all(
+      activeBranches.map(async (branch) => {
+        const bWhere = { status: "COMPLETED" as const, branchId: branch.id };
+        const [todayAgg, todayCount, monthAgg, monthCount] = await Promise.all([
+          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: today, lt: tomorrow }, ...bWhere } }),
+          prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, ...bWhere } }),
+          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...bWhere } }),
+          prisma.transaction.count({ where: { createdAt: { gte: monthStart, lt: monthEnd }, ...bWhere } }),
+        ]);
+        return {
+          branchId: branch.id,
+          branchName: branch.name,
+          todaySales: todayAgg._sum.grandTotal || 0,
+          todayTransactions: todayCount,
+          monthSales: monthAgg._sum.grandTotal || 0,
+          monthTransactions: monthCount,
+        };
+      })
+    );
+  }
 
   // Growth calculations
   const todaySalesVal = todaySales._sum.grandTotal || 0;
@@ -85,6 +143,13 @@ export async function getDashboardStats(branchId?: string) {
   const salesGrowthDay = yesterdaySalesVal > 0 ? Math.round(((todaySalesVal - yesterdaySalesVal) / yesterdaySalesVal) * 100) : 0;
   const salesGrowthMonth = prevMonthRevenueVal > 0 ? Math.round(((monthRevenueVal - prevMonthRevenueVal) / prevMonthRevenueVal) * 100) : 0;
   const txGrowthMonth = prevMonthTxCount > 0 ? Math.round(((monthTxCount - prevMonthTxCount) / prevMonthTxCount) * 100) : 0;
+
+  const avgTransactionValue = todayTxCount > 0 ? Math.round(todaySalesVal / todayTxCount) : 0;
+  const todayProfit = todayProfitItems.reduce((sum, item) => {
+    const purchasePrice = item.product?.purchasePrice || 0;
+    return sum + (item.unitPrice - purchasePrice) * item.quantity;
+  }, 0);
+  const weekSales = weekSalesAgg._sum.grandTotal || 0;
 
   return {
     todaySales: todaySalesVal,
@@ -113,6 +178,14 @@ export async function getDashboardStats(branchId?: string) {
     topCashiers,
     categoryBreakdown,
     hourlySales,
+    avgTransactionValue,
+    todayProfit,
+    weekSales,
+    refundCount,
+    voidCount,
+    activePromotions,
+    pendingPurchaseOrders,
+    branchPerformance,
   };
 }
 

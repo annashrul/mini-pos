@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 interface GetStockTransfersParams {
   page?: number;
@@ -140,6 +141,13 @@ export async function createStockTransfer(data: {
       },
     });
 
+    createAuditLog({
+      action: "CREATE",
+      entity: "StockTransfer",
+      entityId: transferNumber,
+      details: { data: { fromBranchId: data.fromBranchId, toBranchId: data.toBranchId, itemCount: data.items.length } },
+    }).catch(() => {});
+
     revalidatePath("/stock-transfers");
     return { success: true };
   } catch {
@@ -159,6 +167,13 @@ export async function approveStockTransfer(id: string) {
       where: { id },
       data: { status: "APPROVED", approvedAt: new Date() },
     });
+
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockTransfer",
+      entityId: id,
+      details: { data: { transferId: id, status: "APPROVED" } },
+    }).catch(() => {});
 
     revalidatePath("/stock-transfers");
     return { success: true };
@@ -234,6 +249,13 @@ export async function receiveStockTransfer(id: string) {
       });
     });
 
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockTransfer",
+      entityId: id,
+      details: { data: { transferId: id, status: "RECEIVED" } },
+    }).catch(() => {});
+
     revalidatePath("/stock-transfers");
     revalidatePath("/products");
     revalidatePath("/stock");
@@ -263,6 +285,13 @@ export async function rejectStockTransfer(id: string, reason?: string) {
           : transfer.notes,
       },
     });
+
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockTransfer",
+      entityId: id,
+      details: { data: { transferId: id, status: "REJECTED" } },
+    }).catch(() => {});
 
     revalidatePath("/stock-transfers");
     return { success: true };

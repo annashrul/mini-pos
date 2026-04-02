@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useMenuActionAccess } from "@/features/access-control";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { printThermalReceipt } from "@/lib/thermal-receipt";
 import { getTransactions, getTransactionById, voidTransaction, refundTransaction } from "@/features/transactions";
@@ -18,51 +19,74 @@ import {
 } from "@/components/ui/table";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { History, Eye, Printer, Ban, RotateCcw } from "lucide-react";
+import {
+    History, Eye, Printer, Ban, RotateCcw, Receipt, CheckCircle2,
+    Clock, XCircle, ArrowLeftRight, CreditCard, Banknote, Smartphone,
+    QrCode, ShoppingBag, AlertTriangle, Calendar, User, MapPin, Hash,
+    Wallet, TrendingUp,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Transaction, TransactionDetail } from "@/types";
+import type { TransactionDetail } from "@/types";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 
-interface Props {
-    data: {
-        transactions: Transaction[];
-        total: number;
-        totalPages: number;
-        currentPage: number;
-    };
-    filters: Record<string, string | undefined>;
-}
+type TransactionsData = Awaited<ReturnType<typeof getTransactions>>;
+type TransactionRow = TransactionsData["transactions"][number];
+type PaymentEntry = { method: string; amount: number };
 
-const statusColors: Record<string, string> = {
-    COMPLETED: "bg-green-100 text-green-700",
-    PENDING: "bg-yellow-100 text-yellow-700",
-    VOIDED: "bg-red-100 text-red-700",
-    REFUNDED: "bg-blue-100 text-blue-700",
+const statusConfig: Record<string, { label: string; icon: typeof CheckCircle2; gradient: string; badge: string }> = {
+    COMPLETED: {
+        label: "Selesai",
+        icon: CheckCircle2,
+        gradient: "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-sm shadow-emerald-200",
+        badge: "border-emerald-200 bg-emerald-50/50 text-emerald-600 ring-1 ring-emerald-100",
+    },
+    PENDING: {
+        label: "Pending",
+        icon: Clock,
+        gradient: "bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-sm shadow-amber-200",
+        badge: "border-amber-200 bg-amber-50/50 text-amber-600 ring-1 ring-amber-100",
+    },
+    VOIDED: {
+        label: "Void",
+        icon: XCircle,
+        gradient: "bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-sm shadow-red-200",
+        badge: "border-red-200 bg-red-50/50 text-red-600 ring-1 ring-red-100",
+    },
+    REFUNDED: {
+        label: "Refund",
+        icon: ArrowLeftRight,
+        gradient: "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm shadow-blue-200",
+        badge: "border-blue-200 bg-blue-50/50 text-blue-600 ring-1 ring-blue-100",
+    },
 };
 
-const paymentLabels: Record<string, string> = {
-    CASH: "Cash",
-    TRANSFER: "Transfer",
-    QRIS: "QRIS",
-    EWALLET: "E-Wallet",
+const paymentConfig: Record<string, { label: string; icon: typeof Banknote; color: string }> = {
+    CASH: { label: "Cash", icon: Banknote, color: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" },
+    TRANSFER: { label: "Transfer", icon: CreditCard, color: "bg-blue-50 text-blue-700 ring-1 ring-blue-100" },
+    QRIS: { label: "QRIS", icon: QrCode, color: "bg-purple-50 text-purple-700 ring-1 ring-purple-100" },
+    EWALLET: { label: "E-Wallet", icon: Smartphone, color: "bg-orange-50 text-orange-700 ring-1 ring-orange-100" },
+    DEBIT: { label: "Debit", icon: CreditCard, color: "bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100" },
+    CREDIT_CARD: { label: "Kartu Kredit", icon: CreditCard, color: "bg-pink-50 text-pink-700 ring-1 ring-pink-100" },
+    TERMIN: { label: "Termin", icon: Clock, color: "bg-amber-50 text-amber-700 ring-1 ring-amber-100" },
 };
 
-export function TransactionsContent({ data: initialData, filters: initialFilters }: Props) {
-    const [data, setData] = useState(initialData);
-    const [page, setPage] = useState(initialData.currentPage);
+export function TransactionsContent() {
+    const [data, setData] = useState<TransactionsData>({ transactions: [], total: 0, totalPages: 0, currentPage: 1 });
+    const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState(initialFilters.search || "");
+    const [search, setSearch] = useState("");
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-        status: initialFilters.status || "ALL",
+        status: "ALL",
     });
-    const { selectedBranchId } = useBranch();
+    const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
-    useEffect(() => {
-        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; setPage(1); fetchData({ page: 1 }); }
-        else if (selectedBranchId) { fetchData({}); } // initial load with branch
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { canAction, cannotMessage } = useMenuActionAccess("transactions");
+    const canVoid = canAction("void");
+    const canRefund = canAction("refund");
+    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
     const [detailOpen, setDetailOpen] = useState(false);
     const [selectedTx, setSelectedTx] = useState<TransactionDetail | null>(null);
@@ -70,6 +94,17 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
     const [refundDialogOpen, setRefundDialogOpen] = useState(false);
     const [actionTxId, setActionTxId] = useState<string>("");
     const [reason, setReason] = useState("");
+
+    const stats = useMemo(() => {
+        const txs = data.transactions;
+        return {
+            total: data.total,
+            completed: txs.filter((t) => t.status === "COMPLETED").length,
+            voided: txs.filter((t) => t.status === "VOIDED").length,
+            refunded: txs.filter((t) => t.status === "REFUNDED").length,
+            totalRevenue: txs.filter((t) => t.status === "COMPLETED").reduce((sum, t) => sum + t.grandTotal, 0),
+        };
+    }, [data]);
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
@@ -91,13 +126,25 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
         });
     };
 
+    useEffect(() => {
+        if (!branchReady) return;
+        if (prevBranchRef.current !== selectedBranchId) {
+            prevBranchRef.current = selectedBranchId;
+            setPage(1);
+            fetchData({ page: 1 });
+        } else {
+            fetchData({});
+        }
+    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const handleViewDetail = async (id: string) => {
         const tx = await getTransactionById(id);
-        setSelectedTx(tx);
+        setSelectedTx(tx as unknown as TransactionDetail);
         setDetailOpen(true);
     };
 
     const handleVoid = async () => {
+        if (!canVoid) { toast.error(cannotMessage("void")); return; }
         if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
         const result = await voidTransaction(actionTxId, reason);
         if (result.error) toast.error(result.error);
@@ -105,58 +152,94 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
     };
 
     const handleRefund = async () => {
+        if (!canRefund) { toast.error(cannotMessage("refund")); return; }
         if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
         const result = await refundTransaction(actionTxId, reason);
         if (result.error) toast.error(result.error);
         else { toast.success("Transaksi berhasil di-refund"); setRefundDialogOpen(false); setReason(""); fetchData({}); }
     };
 
-    const columns: SmartColumn<Transaction>[] = [
+    const getCashierName = (row: TransactionRow) => (row as unknown as { user?: { name?: string } }).user?.name ?? row.userId;
+    const getBranchName = (row: TransactionRow) => (row as unknown as { branch?: { name?: string } }).branch?.name ?? "—";
+    const getPayments = (row: TransactionRow): PaymentEntry[] => (row as unknown as { payments?: PaymentEntry[] }).payments ?? [];
+
+    const columns: SmartColumn<TransactionRow>[] = [
         {
-            key: "invoiceNumber", header: "Invoice", sortable: true, width: "150px",
-            render: (row) => <span className="font-mono text-xs font-medium">{row.invoiceNumber}</span>,
+            key: "invoiceNumber", header: "Invoice", sortable: true, width: "180px",
+            render: (row) => (
+                <div className="flex items-center gap-2.5">
+                    <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-slate-500 shrink-0">
+                        <Receipt className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="font-mono text-xs font-semibold text-foreground truncate">{row.invoiceNumber}</p>
+                        <p className="text-[10px] text-muted-foreground">{getBranchName(row)}</p>
+                    </div>
+                </div>
+            ),
             exportValue: (row) => row.invoiceNumber,
         },
         {
-            key: "branch", header: "Lokasi",
-            render: (row) => <span className="text-xs">{row.branch?.name ?? "Semua"}</span>,
-            exportValue: (row) => row.branch?.name ?? "Semua",
-        },
-        {
             key: "createdAt", header: "Tanggal", sortable: true,
-            render: (row) => <span className="text-xs text-muted-foreground">{formatDateTime(row.createdAt)}</span>,
+            render: (row) => (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Calendar className="w-3 h-3 shrink-0 text-muted-foreground/50" />
+                    <span className="font-mono tabular-nums">{formatDateTime(row.createdAt)}</span>
+                </div>
+            ),
             exportValue: (row) => formatDateTime(row.createdAt),
         },
         {
             key: "user", header: "Kasir", sortable: true,
-            render: (row) => <span className="text-sm">{row.user.name}</span>,
-            exportValue: (row) => row.user.name,
+            render: (row) => (
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 text-white text-[10px] font-bold shrink-0">
+                        {getCashierName(row).charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-foreground">{getCashierName(row)}</span>
+                </div>
+            ),
+            exportValue: (row) => getCashierName(row),
         },
         {
             key: "paymentMethod", header: "Pembayaran",
             render: (row) => {
-                const payments = row.payments;
+                const payments = getPayments(row);
                 if (!payments || payments.length <= 1) {
-                    return <Badge variant="secondary" className="rounded-lg text-xs">{paymentLabels[row.paymentMethod] || row.paymentMethod}</Badge>;
+                    const pm = paymentConfig[row.paymentMethod];
+                    const Icon = pm?.icon || Wallet;
+                    return (
+                        <Badge variant="outline" className={`rounded-full text-[10px] font-medium px-2 py-0.5 border-0 ${pm?.color || "bg-slate-50 text-slate-600"}`}>
+                            <Icon className="w-3 h-3 mr-1" />
+                            {pm?.label || row.paymentMethod}
+                        </Badge>
+                    );
                 }
                 const shown = payments.slice(0, 2);
                 const rest = payments.slice(2);
                 return (
                     <div className="flex items-center gap-1 flex-wrap">
-                        {shown.map((p, i) => (
-                            <Badge key={i} variant="secondary" className="rounded-lg text-[10px]">{paymentLabels[p.method] || p.method}</Badge>
-                        ))}
+                        {shown.map((p, i) => {
+                            const pm = paymentConfig[p.method];
+                            const Icon = pm?.icon || Wallet;
+                            return (
+                                <Badge key={i} variant="outline" className={`rounded-full text-[10px] font-medium px-2 py-0.5 border-0 ${pm?.color || "bg-slate-50 text-slate-600"}`}>
+                                    <Icon className="w-3 h-3 mr-1" />
+                                    {pm?.label || p.method}
+                                </Badge>
+                            );
+                        })}
                         {rest.length > 0 && (
                             <TooltipProvider delayDuration={0}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Badge variant="outline" className="rounded-lg text-[10px] cursor-default">+{rest.length}</Badge>
+                                        <Badge variant="outline" className="rounded-full text-[10px] cursor-default px-2 py-0.5">+{rest.length}</Badge>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="text-xs space-y-0.5">
+                                    <TooltipContent side="top" className="text-xs space-y-1 p-3">
                                         {rest.map((p, i) => (
                                             <div key={i} className="flex justify-between gap-4">
-                                                <span>{paymentLabels[p.method] || p.method}</span>
-                                                <span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span>
+                                                <span>{paymentConfig[p.method]?.label || p.method}</span>
+                                                <span className="font-semibold font-mono tabular-nums">{formatCurrency(p.amount)}</span>
                                             </div>
                                         ))}
                                     </TooltipContent>
@@ -167,39 +250,57 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                 );
             },
             exportValue: (row) => {
-                if (row.payments && row.payments.length > 1) {
-                    return row.payments.map((p) => `${paymentLabels[p.method] || p.method}: ${p.amount}`).join(", ");
+                const payments = getPayments(row);
+                if (payments.length > 1) {
+                    return payments.map((p) => `${paymentConfig[p.method]?.label || p.method}: ${p.amount}`).join(", ");
                 }
-                return paymentLabels[row.paymentMethod] || row.paymentMethod;
+                return paymentConfig[row.paymentMethod]?.label || row.paymentMethod;
             },
         },
         {
             key: "grandTotal", header: "Total", sortable: true, align: "right",
-            render: (row) => <span className="text-xs font-medium">{formatCurrency(row.grandTotal)}</span>,
+            render: (row) => (
+                <span className="text-sm font-semibold text-foreground font-mono tabular-nums">
+                    {formatCurrency(row.grandTotal)}
+                </span>
+            ),
             exportValue: (row) => row.grandTotal,
         },
         {
             key: "status", header: "Status", align: "center",
-            render: (row) => <Badge className={`rounded-lg ${statusColors[row.status] || ""}`}>{row.status}</Badge>,
-            exportValue: (row) => row.status,
+            render: (row) => {
+                const cfg = statusConfig[row.status];
+                const Icon = cfg?.icon || Clock;
+                return (
+                    <Badge variant="outline" className={`rounded-full text-[11px] font-medium px-2.5 py-0.5 border-0 ${cfg?.badge || "bg-slate-50 text-slate-600"}`}>
+                        <Icon className="w-3 h-3 mr-1" />
+                        {cfg?.label || row.status}
+                    </Badge>
+                );
+            },
+            exportValue: (row) => statusConfig[row.status]?.label || row.status,
         },
         {
             key: "actions", header: "Aksi", align: "right", sticky: true, width: "120px",
             render: (row) => (
                 <div className="flex justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => handleViewDetail(row.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-colors" onClick={() => handleViewDetail(row.id)}>
                         <Eye className="w-3.5 h-3.5" />
                     </Button>
                     {row.status === "COMPLETED" && (
                         <>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-orange-500 hover:text-orange-700 hover:bg-orange-50"
-                                onClick={() => { setActionTxId(row.id); setReason(""); setVoidDialogOpen(true); }} title="Void">
-                                <Ban className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => { setActionTxId(row.id); setReason(""); setRefundDialogOpen(true); }} title="Refund">
-                                <RotateCcw className="w-3.5 h-3.5" />
-                            </Button>
+                            <DisabledActionTooltip disabled={!canVoid} message={cannotMessage("void")}>
+                                <Button disabled={!canVoid} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-orange-500 hover:text-orange-700 hover:bg-orange-50 transition-colors"
+                                    onClick={() => { setActionTxId(row.id); setReason(""); setVoidDialogOpen(true); }} title="Void">
+                                    <Ban className="w-3.5 h-3.5" />
+                                </Button>
+                            </DisabledActionTooltip>
+                            <DisabledActionTooltip disabled={!canRefund} message={cannotMessage("refund")}>
+                                <Button disabled={!canRefund} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                    onClick={() => { setActionTxId(row.id); setReason(""); setRefundDialogOpen(true); }} title="Refund">
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                </Button>
+                            </DisabledActionTooltip>
                         </>
                     )}
                 </div>
@@ -211,10 +312,10 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
         {
             key: "status", label: "Status", type: "select",
             options: [
-                { value: "COMPLETED", label: "Completed" },
+                { value: "COMPLETED", label: "Selesai" },
                 { value: "PENDING", label: "Pending" },
-                { value: "VOIDED", label: "Voided" },
-                { value: "REFUNDED", label: "Refunded" },
+                { value: "VOIDED", label: "Void" },
+                { value: "REFUNDED", label: "Refund" },
             ],
         },
         { key: "date", label: "Tanggal", type: "daterange" },
@@ -222,12 +323,48 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
 
     return (
         <div className="space-y-5">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Riwayat Transaksi</h1>
-                <p className="text-muted-foreground text-sm">{data.total} transaksi ditemukan</p>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200/50">
+                        <Receipt className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Riwayat Transaksi</h1>
+                        <p className="text-muted-foreground text-sm mt-0.5">Kelola dan pantau semua transaksi penjualan</p>
+                    </div>
+                </div>
             </div>
 
-            <SmartTable<Transaction>
+            {/* Stats Bar */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-medium">
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.total}</span> Total
+                </div>
+                <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-100">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.completed}</span> Selesai
+                </div>
+                {stats.voided > 0 && (
+                    <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-red-100">
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span className="font-mono tabular-nums">{stats.voided}</span> Void
+                    </div>
+                )}
+                {stats.refunded > 0 && (
+                    <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-500 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-blue-100">
+                        <ArrowLeftRight className="w-3.5 h-3.5" />
+                        <span className="font-mono tabular-nums">{stats.refunded}</span> Refund
+                    </div>
+                )}
+                <div className="inline-flex items-center gap-1.5 bg-violet-50 text-violet-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-violet-100">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{formatCurrency(stats.totalRevenue)}</span>
+                </div>
+            </div>
+
+            <SmartTable<TransactionRow>
                 data={data.transactions}
                 columns={columns}
                 totalItems={data.total}
@@ -237,7 +374,7 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                 loading={loading}
                 title="Daftar Transaksi"
                 titleIcon={<History className="w-4 h-4 text-muted-foreground" />}
-                searchPlaceholder="Cari invoice..."
+                searchPlaceholder="Cari invoice, kasir..."
                 onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
@@ -247,118 +384,202 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
                 exportFilename="transaksi"
-                emptyIcon={<History className="w-10 h-10 text-muted-foreground/30" />}
+                emptyIcon={<Receipt className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Tidak ada transaksi ditemukan"
             />
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl max-w-lg">
+                <DialogContent className="rounded-2xl w-[95vw] max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
-                        <DialogTitle>Detail Transaksi</DialogTitle>
+                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
+                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-200/50">
+                                <Receipt className="w-4 h-4 text-white" />
+                            </div>
+                            Detail Transaksi
+                        </DialogTitle>
                     </DialogHeader>
                     {selectedTx && (
                         <>
                             <DialogBody className="space-y-4 pr-1">
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <p className="text-muted-foreground">Invoice</p>
-                                        <p className="font-mono font-medium">{selectedTx.invoiceNumber}</p>
+                                {/* Info Grid */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                            <Hash className="w-3 h-3" /> Invoice
+                                        </div>
+                                        <p className="font-mono text-sm font-bold text-foreground">{selectedTx.invoiceNumber}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Tanggal</p>
-                                        <p>{formatDateTime(selectedTx.createdAt)}</p>
+                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                            <Calendar className="w-3 h-3" /> Tanggal
+                                        </div>
+                                        <p className="text-sm font-medium text-foreground">{formatDateTime(selectedTx.createdAt)}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Kasir</p>
-                                        <p>{selectedTx.user.name}</p>
+                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                            <User className="w-3 h-3" /> Kasir
+                                        </div>
+                                        <p className="text-sm font-medium text-foreground">{selectedTx.user.name}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-muted-foreground">Status</p>
-                                        <Badge className={`rounded-lg ${statusColors[selectedTx.status]}`}>{selectedTx.status}</Badge>
+                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
+                                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                                            <MapPin className="w-3 h-3" /> Status
+                                        </div>
+                                        {(() => {
+                                            const cfg = statusConfig[selectedTx.status];
+                                            const Icon = cfg?.icon || Clock;
+                                            return (
+                                                <Badge variant="outline" className={`rounded-full text-[11px] font-medium px-2 py-0.5 border-0 ${cfg?.badge || ""}`}>
+                                                    <Icon className="w-3 h-3 mr-1" />
+                                                    {cfg?.label || selectedTx.status}
+                                                </Badge>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
-                                <div className="border rounded-xl overflow-hidden">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Produk</TableHead>
-                                                <TableHead className="text-center">Qty</TableHead>
-                                                <TableHead className="text-right">Harga</TableHead>
-                                                <TableHead className="text-right">Subtotal</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {selectedTx.items.map((item) => (
-                                                <TableRow key={item.id}>
-                                                    <TableCell className="text-sm">{item.productName}</TableCell>
-                                                    <TableCell className="text-center text-sm">{item.quantity}</TableCell>
-                                                    <TableCell className="text-right text-sm">{formatCurrency(item.unitPrice)}</TableCell>
-                                                    <TableCell className="text-right text-sm font-medium">{formatCurrency(item.subtotal)}</TableCell>
+                                {/* Items Table */}
+                                <div>
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <ShoppingBag className="w-3.5 h-3.5" /> Item Pembelian
+                                    </p>
+                                    <div className="rounded-xl border border-border/30 overflow-hidden shadow-sm">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
+                                                    <TableHead className="text-xs font-semibold">Produk</TableHead>
+                                                    <TableHead className="text-center text-xs font-semibold">Qty</TableHead>
+                                                    <TableHead className="text-right text-xs font-semibold">Harga</TableHead>
+                                                    <TableHead className="text-right text-xs font-semibold">Subtotal</TableHead>
                                                 </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {selectedTx.items.map((item) => (
+                                                    <TableRow key={item.id} className="hover:bg-muted/20 transition-colors">
+                                                        <TableCell>
+                                                            <div>
+                                                                <span className="text-sm font-medium">{item.productName}</span>
+                                                                {item.unitName && item.conversionQty && item.conversionQty > 1 && (
+                                                                    <p className="text-[10px] text-muted-foreground">
+                                                                        {item.quantity} {item.unitName} × {item.conversionQty} = {item.baseQty ?? item.quantity * item.conversionQty} pcs
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <span className="inline-flex items-center justify-center min-w-[24px] h-6 rounded-md bg-slate-100 text-xs font-semibold font-mono">
+                                                                {item.quantity}
+                                                            </span>
+                                                            {item.unitName && item.unitName !== "PCS" && (
+                                                                <span className="text-[10px] text-muted-foreground ml-1">{item.unitName}</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-sm font-mono tabular-nums text-muted-foreground">{formatCurrency(item.unitPrice)}</TableCell>
+                                                        <TableCell className="text-right text-sm font-semibold font-mono tabular-nums">{formatCurrency(item.subtotal)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-1 text-sm">
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatCurrency(selectedTx.subtotal)}</span></div>
+                                {/* Summary */}
+                                <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-4 space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Subtotal</span>
+                                        <span className="font-mono tabular-nums">{formatCurrency(selectedTx.subtotal)}</span>
+                                    </div>
                                     {selectedTx.discountAmount > 0 && (
-                                        <div className="flex justify-between text-red-500"><span>Diskon</span><span>-{formatCurrency(selectedTx.discountAmount)}</span></div>
+                                        <div className="flex justify-between text-sm text-red-500">
+                                            <span>Diskon</span>
+                                            <span className="font-mono tabular-nums">-{formatCurrency(selectedTx.discountAmount)}</span>
+                                        </div>
                                     )}
                                     {selectedTx.taxAmount > 0 && (
-                                        <div className="flex justify-between"><span className="text-muted-foreground">Pajak</span><span>{formatCurrency(selectedTx.taxAmount)}</span></div>
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Pajak</span>
+                                            <span className="font-mono tabular-nums">{formatCurrency(selectedTx.taxAmount)}</span>
+                                        </div>
                                     )}
-                                    <div className="flex justify-between font-bold text-base border-t pt-1">
-                                        <span>Grand Total</span><span>{formatCurrency(selectedTx.grandTotal)}</span>
+                                    <div className="flex justify-between items-center font-bold text-base border-t border-slate-200 pt-2">
+                                        <span>Grand Total</span>
+                                        <span className="text-lg font-mono tabular-nums bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{formatCurrency(selectedTx.grandTotal)}</span>
                                     </div>
-                                    {/* Payment breakdown */}
+                                </div>
+
+                                {/* Payment breakdown */}
+                                <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-4 space-y-2">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                        <Wallet className="w-3.5 h-3.5" /> Pembayaran
+                                    </p>
                                     {selectedTx.payments && selectedTx.payments.length > 1 ? (
-                                        <div className="space-y-1 border-t pt-1">
-                                            <p className="text-xs text-muted-foreground font-medium">Pembayaran:</p>
-                                            {selectedTx.payments.map((p: { id: string; method: string; amount: number }, idx: number) => (
-                                                <div key={idx} className="flex justify-between text-xs">
-                                                    <span className="text-muted-foreground">{paymentLabels[p.method] || p.method}</span>
-                                                    <span>{formatCurrency(p.amount)}</span>
-                                                </div>
-                                            ))}
+                                        <div className="space-y-1.5">
+                                            {selectedTx.payments.map((p: { id: string; method: string; amount: number }, idx: number) => {
+                                                const pm = paymentConfig[p.method];
+                                                const Icon = pm?.icon || Wallet;
+                                                return (
+                                                    <div key={idx} className="flex items-center justify-between text-sm">
+                                                        <span className="flex items-center gap-2 text-muted-foreground">
+                                                            <Icon className="w-3.5 h-3.5" />
+                                                            {pm?.label || p.method}
+                                                        </span>
+                                                        <span className="font-mono tabular-nums font-medium">{formatCurrency(p.amount)}</span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     ) : (
-                                        <div className="flex justify-between"><span className="text-muted-foreground">Dibayar ({paymentLabels[selectedTx.paymentMethod] || selectedTx.paymentMethod})</span><span>{formatCurrency(selectedTx.paymentAmount)}</span></div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="flex items-center gap-2 text-muted-foreground">
+                                                {(() => { const pm = paymentConfig[selectedTx.paymentMethod]; const Icon = pm?.icon || Wallet; return <><Icon className="w-3.5 h-3.5" />{pm?.label || selectedTx.paymentMethod}</>; })()}
+                                            </span>
+                                            <span className="font-mono tabular-nums font-medium">{formatCurrency(selectedTx.paymentAmount)}</span>
+                                        </div>
                                     )}
                                     {selectedTx.changeAmount > 0 && (
-                                        <div className="flex justify-between"><span className="text-muted-foreground">Kembalian</span><span>{formatCurrency(selectedTx.changeAmount)}</span></div>
+                                        <div className="flex items-center justify-between text-sm border-t border-slate-200 pt-1.5">
+                                            <span className="text-muted-foreground">Kembalian</span>
+                                            <span className="font-mono tabular-nums font-medium text-emerald-600">{formatCurrency(selectedTx.changeAmount)}</span>
+                                        </div>
                                     )}
                                 </div>
                             </DialogBody>
                             <DialogFooter className="pt-3">
-                                <Button variant="outline" className="w-full rounded-lg" onClick={() => {
-                                    if (!selectedTx) return;
-                                    printThermalReceipt({
-                                        invoiceNumber: selectedTx.invoiceNumber,
-                                        date: formatDateTime(selectedTx.createdAt),
-                                        cashier: selectedTx.user.name,
-                                        items: selectedTx.items.map((i) => ({
-                                            name: i.productName,
-                                            qty: i.quantity,
-                                            price: i.unitPrice,
-                                            subtotal: i.subtotal,
-                                        })),
-                                        subtotal: selectedTx.subtotal,
-                                        discount: selectedTx.discountAmount,
-                                        tax: selectedTx.taxAmount,
-                                        grandTotal: selectedTx.grandTotal,
-                                        paymentMethod: selectedTx.paymentMethod,
-                                        paymentAmount: selectedTx.paymentAmount,
-                                        change: selectedTx.changeAmount,
-                                        payments: selectedTx.payments && selectedTx.payments.length > 1
-                                            ? selectedTx.payments.map((p: { method: string; amount: number }) => ({ method: p.method, amount: p.amount }))
-                                            : undefined,
-                                        promos: selectedTx.promoApplied ? [selectedTx.promoApplied] : undefined,
-                                    });
-                                }}>
+                                <Button
+                                    variant="outline"
+                                    className="w-full rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
+                                    onClick={() => {
+                                        if (!selectedTx) return;
+                                        printThermalReceipt({
+                                            invoiceNumber: selectedTx.invoiceNumber,
+                                            date: formatDateTime(selectedTx.createdAt),
+                                            cashier: selectedTx.user.name,
+                                            items: selectedTx.items.map((i) => ({
+                                                name: i.productName,
+                                                qty: i.quantity,
+                                                price: i.unitPrice,
+                                                subtotal: i.subtotal,
+                                                ...(i.unitName ? { unitName: i.unitName } : {}),
+                                                ...(i.conversionQty ? { conversionQty: i.conversionQty } : {}),
+                                            })),
+                                            subtotal: selectedTx.subtotal,
+                                            discount: selectedTx.discountAmount,
+                                            tax: selectedTx.taxAmount,
+                                            grandTotal: selectedTx.grandTotal,
+                                            paymentMethod: selectedTx.paymentMethod,
+                                            paymentAmount: selectedTx.paymentAmount,
+                                            change: selectedTx.changeAmount,
+                                            payments: selectedTx.payments && selectedTx.payments.length > 1
+                                                ? selectedTx.payments.map((p: { method: string; amount: number }) => ({ method: p.method, amount: p.amount }))
+                                                : undefined,
+                                            promos: selectedTx.promoApplied ? [selectedTx.promoApplied] : undefined,
+                                        });
+                                    }}
+                                >
                                     <Printer className="w-4 h-4 mr-2" />
                                     Cetak Struk
                                 </Button>
@@ -370,19 +591,32 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
 
             {/* Void Dialog */}
             <Dialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
-                <DialogContent className="rounded-2xl">
+                <DialogContent className="rounded-2xl max-w-sm">
+                    <div className="h-1 w-full bg-gradient-to-r from-orange-500 via-red-500 to-rose-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
-                        <DialogTitle>Void Transaksi</DialogTitle>
+                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
+                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 shadow-md shadow-orange-200/50">
+                                <Ban className="w-4 h-4 text-white" />
+                            </div>
+                            Void Transaksi
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">Transaksi akan dibatalkan dan stok akan dikembalikan.</p>
-                        <div className="space-y-2">
-                            <Label htmlFor="voidReason">Alasan Void</Label>
-                            <Input id="voidReason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masukkan alasan..." className="rounded-lg" />
+                    <div className="space-y-4 mt-1">
+                        <div className="rounded-xl bg-amber-50/60 border border-amber-100 p-3 flex items-start gap-2.5">
+                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-700">Transaksi akan dibatalkan dan stok akan dikembalikan. Tindakan ini tidak dapat dibatalkan.</p>
                         </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setVoidDialogOpen(false)} className="rounded-lg">Batal</Button>
-                            <Button onClick={handleVoid} className="rounded-lg bg-red-600 hover:bg-red-700">Void Transaksi</Button>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="voidReason" className="text-sm font-medium">Alasan Void <span className="text-red-400">*</span></Label>
+                            <Input id="voidReason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masukkan alasan void..." className="rounded-xl h-10" autoFocus />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <Button variant="outline" onClick={() => setVoidDialogOpen(false)} className="rounded-xl">Batal</Button>
+                            <DisabledActionTooltip disabled={!canVoid} message={cannotMessage("void")}>
+                                <Button disabled={!canVoid} onClick={handleVoid} className="rounded-xl bg-red-600 hover:bg-red-700 shadow-md shadow-red-200/50 hover:shadow-lg hover:shadow-red-300/50 transition-all">
+                                    <Ban className="w-3.5 h-3.5 mr-1.5" /> Void Transaksi
+                                </Button>
+                            </DisabledActionTooltip>
                         </div>
                     </div>
                 </DialogContent>
@@ -390,24 +624,36 @@ export function TransactionsContent({ data: initialData, filters: initialFilters
 
             {/* Refund Dialog */}
             <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
-                <DialogContent className="rounded-2xl">
+                <DialogContent className="rounded-2xl max-w-sm">
+                    <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
-                        <DialogTitle>Refund Transaksi</DialogTitle>
+                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
+                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-200/50">
+                                <RotateCcw className="w-4 h-4 text-white" />
+                            </div>
+                            Refund Transaksi
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">Transaksi akan di-refund dan stok akan dikembalikan.</p>
-                        <div className="space-y-2">
-                            <Label htmlFor="refundReason">Alasan Refund</Label>
-                            <Input id="refundReason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masukkan alasan..." className="rounded-lg" />
+                    <div className="space-y-4 mt-1">
+                        <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3 flex items-start gap-2.5">
+                            <ArrowLeftRight className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-blue-700">Transaksi akan di-refund dan stok akan dikembalikan. Tindakan ini tidak dapat dibatalkan.</p>
                         </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setRefundDialogOpen(false)} className="rounded-lg">Batal</Button>
-                            <Button onClick={handleRefund} className="rounded-lg bg-blue-600 hover:bg-blue-700">Refund Transaksi</Button>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="refundReason" className="text-sm font-medium">Alasan Refund <span className="text-red-400">*</span></Label>
+                            <Input id="refundReason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Masukkan alasan refund..." className="rounded-xl h-10" autoFocus />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <Button variant="outline" onClick={() => setRefundDialogOpen(false)} className="rounded-xl">Batal</Button>
+                            <DisabledActionTooltip disabled={!canRefund} message={cannotMessage("refund")}>
+                                <Button disabled={!canRefund} onClick={handleRefund} className="rounded-xl bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200/50 hover:shadow-lg hover:shadow-blue-300/50 transition-all">
+                                    <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Refund Transaksi
+                                </Button>
+                            </DisabledActionTooltip>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
-
         </div>
     );
 }

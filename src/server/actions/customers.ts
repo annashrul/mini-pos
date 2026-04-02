@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { customerSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getCustomers(params?: {
   search?: string;
@@ -79,6 +80,7 @@ export async function createCustomer(data: FormData) {
         memberLevel: parsed.data.memberLevel,
       },
     });
+    createAuditLog({ action: "CREATE", entity: "Customer", details: { data: { name: parsed.data.name, phone: parsed.data.phone ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, memberLevel: parsed.data.memberLevel } } }).catch(() => {});
     revalidatePath("/customers");
     return { success: true };
   } catch {
@@ -98,6 +100,7 @@ export async function updateCustomer(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
+    const old = await prisma.customer.findUnique({ where: { id }, select: { name: true, phone: true, email: true, address: true, memberLevel: true } });
     await prisma.customer.update({
       where: { id },
       data: {
@@ -108,6 +111,9 @@ export async function updateCustomer(id: string, data: FormData) {
         memberLevel: parsed.data.memberLevel,
       },
     });
+    if (old) {
+      createAuditLog({ action: "UPDATE", entity: "Customer", entityId: id, details: { before: { name: old.name, phone: old.phone, email: old.email, address: old.address, memberLevel: old.memberLevel }, after: { name: parsed.data.name, phone: parsed.data.phone ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, memberLevel: parsed.data.memberLevel } } }).catch(() => {});
+    }
     revalidatePath("/customers");
     return { success: true };
   } catch {
@@ -122,7 +128,9 @@ export async function deleteCustomer(id: string) {
     if (txCount > 0) {
       return { error: `Customer masih memiliki ${txCount} transaksi` };
     }
+    const old = await prisma.customer.findUnique({ where: { id } });
     await prisma.customer.delete({ where: { id } });
+    createAuditLog({ action: "DELETE", entity: "Customer", entityId: id, details: { deleted: { name: old?.name, email: old?.email } } }).catch(() => {});
     revalidatePath("/customers");
     return { success: true };
   } catch {

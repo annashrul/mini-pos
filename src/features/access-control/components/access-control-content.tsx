@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
     accessControlService,
     updateRoleActionPermission,
     updateRoleMenuPermission,
 } from "@/features/access-control";
+import { useMenuActionAccess } from "@/features/access-control";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
     Lock, Loader2, Plus, Pencil, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 
 interface AppRoleData {
     id: string;
@@ -33,11 +35,6 @@ interface AppRoleData {
     color: string | null;
     isSystem: boolean;
     isActive: boolean;
-}
-
-interface Props {
-    initialData: { error?: string | null; roles: string[]; menus: AccessMenu[] };
-    appRoles: AppRoleData[];
 }
 
 const DEFAULT_COLORS = [
@@ -57,9 +54,9 @@ const ACTION_LABELS: Record<string, string> = {
     receive: "Terima", manage: "Kelola", open_shift: "Buka Shift", close_shift: "Tutup Shift",
 };
 
-export function AccessControlContent({ initialData, appRoles: initialRoles }: Props) {
-    const [data, setData] = useState(initialData);
-    const [appRoles, setAppRoles] = useState(initialRoles);
+export function AccessControlContent() {
+    const [data, setData] = useState<{ error?: string | null; roles: string[]; menus: AccessMenu[] }>({ roles: [], menus: [] });
+    const [appRoles, setAppRoles] = useState<AppRoleData[]>([]);
     const [pending, startTransition] = useTransition();
     const roleKeys = useMemo(
         () => appRoles.filter((role) => role.isActive).map((role) => role.key),
@@ -81,6 +78,23 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     const [formCopyFrom, setFormCopyFrom] = useState("");
     const [confirmDelete, setConfirmDelete] = useState<AppRoleData | null>(null);
     const effectiveRole = roleKeys.includes(selectedRole) ? selectedRole : (roleKeys[0] ?? "SUPER_ADMIN");
+    const { canAction, cannotMessage } = useMenuActionAccess("access-control");
+    const canManage = canAction("manage");
+
+    const didFetchRef = useRef(false);
+    useEffect(() => {
+        if (didFetchRef.current) return;
+        didFetchRef.current = true;
+        startTransition(async () => {
+            const [matrix, roles] = await Promise.all([
+                accessControlService.getAccessControlMatrix(),
+                accessControlService.getRoles(),
+            ]);
+            setData(matrix);
+            setAppRoles(roles as AppRoleData[]);
+            setSelectedRole((roles.find((role) => role.isActive)?.key) ?? matrix.roles[0] ?? "SUPER_ADMIN");
+        });
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const groupedMenus = useMemo(() => {
         const groups = new Map<string, AccessMenu[]>();
@@ -101,6 +115,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const toggleMenu = (menuId: string, role: string, allowed: boolean) => {
+        if (!canManage) { toast.error(cannotMessage("manage")); return; }
         startTransition(async () => {
             const result = await updateRoleMenuPermission({ menuId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -112,6 +127,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const toggleAction = (actionId: string, role: string, allowed: boolean) => {
+        if (!canManage) { toast.error(cannotMessage("manage")); return; }
         startTransition(async () => {
             const result = await updateRoleActionPermission({ actionId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -127,6 +143,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
 
     // Role CRUD handlers
     const handleCreateRole = async () => {
+        if (!canManage) { toast.error(cannotMessage("manage")); return; }
         const result = await accessControlService.createRole({
             key: formKey,
             name: formName,
@@ -161,6 +178,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const handleUpdateRole = async () => {
+        if (!canManage) { toast.error(cannotMessage("manage")); return; }
         if (!editingRole) return;
         const result = await accessControlService.updateRole(editingRole.id, { name: formName, description: formDesc, color: formColor });
         if (result.error) { toast.error(result.error); return; }
@@ -170,6 +188,7 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const handleDeleteRole = async () => {
+        if (!canManage) { toast.error(cannotMessage("manage")); return; }
         if (!confirmDelete) return;
         const deletingRoleKey = confirmDelete.key;
         const result = await accessControlService.deleteRole(confirmDelete.id);
@@ -212,166 +231,350 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
     };
 
     const totalMenus = data.menus.length;
-    console.log("####", data)
+
+    const activeMenuCount = data.menus.filter((m) => m.permissions[effectiveRole]).length;
+
+    const isInitialLoading = pending && data.menus.length === 0;
+    const isUpdating = pending && data.menus.length > 0;
 
     if (data.error) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <div className="text-center space-y-2">
-                    <Lock className="w-10 h-10 mx-auto text-muted-foreground/40" />
-                    <p className="text-sm text-red-500">{data.error}</p>
+            <div className="flex items-center justify-center py-32">
+                <div className="text-center space-y-4">
+                    <div className="w-20 h-20 mx-auto rounded-2xl bg-red-50 flex items-center justify-center">
+                        <Lock className="w-10 h-10 text-red-400" />
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-lg font-semibold text-foreground">Akses Ditolak</p>
+                        <p className="text-sm text-red-500 max-w-xs">{data.error}</p>
+                    </div>
+                    <Button variant="outline" className="rounded-xl" onClick={() => window.history.back()}>
+                        Kembali
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    if (isInitialLoading) {
+        return (
+            <div className="space-y-6">
+                {/* Header skeleton */}
+                <div className="flex items-center justify-between animate-pulse">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gray-200" />
+                        <div className="space-y-2">
+                            <div className="h-7 w-48 bg-gray-200 rounded" />
+                            <div className="h-4 w-64 bg-gray-200 rounded" />
+                        </div>
+                    </div>
+                    <div className="h-10 w-36 bg-gray-200 rounded-xl" />
+                </div>
+
+                <div className="flex gap-6">
+                    {/* Left sidebar skeleton */}
+                    <div className="w-[300px] shrink-0">
+                        <div className="rounded-2xl border border-border/30 bg-white shadow-sm overflow-hidden animate-pulse">
+                            <div className="px-4 py-3 border-b border-border/20">
+                                <div className="h-4 w-24 bg-gray-200 rounded" />
+                            </div>
+                            <div className="p-2 space-y-1.5">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <div key={i} className="rounded-xl p-3 space-y-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-gray-200" />
+                                            <div className="flex-1 space-y-1.5">
+                                                <div className="h-4 w-24 bg-gray-200 rounded" />
+                                                <div className="h-3 w-32 bg-gray-200 rounded" />
+                                            </div>
+                                        </div>
+                                        <div className="pl-[52px] space-y-1.5">
+                                            <div className="h-1.5 w-full bg-gray-200 rounded-full" />
+                                            <div className="h-3 w-16 bg-gray-200 rounded" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right content skeleton */}
+                    <div className="flex-1 min-w-0 space-y-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="rounded-2xl border border-border/40 bg-white p-6 space-y-4 animate-pulse">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-200" />
+                                        <div className="space-y-1.5">
+                                            <div className="h-5 w-32 bg-gray-200 rounded" />
+                                            <div className="h-3 w-48 bg-gray-200 rounded" />
+                                        </div>
+                                    </div>
+                                    <div className="h-6 w-16 bg-gray-200 rounded-full" />
+                                </div>
+                                <div className="h-2 w-full bg-gray-200 rounded-full" />
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {Array.from({ length: 8 }).map((_, j) => (
+                                        <div key={j} className="h-8 bg-gray-200 rounded-lg" />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-5">
-            <div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <Shield className="w-6 h-6 text-primary" /> Hak Akses & Role
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">Kelola role dan atur akses menu per role</p>
+        <div className={cn("space-y-6 transition-opacity duration-200", isUpdating && "opacity-60 pointer-events-none")}>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
+                        <Shield className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Hak Akses & Role</h1>
+                        <div className="flex items-center gap-2 mt-1">
+                            <p className="text-sm text-muted-foreground">Kelola role dan atur akses menu per role</p>
+                            <Badge variant="secondary" className="rounded-full text-[10px] px-2">{roleKeys.length} role</Badge>
+                        </div>
+                    </div>
                 </div>
+                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                    <Button
+                        disabled={!canManage}
+                        className="rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
+                        onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> Tambah Role
+                    </Button>
+                </DisabledActionTooltip>
             </div>
 
-            <div className="flex gap-5">
-                <div className="sticky top-4 h-fit max-h-[calc(100vh-7rem)] w-[280px] shrink-0 space-y-3 overflow-y-auto pr-1">
-                    <div className="space-y-2">
-                        {roleKeys.map((roleKey) => {
-                            const meta = getRoleMeta(roleKey);
-                            const appRole = appRoles.find((r) => r.key === roleKey);
-                            const isSelected = effectiveRole === roleKey;
-                            const mCount = data.menus.filter((m) => m.permissions[roleKey]).length;
-                            const aCount = data.menus.reduce((sum, menu) => sum + menu.actions.filter((action) => action.permissions[roleKey]).length, 0);
-                            return (
-                                <div
-                                    key={roleKey}
-                                    className={cn(
-                                        "rounded-xl border transition-all",
-                                        isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-border/40 hover:border-border"
-                                    )}
-                                >
-                                    <button onClick={() => setSelectedRole(roleKey)} className="w-full text-left p-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0", meta.color)}>
-                                                {meta.icon}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5">
-                                                    <p className={cn("text-sm font-semibold", isSelected && "text-primary")}>{meta.label}</p>
-                                                    {appRole?.isSystem && <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">Sistem</Badge>}
-                                                </div>
-                                                <p className="text-[11px] text-muted-foreground truncate">{meta.description}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2 mt-2 pl-12">
-                                            <Badge variant="secondary" className="text-[10px] rounded-md">{mCount}/{totalMenus} menu</Badge>
-                                            <Badge variant="secondary" className="text-[10px] rounded-md">{aCount} aksi</Badge>
-                                            <Badge variant="secondary" className="text-[10px] rounded-md">{totalMenus > 0 ? Math.round(mCount / totalMenus * 100) : 0}%</Badge>
-                                        </div>
-                                    </button>
-                                    {/* Edit/Delete buttons */}
-                                    {appRole && (
-                                        <div className="flex gap-1 px-3 pb-2 pl-14">
-                                            <Button variant="ghost" size="sm" className="h-6 text-[10px] rounded-md text-muted-foreground hover:text-foreground" onClick={() => openEditRole(appRole)}>
-                                                <Pencil className="w-3 h-3 mr-1" /> Edit
-                                            </Button>
-                                            {!appRole.isSystem && (
-                                                <Button variant="ghost" size="sm" className="h-6 text-[10px] rounded-md text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(appRole)}>
-                                                    <Trash2 className="w-3 h-3 mr-1" /> Hapus
-                                                </Button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {pending && <div className="flex items-center gap-2 text-xs text-primary px-1"><Loader2 className="w-3 h-3 animate-spin" /> Menyimpan...</div>}
-                </div>
-
-                <div className="flex-1 min-w-0 space-y-3">
-                    <div className="rounded-xl border border-border/40 bg-white p-3">
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input placeholder="Cari menu..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 rounded-lg" />
-                            </div>
-                            <Button className="rounded-lg" onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}>
-                                <Plus className="w-4 h-4 mr-2" /> Tambah Role
-                            </Button>
+            <div className="flex gap-6">
+                {/* Left Sidebar - Role List */}
+                <div className="sticky top-4 h-fit max-h-[calc(100vh-7rem)] w-[300px] shrink-0 overflow-y-auto">
+                    <div className="rounded-2xl border border-border/30 bg-white shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 border-b border-border/20">
+                            <h2 className="text-sm font-semibold text-foreground">Daftar Role</h2>
                         </div>
-                    </div>
 
-                    {groupedMenus.map(([groupName, menus]) => (
-                        <div key={groupName} className="bg-white rounded-xl border border-border/40 overflow-hidden">
-                            <button onClick={() => toggleGroup(groupName)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
-                                <div className="flex items-center gap-2">
-                                    {expandedGroups.has(groupName) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                    <span className="text-sm font-semibold">{groupName}</span>
-                                    <Badge variant="secondary" className="text-[10px] rounded-md">{menus.length}</Badge>
-                                </div>
-                                <span className="text-[11px] text-muted-foreground">{menus.filter((m) => m.permissions[effectiveRole]).length}/{menus.length} aktif</span>
-                            </button>
-
-                            {expandedGroups.has(groupName) && (
-                                <div className="border-t border-border/30">
-                                    {menus.map((menu) => {
-                                        const hasAccess = Boolean(menu.permissions[effectiveRole]);
-                                        const isExpanded = expandedMenus.has(menu.id);
-                                        const activeActions = menu.actions.filter((a) => a.permissions[effectiveRole]).length;
-                                        return (
-                                            <div key={menu.id} className="border-b border-border/20 last:border-0">
-                                                <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/10 transition-colors">
-                                                    {menu.actions.length > 0 ? (
-                                                        <button onClick={() => toggleMenuExpand(menu.id)} className="text-muted-foreground hover:text-foreground">
-                                                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                                        </button>
-                                                    ) : <div className="w-3.5" />}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm font-medium">{menu.name}</span>
-                                                            {menu.actions.length > 0 && <span className="text-[10px] text-muted-foreground">({activeActions}/{menu.actions.length} aksi)</span>}
-                                                        </div>
-                                                        <p className="text-[11px] text-muted-foreground">{menu.path}</p>
-                                                    </div>
-                                                    {hasAccess ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" /> : <XCircle className="w-4 h-4 text-red-400/50 shrink-0" />}
-                                                    <Switch checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
+                        <div className="p-2 space-y-1.5">
+                            {roleKeys.map((roleKey) => {
+                                const meta = getRoleMeta(roleKey);
+                                const appRole = appRoles.find((r) => r.key === roleKey);
+                                const isSelected = effectiveRole === roleKey;
+                                const mCount = data.menus.filter((m) => m.permissions[roleKey]).length;
+                                const aCount = data.menus.reduce((sum, menu) => sum + menu.actions.filter((action) => action.permissions[roleKey]).length, 0);
+                                const pct = totalMenus > 0 ? Math.round(mCount / totalMenus * 100) : 0;
+                                return (
+                                    <div
+                                        key={roleKey}
+                                        className={cn(
+                                            "group rounded-xl transition-all relative",
+                                            isSelected
+                                                ? "border-l-4 border-l-primary bg-primary/5 border border-primary/10"
+                                                : "border border-transparent hover:bg-muted/30"
+                                        )}
+                                    >
+                                        <button onClick={() => setSelectedRole(roleKey)} className="w-full text-left p-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm", meta.color)}>
+                                                    {meta.icon}
                                                 </div>
-
-                                                {isExpanded && menu.actions.length > 0 && (
-                                                    <div className="bg-muted/20 px-4 py-2 pl-12">
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {menu.actions.map((action) => {
-                                                                const allowed = Boolean(action.permissions[effectiveRole]);
-                                                                return (
-                                                                    <button key={action.id} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
-                                                                        className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all",
-                                                                            allowed ? "bg-primary/10 border-primary/30 text-primary" : "bg-white border-border/50 text-muted-foreground hover:border-border"
-                                                                        )}>
-                                                                        {allowed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                                                                        {ACTION_LABELS[action.key] ?? action.key}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <p className={cn("text-sm font-semibold", isSelected && "text-primary")}>{meta.label}</p>
+                                                        {appRole?.isSystem && (
+                                                            <Lock className="w-3 h-3 text-muted-foreground/50" />
+                                                        )}
                                                     </div>
+                                                    <p className="text-[11px] text-muted-foreground truncate">{meta.description}</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-2.5 pl-[52px] space-y-1.5">
+                                                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                                    <span>{mCount}/{totalMenus} menu</span>
+                                                    <span>{pct}%</span>
+                                                </div>
+                                                <div className="w-full h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={cn("h-full rounded-full transition-all duration-300", isSelected ? "bg-primary" : "bg-muted-foreground/30")}
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-[10px] text-muted-foreground">{aCount} aksi aktif</p>
+                                            </div>
+                                        </button>
+                                        {/* Edit/Delete buttons - show on hover */}
+                                        {appRole && (
+                                            <div className="flex gap-1 px-3 pb-2 pl-[52px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                                    <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-foreground" onClick={() => openEditRole(appRole)}>
+                                                        <Pencil className="w-3 h-3 mr-1" /> Edit
+                                                    </Button>
+                                                </DisabledActionTooltip>
+                                                {!appRole.isSystem && (
+                                                    <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                                        <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(appRole)}>
+                                                            <Trash2 className="w-3 h-3 mr-1" /> Hapus
+                                                        </Button>
+                                                    </DisabledActionTooltip>
                                                 )}
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
-                    ))}
+
+                        {/* Saving indicator */}
+                        {pending && (
+                            <div className="px-4 py-3 border-t border-border/20">
+                                <div className="flex items-center gap-2 text-xs text-primary">
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span className="animate-pulse">Menyimpan perubahan...</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Bottom add button */}
+                        <div className="p-2 border-t border-border/20">
+                            <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                <Button
+                                    disabled={!canManage}
+                                    variant="outline"
+                                    className="w-full rounded-xl border-dashed text-muted-foreground hover:text-foreground text-xs h-9"
+                                    onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
+                                >
+                                    <Plus className="w-3.5 h-3.5 mr-1.5" /> Tambah Role
+                                </Button>
+                            </DisabledActionTooltip>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Content - Menu Permissions */}
+                <div className="flex-1 min-w-0 space-y-4">
+                    {/* Search bar */}
+                    <div className="rounded-2xl border border-border/30 bg-white shadow-sm p-4">
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
+                            <Input
+                                placeholder="Cari menu berdasarkan nama..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-12 h-11 rounded-xl bg-muted/30 border-transparent focus:border-primary/30 focus:bg-white transition-colors text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Stats pills */}
+                    <div className="flex items-center gap-2">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-border/30 shadow-sm text-xs text-muted-foreground">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                            <span className="font-medium text-foreground">{activeMenuCount}</span> dari {totalMenus} menu aktif
+                        </div>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-border/30 shadow-sm text-xs text-muted-foreground">
+                            Role: <span className="font-medium text-foreground">{getRoleMeta(effectiveRole).label}</span>
+                        </div>
+                    </div>
+
+                    {/* Group cards */}
+                    {groupedMenus.map(([groupName, menus]) => {
+                        const groupActiveCount = menus.filter((m) => m.permissions[effectiveRole]).length;
+                        const groupPct = menus.length > 0 ? Math.round(groupActiveCount / menus.length * 100) : 0;
+                        return (
+                            <div key={groupName} className="bg-white rounded-2xl border border-border/30 shadow-sm overflow-hidden">
+                                <button onClick={() => toggleGroup(groupName)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-0.5 h-5 rounded-full bg-gradient-to-b from-primary to-primary/40" />
+                                        {expandedGroups.has(groupName) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                                        <span className="text-sm font-bold text-foreground">{groupName}</span>
+                                        <Badge variant="secondary" className="text-[10px] rounded-full px-2">{menus.length}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-16 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                                            <div className="h-full rounded-full bg-primary/60 transition-all duration-300" style={{ width: `${groupPct}%` }} />
+                                        </div>
+                                        <span className="text-[11px] text-muted-foreground font-medium">{groupActiveCount}/{menus.length} aktif</span>
+                                    </div>
+                                </button>
+
+                                {expandedGroups.has(groupName) && (
+                                    <div className="border-t border-border/20">
+                                        {menus.map((menu, idx) => {
+                                            const hasAccess = Boolean(menu.permissions[effectiveRole]);
+                                            const isExpanded = expandedMenus.has(menu.id);
+                                            const activeActions = menu.actions.filter((a) => a.permissions[effectiveRole]).length;
+                                            return (
+                                                <div key={menu.id} className={cn("border-b border-border/10 last:border-0", idx % 2 === 1 && "bg-muted/5")}>
+                                                    <div className={cn(
+                                                        "flex items-center gap-3 px-5 py-3 hover:bg-muted/10 transition-colors",
+                                                        hasAccess && "border-l-2 border-l-green-400"
+                                                    )}>
+                                                        {menu.actions.length > 0 ? (
+                                                            <button onClick={() => toggleMenuExpand(menu.id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                            </button>
+                                                        ) : <div className="w-3.5" />}
+                                                        <div className={cn("shrink-0", !hasAccess && "opacity-40")}>
+                                                            {hasAccess ? <CheckCircle2 className="w-4.5 h-4.5 text-green-500" /> : <XCircle className="w-4.5 h-4.5 text-muted-foreground" />}
+                                                        </div>
+                                                        <div className={cn("flex-1 min-w-0", !hasAccess && "opacity-50")}>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-sm font-medium">{menu.name}</span>
+                                                                {menu.actions.length > 0 && (
+                                                                    <span className="text-[10px] text-muted-foreground">{activeActions}/{menu.actions.length} aksi</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-muted-foreground font-mono">{menu.path}</p>
+                                                        </div>
+                                                        <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
+                                                    </div>
+
+                                                    {isExpanded && menu.actions.length > 0 && (
+                                                        <div className="mx-5 mb-3 ml-14">
+                                                            <div className="bg-slate-50 rounded-xl p-3">
+                                                                <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+                                                                    {menu.actions.map((action) => {
+                                                                        const allowed = Boolean(action.permissions[effectiveRole]);
+                                                                        return (
+                                                                            <button key={action.id} disabled={!canManage} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
+                                                                                className={cn(
+                                                                                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all",
+                                                                                    allowed
+                                                                                        ? "bg-primary text-white shadow-sm shadow-primary/20"
+                                                                                        : "bg-white border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                                                                                    !canManage && "opacity-60 cursor-not-allowed"
+                                                                                )}>
+                                                                                {allowed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                                                                {ACTION_LABELS[action.key] ?? action.key}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
 
                     {groupedMenus.length === 0 && (
-                        <div className="text-center py-12 text-muted-foreground/40">
-                            <Search className="w-10 h-10 mx-auto mb-2" />
-                            <p className="text-sm">Tidak ada menu ditemukan</p>
+                        <div className="text-center py-16">
+                            <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+                                <Search className="w-8 h-8 text-muted-foreground/30" />
+                            </div>
+                            <p className="text-sm font-medium text-muted-foreground">Tidak ada menu ditemukan</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Coba ubah kata kunci pencarian</p>
                         </div>
                     )}
                 </div>
@@ -379,51 +582,69 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
 
             {/* Create Role Dialog */}
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogContent className="rounded-2xl max-w-md">
-                    <DialogHeader><DialogTitle>Tambah Role Baru</DialogTitle></DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Key (Identifier) <span className="text-red-400">*</span></Label>
-                            <Input value={formKey} onChange={(e) => setFormKey(e.target.value.toUpperCase().replace(/\s+/g, "_"))} className="rounded-lg font-mono" placeholder="CUSTOM_ROLE" />
-                            <p className="text-[11px] text-muted-foreground">Huruf kapital, tanpa spasi. Contoh: SUPERVISOR, HEAD_CASHIER</p>
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Nama Role <span className="text-red-400">*</span></Label>
-                            <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-lg" placeholder="Nama tampilan role" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Deskripsi</Label>
-                            <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="rounded-lg" placeholder="Opsional" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Warna</Label>
-                            <div className="flex flex-wrap gap-2">
-                                {DEFAULT_COLORS.map((c) => (
-                                    <button key={c.value} type="button" onClick={() => setFormColor(c.value)}
-                                        className={cn("w-8 h-8 rounded-lg border-2 flex items-center justify-center text-[10px] font-bold transition-all",
-                                            c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20" : "border-transparent"
-                                        )}>
-                                        {formColor === c.value && "✓"}
-                                    </button>
-                                ))}
+                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50" />
+                    <div className="p-6 space-y-5">
+                        <DialogHeader><DialogTitle className="text-lg">Tambah Role Baru</DialogTitle></DialogHeader>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Key (Identifier) <span className="text-red-400">*</span></Label>
+                                <Input value={formKey} onChange={(e) => setFormKey(e.target.value.toUpperCase().replace(/\s+/g, "_"))} className="rounded-xl font-mono h-10" placeholder="CUSTOM_ROLE" />
+                                <p className="text-[11px] text-muted-foreground">Huruf kapital, tanpa spasi. Contoh: SUPERVISOR, HEAD_CASHIER</p>
                             </div>
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Salin Permission Dari</Label>
-                            <Select value={formCopyFrom} onValueChange={setFormCopyFrom}>
-                                <SelectTrigger className="rounded-lg w-full"><SelectValue placeholder="Mulai dari kosong" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">Mulai dari kosong</SelectItem>
-                                    {appRoles.map((r) => (
-                                        <SelectItem key={r.key} value={r.key}>{r.name}</SelectItem>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Nama Role <span className="text-red-400">*</span></Label>
+                                <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-xl h-10" placeholder="Nama tampilan role" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Deskripsi</Label>
+                                <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="rounded-xl h-10" placeholder="Opsional" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Warna</Label>
+                                <div className="flex flex-wrap gap-2.5">
+                                    {DEFAULT_COLORS.map((c) => (
+                                        <div key={c.value} className="group/color relative">
+                                            <button type="button" disabled={!canManage} onClick={() => setFormColor(c.value)}
+                                                className={cn("w-10 h-10 rounded-xl border-2 flex items-center justify-center text-xs font-bold transition-all",
+                                                    c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20 scale-110" : "border-transparent hover:scale-105"
+                                                )}>
+                                                {formColor === c.value && "✓"}
+                                            </button>
+                                            <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover/color:opacity-100 transition-opacity whitespace-nowrap">{c.label}</span>
+                                        </div>
                                     ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-[11px] text-muted-foreground">Permission bisa diatur setelah role dibuat</p>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-lg">Batal</Button>
-                            <Button onClick={handleCreateRole} className="rounded-lg" disabled={!formKey || !formName}>Buat Role</Button>
+                                </div>
+                            </div>
+                            <div className="space-y-2 pt-2">
+                                <Label className="text-sm font-medium">Salin Permission Dari</Label>
+                                <Select value={formCopyFrom} onValueChange={setFormCopyFrom}>
+                                    <SelectTrigger className="rounded-xl w-full h-10"><SelectValue placeholder="Mulai dari kosong" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Mulai dari kosong</SelectItem>
+                                        {appRoles.map((r) => {
+                                            const roleMeta = getRoleMeta(r.key);
+                                            return (
+                                                <SelectItem key={r.key} value={r.key}>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold", roleMeta.color)}>
+                                                            {roleMeta.icon}
+                                                        </div>
+                                                        {r.name}
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[11px] text-muted-foreground">Permission bisa diatur setelah role dibuat</p>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-3">
+                                <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
+                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                    <Button onClick={handleCreateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80" disabled={!canManage || !formKey || !formName}>Buat Role</Button>
+                                </DisabledActionTooltip>
+                            </div>
                         </div>
                     </div>
                 </DialogContent>
@@ -431,33 +652,41 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
 
             {/* Edit Role Dialog */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent className="rounded-2xl max-w-md">
-                    <DialogHeader><DialogTitle>Edit Role: {editingRole?.key}</DialogTitle></DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Nama Role</Label>
-                            <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-lg" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Deskripsi</Label>
-                            <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="rounded-lg" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-sm">Warna</Label>
-                            <div className="flex flex-wrap gap-2">
-                                {DEFAULT_COLORS.map((c) => (
-                                    <button key={c.value} type="button" onClick={() => setFormColor(c.value)}
-                                        className={cn("w-8 h-8 rounded-lg border-2 flex items-center justify-center text-[10px] font-bold transition-all",
-                                            c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20" : "border-transparent"
-                                        )}>
-                                        {formColor === c.value && "✓"}
-                                    </button>
-                                ))}
+                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50" />
+                    <div className="p-6 space-y-5">
+                        <DialogHeader><DialogTitle className="text-lg">Edit Role: {editingRole?.key}</DialogTitle></DialogHeader>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Nama Role</Label>
+                                <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-xl h-10" />
                             </div>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-lg">Batal</Button>
-                            <Button onClick={handleUpdateRole} className="rounded-lg">Simpan</Button>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Deskripsi</Label>
+                                <Input value={formDesc} onChange={(e) => setFormDesc(e.target.value)} className="rounded-xl h-10" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium">Warna</Label>
+                                <div className="flex flex-wrap gap-2.5">
+                                    {DEFAULT_COLORS.map((c) => (
+                                        <div key={c.value} className="group/color relative">
+                                            <button type="button" disabled={!canManage} onClick={() => setFormColor(c.value)}
+                                                className={cn("w-10 h-10 rounded-xl border-2 flex items-center justify-center text-xs font-bold transition-all",
+                                                    c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20 scale-110" : "border-transparent hover:scale-105"
+                                                )}>
+                                                {formColor === c.value && "✓"}
+                                            </button>
+                                            <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-muted-foreground opacity-0 group-hover/color:opacity-100 transition-opacity whitespace-nowrap">{c.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-3">
+                                <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">Batal</Button>
+                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                    <Button disabled={!canManage} onClick={handleUpdateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80">Simpan</Button>
+                                </DisabledActionTooltip>
+                            </div>
                         </div>
                     </div>
                 </DialogContent>
@@ -465,14 +694,19 @@ export function AccessControlContent({ initialData, appRoles: initialRoles }: Pr
 
             {/* Delete Confirm Dialog */}
             <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
-                <DialogContent className="rounded-2xl max-w-sm">
-                    <DialogHeader><DialogTitle>Hapus Role</DialogTitle></DialogHeader>
-                    <p className="text-sm text-muted-foreground">
-                        Yakin ingin menghapus role <strong>{confirmDelete?.name}</strong>? Semua permission untuk role ini akan dihapus.
-                    </p>
-                    <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setConfirmDelete(null)} className="rounded-lg">Batal</Button>
-                        <Button variant="destructive" onClick={handleDeleteRole} className="rounded-lg">Ya, Hapus</Button>
+                <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-red-500 to-red-400" />
+                    <div className="p-6 space-y-4">
+                        <DialogHeader><DialogTitle className="text-lg">Hapus Role</DialogTitle></DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                            Yakin ingin menghapus role <strong className="text-foreground">{confirmDelete?.name}</strong>? Semua permission untuk role ini akan dihapus permanen.
+                        </p>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button variant="outline" onClick={() => setConfirmDelete(null)} className="rounded-xl">Batal</Button>
+                            <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                <Button disabled={!canManage} variant="destructive" onClick={handleDeleteRole} className="rounded-xl">Ya, Hapus</Button>
+                            </DisabledActionTooltip>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

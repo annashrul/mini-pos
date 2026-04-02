@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { calculateEarnedPoints, calculateRedeemValue, determineLevel } from "@/lib/point-config";
 import { getPointConfig } from "@/server/actions/settings";
+import { createAuditLog } from "@/lib/audit";
 
 // ===========================
 // Earn points after transaction
@@ -55,6 +56,12 @@ export async function earnPoints(customerId: string, grandTotal: number, invoice
     }
   });
 
+  createAuditLog({
+    action: "CREATE",
+    entity: "Points",
+    details: { data: { customerName: customer.name, earned, invoiceNumber } },
+  }).catch(() => {});
+
   revalidatePath("/customers");
   return { earned, newLevel: levelChanged ? newLevel : undefined };
 }
@@ -96,6 +103,13 @@ export async function confirmRedeem(customerId: string, points: number, invoiceN
       data: { points: { decrement: points } },
     });
   });
+
+  createAuditLog({
+    action: "REDEEM",
+    entity: "Points",
+    details: { data: { customerId, points, invoiceNumber } },
+  }).catch(() => {});
+
   revalidatePath("/customers");
 }
 

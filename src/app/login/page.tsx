@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingCart, Loader2 } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,10 +41,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
       <Card className="w-full max-w-md shadow-xl rounded-2xl">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-2">
-            <ShoppingCart className="w-8 h-8 text-primary-foreground" />
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-primary/80 rounded-2xl flex items-center justify-center mb-2 shadow-lg shadow-primary/25">
+            <Zap className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold">POS System</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">NusaPOS</CardTitle>
           <CardDescription>Masuk ke akun Anda untuk melanjutkan</CardDescription>
         </CardHeader>
         <CardContent>

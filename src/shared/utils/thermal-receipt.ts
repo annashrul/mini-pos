@@ -3,6 +3,8 @@ interface ReceiptItem {
   qty: number;
   price: number;
   subtotal: number;
+  unitName?: string | undefined;
+  conversionQty?: number | undefined;
 }
 
 interface ReceiptData {
@@ -50,6 +52,7 @@ export function printThermalReceipt(data: ReceiptData) {
   const paymentLabels: Record<string, string> = {
     CASH: "Tunai", TRANSFER: "Transfer", QRIS: "QRIS",
     EWALLET: "E-Wallet", DEBIT: "Debit", CREDIT_CARD: "Kartu Kredit",
+    TERMIN: "Termin",
   };
 
   const line = "=".repeat(40);
@@ -76,10 +79,11 @@ export function printThermalReceipt(data: ReceiptData) {
 `;
 
   for (const item of data.items) {
+    const unitLabel = item.unitName && item.unitName.toUpperCase() !== "PCS" ? ` ${item.unitName}` : "";
     receipt += `
-  <div>${item.name}</div>
+  <div>${item.name}${unitLabel ? ` (${item.unitName})` : ""}</div>
   <div style="display: flex; justify-content: space-between; padding-left: 12px;">
-    <span>${item.qty} x ${formatNum(item.price)}</span>
+    <span>${item.qty}${unitLabel} x ${formatNum(item.price)}</span>
     <span>${formatNum(item.subtotal)}</span>
   </div>`;
   }
@@ -115,20 +119,33 @@ export function printThermalReceipt(data: ReceiptData) {
     const paymentsList = data.payments && data.payments.length > 0
       ? data.payments
       : [{ method: data.paymentMethod, amount: data.paymentAmount }];
+    const isSplit = paymentsList.length > 1;
+
+    if (isSplit) {
+      receipt += `
+  <div style="font-weight: bold; margin-top: 2px;">Pembayaran:</div>`;
+    }
+
     for (const p of paymentsList) {
       receipt += `
-  <div style="display: flex; justify-content: space-between;">
-    <span>${paymentLabels[p.method] || p.method}</span><span>${formatNum(p.amount)}</span>
+  <div style="display: flex; justify-content: space-between;${isSplit ? " padding-left: 8px;" : ""}">
+    <span>${paymentLabels[p.method] || p.method}</span><span>Rp ${formatNum(p.amount)}</span>
+  </div>`;
+    }
+
+    if (isSplit) {
+      const totalPaid = paymentsList.reduce((sum, p) => sum + p.amount, 0);
+      receipt += `
+  <div style="display: flex; justify-content: space-between; padding-left: 8px; font-weight: bold;">
+    <span>Total Bayar</span><span>Rp ${formatNum(totalPaid)}</span>
   </div>`;
     }
   }
 
-  if (data.change > 0) {
-    receipt += `
+  receipt += `
   <div style="display: flex; justify-content: space-between;">
-    <span>Kembali</span><span>${formatNum(data.change)}</span>
+    <span>Kembali</span><span>Rp ${formatNum(data.change)}</span>
   </div>`;
-  }
 
   if (showPointInfo && data.promos && data.promos.length > 0) {
     receipt += `

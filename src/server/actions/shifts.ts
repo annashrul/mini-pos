@@ -6,6 +6,7 @@ import { shiftSchema, closeShiftSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 async function resolveSessionUserId(
   session: { user?: { id?: string; email?: string } } | null,
@@ -126,6 +127,9 @@ export async function openShift(data: FormData) {
       },
     });
     revalidatePath("/shifts");
+
+    createAuditLog({ action: "CREATE", entity: "Shift", details: { data: { openingCash: parsed.data.openingCash, branchId } } }).catch(() => {});
+
     return { success: true };
   } catch (error) {
     if (error instanceof Error) {
@@ -278,6 +282,9 @@ export async function closeShift(id: string, data: FormData) {
       },
     });
     revalidatePath("/shifts");
+
+    createAuditLog({ action: "UPDATE", entity: "Shift", entityId: id, details: { data: { openingCash: shift.openingCash, closingCash: parsed.data.closingCash, expectedCash, cashDifference, notes: parsed.data.notes ?? null } } }).catch(() => {});
+
     return { success: true };
   } catch {
     return { error: "Gagal menutup shift" };

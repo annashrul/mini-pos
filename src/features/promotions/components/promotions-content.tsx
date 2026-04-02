@@ -1,45 +1,56 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useEffect, useState, useTransition, useMemo , useRef } from "react";
 import { deletePromotion, getPromotions } from "@/features/promotions";
+import { useMenuActionAccess } from "@/features/access-control";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
-import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2 } from "lucide-react";
+import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Promotion } from "@/types";
 import { PromotionForm } from "./promotion-form";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface Props {
-    initialData: { promotions: Promotion[]; total: number; totalPages: number };
-}
-
-const typeLabels: Record<string, { label: string; icon: typeof Percent; color: string; gradient: string; iconBg: string }> = {
-    DISCOUNT_PERCENT: { label: "Diskon %", icon: Percent, color: "bg-blue-100 text-blue-700", gradient: "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm shadow-blue-200", iconBg: "bg-blue-100 text-blue-600" },
-    DISCOUNT_AMOUNT: { label: "Diskon Rp", icon: Tag, color: "bg-green-100 text-green-700", gradient: "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-sm shadow-green-200", iconBg: "bg-emerald-100 text-emerald-600" },
-    BUY_X_GET_Y: { label: "Beli X Gratis Y", icon: Gift, color: "bg-purple-100 text-purple-700", gradient: "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-sm shadow-purple-200", iconBg: "bg-purple-100 text-purple-600" },
-    VOUCHER: { label: "Voucher", icon: Ticket, color: "bg-orange-100 text-orange-700", gradient: "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200", iconBg: "bg-orange-100 text-orange-600" },
-    BUNDLE: { label: "Tebus Murah", icon: Package, color: "bg-pink-100 text-pink-700", gradient: "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm shadow-pink-200", iconBg: "bg-pink-100 text-pink-600" },
+const typeLabels: Record<string, { label: string; icon: typeof Percent; color: string; gradient: string; iconBg: string; borderColor: string }> = {
+    DISCOUNT_PERCENT: { label: "Diskon %", icon: Percent, color: "bg-blue-100 text-blue-700", gradient: "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-sm shadow-blue-200", iconBg: "bg-blue-100 text-blue-600", borderColor: "border-l-blue-500" },
+    DISCOUNT_AMOUNT: { label: "Diskon Rp", icon: Tag, color: "bg-green-100 text-green-700", gradient: "bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-sm shadow-green-200", iconBg: "bg-emerald-100 text-emerald-600", borderColor: "border-l-emerald-500" },
+    BUY_X_GET_Y: { label: "Beli X Gratis Y", icon: Gift, color: "bg-purple-100 text-purple-700", gradient: "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-sm shadow-purple-200", iconBg: "bg-purple-100 text-purple-600", borderColor: "border-l-purple-500" },
+    VOUCHER: { label: "Voucher", icon: Ticket, color: "bg-orange-100 text-orange-700", gradient: "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200", iconBg: "bg-orange-100 text-orange-600", borderColor: "border-l-orange-500" },
+    BUNDLE: { label: "Tebus Murah", icon: Package, color: "bg-pink-100 text-pink-700", gradient: "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-sm shadow-pink-200", iconBg: "bg-pink-100 text-pink-600", borderColor: "border-l-pink-500" },
 };
 
-export function PromotionsContent({ initialData }: Props) {
-    const [data, setData] = useState(initialData);
+const typeFilterOptions = [
+    { value: "ALL", label: "Semua" },
+    { value: "DISCOUNT_PERCENT", label: "Diskon %" },
+    { value: "DISCOUNT_AMOUNT", label: "Diskon Rp" },
+    { value: "BUY_X_GET_Y", label: "Beli X Gratis Y" },
+    { value: "VOUCHER", label: "Voucher" },
+    { value: "BUNDLE", label: "Tebus Murah" },
+];
+
+export function PromotionsContent() {
+    const [data, setData] = useState<{ promotions: Promotion[]; total: number; totalPages: number }>({ promotions: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Promotion | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ type: "ALL" });
-    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-    const [sortKey, setSortKey] = useState("");
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+    const [sortKey] = useState("");
+    const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const { canAction, cannotMessage } = useMenuActionAccess("promotions");
+    const canCreate = canAction("create");
+    const canUpdate = canAction("update");
+    const canDelete = canAction("delete");
 
     const stats = useMemo(() => {
         const now = new Date();
@@ -68,138 +79,87 @@ export function PromotionsContent({ initialData }: Props) {
         });
     };
 
+    const didFetchRef = useRef(false);
+    useEffect(() => {
+        if (didFetchRef.current) return;
+        didFetchRef.current = true;
+        fetchData({});
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     const openForm = (promo: Promotion | null) => {
+        if (promo ? !canUpdate : !canCreate) { toast.error(cannotMessage(promo ? "update" : "create")); return; }
         setEditing(promo);
         setOpen(true);
     };
 
     const handleDelete = async (id: string) => {
+        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
         if (!confirm("Hapus promo ini?")) return;
         const result = await deletePromotion(id);
         if (result.error) toast.error(result.error);
         else { toast.success("Promo dihapus"); fetchData({}); }
     };
 
-    const columns: SmartColumn<Promotion>[] = [
-        {
-            key: "name", header: "Nama Promo", sortable: true,
-            render: (row) => {
-                const t = typeLabels[row.type];
-                const TypeIcon = t?.icon || Percent;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        <div className={`flex items-center justify-center w-7 h-7 rounded-lg shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
-                            <TypeIcon className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{row.name}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">
-                                {row.product ? `Produk: ${row.product.name}` : row.category ? `Kategori: ${row.category.name}` : "Semua produk"}
-                            </p>
-                        </div>
-                    </div>
-                );
-            },
-            exportValue: (row) => row.name,
-        },
-        {
-            key: "type", header: "Tipe",
-            render: (row) => {
-                const t = typeLabels[row.type];
-                return (
-                    <Badge className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
-                        {t?.label || row.type}
-                    </Badge>
-                );
-            },
-            exportValue: (row) => typeLabels[row.type]?.label || row.type,
-        },
-        {
-            key: "value", header: "Nilai", sortable: true, align: "right",
-            render: (row) => {
-                if (row.type === "BUY_X_GET_Y") {
-                    return (
-                        <span className="text-xs font-medium text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md">
-                            Beli {(row as Promotion & { buyQty?: number }).buyQty || 1} Gratis {(row as Promotion & { getQty?: number }).getQty || 1}
-                        </span>
-                    );
-                }
-                if (row.type === "BUNDLE") {
-                    return (
-                        <span className="text-xs font-medium text-pink-700 bg-pink-50 px-2 py-0.5 rounded-md font-mono tabular-nums">
-                            Tebus {formatCurrency(row.value)}
-                        </span>
-                    );
-                }
-                return (
-                    <span className="text-sm font-semibold text-foreground font-mono tabular-nums">
-                        {row.type === "DISCOUNT_PERCENT" ? `${row.value}%` : formatCurrency(row.value)}
-                    </span>
-                );
-            },
-            exportValue: (row) => row.value,
-        },
-        {
-            key: "period", header: "Periode",
-            render: (row) => {
-                const isExpired = new Date(row.endDate) < new Date();
-                return (
-                    <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
-                        <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
-                        <div className="flex flex-col leading-tight">
-                            <span className="font-mono tabular-nums">{format(new Date(row.startDate), "dd/MM/yy")}</span>
-                            <span className={`font-mono tabular-nums ${isExpired ? "line-through decoration-red-300" : ""}`}>{format(new Date(row.endDate), "dd/MM/yy")}</span>
-                        </div>
-                        {isExpired && (
-                            <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Exp</span>
-                        )}
-                    </div>
-                );
-            },
-            exportValue: (row) => `${format(new Date(row.startDate), "dd/MM/yy")} - ${format(new Date(row.endDate), "dd/MM/yy")}`,
-        },
-        {
-            key: "status", header: "Status", align: "center",
-            render: (row) => {
-                const expired = new Date(row.endDate) < new Date();
-                if (expired) {
-                    return (
-                        <Badge variant="outline" className="text-[11px] font-medium border-red-200 bg-red-50/50 text-red-600 ring-1 ring-red-100 rounded-full px-2.5">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Expired
-                        </Badge>
-                    );
-                }
-                if (row.isActive) {
-                    return (
-                        <Badge variant="outline" className="text-[11px] font-medium border-emerald-200 bg-emerald-50/50 text-emerald-600 ring-1 ring-emerald-100 rounded-full px-2.5">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Aktif
-                        </Badge>
-                    );
-                }
-                return (
-                    <Badge variant="outline" className="text-[11px] font-medium border-slate-200 bg-slate-50/50 text-slate-500 ring-1 ring-slate-100 rounded-full px-2.5">
-                        <Clock className="w-3 h-3 mr-1" />
-                        Nonaktif
-                    </Badge>
-                );
-            },
-        },
-        {
-            key: "actions", header: "Aksi", align: "right", sticky: true, width: "90px",
-            render: (row) => (
-                <div className="flex justify-end gap-0.5">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openForm(row)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                </div>
-            ),
-        },
-    ];
+    const handleSearch = (value: string) => {
+        setSearch(value);
+        setPage(1);
+        fetchData({ search: value, page: 1 });
+    };
 
-    const filters: SmartFilter[] = [
-        { key: "type", label: "Tipe Promo", type: "select", options: Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v.label })) },
-    ];
+    const handleFilterType = (type: string) => {
+        const newFilters = { ...activeFilters, type };
+        setActiveFilters(newFilters);
+        setPage(1);
+        fetchData({ filters: newFilters, page: 1 });
+    };
+
+    const renderValue = (row: Promotion) => {
+        if (row.type === "BUY_X_GET_Y") {
+            return (
+                <span className="text-sm font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg">
+                    Beli {(row as Promotion & { buyQty?: number }).buyQty || 1} Gratis {(row as Promotion & { getQty?: number }).getQty || 1}
+                </span>
+            );
+        }
+        if (row.type === "BUNDLE") {
+            return (
+                <span className="text-sm font-semibold text-pink-700 bg-pink-50 px-2.5 py-1 rounded-lg font-mono tabular-nums">
+                    Tebus {formatCurrency(row.value)}
+                </span>
+            );
+        }
+        return (
+            <span className="text-lg font-bold text-foreground font-mono tabular-nums">
+                {row.type === "DISCOUNT_PERCENT" ? `${row.value}%` : formatCurrency(row.value)}
+            </span>
+        );
+    };
+
+    const renderStatus = (row: Promotion) => {
+        const expired = new Date(row.endDate) < new Date();
+        if (expired) {
+            return (
+                <Badge variant="outline" className="text-[11px] font-medium border-red-200 bg-red-50/50 text-red-600 ring-1 ring-red-100 rounded-full px-2.5">
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Expired
+                </Badge>
+            );
+        }
+        if (row.isActive) {
+            return (
+                <Badge variant="outline" className="text-[11px] font-medium border-emerald-200 bg-emerald-50/50 text-emerald-600 ring-1 ring-emerald-100 rounded-full px-2.5">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Aktif
+                </Badge>
+            );
+        }
+        return (
+            <Badge variant="outline" className="text-[11px] font-medium border-slate-200 bg-slate-50/50 text-slate-500 ring-1 ring-slate-100 rounded-full px-2.5">
+                <Clock className="w-3 h-3 mr-1" />
+                Nonaktif
+            </Badge>
+        );
+    };
 
     return (
         <div className="space-y-5">
@@ -214,9 +174,11 @@ export function PromotionsContent({ initialData }: Props) {
                         <p className="text-muted-foreground text-sm mt-0.5">Kelola promosi, diskon, voucher, dan program bundle</p>
                     </div>
                 </div>
-                <Button className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all" onClick={() => openForm(null)}>
-                    <Plus className="w-4 h-4 mr-2" /> Tambah Promo
-                </Button>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all" onClick={() => openForm(null)}>
+                        <Plus className="w-4 h-4 mr-2" /> Tambah Promo
+                    </Button>
+                </DisabledActionTooltip>
             </div>
 
             {/* Stats Bar */}
@@ -239,19 +201,144 @@ export function PromotionsContent({ initialData }: Props) {
                 </div>
             </div>
 
-            <SmartTable<Promotion>
-                data={data.promotions} columns={columns} totalItems={data.total} totalPages={data.totalPages}
-                currentPage={page} pageSize={pageSize} loading={loading}
-                title="Daftar Promo" titleIcon={<Percent className="w-4 h-4 text-muted-foreground" />}
-                searchPlaceholder="Cari promo..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
+            {/* Search + Filter Bar */}
+            <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Cari promo..."
+                            value={search}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            className="pl-9 rounded-xl h-10"
+                        />
+                    </div>
+                    {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {typeFilterOptions.map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => handleFilterType(opt.value)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                activeFilters.type === opt.value
+                                    ? "bg-foreground text-background shadow-sm"
+                                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Card List */}
+            <div className="space-y-3">
+                {loading && data.promotions.length === 0 ? (
+                    <>
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="rounded-xl border bg-white p-4 border-l-4 border-l-slate-200">
+                                <div className="flex items-center gap-4">
+                                    <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+                                    <div className="flex-1 min-w-0 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <Skeleton className="h-4 w-36" />
+                                            <Skeleton className="h-4 w-16 rounded-full" />
+                                        </div>
+                                        <Skeleton className="h-3 w-28" />
+                                        <Skeleton className="h-3 w-40" />
+                                    </div>
+                                    <div className="flex items-center gap-4 shrink-0">
+                                        <Skeleton className="h-6 w-16" />
+                                        <Skeleton className="h-5 w-14 rounded-full" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                ) : data.promotions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                        <Percent className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                        <p className="text-sm font-medium">Belum ada promo</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">Tambahkan promo pertama Anda</p>
+                    </div>
+                ) : (
+                    <div className={loading ? "space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-3"}>
+                    {data.promotions.map((row) => {
+                        const t = typeLabels[row.type];
+                        const TypeIcon = t?.icon || Percent;
+                        const isExpired = new Date(row.endDate) < new Date();
+
+                        return (
+                            <div
+                                key={row.id}
+                                className={`rounded-xl border bg-white hover:shadow-md transition-all group p-4 border-l-4 ${t?.borderColor || "border-l-slate-300"}`}
+                            >
+                                <div className="flex items-center gap-4">
+                                    {/* Left: Type Icon */}
+                                    <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
+                                        <TypeIcon className="w-5 h-5" />
+                                    </div>
+
+                                    {/* Middle: Info */}
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
+                                            <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
+                                                {t?.label || row.type}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            {row.product ? `Produk: ${row.product.name}` : row.category ? `Kategori: ${row.category.name}` : "Semua produk"}
+                                        </p>
+                                        <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
+                                            <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
+                                            <span className="font-mono tabular-nums">
+                                                {format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}
+                                            </span>
+                                            {isExpired && (
+                                                <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Expired</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Value + Status + Actions */}
+                                    <div className="flex items-center gap-4 shrink-0">
+                                        <div className="text-right">
+                                            {renderValue(row)}
+                                        </div>
+                                        <div>
+                                            {renderStatus(row)}
+                                        </div>
+                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                                                <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openForm(row)}>
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </DisabledActionTooltip>
+                                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                                                <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.id)}>
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </DisabledActionTooltip>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    </div>
+                )}
+            </div>
+
+            {/* Pagination */}
+            <PaginationControl
+                currentPage={page}
+                totalPages={data.totalPages}
+                totalItems={data.total}
+                pageSize={pageSize}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
-                sortKey={sortKey} sortDir={sortDir} onSort={(k, d) => { setSortKey(k); setSortDir(d); setPage(1); fetchData({ page: 1, sortKey: k, sortDir: d }); }}
-                filters={filters} activeFilters={activeFilters}
-                onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
-                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
-                exportFilename="promo" emptyIcon={<Percent className="w-10 h-10 text-muted-foreground/30" />} emptyTitle="Belum ada promo"
             />
 
             {/* Promo Form Dialog */}

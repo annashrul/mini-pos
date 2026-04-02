@@ -1,45 +1,44 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { posService } from "@/features/pos";
-import { formatCurrency } from "@/lib/utils";
+import { getSidebarMenuAccess } from "@/features/access-control";
+import { getShiftSummary } from "@/server/actions/shifts";
+import { cn, formatCurrency } from "@/lib/utils";
 import { printThermalReceipt } from "@/lib/thermal-receipt";
+import { addOfflineTransaction } from "@/lib/offline-queue";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useBranch } from "@/components/providers/branch-provider";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-    Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-    ScanBarcode, Plus, Minus, Trash2, ShoppingCart, CreditCard, Loader2,
-    Check, Printer, Pause, AlertTriangle, Keyboard, Search,
-    ArrowLeft, Store, LogOut,
+    WifiOff, Wifi, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import type { CartItem, ProductSearchResult, Branch, ProductTierPrice } from "@/types";
-import type { ReceiptConfig } from "@/lib/receipt-config";
-
-type PaymentMethodType = "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD";
-const STORAGE_KEY = "pos-draft-cart";
-const POS_TERMINAL_KEY = "pos-terminal-session";
-const PAYMENT_METHOD_OPTIONS: { value: PaymentMethodType; label: string }[] = [
-    { value: "CASH", label: "Cash" },
-    { value: "TRANSFER", label: "Transfer Bank" },
-    { value: "QRIS", label: "QRIS" },
-    { value: "EWALLET", label: "E-Wallet" },
-    { value: "DEBIT", label: "Debit" },
-    { value: "CREDIT_CARD", label: "Kartu Kredit" },
-];
+import type { ProductSearchResult } from "@/types";
+import { PosDialogsProvider, PosPanelsProvider, PosScreenProvider, PosUiStateProvider, usePosPageStates, usePosSessionSetupForm, usePosUiState } from "../hooks";
+import {
+    type PaymentMethodType,
+    type PosProductCacheEntry,
+    type RawPosProduct,
+} from "../types";
+import {
+    POS_PRODUCT_CACHE_KEY,
+    POS_TERMINAL_KEY,
+    STORAGE_KEY,
+    getPosCategoryCacheKey,
+    readPosProductCache,
+    toProductSearchResult,
+    writePosProductCache,
+} from "../utils";
+import { DiscountDialog, ShortcutsDialog, VoidDialog } from "./pos-page-dialogs";
+import { POSPageMainDialogs } from "./pos-page-main-dialogs";
+import { POSPagePanels } from "./pos-page-panels";
+import { PosReadySection } from "./pos-ready-section";
+import { PosSuccessSection } from "./pos-success-section";
 const {
     searchProducts,
     findByBarcode,
@@ -51,149 +50,145 @@ const {
     openShift,
     closeShift,
     calculateAutoPromo,
+    getTebusMurahOptions,
     validateVoucher,
     findCustomerByPhone,
     redeemPoints,
     getReceiptConfig,
+    getPosConfig,
 } = posService;
 
-function getTierUnitPrice(basePrice: number, tiers: ProductTierPrice[] | undefined, qty: number) {
-    if (!tiers || tiers.length === 0) return basePrice;
-    const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
-    let price = basePrice;
-    for (const tier of sorted) {
-        if (qty >= tier.minQty) {
-            price = tier.price;
-        }
-    }
-    return price;
-}
-
-type RawPosProduct = {
-    id: string;
-    code: string;
-    name: string;
-    categoryId?: string;
-    sellingPrice: number;
-    purchasePrice: number;
-    stock: number;
-    minStock: number;
-    unit: string;
-    imageUrl?: string | null;
-    tierPrices?: ProductTierPrice[];
-    category?: { name: string } | null;
-};
-
-function toProductSearchResult(product: RawPosProduct): ProductSearchResult {
-    return {
-        id: product.id,
-        code: product.code,
-        name: product.name,
-        ...(product.categoryId ? { categoryId: product.categoryId } : {}),
-        sellingPrice: product.sellingPrice,
-        purchasePrice: product.purchasePrice,
-        stock: product.stock,
-        minStock: product.minStock,
-        unit: product.unit,
-        imageUrl: product.imageUrl ?? null,
-        tierPrices: product.tierPrices ?? [],
-        category: { name: product.category?.name ?? "" },
-    };
-}
-
-const posSessionSetupSchema = z.object({
-    branchId: z.string().min(1, "Pilih lokasi terlebih dahulu"),
-    register: z.string().trim().min(1, "Isi nama kassa terlebih dahulu"),
-    openingCash: z.string().refine(
-        (value) => {
-            const parsed = Number(value || 0);
-            return !Number.isNaN(parsed) && parsed >= 0;
-        },
-        "Saldo awal tidak valid"
-    ),
-});
-type PosSessionSetupValues = z.infer<typeof posSessionSetupSchema>;
-
 export default function POSPage() {
+    return (
+        <PosUiStateProvider>
+            <POSPageContent />
+        </PosUiStateProvider>
+    );
+}
+
+function POSPageContent() {
     const router = useRouter();
     const { data: session } = useSession();
+    const { selectedBranchId: sidebarBranchId, setSelectedBranchId: setSidebarBranchId } = useBranch();
     const userBranchId = (session?.user as { branchId?: string | null } | undefined)?.branchId ?? null;
+    const panelsContainerRef = useRef<HTMLDivElement>(null);
+    const centerPanelRef = useRef<HTMLDivElement>(null);
     const barcodeInputRef = useRef<HTMLInputElement>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([]);
-    const [cart, setCart] = useState<CartItem[]>([]);
-    const [heldTransactions, setHeldTransactions] = useState<{ id: number; cart: CartItem[]; time: string }[]>([]);
-    const [discountPercent, setDiscountPercent] = useState(0);
-    const [taxPercent, setTaxPercent] = useState(11);
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("CASH");
-    const [paymentAmount, setPaymentAmount] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [searching, setSearching] = useState(false);
-    const [showSearchDialog, setShowSearchDialog] = useState(false);
-    const [showHeldDialog, setShowHeldDialog] = useState(false);
-    const [showDiscountDialog, setShowDiscountDialog] = useState(false);
-    const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
-    const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-    const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
-    const [branches, setBranches] = useState<Branch[]>([]);
-    const [selectedBranchId, setSelectedBranchId] = useState("");
-    const [selectedRegister, setSelectedRegister] = useState("");
-    const [openingCash, setOpeningCash] = useState("0");
-    const [startingShift, setStartingShift] = useState(false);
-    const [activeShift, setActiveShift] = useState<{ id: string; openingCash: number; openedAt: string | Date } | null>(null);
-    const [showClosingDialog, setShowClosingDialog] = useState(false);
-    const [closingCash, setClosingCash] = useState("");
-    const [closingNotes, setClosingNotes] = useState("");
+    const { isOnline } = useOnlineStatus();
+    const { pendingCount, syncing, syncAll, refreshCount } = useOfflineSync(isOnline);
     const {
-        control: setupControl,
+        showHistoryDialog,
+        setShowHistoryDialog,
+        showVoidDialog,
+        setShowVoidDialog,
+        showSearchDialog,
+        setShowSearchDialog,
+        showHeldDialog,
+        setShowHeldDialog,
+        showDiscountDialog,
+        setShowDiscountDialog,
+        showShortcutsDialog,
+        setShowShortcutsDialog,
+        showPaymentDialog,
+        setShowPaymentDialog,
+        showClosingDialog,
+        setShowClosingDialog,
+    } = usePosUiState();
+    const {
         register: setupRegister,
         handleSubmit: handleSetupSubmit,
         setValue: setSetupValue,
         formState: { errors: setupErrors },
-    } = useForm<PosSessionSetupValues>({
-        resolver: zodResolver(posSessionSetupSchema),
-        defaultValues: {
-            branchId: "",
-            register: "",
-            openingCash: "0",
-        },
-    });
-    const [closingShiftLoading, setClosingShiftLoading] = useState(false);
-    const [sessionStarted, setSessionStarted] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState("");
-    // Infinite scroll product panel
-    const [browseItems, setBrowseItems] = useState<ProductSearchResult[]>([]);
-    const [browsePage, setBrowsePage] = useState(1);
-    const [browseHasMore, setBrowseHasMore] = useState(true);
-    const [browseLoading, setBrowseLoading] = useState(false);
+    } = usePosSessionSetupForm();
+    // Infinite scroll product panel with persistent cache
+    const productScrollRef = useRef<HTMLDivElement>(null);
     const productSentinelRef = useRef<HTMLDivElement>(null);
-    const [customerPhone, setCustomerPhone] = useState("");
-    const [detectedCustomer, setDetectedCustomer] = useState<{ id: string; name: string; phone: string | null; memberLevel: string; points: number; totalSpending: number } | null>(null);
-    const [appliedPromos, setAppliedPromos] = useState<{ promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[]>([]);
-    const [promoDiscount, setPromoDiscount] = useState(0);
-    const [voucherCode, setVoucherCode] = useState("");
-    const [voucherDiscount, setVoucherDiscount] = useState(0);
-    const [voucherApplied, setVoucherApplied] = useState("");
-    const [voucherPromoId, setVoucherPromoId] = useState("");
-    const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig | null>(null);
-    // Redeem points
-    const [redeemPointsInput, setRedeemPointsInput] = useState(0);
-    const [redeemDiscount, setRedeemDiscount] = useState(0);
-    const [pointsEarnedResult, setPointsEarnedResult] = useState(0);
-    // Product panel - no tabs, just category filter
-    const [productTab] = useState<"favorites" | "category">("favorites");
+    // Load initial state from sessionStorage
+    const productCacheRef = useRef<Map<string, PosProductCacheEntry>>(readPosProductCache(POS_PRODUCT_CACHE_KEY));
+
+    const persistCache = () => {
+        writePosProductCache(POS_PRODUCT_CACHE_KEY, productCacheRef.current);
+    };
+
+    // Restore current category from cache on mount
+    const initCache = productCacheRef.current.get(getPosCategoryCacheKey(""));
+    const {
+        isDesktop, setIsDesktop,
+        leftPanelWidth, setLeftPanelWidth,
+        centerPanelWidth, setCenterPanelWidth,
+        isResizingLeftPanel, setIsResizingLeftPanel,
+        searchQuery, setSearchQuery,
+        searchResults, setSearchResults,
+        cart, setCart,
+        heldTransactions, setHeldTransactions,
+        discountPercent, setDiscountPercent,
+        discountType, setDiscountType,
+        discountFixed, setDiscountFixed,
+        historyData, setHistoryData,
+        historyDetailId, setHistoryDetailId,
+        historyLoading, setHistoryLoading,
+        voidingId, setVoidingId,
+        voidReason, setVoidReason,
+        taxPercent, setTaxPercent,
+        paymentMethod, setPaymentMethod,
+        paymentAmount, setPaymentAmount,
+        paymentEntries, setPaymentEntries,
+        loading, setLoading,
+        success, setSuccess,
+        searching, setSearching,
+        categories, setCategories,
+        branches, setBranches,
+        selectedBranchId, setSelectedBranchId,
+        selectedRegister, setSelectedRegister,
+        openingCash, setOpeningCash,
+        startingShift, setStartingShift,
+        activeShift, setActiveShift,
+        closingCash, setClosingCash,
+        closingNotes, setClosingNotes,
+        shiftSummary, setShiftSummary,
+        summaryLoading, setSummaryLoading,
+        posConfig, setPosConfig,
+        closingShiftLoading, setClosingShiftLoading,
+        sessionStarted, setSessionStarted,
+        selectedCategory, setSelectedCategory,
+        browseItems, setBrowseItems,
+        browsePage, setBrowsePage,
+        browseHasMore, setBrowseHasMore,
+        browseLoading, setBrowseLoading,
+        customerPhone, setCustomerPhone,
+        detectedCustomer, setDetectedCustomer,
+        appliedPromos, setAppliedPromos,
+        promoDiscount, setPromoDiscount,
+        voucherCode, setVoucherCode,
+        voucherDiscount, setVoucherDiscount,
+        voucherApplied, setVoucherApplied,
+        voucherPromoId, setVoucherPromoId,
+        tebusMurahOptions, setTebusMurahOptions,
+        receiptConfig, setReceiptConfig,
+        redeemPointsInput, setRedeemPointsInput,
+        redeemDiscount, setRedeemDiscount,
+        pointsEarnedResult, setPointsEarnedResult,
+        posActionAccess, setPosActionAccess,
+        productTab,
+        mobileView, setMobileView,
+        productSyncing, setProductSyncing,
+    } = usePosPageStates(initCache);
+    const initialScrollRestored = useRef(false);
     const activeBranchId = selectedBranchId || userBranchId || "";
     const activeBranchName = branches.find((branch) => branch.id === selectedBranchId)?.name || "Belum dipilih";
     const isPosReady = Boolean(activeShift && selectedBranchId && selectedRegister.trim() && sessionStarted);
 
     const subtotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
-    const discountAmount = Math.round(subtotal * (discountPercent / 100)) + promoDiscount + voucherDiscount + redeemDiscount;
+    const manualDiscount = discountType === "percent" ? Math.round(subtotal * (discountPercent / 100)) : discountFixed;
+    const discountAmount = manualDiscount + promoDiscount + voucherDiscount + redeemDiscount;
     const afterDiscount = subtotal - discountAmount;
     const taxAmount = Math.round(afterDiscount * (taxPercent / 100));
     const grandTotal = afterDiscount + taxAmount;
     const payment = Number(paymentAmount) || 0;
-    const changeAmount = payment - grandTotal;
+    const paidFromEntries = paymentEntries.reduce((s, e) => s + e.amount, 0);
+    const remainingToPay = grandTotal - paidFromEntries;
+    const totalPaid = paidFromEntries + (paymentEntries.length > 0 ? payment : payment);
+    const changeAmount = totalPaid - grandTotal;
     const negativeMarginItems = cart.filter((item) => item.unitPrice <= item.purchasePrice);
     const lowStockItems = cart.filter((item) => item.quantity >= item.maxStock - 2);
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -222,6 +217,44 @@ export default function POSPage() {
         });
         return { byItem, cartPromos, freeQtyByItem };
     }, [appliedPromos, cart]);
+    const getLeftPanelBounds = useCallback(() => {
+        const totalWidth = panelsContainerRef.current?.clientWidth ?? 1400;
+        const rightPanelWidth = 340;
+        const minLeft = 420;
+        const minCenter = 420;
+        const maxLeft = Math.max(minLeft, totalWidth - rightPanelWidth - minCenter);
+        return { minLeft, maxLeft };
+    }, []);
+    const productGridCols = useMemo(() => {
+        if (!isDesktop) return 3;
+        const nextCols = Math.floor((leftPanelWidth - 36) / 172);
+        return Math.max(2, Math.min(7, nextCols));
+    }, [isDesktop, leftPanelWidth]);
+    const isCompactCart = isDesktop && centerPanelWidth > 0 && centerPanelWidth < 620;
+    const startResizeLeftPanel = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        if (!isDesktop) return;
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = leftPanelWidth;
+        setIsResizingLeftPanel(true);
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const delta = moveEvent.clientX - startX;
+            const nextWidth = startWidth + delta;
+            const { minLeft, maxLeft } = getLeftPanelBounds();
+            setLeftPanelWidth(Math.min(maxLeft, Math.max(minLeft, nextWidth)));
+        };
+        const onMouseUp = () => {
+            setIsResizingLeftPanel(false);
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            window.removeEventListener("mousemove", onMouseMove);
+            window.removeEventListener("mouseup", onMouseUp);
+        };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+    }, [getLeftPanelBounds, isDesktop, leftPanelWidth]);
     const quickStep =
         grandTotal <= 10000 ? 1000 :
             grandTotal <= 100000 ? 5000 :
@@ -234,12 +267,42 @@ export default function POSPage() {
         roundToStep(grandTotal + quickStep),
         roundToStep(grandTotal + quickStep * 3),
     ])).filter((amount) => amount > 0);
+    const canPosAction = useCallback((actionKey: string) => posActionAccess?.[actionKey] ?? true, [posActionAccess]);
+
+    // Load shift summary when closing dialog opens
+    useEffect(() => {
+        if (!showClosingDialog || !activeShift || !summaryLoading) return;
+        let active = true;
+        getShiftSummary(activeShift.id)
+            .then((summary) => { if (active) { setShiftSummary(summary); setSummaryLoading(false); } })
+            .catch(() => { if (active) { toast.error("Gagal memuat ringkasan shift"); setSummaryLoading(false); } });
+        return () => { active = false; };
+    }, [showClosingDialog, activeShift, summaryLoading]);
+
+    useEffect(() => {
+        let active = true;
+        const run = async () => {
+            const result = await getSidebarMenuAccess();
+            if (!active) return;
+            const role = result.role;
+            const posMenu = result.menus.find((menu) => menu.key === "pos");
+            if (!posMenu) return;
+            const nextAccess = Object.fromEntries(
+                posMenu.actions.map((action) => [action.key, Boolean(action.permissions?.[role])])
+            );
+            setPosActionAccess(nextAccess);
+        };
+        run().catch(() => undefined);
+        return () => { active = false; };
+    }, []);
 
     // Effects
     useEffect(() => {
         const run = async () => {
-            if (cart.length === 0) { setAppliedPromos([]); setPromoDiscount(0); return; }
-            const items = cart.map((c) => ({
+            if (cart.length === 0) { setAppliedPromos([]); setPromoDiscount(0); setTebusMurahOptions([]); return; }
+            const regularItems = cart.filter((c) => !c.tebusPromoId);
+            const regularSubtotal = regularItems.reduce((sum, item) => sum + item.subtotal, 0);
+            const items = regularItems.map((c) => ({
                 productId: c.productId,
                 productName: c.productName,
                 ...(c.categoryId ? { categoryId: c.categoryId } : {}),
@@ -247,19 +310,35 @@ export default function POSPage() {
                 unitPrice: c.unitPrice,
                 subtotal: c.subtotal
             }));
-            const result = await calculateAutoPromo(items, subtotal);
+            const [result, tebusOptions] = await Promise.all([
+                calculateAutoPromo(items, regularSubtotal),
+                getTebusMurahOptions(
+                    items,
+                    regularSubtotal,
+                    cart
+                        .filter((c) => c.tebusPromoId)
+                        .map((c) => ({ promoId: c.tebusPromoId as string, quantity: c.quantity }))
+                ),
+            ]);
             setAppliedPromos(result.promos); setPromoDiscount(result.totalDiscount);
+            setTebusMurahOptions(tebusOptions);
         };
         run();
-    }, [cart, subtotal]);
+    }, [cart, getTebusMurahOptions]);
 
     useEffect(() => { if (cart.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(cart)); else localStorage.removeItem(STORAGE_KEY); }, [cart]);
 
     // Handlers
     const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); toast.success(`Member: ${c.name}`); } else setDetectedCustomer(null); } else setDetectedCustomer(null); };
-    const handleApplyVoucher = async () => { if (!voucherCode) return; const r = await validateVoucher(voucherCode, subtotal); if (r.error) { setVoucherPromoId(""); toast.error(r.error); } else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); setVoucherPromoId(r.promoId!); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); } };
+    const handleApplyVoucher = async () => {
+        if (!canPosAction("voucher")) { toast.error("Tidak punya akses voucher"); return; }
+        if (!voucherCode) return;
+        const r = await validateVoucher(voucherCode, subtotal);
+        if (r.error) { setVoucherPromoId(""); toast.error(r.error); } else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); setVoucherPromoId(r.promoId!); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); }
+    };
 
     const handleRedeemPoints = async () => {
+        if (!canPosAction("redeem_points")) { toast.error("Tidak punya akses redeem poin"); return; }
         if (!detectedCustomer || redeemPointsInput <= 0) return;
         const r = await redeemPoints(detectedCustomer.id, redeemPointsInput);
         if (r.error) { toast.error(r.error); return; }
@@ -267,63 +346,137 @@ export default function POSPage() {
         toast.success(`${redeemPointsInput} poin ditukar = diskon ${formatCurrency(r.discountValue!)}`);
     };
 
-    const addToCart = useCallback((product: ProductSearchResult) => {
+    const shouldValidateStock = posConfig?.validateStock !== false;
+
+    // --- Multi-unit selection state ---
+    const [unitSelectorProduct, setUnitSelectorProduct] = useState<ProductSearchResult | null>(null);
+
+    const addToCartWithUnit = useCallback((product: ProductSearchResult, unitOverride?: { unitName: string; conversionQty: number; sellingPrice: number; purchasePrice: number }) => {
+        const unitName = unitOverride?.unitName ?? product.matchedUnit?.name ?? product.unit;
+        const conversionQty = unitOverride?.conversionQty ?? product.matchedUnit?.conversionQty ?? 1;
+        const unitPrice = unitOverride?.sellingPrice ?? (product.matchedUnit?.sellingPrice ?? product.sellingPrice);
+        const pPrice = unitOverride?.purchasePrice ?? product.purchasePrice;
+        const lineId = conversionQty > 1 ? `${product.id}__unit__${unitName}` : product.id;
+        const maxStockInUnit = shouldValidateStock ? Math.floor(product.stock / conversionQty) : 999999;
+
         setCart((prev) => {
-            const existing = prev.find((i) => i.productId === product.id);
+            const existing = prev.find((i) => (i.lineId ?? i.productId) === lineId && !i.tebusPromoId);
             if (existing) {
-                if (existing.quantity >= product.stock) { toast.error("Stok tidak cukup"); return prev; }
-                const nextQty = existing.quantity + 1;
-                const nextUnitPrice = getTierUnitPrice(existing.baseUnitPrice ?? existing.unitPrice, existing.tierPrices, nextQty);
-                return prev.map((i) => i.productId === product.id ? { ...i, quantity: nextQty, unitPrice: nextUnitPrice, subtotal: nextQty * nextUnitPrice - i.discount } : i);
+                const newQty = existing.quantity + 1;
+                const newBaseQty = newQty * (existing.conversionQty ?? 1);
+                if (shouldValidateStock && newBaseQty > product.stock) { toast.error("Stok tidak cukup"); return prev; }
+                return prev.map((i) => (i.lineId ?? i.productId) === lineId ? { ...i, quantity: newQty, subtotal: newQty * i.unitPrice - i.discount } : i);
             }
-            if (product.stock <= product.minStock) toast.warning(`Stok ${product.name} menipis!`);
-            if (product.sellingPrice <= product.purchasePrice) toast.warning(`Margin negatif: ${product.name}`);
-            const initialUnitPrice = getTierUnitPrice(product.sellingPrice, product.tierPrices, 1);
+            if (shouldValidateStock && product.stock <= product.minStock) toast.warning(`Stok ${product.name} menipis!`);
+            if (unitPrice <= pPrice) toast.warning(`Margin negatif: ${product.name}`);
             return [...prev, {
+                lineId,
                 productId: product.id,
                 ...(product.categoryId ? { categoryId: product.categoryId } : {}),
                 productName: product.name,
                 productCode: product.code,
                 quantity: 1,
-                unitPrice: initialUnitPrice,
-                purchasePrice: product.purchasePrice,
+                unitPrice,
+                purchasePrice: pPrice,
                 discount: 0,
-                subtotal: initialUnitPrice,
-                maxStock: product.stock,
-                baseUnitPrice: product.sellingPrice,
-                tierPrices: product.tierPrices ?? [],
+                subtotal: unitPrice,
+                maxStock: maxStockInUnit,
+                unitName,
+                conversionQty,
             }];
         });
         setSearchQuery(""); setSearchResults([]); barcodeInputRef.current?.focus();
+    }, [shouldValidateStock]);
+
+    const addToCart = useCallback((product: ProductSearchResult) => {
+        // If product was scanned with a matched unit barcode, add directly with that unit
+        if (product.matchedUnit) {
+            addToCartWithUnit(product);
+            return;
+        }
+        // If product has multiple units, show unit selector
+        if (product.units && product.units.length > 0) {
+            setUnitSelectorProduct(product);
+            return;
+        }
+        // No extra units, add directly with base unit
+        addToCartWithUnit(product);
+    }, [addToCartWithUnit]);
+    const handleAddTebusMurah = useCallback((option: {
+        promoId: string;
+        promoName: string;
+        tebusPrice: number;
+        remainingQty: number;
+        product: { id: string; name: string; code: string; sellingPrice: number; stock: number; minStock: number };
+    }) => {
+        if (option.remainingQty <= 0) { toast.error("Kuota tebus murah habis"); return; }
+        setCart((prev) => {
+            const lineId = `${option.product.id}__tebus__${option.promoId}`;
+            const existing = prev.find((item) => (item.lineId ?? item.productId) === lineId);
+            if (existing) {
+                if (existing.quantity >= option.remainingQty) return prev;
+                return prev.map((item) => (item.lineId ?? item.productId) === lineId
+                    ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.unitPrice - item.discount }
+                    : item);
+            }
+            return [...prev, {
+                lineId,
+                productId: option.product.id,
+                productName: option.product.name,
+                productCode: option.product.code,
+                quantity: 1,
+                unitPrice: option.tebusPrice,
+                purchasePrice: option.product.sellingPrice,
+                discount: 0,
+                subtotal: option.tebusPrice,
+                maxStock: option.product.stock,
+                tebusPromoId: option.promoId,
+                tebusPromoName: option.promoName,
+            }];
+        });
     }, []);
 
     const handleBarcodeInput = useCallback(async (value: string) => {
         setSearchQuery(value); if (value.length < 1) { setSearchResults([]); return; }
-        if (/^\d{8,}$/.test(value)) { const p = await findByBarcode(value, activeBranchId); if (p) { addToCart(toProductSearchResult(p as RawPosProduct)); setSearchQuery(""); setSearchResults([]); return; } }
-        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); setSearching(false);
-    }, [activeBranchId, addToCart]);
-
-    const updateQuantity = (id: string, d: number) => {
-        setCart((prev) => prev.map((i) => {
-            if (i.productId !== id) return i;
-            const nextQty = i.quantity + d;
-            if (nextQty <= 0 || nextQty > i.maxStock) {
-                if (nextQty > i.maxStock) toast.error("Stok tidak cukup");
-                return i;
+        if (/^\d{8,}$/.test(value)) {
+            const p = await findByBarcode(value, activeBranchId);
+            if (p) {
+                const result = toProductSearchResult(p as RawPosProduct);
+                // If findByBarcode matched a unit barcode, it returns matchedUnit
+                if (result.matchedUnit) {
+                    addToCartWithUnit(result);
+                } else {
+                    addToCart(result);
+                }
+                setSearchQuery(""); setSearchResults([]); return;
             }
-            const nextUnitPrice = getTierUnitPrice(i.baseUnitPrice ?? i.unitPrice, i.tierPrices, nextQty);
-            return { ...i, quantity: nextQty, unitPrice: nextUnitPrice, subtotal: nextQty * nextUnitPrice - i.discount };
-        }));
-    };
-    const removeItem = (id: string) => setCart((prev) => prev.filter((i) => i.productId !== id));
-    const holdTransaction = useCallback(() => { if (cart.length === 0) { toast.error("Keranjang kosong"); return; } setHeldTransactions((p) => [...p, { id: Date.now(), cart: [...cart], time: new Date().toLocaleTimeString("id-ID") }]); setCart([]); localStorage.removeItem(STORAGE_KEY); toast.success("Transaksi ditahan"); }, [cart]);
+        }
+        setSearching(true); const r = await searchProducts(value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); setSearching(false);
+    }, [activeBranchId, addToCart, addToCartWithUnit]);
+
+    const updateQuantity = (id: string, d: number) => { setCart((prev) => prev.map((i) => { if ((i.lineId ?? i.productId) !== id) return i; const n = i.quantity + d; if (n <= 0) return i; if (shouldValidateStock && n > i.maxStock) { toast.error("Stok tidak cukup"); return i; } return { ...i, quantity: n, subtotal: n * i.unitPrice - i.discount }; })); };
+    const handleUnitSelect = useCallback((unitName: string, conversionQty: number, sellingPrice: number, purchasePrice: number) => {
+        if (!unitSelectorProduct) return;
+        addToCartWithUnit(unitSelectorProduct, { unitName, conversionQty, sellingPrice, purchasePrice });
+        setUnitSelectorProduct(null);
+    }, [unitSelectorProduct, addToCartWithUnit]);
+    const removeItem = (id: string) => setCart((prev) => prev.filter((i) => (i.lineId ?? i.productId) !== id));
+    const holdTransaction = useCallback(() => {
+        if (!canPosAction("hold")) { toast.error("Tidak punya akses hold transaksi"); return; }
+        if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
+        setHeldTransactions((p) => [...p, { id: Date.now(), cart: [...cart], time: new Date().toLocaleTimeString("id-ID") }]);
+        setCart([]);
+        localStorage.removeItem(STORAGE_KEY);
+        toast.success("Transaksi ditahan");
+    }, [canPosAction, cart]);
     const resumeTransaction = (id: number) => { const h = heldTransactions.find((x) => x.id === id); if (!h) return; if (cart.length > 0) holdTransaction(); setCart(h.cart); setHeldTransactions((p) => p.filter((x) => x.id !== id)); setShowHeldDialog(false); toast.success("Dilanjutkan"); };
     const openPaymentDialog = useCallback(() => {
+        if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
         if (paymentMethod === "CASH" && !paymentAmount) setPaymentAmount(String(grandTotal));
         if (paymentMethod !== "CASH") setPaymentAmount(String(grandTotal));
         setShowPaymentDialog(true);
-    }, [cart.length, grandTotal, paymentAmount, paymentMethod]);
+    }, [canPosAction, cart.length, grandTotal, paymentAmount, paymentMethod]);
     const handleCalculatorInput = (key: string) => {
         if (key === "CLEAR") { setPaymentAmount(""); return; }
         if (key === "BACKSPACE") { setPaymentAmount((prev) => prev.slice(0, -1)); return; }
@@ -334,104 +487,329 @@ export default function POSPage() {
     };
 
     const handlePayment = async () => {
-        if (cart.length === 0 || (paymentMethod === "CASH" && payment < grandTotal)) { toast.error(cart.length === 0 ? "Keranjang kosong" : "Pembayaran kurang"); return; }
+        if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
+        if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
+        // Build final payments list (merge same methods)
+        const mergedMap = new Map<PaymentMethodType, number>();
+        for (const e of paymentEntries) mergedMap.set(e.method, (mergedMap.get(e.method) ?? 0) + e.amount);
+        if (payment > 0) mergedMap.set(paymentMethod, (mergedMap.get(paymentMethod) ?? 0) + payment);
+        const finalPayments = Array.from(mergedMap.entries()).map(([method, amount]) => ({ method, amount }));
+        const finalTotalPaid = finalPayments.reduce((s, e) => s + e.amount, 0);
+        if (finalTotalPaid < grandTotal) { toast.error("Total pembayaran kurang"); return; }
+        const finalChange = finalTotalPaid - grandTotal;
+
         setLoading(true);
-        const pn = appliedPromos.map((p) => p.promoName); if (voucherApplied) pn.push(voucherApplied);
+        const pn = appliedPromos.map((p) => p.promoName);
+        cart.forEach((item) => { if (item.tebusPromoName) pn.push(item.tebusPromoName); });
+        if (voucherApplied) pn.push(voucherApplied);
+        const tebusPromoIds = cart.map((item) => item.tebusPromoId).filter((id): id is string => Boolean(id));
         const payload = {
             items: cart.map((item) => ({
                 productId: item.productId,
                 ...(item.categoryId ? { categoryId: item.categoryId } : {}),
                 productName: item.productName,
                 productCode: item.productCode,
+                ...(item.lineId ? { lineId: item.lineId } : {}),
+                ...(item.tebusPromoId ? { tebusPromoId: item.tebusPromoId } : {}),
+                ...(item.tebusPromoName ? { tebusPromoName: item.tebusPromoName } : {}),
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
                 discount: item.discount,
-                subtotal: item.subtotal
+                subtotal: item.subtotal,
+                ...(item.unitName ? { unitName: item.unitName } : {}),
+                ...(item.conversionQty && item.conversionQty > 1 ? { conversionQty: item.conversionQty, baseQty: item.quantity * item.conversionQty } : {}),
             })),
             subtotal,
             discountAmount,
             taxAmount,
             grandTotal,
-            paymentMethod,
-            paymentAmount: paymentMethod === "CASH" ? payment : grandTotal,
-            changeAmount: paymentMethod === "CASH" ? changeAmount : 0,
+            paymentMethod: finalPayments[0]?.method ?? paymentMethod,
+            paymentAmount: finalTotalPaid,
+            changeAmount: finalChange,
+            payments: finalPayments,
             ...(detectedCustomer?.id ? { customerId: detectedCustomer.id } : {}),
-            ...(pn.length > 0 ? { promoApplied: pn.join(", ") } : {}),
-            ...(appliedPromos.length > 0 || voucherPromoId ? { promoIds: Array.from(new Set([...appliedPromos.map((p) => p.promoId), ...(voucherPromoId ? [voucherPromoId] : [])])) } : {}),
+            ...(activeBranchId ? { branchId: activeBranchId } : {}),
+            ...(pn.length > 0 ? { promoApplied: Array.from(new Set(pn)).join(", ") } : {}),
+            ...(appliedPromos.length > 0 || voucherPromoId || tebusPromoIds.length > 0 ? { promoIds: Array.from(new Set([...appliedPromos.map((p) => p.promoId), ...(voucherPromoId ? [voucherPromoId] : []), ...tebusPromoIds])) } : {}),
             ...(redeemDiscount > 0 ? { redeemPoints: redeemPointsInput } : {}),
         };
+
+        if (!isOnline) {
+            // Offline mode: save to IndexedDB queue
+            try {
+                const offlineId = await addOfflineTransaction(payload);
+                setLoading(false);
+                setShowPaymentDialog(false);
+                setSuccess(`OFFLINE-${offlineId.slice(-8).toUpperCase()}`);
+                setPointsEarnedResult(0);
+                localStorage.removeItem(STORAGE_KEY);
+                refreshCount();
+                toast.info("Transaksi disimpan offline, akan disinkronkan saat online");
+            } catch {
+                setLoading(false);
+                toast.error("Gagal menyimpan transaksi offline");
+            }
+            return;
+        }
+
         const r = await createTransaction(payload);
         setLoading(false); if (r.error) toast.error(r.error); else { setShowPaymentDialog(false); setSuccess(r.invoiceNumber!); setPointsEarnedResult(r.pointsEarned || 0); localStorage.removeItem(STORAGE_KEY); }
     };
 
-    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setPaymentAmount(""); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
+    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setDiscountFixed(0); setDiscountType("percent"); setPaymentAmount(""); setPaymentEntries([]); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setTebusMurahOptions([]); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
 
-    const loadProducts = useCallback(async (mode: "favorites" | "category" = "favorites", catId?: string, page = 1, reset = true, branchId?: string) => {
+    // Transaction history for current cashier only
+    const loadHistory = useCallback(async () => {
+        if (!canPosAction("history")) { toast.error("Tidak punya akses riwayat transaksi"); return; }
+        setHistoryLoading(true);
+        try {
+            const { getTransactions } = await import("@/server/actions/transactions");
+            const result = await getTransactions({ limit: 20, ...(session?.user?.id ? { userId: session.user.id } : {}) });
+            setHistoryData(result.transactions.map((tx: Record<string, unknown>) => ({
+                id: tx.id as string,
+                invoiceNumber: tx.invoiceNumber as string,
+                grandTotal: tx.grandTotal as number,
+                subtotal: tx.subtotal as number,
+                discountAmount: (tx.discountAmount as number) || 0,
+                taxAmount: (tx.taxAmount as number) || 0,
+                paymentAmount: tx.paymentAmount as number,
+                changeAmount: (tx.changeAmount as number) || 0,
+                status: tx.status as string,
+                paymentMethod: tx.paymentMethod as string,
+                createdAt: tx.createdAt as string | Date,
+                user: tx.user as { name: string },
+                payments: (tx.payments as { method: string; amount: number }[]) || [],
+                items: ((tx.items as Record<string, unknown>[]) || []).map((i) => ({
+                    productName: i.productName as string,
+                    quantity: i.quantity as number,
+                    unitPrice: i.unitPrice as number,
+                    subtotal: i.subtotal as number,
+                    ...(i.unitName ? { unitName: i.unitName as string } : {}),
+                    ...(i.conversionQty ? { conversionQty: i.conversionQty as number } : {}),
+                })),
+            })));
+        } catch { /* */ }
+        setHistoryLoading(false);
+        setShowHistoryDialog(true);
+    }, [canPosAction]);
+
+    const historyDetail = historyDetailId ? (historyData.find((tx) => tx.id === historyDetailId) ?? null) : null;
+
+    const reprintReceipt = (tx: (typeof historyData)[number]) => {
+        if (!canPosAction("reprint")) { toast.error("Tidak punya akses reprint"); return; }
+        const payments = tx.payments && tx.payments.length > 1 ? tx.payments.map((p) => ({ method: p.method, amount: p.amount })) : undefined;
+        printThermalReceipt({
+            invoiceNumber: tx.invoiceNumber,
+            date: new Date(tx.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+            cashier: tx.user.name,
+            items: tx.items.map((i) => ({ name: i.productName, qty: i.quantity, price: i.unitPrice, subtotal: i.subtotal, ...(i.unitName ? { unitName: i.unitName } : {}), ...(i.conversionQty ? { conversionQty: i.conversionQty } : {}) })),
+            subtotal: tx.subtotal,
+            discount: tx.discountAmount,
+            tax: tx.taxAmount,
+            grandTotal: tx.grandTotal,
+            paymentMethod: tx.paymentMethod,
+            paymentAmount: tx.paymentAmount,
+            change: tx.changeAmount,
+            payments,
+            ...(receiptConfig?.storeName ? { storeName: receiptConfig.storeName } : {}),
+            ...(receiptConfig?.storeAddress ? { storeAddress: receiptConfig.storeAddress } : {}),
+            ...(receiptConfig?.storePhone ? { storePhone: receiptConfig.storePhone } : {}),
+            ...(receiptConfig?.footerText ? { footerText: receiptConfig.footerText } : {}),
+        });
+    };
+
+    const handleVoid = async () => {
+        if (!canPosAction("void")) { toast.error("Tidak punya akses void transaksi"); return; }
+        if (!voidingId || !voidReason.trim()) { toast.error("Alasan void wajib diisi"); return; }
+        try {
+            const { voidTransaction } = await import("@/server/actions/transactions");
+            const result = await voidTransaction(voidingId, voidReason);
+            if (result.error) { toast.error(result.error); return; }
+            toast.success("Transaksi berhasil di-void");
+            setShowVoidDialog(false);
+            setVoidingId(""); setVoidReason("");
+            loadHistory(); // refresh
+        } catch { toast.error("Gagal void transaksi"); }
+    };
+
+    // Save current scroll position + data to cache before switching category
+    const saveCategoryCache = () => {
+        const cacheKey = selectedCategory || "__all__";
+        productCacheRef.current.set(cacheKey, {
+            items: browseItems,
+            page: browsePage,
+            hasMore: browseHasMore,
+            scrollTop: productScrollRef.current?.scrollTop ?? 0,
+        });
+        persistCache();
+    };
+
+    // Restore from cache if available, returns true if restored
+    const restoreCategoryCache = (catId?: string): boolean => {
+        const cacheKey = catId || "__all__";
+        const cached = productCacheRef.current.get(cacheKey);
+        if (cached && cached.items.length > 0) {
+            setBrowseItems(cached.items);
+            setBrowsePage(cached.page);
+            setBrowseHasMore(cached.hasMore);
+            // Restore scroll position after render
+            requestAnimationFrame(() => {
+                if (productScrollRef.current) {
+                    productScrollRef.current.scrollTop = cached.scrollTop;
+                }
+            });
+            return true;
+        }
+        return false;
+    };
+
+    const loadProducts = useCallback(async (_mode?: string, catId?: string, page = 1, reset = true, branchId?: string) => {
         if (browseLoading) return;
         setBrowseLoading(true);
         try {
             const result = await browseProducts({
-                mode: catId ? "category" : mode,
+                mode: catId ? "category" : "all",
                 page,
                 perPage: 20,
                 branchId: branchId ?? activeBranchId,
                 ...(catId ? { categoryId: catId } : {}),
             });
-            const normalizedProducts = result.products.map((item) => toProductSearchResult(item as RawPosProduct));
+            const newItems = result.products.map((item) => toProductSearchResult(item as RawPosProduct));
             if (reset) {
-                setBrowseItems(normalizedProducts);
+                setBrowseItems(newItems);
             } else {
-                setBrowseItems((prev) => [...prev, ...normalizedProducts]);
+                setBrowseItems((prev) => {
+                    const merged = [...prev, ...newItems];
+                    return merged;
+                });
             }
             setBrowsePage(page);
             setBrowseHasMore(result.hasMore);
+
+            // Update cache for current category
+            const cacheKey = catId || "__all__";
+            setBrowseItems((current) => {
+                productCacheRef.current.set(cacheKey, {
+                    items: current,
+                    page,
+                    hasMore: result.hasMore,
+                    scrollTop: productScrollRef.current?.scrollTop ?? 0,
+                });
+                persistCache();
+                return current;
+            });
         } catch { /**/ }
         setBrowseLoading(false);
     }, [activeBranchId, browseLoading]);
 
+    const syncProducts = async () => {
+        setProductSyncing(true);
+        try {
+            // Clear all caches
+            productCacheRef.current.clear();
+            try { sessionStorage.removeItem(POS_PRODUCT_CACHE_KEY); } catch { /* */ }
+            // Reload from server
+            await loadProducts("all", selectedCategory || undefined, 1, true);
+            toast.success("Data produk berhasil disinkronkan");
+        } catch {
+            toast.error("Gagal menyinkronkan data produk");
+        }
+        setProductSyncing(false);
+    };
+
+    // Restore scroll position from cache on mount
+    useEffect(() => {
+        if (initCache && initCache.scrollTop > 0 && !initialScrollRestored.current) {
+            initialScrollRestored.current = true;
+            requestAnimationFrame(() => {
+                if (productScrollRef.current) {
+                    productScrollRef.current.scrollTop = initCache.scrollTop;
+                }
+            });
+        }
+    }, [initCache]);
+
     useEffect(() => {
         const initialize = async () => {
-            const [categoryData, branchData, shiftData, receiptCfg] = await Promise.all([
+            const [categoryData, branchData, shiftData, receiptCfg, posCfg] = await Promise.all([
                 getAllCategories(),
                 getAllBranches(),
                 getActiveShift(),
                 getReceiptConfig(),
+                getPosConfig(),
             ]);
             const activeBranches = branchData.filter((branch) => branch.isActive);
             setCategories(categoryData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
             setBranches(activeBranches);
             setReceiptConfig(receiptCfg);
+            setPosConfig(posCfg);
+            if (posCfg.defaultTaxPercent !== undefined) setTaxPercent(posCfg.defaultTaxPercent);
             if (shiftData) {
                 setActiveShift({ id: shiftData.id, openingCash: shiftData.openingCash, openedAt: shiftData.openedAt });
             }
             const savedTerminal = localStorage.getItem(POS_TERMINAL_KEY);
+            let savedRegister = "";
             if (savedTerminal) {
                 try {
                     const parsed = JSON.parse(savedTerminal) as { branchId?: string; register?: string };
-                    if (parsed.branchId) setSelectedBranchId(parsed.branchId);
-                    if (parsed.branchId) setSetupValue("branchId", parsed.branchId, { shouldValidate: true });
-                    if (parsed.register) setSelectedRegister(parsed.register);
-                    if (parsed.register) setSetupValue("register", parsed.register, { shouldValidate: true });
-                    if (parsed.branchId && parsed.register) setSessionStarted(true);
+                    if (parsed.register) {
+                        savedRegister = parsed.register;
+                        setSelectedRegister(parsed.register);
+                        setSetupValue("register", parsed.register, { shouldValidate: true });
+                    }
                 } catch { }
-            } else if (userBranchId) {
-                setSelectedBranchId(userBranchId);
-                setSetupValue("branchId", userBranchId, { shouldValidate: true });
-            } else if (activeBranches[0]) {
-                setSelectedBranchId(activeBranches[0].id);
-                setSetupValue("branchId", activeBranches[0].id, { shouldValidate: true });
+            }
+            if (sidebarBranchId && activeBranches.some((branch) => branch.id === sidebarBranchId)) {
+                setSelectedBranchId(sidebarBranchId);
+                setSetupValue("branchId", sidebarBranchId, { shouldValidate: true });
+                if (savedRegister) setSessionStarted(true);
+            } else {
+                setSelectedBranchId("");
+                setSetupValue("branchId", "", { shouldValidate: true });
+                setSessionStarted(false);
             }
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) { setCart(p); toast.info("Draft dipulihkan"); } } catch { /**/ } }
             barcodeInputRef.current?.focus();
         };
         initialize();
-    }, [setSetupValue, userBranchId]);
+    }, [setSetupValue, sidebarBranchId, userBranchId]);
+
+    useEffect(() => {
+        if (!sidebarBranchId) return;
+        if (selectedBranchId === sidebarBranchId) return;
+        setSelectedBranchId(sidebarBranchId);
+        setSetupValue("branchId", sidebarBranchId, { shouldValidate: true });
+    }, [selectedBranchId, setSetupValue, sidebarBranchId]);
+
+    useEffect(() => {
+        const syncViewportMode = () => setIsDesktop(window.innerWidth >= 1024);
+        syncViewportMode();
+        window.addEventListener("resize", syncViewportMode);
+        return () => window.removeEventListener("resize", syncViewportMode);
+    }, []);
+
+    useEffect(() => {
+        if (!isDesktop) return;
+        const { minLeft, maxLeft } = getLeftPanelBounds();
+        setLeftPanelWidth((prev) => Math.min(maxLeft, Math.max(minLeft, prev)));
+    }, [getLeftPanelBounds, isDesktop]);
+
+    useEffect(() => {
+        if (!centerPanelRef.current) return;
+        const observer = new ResizeObserver((entries) => {
+            const width = entries[0]?.contentRect.width ?? 0;
+            setCenterPanelWidth(width);
+        });
+        observer.observe(centerPanelRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     // Infinite scroll observer
     useEffect(() => {
         const sentinel = productSentinelRef.current;
-        if (!sentinel) return;
+        const scrollRoot = productScrollRef.current;
+        if (!sentinel || !scrollRoot) return;
         const observer = new IntersectionObserver(
             (entries) => {
                 const entry = entries[0];
@@ -439,7 +817,7 @@ export default function POSPage() {
                     loadProducts(productTab, selectedCategory || undefined, browsePage + 1, false);
                 }
             },
-            { threshold: 0.1 }
+            { root: scrollRoot, threshold: 0.1 }
         );
         observer.observe(sentinel);
         return () => observer.disconnect();
@@ -456,16 +834,20 @@ export default function POSPage() {
                 case "F2": e.preventDefault(); holdTransaction(); break;
                 case "F3": e.preventDefault(); openPaymentDialog(); break;
                 case "F4": e.preventDefault(); resetPOS(); break;
-                case "F5": e.preventDefault(); setShowDiscountDialog(true); break;
+                case "F5": e.preventDefault(); if (!canPosAction("discount")) { toast.error("Tidak punya akses diskon"); return; } setShowDiscountDialog(true); break;
+                case "F6": e.preventDefault(); loadHistory(); break;
             }
         };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [holdTransaction, openPaymentDialog, resetPOS]);
+    }, [canPosAction, holdTransaction, loadHistory, openPaymentDialog, resetPOS]);
 
     const handleCategoryClick = (catId: string) => {
+        saveCategoryCache();
         setSelectedCategory(catId);
-        loadProducts("category", catId, 1, true);
+        if (!restoreCategoryCache(catId)) {
+            loadProducts("category", catId, 1, true);
+        }
     };
 
     const handleStartSession = () => {
@@ -474,11 +856,13 @@ export default function POSPage() {
             const register = values.register.trim();
             const openingValue = Number(values.openingCash || 0);
             setSelectedBranchId(branchId);
+            setSidebarBranchId(branchId);
             setSelectedRegister(register);
             if (!activeShift) {
                 setStartingShift(true);
                 const formData = new FormData();
                 formData.set("openingCash", String(openingValue));
+                formData.set("branchId", branchId);
                 const result = await openShift(formData);
                 setStartingShift(false);
                 if (result.error) {
@@ -501,7 +885,9 @@ export default function POSPage() {
             }
             localStorage.setItem(POS_TERMINAL_KEY, JSON.stringify({ branchId, register }));
             setSelectedCategory("");
-            await loadProducts("favorites", undefined, 1, true, branchId);
+            if (!restoreCategoryCache()) {
+                await loadProducts("all", undefined, 1, true, branchId);
+            }
             setSessionStarted(true);
             barcodeInputRef.current?.focus();
         }, (formErrors) => {
@@ -537,685 +923,282 @@ export default function POSPage() {
         toast.success("Shift berhasil ditutup");
     };
 
+    const handlePrintSuccess = useCallback(() => {
+        if (!success) return;
+        const pn = appliedPromos.map((p) => p.promoName);
+        if (voucherApplied) pn.push(voucherApplied);
+        printThermalReceipt({
+            invoiceNumber: success,
+            date: new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+            cashier: "Kasir",
+            items: cart.map((c) => ({ name: c.conversionQty && c.conversionQty > 1 ? `${c.productName} (${c.unitName})` : c.productName, qty: c.quantity, price: c.unitPrice, subtotal: c.subtotal })),
+            subtotal,
+            discount: discountAmount,
+            tax: taxAmount,
+            grandTotal,
+            paymentMethod,
+            paymentAmount: totalPaid,
+            change: changeAmount > 0 ? changeAmount : 0,
+            payments: (() => {
+                if (paymentEntries.length === 0 && !payment) return undefined;
+                const map = new Map<string, number>();
+                for (const e of paymentEntries) map.set(e.method, (map.get(e.method) ?? 0) + e.amount);
+                if (payment > 0) map.set(paymentMethod, (map.get(paymentMethod) ?? 0) + payment);
+                if (map.size <= 1) return undefined;
+                return Array.from(map.entries()).map(([method, amount]) => ({ method, amount }));
+            })(),
+            ...(detectedCustomer?.name ? { customer: detectedCustomer.name } : {}),
+            ...(detectedCustomer?.memberLevel ? { memberLevel: detectedCustomer.memberLevel } : {}),
+            ...(pn.length > 0 ? { promos: pn } : {}),
+            ...(receiptConfig?.storeName ? { storeName: receiptConfig.storeName } : {}),
+            ...(receiptConfig?.storeAddress ? { storeAddress: receiptConfig.storeAddress } : {}),
+            ...(receiptConfig?.storePhone ? { storePhone: receiptConfig.storePhone } : {}),
+            ...(receiptConfig?.headerText ? { headerText: receiptConfig.headerText } : {}),
+            ...(receiptConfig?.footerText ? { footerText: receiptConfig.footerText } : {}),
+            ...(receiptConfig?.thankYouMessage ? { thankYouMessage: receiptConfig.thankYouMessage } : {}),
+            ...(receiptConfig ? {
+                showPointInfo: receiptConfig.showPointInfo,
+                showCashierName: receiptConfig.showCashierName,
+                showDateTime: receiptConfig.showDateTime,
+                showPaymentMethod: receiptConfig.showPaymentMethod,
+                paperWidth: receiptConfig.paperWidth,
+            } : {}),
+        });
+    }, [appliedPromos, cart, changeAmount, detectedCustomer?.memberLevel, detectedCustomer?.name, discountAmount, grandTotal, payment, paymentEntries, paymentMethod, receiptConfig, subtotal, success, taxAmount, totalPaid, voucherApplied]);
+
 
     if (!isPosReady) {
         return (
-            <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-6">
-                <div className="w-full max-w-xl bg-white rounded-2xl border border-border/40 shadow-sm p-6 space-y-5">
-                    <div className="space-y-1">
-                        <h2 className="text-xl font-bold">Mulai Sesi Kasir</h2>
-                        <p className="text-sm text-muted-foreground">Pilih lokasi dan kassa sebelum memulai transaksi.</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Lokasi</Label>
-                            <Controller
-                                control={setupControl}
-                                name="branchId"
-                                render={({ field }) => (
-                                    <Select
-                                        {...(field.value ? { value: field.value } : {})}
-                                        onValueChange={(value) => {
-                                            field.onChange(value);
-                                            setSelectedBranchId(value);
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-10 rounded-lg">
-                                            <SelectValue placeholder="Pilih lokasi" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {branches.map((branch) => (
-                                                <SelectItem key={branch.id} value={branch.id}>
-                                                    {branch.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                            {setupErrors.branchId?.message && <p className="text-xs text-red-500">{setupErrors.branchId.message}</p>}
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Kassa</Label>
-                            <Input
-                                {...setupRegister("register")}
-                                onChange={(e) => {
-                                    setupRegister("register").onChange(e);
-                                    setSelectedRegister(e.target.value);
-                                }}
-                                placeholder="Contoh: Kassa 1"
-                                className="rounded-lg"
-                            />
-                            {setupErrors.register?.message && <p className="text-xs text-red-500">{setupErrors.register.message}</p>}
-                        </div>
-                    </div>
-                    {!activeShift && (
-                        <div className="space-y-2">
-                            <Label>Saldo Awal</Label>
-                            <Input
-                                type="number"
-                                min={0}
-                                {...setupRegister("openingCash")}
-                                value={openingCash}
-                                onChange={(e) => {
-                                    setupRegister("openingCash").onChange(e);
-                                    setOpeningCash(e.target.value);
-                                }}
-                                placeholder="0"
-                                className="rounded-lg"
-                            />
-                            {setupErrors.openingCash?.message && <p className="text-xs text-red-500">{setupErrors.openingCash.message}</p>}
-                        </div>
-                    )}
-                    {activeShift && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                            Shift aktif ditemukan. Pilih lokasi dan kassa untuk melanjutkan transaksi.
-                        </div>
-                    )}
-                    <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => router.push("/dashboard")} className="rounded-lg">Kembali</Button>
-                        <Button onClick={handleStartSession} className="rounded-lg" disabled={startingShift}>
-                            {startingShift ? "Memproses..." : activeShift ? "Lanjutkan" : "Mulai Shift"}
-                        </Button>
-                    </div>
-                </div>
-            </div>
+            <PosScreenProvider value={{
+                activeBranchName,
+                setupRegister,
+                setupErrors,
+                setSelectedRegister,
+                activeShift,
+                openingCash,
+                setOpeningCash,
+                onBack: () => router.push("/dashboard"),
+                onStartSession: handleStartSession,
+                startingShift,
+            }}>
+                <PosReadySection />
+            </PosScreenProvider>
         );
     }
 
     if (success) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#F1F5F9]">
-                <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-10 text-center space-y-6">
-                    <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto"><Check className="w-10 h-10 text-emerald-500" /></div>
-                    <div><h2 className="text-2xl font-bold">Transaksi Berhasil!</h2><p className="text-muted-foreground mt-1 font-mono text-sm">{success}</p></div>
-                    <div className="text-4xl font-bold text-primary tabular-nums">{formatCurrency(grandTotal)}</div>
-                    {paymentMethod === "CASH" && changeAmount > 0 && (<div className="bg-amber-50 rounded-xl p-4"><p className="text-sm text-amber-600">Kembalian</p><p className="text-2xl font-bold text-amber-700 tabular-nums">{formatCurrency(changeAmount)}</p></div>)}
-                    {pointsEarnedResult > 0 && (
-                        <div className="bg-purple-50 rounded-xl p-3 flex items-center justify-center gap-2">
-                            <span className="text-sm text-purple-600">Poin didapat:</span>
-                            <span className="text-lg font-bold text-purple-700">+{pointsEarnedResult} poin</span>
-                        </div>
-                    )}
-                    <div className="flex gap-3">
-                        <Button variant="outline" className="flex-1 rounded-xl h-12" onClick={() => {
-                            const pn = appliedPromos.map((p) => p.promoName); if (voucherApplied) pn.push(voucherApplied);
-                            printThermalReceipt({
-                                invoiceNumber: success!,
-                                date: new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
-                                cashier: "Kasir",
-                                items: cart.map((c) => ({ name: c.productName, qty: c.quantity, price: c.unitPrice, subtotal: c.subtotal })),
-                                subtotal,
-                                discount: discountAmount,
-                                tax: taxAmount,
-                                grandTotal,
-                                paymentMethod,
-                                paymentAmount: paymentMethod === "CASH" ? payment : grandTotal,
-                                change: paymentMethod === "CASH" ? changeAmount : 0,
-                                ...(detectedCustomer?.name ? { customer: detectedCustomer.name } : {}),
-                                ...(detectedCustomer?.memberLevel ? { memberLevel: detectedCustomer.memberLevel } : {}),
-                                ...(pn.length > 0 ? { promos: pn } : {}),
-                                ...(receiptConfig?.storeName ? { storeName: receiptConfig.storeName } : {}),
-                                ...(receiptConfig?.storeAddress ? { storeAddress: receiptConfig.storeAddress } : {}),
-                                ...(receiptConfig?.storePhone ? { storePhone: receiptConfig.storePhone } : {}),
-                                ...(receiptConfig?.headerText ? { headerText: receiptConfig.headerText } : {}),
-                                ...(receiptConfig?.footerText ? { footerText: receiptConfig.footerText } : {}),
-                                ...(receiptConfig?.thankYouMessage ? { thankYouMessage: receiptConfig.thankYouMessage } : {}),
-                                ...(receiptConfig ? {
-                                    showPointInfo: receiptConfig.showPointInfo,
-                                    showCashierName: receiptConfig.showCashierName,
-                                    showDateTime: receiptConfig.showDateTime,
-                                    showPaymentMethod: receiptConfig.showPaymentMethod,
-                                    paperWidth: receiptConfig.paperWidth,
-                                } : {}),
-                            });
-                        }}><Printer className="w-4 h-4 mr-2" /> Cetak Struk</Button>
-                        <Button className="flex-1 rounded-xl h-12 text-base" onClick={resetPOS}>Transaksi Baru</Button>
-                    </div>
-                </div>
-            </div>
+            <PosScreenProvider value={{
+                success,
+                grandTotal,
+                paymentMethod,
+                changeAmount,
+                pointsEarnedResult,
+                onPrint: handlePrintSuccess,
+                onNewTransaction: resetPOS,
+            }}>
+                <PosSuccessSection />
+            </PosScreenProvider>
         );
     }
 
     // ====== MAIN 3-PANEL LAYOUT ======
     return (
-        <div className="flex h-screen overflow-hidden">
+        <div className="flex flex-col h-screen overflow-hidden relative">
 
-            {/* ============================================ */}
-            {/* LEFT PANEL: Products */}
-            {/* ============================================ */}
-            <div className="w-[220px] bg-white border-r border-border/40 flex flex-col shrink-0">
-                {/* Header */}
-                <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => router.push("/dashboard")}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="text-center">
-                        <h2 className="font-bold text-sm text-foreground">POS Kasir</h2>
-                        <p className="text-[10px] text-muted-foreground">{activeBranchName} • {selectedRegister}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setShowClosingDialog(true)}>
-                            <LogOut className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => setShowShortcutsDialog(true)}>
-                            <Keyboard className="w-4 h-4" />
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Category filter chips - always visible */}
-                <div className="px-3 py-2 shrink-0 border-b border-border/20">
-                    <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                        <button onClick={() => { setSelectedCategory(""); loadProducts("favorites", undefined, 1, true); }}
-                            className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0
-                                ${!selectedCategory ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>
-                            Semua
-                        </button>
-                        {categories.map((c) => (
-                            <button key={c.id} onClick={() => handleCategoryClick(c.id)}
-                                className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0
-                                    ${selectedCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>
-                                {c.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Product Grid with Infinite Scroll */}
-                <div className="flex-1 overflow-y-auto px-3 pb-3">
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                        {browseItems.map((p) => (
-                            <button key={p.id} onClick={() => addToCart(p)}
-                                className="text-left p-3 rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white">
-                                <p className="text-xs font-medium truncate group-hover:text-primary transition-colors leading-tight">{p.name}</p>
-                                <p className="text-[10px] text-muted-foreground mt-1">Stok: {p.stock}</p>
-                                <p className="text-sm text-primary font-bold mt-1 tabular-nums">{formatCurrency(p.sellingPrice)}</p>
-                                {p.tierPrices && p.tierPrices.length > 0 && (
-                                    <p className="text-[10px] text-emerald-600 mt-1">
-                                        Tier mulai {p.tierPrices[0]?.minQty}+: {formatCurrency(p.tierPrices[0]?.price ?? p.sellingPrice)}
-                                    </p>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Infinite scroll sentinel */}
-                    {browseHasMore && (
-                        <div ref={productSentinelRef} className="flex justify-center py-4">
-                            {browseLoading && <Loader2 className="w-5 h-5 animate-spin text-primary/40" />}
-                        </div>
-                    )}
-
-                    {browseItems.length === 0 && !browseLoading && (
-                        <div className="py-10 text-center text-xs text-muted-foreground">
-                            Tidak ada produk ditemukan
-                        </div>
-                    )}
-
-                    {!browseHasMore && browseItems.length > 0 && (
-                        <p className="text-center text-[10px] text-muted-foreground/50 py-3">Semua produk ditampilkan</p>
-                    )}
-                </div>
-
-                {/* Shortcut Bar */}
-                <div className="px-3 py-2 border-t border-border/30 flex gap-1">
-                    {[
-                        { key: "F1", label: "Cari", action: () => setShowSearchDialog(true) },
-                        { key: "F2", label: heldTransactions.length > 0 ? `Hold (${heldTransactions.length})` : "Hold", action: () => heldTransactions.length > 0 ? setShowHeldDialog(true) : holdTransaction() },
-                        { key: "F5", label: "Diskon", action: () => setShowDiscountDialog(true) },
-                    ].map((s) => (
-                        <button key={s.key} onClick={s.action}
-                            className="flex-1 text-[10px] font-medium text-muted-foreground hover:text-primary py-1.5 rounded-md hover:bg-accent transition-all">
-                            <span className="font-mono text-[9px] bg-muted/80 px-1 py-0.5 rounded mr-1">{s.key}</span>{s.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* ============================================ */}
-            {/* CENTER PANEL: Search + Cart */}
-            {/* ============================================ */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#F1F5F9]">
-
-                {/* Search Bar */}
-                <div className="px-5 py-3 bg-white border-b border-border/40">
-                    <div className="relative">
-                        <ScanBarcode className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/50" />
-                        <Input
-                            ref={barcodeInputRef}
-                            placeholder="Scan barcode atau ketik nama produk..."
-                            value={searchQuery}
-                            onChange={(e) => handleBarcodeInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && searchResults.length > 0) {
-                                    const first = searchResults[0];
-                                    if (first) addToCart(first);
-                                }
-                            }}
-                            className="pl-12 h-12 rounded-xl text-base border-2 border-border/50 focus:border-primary/50 bg-muted/20"
-                            autoFocus
-                        />
-                        {searching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-primary/40" />}
-                    </div>
-
-                    {/* Search Results */}
-                    {searchResults.length > 0 && (
-                        <div className="mt-2 border border-border/50 rounded-xl overflow-hidden max-h-[240px] overflow-y-auto bg-white divide-y divide-border/20">
-                            {searchResults.map((p) => (
-                                <button key={p.id} onClick={() => addToCart(p)}
-                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/40 transition-colors text-left">
-                                    <div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; {p.category.name} &middot; Stok: {p.stock}</p></div>
-                                    <p className="font-bold text-primary tabular-nums">{formatCurrency(p.sellingPrice)}</p>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Warnings */}
-                {(negativeMarginItems.length > 0 || lowStockItems.length > 0) && (
-                    <div className="px-5 py-1.5 flex gap-2">
-                        {negativeMarginItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-md text-[11px] text-red-500"><AlertTriangle className="w-3 h-3" />Margin negatif: {negativeMarginItems.map((i) => i.productName).join(", ")}</div>}
-                        {lowStockItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-md text-[11px] text-orange-500"><AlertTriangle className="w-3 h-3" />Stok menipis</div>}
-                    </div>
-                )}
-
-                {/* Cart */}
-                <div className="flex-1 flex flex-col min-h-0 px-5 py-3">
-                    <div className="bg-white rounded-2xl border border-border/40 flex-1 flex flex-col overflow-hidden shadow-sm">
-                        {/* Cart Header */}
-                        <div className="px-5 py-3 border-b border-border/30 flex items-center justify-between shrink-0">
-                            <div className="flex items-center gap-2">
-                                <ShoppingCart className="w-4 h-4 text-primary" />
-                                <span className="font-semibold text-sm">Keranjang</span>
-                                {totalItems > 0 && <Badge className="bg-primary/10 text-primary rounded-full text-xs px-2 h-5">{totalItems} item</Badge>}
-                            </div>
-                            {(cart.length > 0 || heldTransactions.length > 0) && (
-                                <div className="flex gap-1.5">
-                                    {heldTransactions.length > 0 && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-xs text-primary hover:bg-primary/10 rounded-lg"
-                                            onClick={() => setShowHeldDialog(true)}
-                                        >
-                                            Lihat Hold ({heldTransactions.length})
-                                        </Button>
-                                    )}
-                                    {cart.length > 0 && (
-                                        <>
-                                            <Button variant="ghost" size="sm" className="h-7 text-xs text-orange-500 hover:bg-orange-50 rounded-lg" onClick={holdTransaction}><Pause className="w-3 h-3 mr-1" />Hold</Button>
-                                            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={resetPOS}>Clear</Button>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Cart Items - scrollable */}
-                        <div className="flex-1 overflow-y-auto min-h-0">
-                            {cart.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground/40">
-                                    <ShoppingCart className="w-14 h-14 mb-3" />
-                                    <p className="font-medium">Keranjang kosong</p>
-                                    <p className="text-xs mt-1">Scan barcode atau pilih produk</p>
-                                    {heldTransactions.length > 0 && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="mt-4 rounded-lg"
-                                            onClick={() => setShowHeldDialog(true)}
-                                        >
-                                            Lihat Transaksi Hold ({heldTransactions.length})
-                                        </Button>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="p-3 space-y-1.5">
-                                    {cart.map((item, idx) => {
-                                        const itemPromo = promoMeta.byItem[item.productId];
-                                        const freeQty = promoMeta.freeQtyByItem[item.productId] ?? 0;
-                                        const displayQty = item.quantity + freeQty;
-                                        return (
-                                            <div key={item.productId}
-                                                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted/30 transition-colors group">
-                                                {/* Index */}
-                                                <span className="text-xs text-muted-foreground/50 w-5 text-center tabular-nums">{idx + 1}</span>
-                                                {/* Info */}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-sm truncate">{item.productName}</p>
-                                                    <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.unitPrice)}</p>
-                                                    {item.tierPrices && item.tierPrices.length > 0 && (
-                                                        <p className="text-[10px] text-emerald-600">
-                                                            {item.baseUnitPrice && item.unitPrice < item.baseUnitPrice ? "Harga tier aktif" : "Produk memiliki harga tier"}
-                                                        </p>
-                                                    )}
-                                                    {itemPromo && (
-                                                        <p className="text-[10px] text-green-600 truncate">
-                                                            {itemPromo.names.join(", ")} · -{formatCurrency(itemPromo.discount)}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                {/* Qty */}
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, -1)} disabled={item.quantity <= 1}>
-                                                        <Minus className="w-3 h-3" />
-                                                    </Button>
-                                                    <span className="w-9 text-center font-bold text-sm tabular-nums">{displayQty}</span>
-                                                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => updateQuantity(item.productId, 1)}>
-                                                        <Plus className="w-3 h-3" />
-                                                    </Button>
-                                                </div>
-                                                {freeQty > 0 && (
-                                                    <span className="text-[10px] text-green-600 shrink-0">+{freeQty} gratis</span>
-                                                )}
-                                                {/* Subtotal */}
-                                                <p className="w-28 text-right font-bold text-sm tabular-nums shrink-0">{formatCurrency(item.subtotal)}</p>
-                                                {/* Delete */}
-                                                <button onClick={() => removeItem(item.productId)} className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 p-1">
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* ============================================ */}
-            {/* RIGHT PANEL: Payment */}
-            {/* ============================================ */}
-            <div className="w-[240px] bg-white border-l border-border/40 flex flex-col shrink-0">
-                {/* Scrollable content area */}
-                <div className="flex-1 overflow-y-auto min-h-0">
-                    <div className="p-5 space-y-4">
-
-                        {/* Summary */}
-                        <div className="space-y-2.5">
-                            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums font-medium">{formatCurrency(subtotal)}</span></div>
-                            <div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Diskon</span><Input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>
-                            {discountAmount > 0 && <div className="flex justify-between text-sm text-red-500"><span>Diskon</span><span className="tabular-nums">-{formatCurrency(discountAmount)}</span></div>}
-                            <div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Pajak</span><Input type="number" value={taxPercent} onChange={(e) => setTaxPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>
-                            {taxAmount > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Pajak</span><span className="tabular-nums">{formatCurrency(taxAmount)}</span></div>}
-                        </div>
-
-                        {/* TOTAL */}
-                        <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-4 border border-primary/10">
-                            <p className="text-xs font-medium text-primary/60 uppercase tracking-wider">Total Bayar</p>
-                            <p className="text-3xl font-bold text-primary tabular-nums tracking-tight mt-1">{formatCurrency(grandTotal)}</p>
-                        </div>
-
-                        {/* Promos */}
-                        {appliedPromos.length > 0 && (
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">Promo Aktif</p>
-                                {promoMeta.cartPromos.map((p, i) => (
-                                    <div key={i} className="flex justify-between text-xs bg-green-50/60 rounded-lg px-3 py-1.5">
-                                        <span className="text-green-700 truncate">{p.promoName}</span>
-                                        <span className="text-green-600 font-medium ml-2">-{formatCurrency(p.discountAmount)}</span>
-                                    </div>
-                                ))}
-                                {Object.keys(promoMeta.byItem).length > 0 && (
-                                    <div className="text-[11px] text-green-700 bg-green-50/60 rounded-lg px-3 py-1.5">
-                                        Promo item aktif di {Object.keys(promoMeta.byItem).length} produk (lihat di baris produk)
-                                    </div>
-                                )}
-                            </div>
+            {/* Offline / Sync Banner */}
+            {(!isOnline || pendingCount > 0) && (
+                <div className={cn(
+                    "shrink-0 px-4 py-2 flex items-center justify-between text-xs font-medium z-30",
+                    !isOnline ? "bg-orange-50 text-orange-700 border-b border-orange-200" : "bg-blue-50 text-blue-700 border-b border-blue-200"
+                )}>
+                    <div className="flex items-center gap-2">
+                        {!isOnline ? (
+                            <><WifiOff className="w-3.5 h-3.5" /> Mode Offline — transaksi disimpan lokal</>
+                        ) : (
+                            <><Wifi className="w-3.5 h-3.5" /> {pendingCount} transaksi offline menunggu sinkronisasi</>
                         )}
-
-                        {/* Member */}
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Member</label>
-                            <Input placeholder="No. HP member..." value={customerPhone} onChange={(e) => handleCustomerPhoneChange(e.target.value)} className="rounded-lg h-8 text-sm" />
-                            {detectedCustomer && (
-                                <div className="bg-purple-50/60 rounded-lg px-3 py-2 space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-xs font-semibold text-purple-700">{detectedCustomer.name}</p>
-                                        <Badge className="bg-purple-100 text-purple-700 text-[10px]">{detectedCustomer.memberLevel}</Badge>
-                                    </div>
-                                    <p className="text-[11px] text-purple-500">{detectedCustomer.points} poin tersedia</p>
-                                    {/* Redeem Points */}
-                                    {detectedCustomer.points >= 10 && (
-                                        <div className="flex gap-1.5 items-center pt-0.5">
-                                            <Input type="number" min={10} max={detectedCustomer.points} value={redeemPointsInput || ""} onChange={(e) => setRedeemPointsInput(Number(e.target.value))}
-                                                placeholder="Jumlah poin" className="h-7 text-xs flex-1 rounded-md" />
-                                            <Button size="sm" variant="outline" className="h-7 text-[10px] px-2 rounded-md border-purple-300 text-purple-600 hover:bg-purple-50" onClick={handleRedeemPoints}
-                                                disabled={redeemPointsInput < 10 || redeemPointsInput > detectedCustomer.points}>Tukar</Button>
-                                        </div>
-                                    )}
-                                    {redeemDiscount > 0 && (
-                                        <div className="flex justify-between text-xs bg-purple-100/60 rounded-md px-2 py-1">
-                                            <span className="text-purple-700">Redeem {redeemPointsInput} poin</span>
-                                            <span className="text-purple-600 font-medium">-{formatCurrency(redeemDiscount)}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Voucher */}
-                        <div className="space-y-1.5">
-                            <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Voucher</label>
-                            <div className="flex gap-1.5">
-                                <Input placeholder="Kode" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value.toUpperCase())} className="rounded-lg h-8 text-sm flex-1" />
-                                <Button size="sm" variant="outline" className="rounded-lg h-8 text-xs px-3" onClick={handleApplyVoucher} disabled={!voucherCode}>Apply</Button>
-                            </div>
-                            {voucherApplied && <div className="flex justify-between text-xs bg-green-50/60 rounded-lg px-3 py-1.5"><span className="text-green-700">{voucherApplied}</span><span className="text-green-600 font-medium">-{formatCurrency(voucherDiscount)}</span></div>}
-                        </div>
-
-                        <div className="rounded-xl border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
-                            Atur metode pembayaran dan nominal saat klik tombol bayar.
-                        </div>
                     </div>
+                    {isOnline && pendingCount > 0 && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px] rounded-md px-2 border-blue-300 text-blue-700 hover:bg-blue-100"
+                            onClick={syncAll}
+                            disabled={syncing}
+                        >
+                            <RefreshCw className={cn("w-3 h-3 mr-1", syncing && "animate-spin")} />
+                            {syncing ? "Menyinkronkan..." : "Sinkronkan"}
+                        </Button>
+                    )}
                 </div>
+            )}
 
-                {/* Pay Button - fixed at bottom */}
-                <div className="p-4 border-t border-border/30 bg-white shrink-0">
-                    <Button className="w-full h-14 rounded-xl text-lg font-bold shadow-lg hover:shadow-xl transition-all"
-                        onClick={openPaymentDialog} disabled={loading || cart.length === 0}>
-                        <><CreditCard className="mr-2 h-5 w-5" />Bayar {formatCurrency(grandTotal)}</>
-                    </Button>
-                </div>
-            </div>
+            <PosPanelsProvider value={{
+                panelsContainerRef,
+                centerPanelRef,
+                productScrollRef,
+                productSentinelRef,
+                barcodeInputRef,
+                isDesktop,
+                leftPanelWidth,
+                isResizingLeftPanel,
+                mobileView,
+                setMobileView,
+                isOnline,
+                activeBranchName,
+                selectedRegister,
+                activeShift,
+                setShiftSummary,
+                setClosingCash,
+                setClosingNotes,
+                setSummaryLoading,
+                setShowClosingDialog,
+                syncProducts,
+                productSyncing,
+                setShowShortcutsDialog,
+                goDashboard: () => router.push("/dashboard"),
+                saveCategoryCache,
+                setSelectedCategory,
+                restoreCategoryCache,
+                loadProducts,
+                categories,
+                selectedCategory,
+                handleCategoryClick,
+                productGridCols,
+                browseItems,
+                addToCart,
+                addToCartWithUnit,
+                unitSelectorProduct,
+                setUnitSelectorProduct,
+                handleUnitSelect,
+                browseHasMore,
+                browseLoading,
+                heldTransactions,
+                setShowHeldDialog,
+                holdTransaction,
+                canPosAction,
+                setShowDiscountDialog,
+                setShowSearchDialog,
+                loadHistory,
+                startResizeLeftPanel,
+                searchQuery,
+                handleBarcodeInput,
+                searchResults,
+                searching,
+                negativeMarginItems,
+                lowStockItems,
+                cart,
+                totalItems,
+                promoMeta,
+                isCompactCart,
+                updateQuantity,
+                removeItem,
+                resetPOS,
+                subtotal,
+                discountPercent,
+                setDiscountPercent,
+                discountAmount,
+                taxPercent,
+                setTaxPercent,
+                taxAmount,
+                grandTotal,
+                appliedPromos,
+                tebusMurahOptions,
+                handleAddTebusMurah,
+                customerPhone,
+                handleCustomerPhoneChange,
+                detectedCustomer,
+                redeemPointsInput,
+                setRedeemPointsInput,
+                handleRedeemPoints,
+                redeemDiscount,
+                voucherCode,
+                setVoucherCode,
+                handleApplyVoucher,
+                voucherApplied,
+                voucherDiscount,
+                loading,
+                openPaymentDialog,
+            }}>
+                <POSPagePanels />
+            </PosPanelsProvider>
 
             {/* ====== DIALOGS ====== */}
-            <Dialog open={showSearchDialog} onOpenChange={setShowSearchDialog}>
-                <DialogContent className="rounded-2xl max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><Search className="w-4 h-4" />Cari Produk</DialogTitle></DialogHeader>
-                    <Input placeholder="Ketik nama / kode produk..." autoFocus className="rounded-xl h-11" onChange={async (e) => { if (e.target.value.length > 0) { const r = await searchProducts(e.target.value, activeBranchId); setSearchResults(r.map((item) => toProductSearchResult(item as RawPosProduct))); } else { setSearchResults([]); } }} />
-                    <ScrollArea className="max-h-[300px]"><div className="space-y-1">{searchResults.map((p) => (<button key={p.id} onClick={() => { addToCart(p); setShowSearchDialog(false); }} className="w-full flex justify-between p-3 hover:bg-accent/50 rounded-xl text-left transition-colors"><div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary text-sm">{formatCurrency(p.sellingPrice)}</p></button>))}</div></ScrollArea>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={showClosingDialog} onOpenChange={setShowClosingDialog}>
-                <DialogContent className="rounded-2xl max-w-sm">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2"><Store className="w-4 h-4" /> Closing Kasir</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-3">
-                        <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                            <p>Lokasi: <span className="font-medium text-foreground">{activeBranchName}</span></p>
-                            <p>Kassa: <span className="font-medium text-foreground">{selectedRegister}</span></p>
-                        </div>
-                        <div className="space-y-1">
-                            <Label>Saldo Akhir Kas</Label>
-                            <Input type="number" min={0} value={closingCash} onChange={(e) => setClosingCash(e.target.value)} className="rounded-lg" />
-                        </div>
-                        <div className="space-y-1">
-                            <Label>Catatan</Label>
-                            <Input value={closingNotes} onChange={(e) => setClosingNotes(e.target.value)} className="rounded-lg" placeholder="Opsional" />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" className="rounded-lg" onClick={() => setShowClosingDialog(false)}>Batal</Button>
-                            <Button className="rounded-lg" onClick={handleCloseShift} disabled={closingShiftLoading}>
-                                {closingShiftLoading ? "Memproses..." : "Tutup Shift"}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={showHeldDialog} onOpenChange={setShowHeldDialog}>
-                <DialogContent className="rounded-2xl w-[92vw] max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center justify-between">
-                            <span>Transaksi Ditahan</span>
-                            <Badge variant="secondary" className="rounded-full px-3">
-                                {heldTransactions.length}
-                            </Badge>
-                        </DialogTitle>
-                    </DialogHeader>
-                    {heldTransactions.length === 0 ? (
-                        <div className="py-10 text-center">
-                            <p className="text-sm font-medium text-foreground">Belum ada transaksi hold</p>
-                            <p className="text-xs text-muted-foreground mt-1">Gunakan tombol Hold saat ada transaksi aktif</p>
-                        </div>
-                    ) : (
-                        <ScrollArea className="max-h-[60vh] pr-2">
-                            <div className="space-y-3">
-                                {heldTransactions.map((h) => {
-                                    const total = h.cart.reduce((s, i) => s + i.subtotal, 0);
-                                    const qty = h.cart.reduce((s, i) => s + i.quantity, 0);
-                                    return (
-                                        <div key={h.id} className="rounded-xl border border-border/60 bg-card p-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="space-y-1">
-                                                    <p className="text-sm font-semibold">Hold #{String(h.id).slice(-6)}</p>
-                                                    <p className="text-xs text-muted-foreground">Pukul {h.time}</p>
-                                                    <div className="flex items-center gap-2 pt-1">
-                                                        <Badge variant="outline" className="rounded-md text-[10px]">{h.cart.length} produk</Badge>
-                                                        <Badge variant="outline" className="rounded-md text-[10px]">{qty} qty</Badge>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-xs text-muted-foreground">Total</p>
-                                                    <p className="text-base font-bold text-primary tabular-nums">{formatCurrency(total)}</p>
-                                                </div>
-                                            </div>
-                                            <div className="mt-3 flex items-center justify-end gap-2">
-                                                <Button size="sm" className="rounded-lg" onClick={() => resumeTransaction(h.id)}>Lanjutkan</Button>
-                                                <Button variant="outline" size="sm" className="rounded-lg text-red-500 border-red-200 hover:bg-red-50" onClick={() => setHeldTransactions((p) => p.filter((x) => x.id !== h.id))}>Hapus</Button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </ScrollArea>
-                    )}
-                </DialogContent>
-            </Dialog>
-            <Dialog open={showDiscountDialog} onOpenChange={setShowDiscountDialog}>
-                <DialogContent className="rounded-2xl max-w-xs"><DialogHeader><DialogTitle>Set Diskon</DialogTitle></DialogHeader>
-                    <div className="space-y-4"><Input type="number" value={discountPercent} onChange={(e) => setDiscountPercent(Number(e.target.value))} className="rounded-xl text-center text-3xl h-16 font-bold" min={0} max={100} autoFocus /><div className="grid grid-cols-4 gap-2">{[5, 10, 15, 20].map((v) => (<Button key={v} variant="outline" className="rounded-lg h-10" onClick={() => { setDiscountPercent(v); setShowDiscountDialog(false); }}>{v}%</Button>))}</div><Button className="w-full rounded-xl h-11" onClick={() => setShowDiscountDialog(false)}>Terapkan</Button></div>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={showShortcutsDialog} onOpenChange={setShowShortcutsDialog}>
-                <DialogContent className="rounded-2xl w-[92vw] max-w-md"><DialogHeader><DialogTitle>Keyboard Shortcuts</DialogTitle></DialogHeader>
-                    <div className="space-y-1">{[["F1", "Cari produk"], ["F2", "Hold"], ["F3", "Bayar"], ["F4", "Reset"], ["F5", "Diskon"], ["Enter", "Tambah produk"], ["Esc", "Fokus barcode"]].map(([k, d]) => (<div key={k} className="flex justify-between py-2 border-b border-border/30 last:border-0"><Badge variant="secondary" className="rounded-md font-mono text-xs">{k}</Badge><span className="text-sm text-muted-foreground">{d}</span></div>))}</div>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-                {/* <DialogContent className="w-screen max-w-[95vw] rounded-2xl p-0 overflow-hidden"> */}
-                <DialogContent className="w-[98vw] max-w-[1400px] rounded-2xl p-0 overflow-hidden">
-                    {/* <DialogContent className="rounded-2xl max-w-none w-[98vw] p-0 overflow-hidden"> */}
-                    <div className="grid md:grid-cols-[1fr_1.15fr]">
-                        <div className="p-5 border-r border-border/30 bg-muted/20">
-                            <DialogHeader className="mb-4">
-                                <DialogTitle>Kalkulator Pembayaran</DialogTitle>
-                            </DialogHeader>
-                            <div className="mb-3 rounded-xl bg-white border border-border/50 px-4 py-3">
-                                <p className="text-[11px] text-muted-foreground">Nominal Input</p>
-                                <p className="text-3xl font-bold tabular-nums">{formatCurrency(payment || 0)}</p>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "000", "BACKSPACE"].map((key) => (
-                                    <Button
-                                        key={key}
-                                        type="button"
-                                        variant="outline"
-                                        className="h-11 rounded-xl"
-                                        onClick={() => handleCalculatorInput(key)}
-                                    >
-                                        {key === "BACKSPACE" ? "⌫" : key === "CLEAR" ? "C" : key}
-                                    </Button>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 mt-3">
-                                {dynamicQuickAmounts.map((amount, idx) => (
-                                    <Button
-                                        key={amount}
-                                        type="button"
-                                        variant="secondary"
-                                        className="rounded-lg h-9 text-xs"
-                                        onClick={() => setPaymentAmount(String(amount))}
-                                    >
-                                        {idx === 0 ? "Pas" : formatCurrency(amount)}
-                                    </Button>
-                                ))}
-                            </div>
-                            <Button type="button" variant="ghost" className="w-full mt-2 rounded-lg text-red-500" onClick={() => handleCalculatorInput("CLEAR")}>Clear</Button>
-                        </div>
-                        <div className="p-5 space-y-4">
-                            <DialogHeader>
-                                <DialogTitle>Konfirmasi Pembayaran</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Metode Pembayaran</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {PAYMENT_METHOD_OPTIONS.map((method) => (
-                                        <button
-                                            key={method.value}
-                                            type="button"
-                                            onClick={() => {
-                                                setPaymentMethod(method.value);
-                                                if (method.value !== "CASH") setPaymentAmount(String(grandTotal));
-                                            }}
-                                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${paymentMethod === method.value
-                                                ? "border-primary bg-primary/5 text-primary"
-                                                : "border-border/60 hover:border-primary/40 hover:bg-accent/40"
-                                                }`}
-                                        >
-                                            <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${paymentMethod === method.value ? "border-primary" : "border-muted-foreground/40"}`}>
-                                                <span className={`h-2 w-2 rounded-full ${paymentMethod === method.value ? "bg-primary" : "bg-transparent"}`} />
-                                            </span>
-                                            <span>{method.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Nominal Bayar</label>
-                                <Input
-                                    type="number"
-                                    value={paymentAmount}
-                                    onChange={(e) => setPaymentAmount(e.target.value)}
-                                    disabled={paymentMethod !== "CASH"}
-                                    className="rounded-lg h-11 text-right text-2xl font-bold tabular-nums"
-                                />
-                                {paymentMethod !== "CASH" && (
-                                    <p className="text-xs text-muted-foreground">Metode non-cash otomatis menggunakan nominal total.</p>
-                                )}
-                            </div>
-                            <div className="rounded-xl border border-border/40 p-4 space-y-2">
-                                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total</span><span className="font-semibold tabular-nums">{formatCurrency(grandTotal)}</span></div>
-                                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Dibayar</span><span className="font-semibold tabular-nums">{formatCurrency(paymentMethod === "CASH" ? payment : grandTotal)}</span></div>
-                                <div className="flex justify-between text-base"><span className="font-medium">Kembalian</span><span className="font-bold tabular-nums text-emerald-600">{formatCurrency(paymentMethod === "CASH" && payment >= grandTotal ? changeAmount : 0)}</span></div>
-                            </div>
-                            <div className="flex gap-2 pt-1">
-                                <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => setShowPaymentDialog(false)}>Batal</Button>
-                                <Button
-                                    className="flex-1 rounded-xl h-11"
-                                    onClick={handlePayment}
-                                    disabled={loading || (paymentMethod === "CASH" && payment < grandTotal)}
-                                >
-                                    {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memproses...</> : "Proses Pembayaran"}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <PosDialogsProvider value={{
+                showSearchDialog,
+                setShowSearchDialog,
+                searchProducts,
+                activeBranchId,
+                setSearchResults,
+                searchResults,
+                addToCart,
+                showClosingDialog,
+                setShowClosingDialog,
+                activeBranchName,
+                selectedRegister,
+                activeShift,
+                summaryLoading,
+                shiftSummary,
+                closingCash,
+                setClosingCash,
+                closingNotes,
+                setClosingNotes,
+                handleCloseShift,
+                closingShiftLoading,
+                showHeldDialog,
+                setShowHeldDialog,
+                heldTransactions,
+                resumeTransaction,
+                setHeldTransactions,
+                showHistoryDialog,
+                setShowHistoryDialog,
+                historyDetail,
+                setHistoryDetailId,
+                historyLoading,
+                historyData,
+                reprintReceipt,
+                canPosAction,
+                setVoidingId,
+                setShowVoidDialog,
+                showPaymentDialog,
+                setShowPaymentDialog,
+                dynamicQuickAmounts,
+                payment,
+                setPaymentAmount,
+                handleCalculatorInput,
+                paymentEntries,
+                setPaymentEntries,
+                remainingToPay,
+                paymentMethod,
+                setPaymentMethod,
+                grandTotal,
+                paidFromEntries,
+                totalPaid,
+                changeAmount,
+                loading,
+                handlePayment,
+                showDiscountDialog,
+                setShowDiscountDialog,
+                discountType,
+                setDiscountType,
+                discountPercent,
+                setDiscountPercent,
+                discountFixed,
+                setDiscountFixed,
+                subtotal,
+                showVoidDialog,
+                voidReason,
+                setVoidReason,
+                handleVoid,
+                showShortcutsDialog,
+                setShowShortcutsDialog,
+            }}>
+                <POSPageMainDialogs />
+                <DiscountDialog />
+                <VoidDialog />
+                <ShortcutsDialog />
+            </PosDialogsProvider>
         </div>
     );
 }

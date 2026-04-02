@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { productSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 import {
   branchPriceSchema,
   productUnitSchema,
@@ -252,6 +253,9 @@ export async function createProduct(formData: FormData) {
     }
 
     revalidatePath("/products");
+
+    createAuditLog({ action: "CREATE", entity: "Product", entityId: product.id, details: { data: { name: parsed.data.name, code: parsed.data.code, categoryId: parsed.data.categoryId ?? null, brandId: brandIdRaw || null, unit: parsed.data.unit, purchasePrice: parsed.data.purchasePrice, sellingPrice: parsed.data.sellingPrice, stock: parsed.data.stock, minStock: parsed.data.minStock, barcode: parsed.data.barcode ?? null, description: parsed.data.description ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
+
     return {
       success: true,
       product: {
@@ -314,6 +318,11 @@ export async function updateProduct(id: string, formData: FormData) {
     return { error: `Harga bertingkat tidak valid: ${tierPricesResult.error}` };
 
   try {
+    const oldProduct = await prisma.product.findUnique({
+      where: { id },
+      select: { name: true, code: true, sellingPrice: true, purchasePrice: true, unit: true, stock: true, minStock: true, barcode: true, isActive: true, categoryId: true, brandId: true, description: true },
+    });
+
     const data = {
       code: parsed.data.code,
       name: parsed.data.name,
@@ -386,6 +395,9 @@ export async function updateProduct(id: string, formData: FormData) {
     }
 
     revalidatePath("/products");
+
+    createAuditLog({ action: "UPDATE", entity: "Product", entityId: id, details: { before: oldProduct, after: { name: parsed.data.name, code: parsed.data.code, sellingPrice: parsed.data.sellingPrice, purchasePrice: parsed.data.purchasePrice, unit: parsed.data.unit, stock: parsed.data.stock, minStock: parsed.data.minStock, barcode: parsed.data.barcode ?? null, isActive: parsed.data.isActive, categoryId: parsed.data.categoryId ?? null, brandId: brandIdRaw || null, description: parsed.data.description ?? null } } }).catch(() => {});
+
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate produk" };
@@ -442,8 +454,16 @@ export async function getProductBranchPrices(productId: string) {
 export async function deleteProduct(id: string) {
   await assertMenuActionAccess("products", "delete");
   try {
+    const oldProduct = await prisma.product.findUnique({
+      where: { id },
+      select: { name: true, code: true },
+    });
+
     await prisma.product.delete({ where: { id } });
     revalidatePath("/products");
+
+    createAuditLog({ action: "DELETE", entity: "Product", entityId: id, details: { deleted: oldProduct } }).catch(() => {});
+
     return { success: true };
   } catch {
     return {
@@ -648,7 +668,7 @@ export async function browseProducts(params: {
     const productIds = items.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true },
-      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } } },
+      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } }, units: { orderBy: { conversionQty: "asc" } } },
     });
 
     const sorted = items
@@ -670,7 +690,7 @@ export async function browseProducts(params: {
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } } },
+      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } }, units: { orderBy: { conversionQty: "asc" } } },
       orderBy: { name: "asc" },
       skip: (page - 1) * perPage,
       take: perPage,

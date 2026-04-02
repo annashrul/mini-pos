@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { branchSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getBranches(params?: { search?: string; page?: number; perPage?: number }) {
   const { search, page = 1, perPage = 10 } = params || {};
@@ -42,8 +43,9 @@ export async function createBranch(data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
-    await prisma.branch.create({ data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } });
+    const result = await prisma.branch.create({ data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } });
     revalidatePath("/branches");
+    createAuditLog({ action: "CREATE", entity: "Branch", entityId: result.id, details: { data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Cabang dengan nama tersebut sudah ada" };
@@ -61,8 +63,12 @@ export async function updateBranch(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
+    const old = await prisma.branch.findUnique({ where: { id } });
     await prisma.branch.update({ where: { id }, data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } });
     revalidatePath("/branches");
+    if (old) {
+      createAuditLog({ action: "UPDATE", entity: "Branch", entityId: id, details: { before: { name: old.name, address: old.address, phone: old.phone, isActive: old.isActive }, after: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
+    }
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate cabang" };
@@ -72,8 +78,10 @@ export async function updateBranch(id: string, data: FormData) {
 export async function deleteBranch(id: string) {
   await assertMenuActionAccess("branches", "delete");
   try {
+    const old = await prisma.branch.findUnique({ where: { id } });
     await prisma.branch.delete({ where: { id } });
     revalidatePath("/branches");
+    createAuditLog({ action: "DELETE", entity: "Branch", entityId: id, details: { deleted: { name: old?.name, address: old?.address } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menghapus cabang" };

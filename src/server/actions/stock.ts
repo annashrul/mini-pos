@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { stockMovementSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 interface GetStockMovementsParams {
   page?: number;
@@ -145,6 +146,9 @@ export async function createStockMovement(formData: FormData) {
 
     revalidatePath("/stock");
     revalidatePath("/products");
+
+    createAuditLog({ action: "CREATE", entity: "StockMovement", details: { data: { type: parsed.data.type, productId: parsed.data.productId, quantity: parsed.data.quantity, notes: parsed.data.note, ...(branchIds.length > 0 ? { branchId: branchIds.length === 1 ? branchIds[0] : branchIds } : {}) } } }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     return {

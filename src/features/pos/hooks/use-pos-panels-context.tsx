@@ -1,0 +1,106 @@
+"use client";
+
+import type { Dispatch, SetStateAction } from "react";
+import { createContext, useContext } from "react";
+import type { CartItem, ProductSearchResult } from "@/types";
+import type { TebusMurahOption } from "../types";
+
+export type PosPanelsContextValue = {
+    panelsContainerRef: React.RefObject<HTMLDivElement | null>;
+    centerPanelRef: React.RefObject<HTMLDivElement | null>;
+    productScrollRef: React.RefObject<HTMLDivElement | null>;
+    productSentinelRef: React.RefObject<HTMLDivElement | null>;
+    barcodeInputRef: React.RefObject<HTMLInputElement | null>;
+    isDesktop: boolean;
+    leftPanelWidth: number;
+    isResizingLeftPanel: boolean;
+    mobileView: "products" | "cart" | "payment";
+    setMobileView: (v: "products" | "cart" | "payment") => void;
+    isOnline: boolean;
+    activeBranchName: string;
+    selectedRegister: string;
+    activeShift: { id: string; openingCash: number; openedAt: string | Date } | null;
+    setShiftSummary: (v: null) => void;
+    setClosingCash: (v: string) => void;
+    setClosingNotes: (v: string) => void;
+    setSummaryLoading: (v: boolean) => void;
+    setShowClosingDialog: (v: boolean) => void;
+    syncProducts: () => Promise<void>;
+    productSyncing: boolean;
+    setShowShortcutsDialog: (v: boolean) => void;
+    goDashboard: () => void;
+    saveCategoryCache: () => void;
+    setSelectedCategory: (v: string) => void;
+    restoreCategoryCache: () => boolean;
+    loadProducts: (search?: string, categoryId?: string, page?: number, reset?: boolean) => Promise<void>;
+    categories: { id: string; name: string }[];
+    selectedCategory: string;
+    handleCategoryClick: (id: string) => void;
+    productGridCols: number;
+    browseItems: ProductSearchResult[];
+    addToCart: (p: ProductSearchResult) => void;
+    addToCartWithUnit: (p: ProductSearchResult, unitOverride?: { unitName: string; conversionQty: number; sellingPrice: number; purchasePrice: number }) => void;
+    unitSelectorProduct: ProductSearchResult | null;
+    setUnitSelectorProduct: Dispatch<SetStateAction<ProductSearchResult | null>>;
+    handleUnitSelect: (unitName: string, conversionQty: number, sellingPrice: number, purchasePrice: number) => void;
+    browseHasMore: boolean;
+    browseLoading: boolean;
+    heldTransactions: { id: number; cart: CartItem[]; time: string }[];
+    setShowHeldDialog: (v: boolean) => void;
+    holdTransaction: () => void;
+    canPosAction: (action: string) => boolean;
+    setShowDiscountDialog: (v: boolean) => void;
+    setShowSearchDialog: (v: boolean) => void;
+    loadHistory: () => Promise<void>;
+    startResizeLeftPanel: (event: React.MouseEvent<HTMLDivElement>) => void;
+    searchQuery: string;
+    handleBarcodeInput: (query: string) => void;
+    searchResults: ProductSearchResult[];
+    searching: boolean;
+    negativeMarginItems: CartItem[];
+    lowStockItems: CartItem[];
+    cart: CartItem[];
+    totalItems: number;
+    promoMeta: { byItem: Record<string, { names: string[]; discount: number }>; freeQtyByItem: Record<string, number> };
+    isCompactCart: boolean;
+    updateQuantity: (lineKey: string, delta: number) => void;
+    removeItem: (lineKey: string) => void;
+    resetPOS: () => void;
+    subtotal: number;
+    discountPercent: number;
+    setDiscountPercent: (v: number) => void;
+    discountAmount: number;
+    taxPercent: number;
+    setTaxPercent: (v: number) => void;
+    taxAmount: number;
+    grandTotal: number;
+    appliedPromos: { promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[];
+    tebusMurahOptions: TebusMurahOption[];
+    handleAddTebusMurah: (option: TebusMurahOption) => void;
+    customerPhone: string;
+    handleCustomerPhoneChange: (phone: string) => Promise<void>;
+    detectedCustomer: { name: string; memberLevel: string; points: number } | null;
+    redeemPointsInput: number;
+    setRedeemPointsInput: (v: number) => void;
+    handleRedeemPoints: () => void;
+    redeemDiscount: number;
+    voucherCode: string;
+    setVoucherCode: (v: string) => void;
+    handleApplyVoucher: () => Promise<void>;
+    voucherApplied: string;
+    voucherDiscount: number;
+    loading: boolean;
+    openPaymentDialog: () => void;
+};
+
+const PosPanelsContext = createContext<PosPanelsContextValue | null>(null);
+
+export function PosPanelsProvider({ value, children }: { value: PosPanelsContextValue; children: React.ReactNode }) {
+    return <PosPanelsContext.Provider value={value}>{children}</PosPanelsContext.Provider>;
+}
+
+export function usePosPanelsContext() {
+    const context = useContext(PosPanelsContext);
+    if (!context) throw new Error("usePosPanelsContext must be used within PosPanelsProvider");
+    return context;
+}

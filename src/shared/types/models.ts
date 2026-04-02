@@ -291,6 +291,10 @@ export interface ReportCategorySales {
 }
 
 export interface ReportOverview {
+  totalRevenue?: number;
+  totalTransactions?: number;
+  averageTransaction?: number;
+  totalRevetotalTransactionsue?: number;
   revenue: number;
   transactions: number;
   totalItemsSold: number;
@@ -337,11 +341,32 @@ export interface DashboardStats {
     _sum: { quantity: number | null; subtotal: number | null };
   }[];
   dailySales: { date: string; total: number; count: number }[];
-  yearlyComparison: { month: string; thisYear: number; lastYear: number; thisYearCount: number; lastYearCount: number }[];
+  yearlyComparison: {
+    month: string;
+    thisYear: number;
+    lastYear: number;
+    thisYearCount: number;
+    lastYearCount: number;
+  }[];
   paymentBreakdown: { method: string; total: number; count: number }[];
   topCashiers: { name: string; total: number; count: number }[];
   categoryBreakdown: { name: string; total: number; qty: number }[];
   hourlySales: { hour: string; total: number; count: number }[];
+  avgTransactionValue: number;
+  todayProfit: number;
+  weekSales: number;
+  refundCount: number;
+  voidCount: number;
+  activePromotions: number;
+  pendingPurchaseOrders: number;
+  branchPerformance: {
+    branchId: string;
+    branchName: string;
+    todaySales: number;
+    todayTransactions: number;
+    monthSales: number;
+    monthTransactions: number;
+  }[];
 }
 
 // --- Detail types (for getXxxById responses) ---
@@ -401,7 +426,13 @@ export interface PurchaseOrderDetail {
   id: string;
   orderNumber: string;
   supplierId: string;
-  supplier: { id: string; name: string; contact: string | null; address: string | null; email: string | null };
+  supplier: {
+    id: string;
+    name: string;
+    contact: string | null;
+    address: string | null;
+    email: string | null;
+  };
   status: string;
   totalAmount: number;
   paidAmount: number;
@@ -453,6 +484,9 @@ export interface TransactionItemDetail {
   unitPrice: number;
   discount: number;
   subtotal: number;
+  unitName?: string | undefined;
+  conversionQty?: number | undefined;
+  baseQty?: number | undefined;
 }
 
 // --- Promo ---
@@ -481,6 +515,42 @@ export interface AccessMenuAction {
   sortOrder: number;
   isActive: boolean;
   permissions: Record<string, boolean>;
+}
+
+export interface CategorySalesReport {
+  categoryId: string;
+  categoryName: string;
+  totalQuantity: number;
+  totalRevenue: number;
+  totalCost: number;
+  profit: number;
+  transactionCount: number;
+  topProducts: { name: string; quantity: number; revenue: number }[];
+}
+
+export interface SupplierSalesReport {
+  supplierId: string | null;
+  supplierName: string;
+  totalQuantity: number;
+  totalRevenue: number;
+  totalCost: number;
+  profit: number;
+  productCount: number;
+  topProducts: { name: string; quantity: number; revenue: number }[];
+}
+
+export interface CashierSalesReport {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  totalRevenue: number;
+  totalCost: number;
+  profit: number;
+  totalDiscount: number;
+  transactionCount: number;
+  itemsSold: number;
+  averageTicket: number;
 }
 
 export interface AccessMenu {

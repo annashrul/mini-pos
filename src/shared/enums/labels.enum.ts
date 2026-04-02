@@ -6,6 +6,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   EWALLET: "E-Wallet",
   DEBIT: "Debit",
   CREDIT_CARD: "Kartu Kredit",
+  TERMIN: "Termin",
 };
 
 // Member level colors

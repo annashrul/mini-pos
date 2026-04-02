@@ -5,6 +5,7 @@ import { userSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getUsers(params?: { search?: string; role?: string; branchId?: string; page?: number; perPage?: number }) {
   const { search, role, branchId, page = 1, perPage = 10 } = params || {};
@@ -79,6 +80,9 @@ export async function createUser(formData: FormData) {
       },
     });
     revalidatePath("/users");
+
+    createAuditLog({ action: "CREATE", entity: "User", details: { data: { name: parsed.data.name, email: parsed.data.email, role: parsed.data.role, branchId } } }).catch(() => {});
+
     return { success: true };
   } catch {
     return { error: "Email sudah digunakan" };
@@ -102,8 +106,18 @@ export async function updateUser(id: string, formData: FormData) {
   }
 
   try {
+    const oldUser = await prisma.user.findUnique({
+      where: { id },
+      select: { name: true, email: true, role: true, isActive: true, branchId: true, branch: { select: { name: true } } },
+    });
+
     await prisma.user.update({ where: { id }, data });
     revalidatePath("/users");
+
+    if (oldUser) {
+      createAuditLog({ action: "UPDATE", entity: "User", entityId: id, details: { before: { name: oldUser.name, email: oldUser.email, role: oldUser.role, isActive: oldUser.isActive, branchId: oldUser.branchId, branchName: oldUser.branch?.name ?? null }, after: { name: data.name as string, email: data.email as string, role: data.role as string, isActive: data.isActive as boolean, branchId } } }).catch(() => {});
+    }
+
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate user" };
@@ -117,8 +131,16 @@ export async function deleteUser(id: string) {
     if (txCount > 0) {
       return { error: `User memiliki ${txCount} transaksi dan tidak bisa dihapus` };
     }
+    const oldUser = await prisma.user.findUnique({
+      where: { id },
+      select: { name: true, email: true, role: true, isActive: true, branchId: true, branch: { select: { name: true } } },
+    });
+
     await prisma.user.delete({ where: { id } });
     revalidatePath("/users");
+
+    createAuditLog({ action: "DELETE", entity: "User", entityId: id, details: { deleted: oldUser ? { name: oldUser.name, email: oldUser.email, role: oldUser.role, isActive: oldUser.isActive, branchId: oldUser.branchId, branchName: oldUser.branch?.name ?? null } : null } }).catch(() => {});
+
     return { success: true };
   } catch {
     return { error: "Gagal menghapus user" };

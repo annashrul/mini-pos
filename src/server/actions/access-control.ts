@@ -8,6 +8,7 @@ import {
   hasMenuActionAccess,
 } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
+import { createAuditLog } from "@/lib/audit";
 
 async function ensureManageAccess() {
   const allowed = await hasMenuActionAccess("access-control", "manage");
@@ -45,6 +46,8 @@ export async function updateRoleMenuPermission(input: {
     create: { role: input.role, menuId: input.menuId, allowed: input.allowed },
   });
 
+  createAuditLog({ action: "UPDATE", entity: "RolePermission", details: { role: input.role, menuId: input.menuId, allowed: input.allowed } }).catch(() => {});
+
   revalidatePath("/access-control");
   return { success: true, error: null };
 }
@@ -68,6 +71,8 @@ export async function updateRoleActionPermission(input: {
       allowed: input.allowed,
     },
   });
+
+  createAuditLog({ action: "UPDATE", entity: "Permission", details: { role: input.role, actionId: input.actionId, allowed: input.allowed } }).catch(() => {});
 
   revalidatePath("/access-control");
   return { success: true, error: null };

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 interface GetStockOpnamesParams {
   page?: number;
@@ -142,6 +143,14 @@ export async function createStockOpname(
       },
     });
 
+    createAuditLog({
+      action: "CREATE",
+      entity: "StockOpname",
+      entityId: opnameNumber,
+      details: { data: { opnameNumber, branchId, itemCount: products.length } },
+      ...(branchId ? { branchId } : {}),
+    }).catch(() => {});
+
     revalidatePath("/stock-opname");
     return { success: true };
   } catch {
@@ -187,6 +196,13 @@ export async function updateOpnameItems(
         }
       }
     });
+
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockOpname",
+      entityId: opnameId,
+      details: { data: { opnameId, status: opname.status === "DRAFT" ? "IN_PROGRESS" : opname.status, itemCount: items.length } },
+    }).catch(() => {});
 
     revalidatePath("/stock-opname");
     return { success: true };
@@ -235,6 +251,13 @@ export async function completeStockOpname(id: string) {
       });
     });
 
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockOpname",
+      entityId: id,
+      details: { data: { opnameId: id, status: "COMPLETED" } },
+    }).catch(() => {});
+
     revalidatePath("/stock-opname");
     revalidatePath("/products");
     revalidatePath("/stock");
@@ -261,6 +284,13 @@ export async function cancelStockOpname(id: string) {
       where: { id },
       data: { status: "CANCELLED" },
     });
+
+    createAuditLog({
+      action: "UPDATE",
+      entity: "StockOpname",
+      entityId: id,
+      details: { data: { opnameId: id, status: "CANCELLED" } },
+    }).catch(() => {});
 
     revalidatePath("/stock-opname");
     return { success: true };

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getRoles() {
   return prisma.appRole.findMany({
@@ -67,6 +68,8 @@ export async function createRole(data: { key: string; name: string; description?
     }
   }
 
+  createAuditLog({ action: "CREATE", entity: "Role", entityId: role.id, details: { data: { name: data.name, key: keyFormatted, color: data.color ?? null } } }).catch(() => {});
+
   revalidatePath("/access-control");
   return { success: true, role };
 }
@@ -75,7 +78,7 @@ export async function updateRole(id: string, data: { name?: string; description?
   const role = await prisma.appRole.findUnique({ where: { id } });
   if (!role) return { error: "Role tidak ditemukan" };
 
-  await prisma.appRole.update({
+  const updated = await prisma.appRole.update({
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
@@ -84,6 +87,8 @@ export async function updateRole(id: string, data: { name?: string; description?
       ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
     },
   });
+
+  createAuditLog({ action: "UPDATE", entity: "Role", entityId: id, details: { before: { name: role.name, description: role.description, color: role.color, isActive: role.isActive }, after: { name: updated.name, description: updated.description, color: updated.color, isActive: updated.isActive } } }).catch(() => {});
 
   revalidatePath("/access-control");
   return { success: true };
@@ -102,6 +107,8 @@ export async function deleteRole(id: string) {
   await prisma.roleMenuPermission.deleteMany({ where: { role: role.key } });
   await prisma.roleActionPermission.deleteMany({ where: { role: role.key } });
   await prisma.appRole.delete({ where: { id } });
+
+  createAuditLog({ action: "DELETE", entity: "Role", entityId: id, details: { deleted: { name: role.name, key: role.key } } }).catch(() => {});
 
   revalidatePath("/access-control");
   return { success: true };

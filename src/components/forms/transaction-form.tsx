@@ -25,6 +25,7 @@ const paymentMethodOptions = [
     { value: "EWALLET", label: "E-Wallet", description: "OVO, GoPay, DANA" },
     { value: "DEBIT", label: "Debit", description: "Kartu debit" },
     { value: "CREDIT_CARD", label: "Kartu Kredit", description: "Kartu kredit" },
+    { value: "TERMIN", label: "Termin", description: "Pembayaran termin/cicilan" },
 ] as const;
 
 export function TransactionForm({ onSuccess }: TransactionFormProps) {

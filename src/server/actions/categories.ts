@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getCategories(params?: {
   search?: string;
@@ -56,6 +57,7 @@ export async function createCategory(data: FormData) {
       },
     });
     revalidatePath("/categories");
+    createAuditLog({ action: "CREATE", entity: "Category", entityId: category.id, details: { data: { name: parsed.data.name, description: parsed.data.description ?? null } } }).catch(() => {});
     return { success: true, id: category.id, name: category.name };
   } catch {
     return { error: "Kategori dengan nama tersebut sudah ada" };
@@ -74,6 +76,7 @@ export async function updateCategory(id: string, data: FormData) {
   }
 
   try {
+    const oldCategory = await prisma.category.findUniqueOrThrow({ where: { id } });
     await prisma.category.update({
       where: { id },
       data: {
@@ -82,6 +85,7 @@ export async function updateCategory(id: string, data: FormData) {
       },
     });
     revalidatePath("/categories");
+    createAuditLog({ action: "UPDATE", entity: "Category", entityId: id, details: { before: { name: oldCategory.name, description: oldCategory.description }, after: { name: parsed.data.name, description: parsed.data.description ?? null } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate kategori" };
@@ -97,8 +101,10 @@ export async function deleteCategory(id: string) {
     if (productsCount > 0) {
       return { error: `Kategori masih memiliki ${productsCount} produk` };
     }
+    const category = await prisma.category.findUniqueOrThrow({ where: { id } });
     await prisma.category.delete({ where: { id } });
     revalidatePath("/categories");
+    createAuditLog({ action: "DELETE", entity: "Category", entityId: id, details: { deleted: { name: category.name } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menghapus kategori" };

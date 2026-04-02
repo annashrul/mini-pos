@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getPurchaseOrders(params?: {
   search?: string;
@@ -145,6 +146,7 @@ export async function createPurchaseOrder(data: {
     });
 
     revalidatePath("/purchases");
+    createAuditLog({ action: "CREATE", entity: "PurchaseOrder", details: { data: { orderNumber, supplierId: data.supplierId, itemCount: data.items.length } }, ...(data.branchIds?.[0] || data.branchId ? { branchId: data.branchIds?.[0] ?? data.branchId! } : {}) }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal membuat purchase order" };
@@ -154,13 +156,17 @@ export async function createPurchaseOrder(data: {
 export async function receivePurchaseOrder(
   id: string,
   items: { itemId: string; receivedQty: number }[],
+  paidAmount?: number,
 ) {
   await assertMenuActionAccess("purchases", "receive");
   try {
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const po = await tx.purchaseOrder.findUnique({
         where: { id },
-        include: { items: { include: { product: true } } },
+        include: {
+          items: { include: { product: true } },
+          supplier: { select: { name: true } },
+        },
       });
       if (!po) throw new Error("PO tidak ditemukan");
       if (po.status === "CANCELLED" || po.status === "RECEIVED") {
@@ -219,11 +225,43 @@ export async function receivePurchaseOrder(
           receivedDate: allReceived ? new Date() : null,
         },
       });
+
+      return { po, allReceived };
     });
+
+    // Create payable debt for unpaid portion of PO
+    const paid = paidAmount ?? 0;
+    const unpaidAmount = result.po.totalAmount - paid;
+    if (unpaidAmount > 0) {
+      const { auth } = await import("@/lib/auth");
+      const session = await auth();
+      const createdBy = session?.user?.id;
+      if (createdBy) {
+        await prisma.debt.create({
+          data: {
+            type: "PAYABLE",
+            referenceType: "PURCHASE",
+            referenceId: id,
+            partyType: "SUPPLIER",
+            partyId: result.po.supplierId,
+            partyName: result.po.supplier.name,
+            description: `Hutang pembelian PO ${result.po.orderNumber}`,
+            totalAmount: unpaidAmount,
+            paidAmount: 0,
+            remainingAmount: unpaidAmount,
+            status: "UNPAID",
+            branchId: result.po.branchId || null,
+            createdBy,
+          },
+        });
+      }
+    }
 
     revalidatePath("/purchases");
     revalidatePath("/products");
     revalidatePath("/stock");
+    revalidatePath("/debts");
+    createAuditLog({ action: "RECEIVE", entity: "PurchaseOrder", entityId: id, details: { data: { orderId: id, paidAmount: paid, unpaidAmount: unpaidAmount > 0 ? unpaidAmount : 0 } } }).catch(() => {});
     return { success: true };
   } catch (err) {
     return {
@@ -255,6 +293,7 @@ export async function updatePurchaseOrderStatus(
     });
 
     revalidatePath("/purchases");
+    createAuditLog({ action: "UPDATE", entity: "PurchaseOrder", entityId: id, details: { before: { status: po.status }, after: { status } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal mengubah status PO" };

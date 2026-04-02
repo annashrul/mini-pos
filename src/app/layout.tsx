@@ -14,8 +14,8 @@ const fontSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-    title: "POS System - Point of Sale",
-    description: "Modern Point of Sale System",
+    title: "NusaPOS — Point of Sale",
+    description: "Enterprise Point of Sale System for Retail & Wholesale",
 };
 
 export default function RootLayout({

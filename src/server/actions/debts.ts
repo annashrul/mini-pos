@@ -1,0 +1,485 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import type { Prisma, DebtType, DebtStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
+import { auth } from "@/lib/auth";
+
+// ===========================
+// GET DEBTS (list with filters)
+// ===========================
+
+export async function getDebts(params?: {
+  type?: DebtType | undefined;
+  status?: DebtStatus | undefined;
+  partyType?: string | undefined;
+  search?: string | undefined;
+  branchId?: string | undefined;
+  page?: number | undefined;
+  perPage?: number | undefined;
+  dateFrom?: string | undefined;
+  dateTo?: string | undefined;
+  sortBy?: string | undefined;
+  sortDir?: "asc" | "desc" | undefined;
+}) {
+  const {
+    type,
+    status,
+    partyType,
+    search,
+    branchId,
+    page = 1,
+    perPage = 10,
+    dateFrom,
+    dateTo,
+    sortBy,
+    sortDir = "desc",
+  } = params || {};
+
+  const where: Record<string, unknown> = {};
+
+  if (type) where.type = type;
+  if (status) where.status = status;
+  if (partyType) where.partyType = partyType;
+  if (branchId) where.branchId = branchId;
+
+  if (search) {
+    where.OR = [
+      { partyName: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+      { referenceId: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  if (dateFrom || dateTo) {
+    where.createdAt = {
+      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+      ...(dateTo ? { lte: new Date(dateTo + "T23:59:59.999Z") } : {}),
+    };
+  }
+
+  const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
+  const orderBy =
+    sortBy === "partyName"
+      ? { partyName: direction }
+      : sortBy === "totalAmount"
+        ? { totalAmount: direction }
+        : sortBy === "remainingAmount"
+          ? { remainingAmount: direction }
+          : sortBy === "dueDate"
+            ? { dueDate: direction }
+            : sortBy === "status"
+              ? { status: direction }
+              : sortBy === "type"
+                ? { type: direction }
+                : { createdAt: direction };
+
+  const [debts, total] = await Promise.all([
+    prisma.debt.findMany({
+      where,
+      include: {
+        branch: { select: { id: true, name: true } },
+        creator: { select: { id: true, name: true } },
+        payments: {
+          orderBy: { paidAt: "desc" },
+          take: 1,
+          select: { paidAt: true, amount: true },
+        },
+      },
+      orderBy,
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    prisma.debt.count({ where }),
+  ]);
+
+  return { debts, total, totalPages: Math.ceil(total / perPage) };
+}
+
+// ===========================
+// GET DEBT BY ID
+// ===========================
+
+export async function getDebtById(id: string) {
+  const debt = await prisma.debt.findUnique({
+    where: { id },
+    include: {
+      branch: { select: { id: true, name: true } },
+      creator: { select: { id: true, name: true } },
+      payments: {
+        include: {
+          payer: { select: { id: true, name: true } },
+        },
+        orderBy: { paidAt: "desc" },
+      },
+    },
+  });
+
+  if (!debt) return { error: "Data hutang/piutang tidak ditemukan" };
+  return { debt };
+}
+
+// ===========================
+// CREATE DEBT
+// ===========================
+
+export async function createDebt(data: {
+  type: DebtType;
+  referenceType?: string | undefined;
+  referenceId?: string | undefined;
+  partyType: string;
+  partyId?: string | undefined;
+  partyName: string;
+  description?: string | undefined;
+  totalAmount: number;
+  dueDate?: string | undefined;
+  branchId?: string | undefined;
+}) {
+  await assertMenuActionAccess("debts", "create");
+
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+
+  if (!data.type || !data.partyType || !data.partyName) {
+    return { error: "Tipe, jenis pihak, dan nama pihak wajib diisi" };
+  }
+  if (!data.totalAmount || data.totalAmount <= 0) {
+    return { error: "Jumlah hutang/piutang harus lebih dari 0" };
+  }
+
+  try {
+    const debt = await prisma.debt.create({
+      data: {
+        type: data.type,
+        referenceType: data.referenceType || null,
+        referenceId: data.referenceId || null,
+        partyType: data.partyType,
+        partyId: data.partyId || null,
+        partyName: data.partyName,
+        description: data.description || null,
+        totalAmount: data.totalAmount,
+        paidAmount: 0,
+        remainingAmount: data.totalAmount,
+        status: "UNPAID",
+        dueDate: data.dueDate ? new Date(data.dueDate) : null,
+        branchId: data.branchId || null,
+        createdBy: session.user.id,
+      },
+    });
+
+    createAuditLog({
+      action: "CREATE",
+      entity: "Debt",
+      entityId: debt.id,
+      details: {
+        type: debt.type,
+        partyName: debt.partyName,
+        partyType: debt.partyType,
+        totalAmount: debt.totalAmount,
+      },
+      ...(data.branchId ? { branchId: data.branchId } : {}),
+    }).catch(() => {});
+
+    revalidatePath("/debts");
+    return { success: true, debt };
+  } catch (err) {
+    console.error("[createDebt]", err);
+    return { error: "Gagal membuat data hutang/piutang" };
+  }
+}
+
+// ===========================
+// UPDATE DEBT
+// ===========================
+
+export async function updateDebt(
+  id: string,
+  data: {
+    referenceType?: string | undefined;
+    referenceId?: string | undefined;
+    partyType?: string | undefined;
+    partyId?: string | undefined;
+    partyName?: string | undefined;
+    description?: string | undefined;
+    totalAmount?: number | undefined;
+    dueDate?: string | null | undefined;
+    branchId?: string | null | undefined;
+  }
+) {
+  await assertMenuActionAccess("debts", "update");
+
+  try {
+    const existing = await prisma.debt.findUnique({ where: { id } });
+    if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
+
+    // Recalculate remaining amount if totalAmount changed
+    const newTotal = data.totalAmount ?? existing.totalAmount;
+    const newRemaining = newTotal - existing.paidAmount;
+
+    if (newRemaining < 0) {
+      return { error: "Total baru tidak boleh lebih kecil dari jumlah yang sudah dibayar" };
+    }
+
+    // Determine new status
+    let newStatus = existing.status;
+    if (newRemaining === 0) {
+      newStatus = "PAID";
+    } else if (existing.paidAmount > 0 && newRemaining > 0) {
+      newStatus = "PARTIAL";
+    } else if (existing.paidAmount === 0) {
+      newStatus = "UNPAID";
+    }
+
+    const debt = await prisma.debt.update({
+      where: { id },
+      data: {
+        ...(data.referenceType !== undefined ? { referenceType: data.referenceType || null } : {}),
+        ...(data.referenceId !== undefined ? { referenceId: data.referenceId || null } : {}),
+        ...(data.partyType !== undefined ? { partyType: data.partyType } : {}),
+        ...(data.partyId !== undefined ? { partyId: data.partyId || null } : {}),
+        ...(data.partyName !== undefined ? { partyName: data.partyName } : {}),
+        ...(data.description !== undefined ? { description: data.description || null } : {}),
+        ...(data.totalAmount !== undefined
+          ? { totalAmount: newTotal, remainingAmount: newRemaining, status: newStatus }
+          : {}),
+        ...(data.dueDate !== undefined
+          ? { dueDate: data.dueDate ? new Date(data.dueDate) : null }
+          : {}),
+        ...(data.branchId !== undefined ? { branchId: data.branchId || null } : {}),
+      },
+    });
+
+    createAuditLog({
+      action: "UPDATE",
+      entity: "Debt",
+      entityId: id,
+      details: {
+        before: {
+          partyName: existing.partyName,
+          totalAmount: existing.totalAmount,
+          dueDate: existing.dueDate,
+          description: existing.description,
+        },
+        after: {
+          partyName: debt.partyName,
+          totalAmount: debt.totalAmount,
+          dueDate: debt.dueDate,
+          description: debt.description,
+        },
+      },
+      ...(debt.branchId ? { branchId: debt.branchId } : {}),
+    }).catch(() => {});
+
+    revalidatePath("/debts");
+    return { success: true, debt };
+  } catch (err) {
+    console.error("[updateDebt]", err);
+    return { error: "Gagal mengupdate data hutang/piutang" };
+  }
+}
+
+// ===========================
+// DELETE DEBT
+// ===========================
+
+export async function deleteDebt(id: string) {
+  await assertMenuActionAccess("debts", "delete");
+
+  try {
+    const existing = await prisma.debt.findUnique({ where: { id } });
+    if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
+
+    if (existing.status !== "UNPAID") {
+      return {
+        error:
+          "Hanya hutang/piutang yang belum dibayar (UNPAID) yang dapat dihapus. Batalkan pembayaran terlebih dahulu.",
+      };
+    }
+
+    await prisma.debt.delete({ where: { id } });
+
+    createAuditLog({
+      action: "DELETE",
+      entity: "Debt",
+      entityId: id,
+      details: {
+        deleted: {
+          type: existing.type,
+          partyName: existing.partyName,
+          totalAmount: existing.totalAmount,
+        },
+      },
+      ...(existing.branchId ? { branchId: existing.branchId } : {}),
+    }).catch(() => {});
+
+    revalidatePath("/debts");
+    return { success: true };
+  } catch (err) {
+    console.error("[deleteDebt]", err);
+    return { error: "Gagal menghapus data hutang/piutang" };
+  }
+}
+
+// ===========================
+// ADD DEBT PAYMENT
+// ===========================
+
+export async function addDebtPayment(params: {
+  debtId: string;
+  amount: number;
+  method?: string | undefined;
+  notes?: string | undefined;
+}) {
+  await assertMenuActionAccess("debts", "create");
+
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Unauthorized" };
+
+  const { debtId, amount, method = "CASH", notes } = params;
+
+  if (!amount || amount <= 0) {
+    return { error: "Jumlah pembayaran harus lebih dari 0" };
+  }
+
+  try {
+    const debt = await prisma.debt.findUnique({ where: { id: debtId } });
+    if (!debt) return { error: "Data hutang/piutang tidak ditemukan" };
+
+    if (debt.status === "PAID") {
+      return { error: "Hutang/piutang ini sudah lunas" };
+    }
+
+    if (amount > debt.remainingAmount) {
+      return {
+        error: `Jumlah pembayaran (${amount}) melebihi sisa hutang/piutang (${debt.remainingAmount})`,
+      };
+    }
+
+    const newPaidAmount = debt.paidAmount + amount;
+    const newRemainingAmount = debt.totalAmount - newPaidAmount;
+    const newStatus: DebtStatus =
+      newRemainingAmount <= 0 ? "PAID" : "PARTIAL";
+
+    const [payment] = await prisma.$transaction([
+      prisma.debtPayment.create({
+        data: {
+          debtId,
+          amount,
+          method,
+          notes: notes || null,
+          paidBy: session.user.id,
+        },
+      }),
+      prisma.debt.update({
+        where: { id: debtId },
+        data: {
+          paidAmount: newPaidAmount,
+          remainingAmount: newRemainingAmount,
+          status: newStatus,
+        },
+      }),
+    ]);
+
+    createAuditLog({
+      action: "CREATE",
+      entity: "DebtPayment",
+      entityId: payment.id,
+      details: {
+        debtId,
+        amount,
+        method,
+        newPaidAmount,
+        newRemainingAmount,
+        newStatus,
+        partyName: debt.partyName,
+        type: debt.type,
+      },
+      ...(debt.branchId ? { branchId: debt.branchId } : {}),
+    }).catch(() => {});
+
+    revalidatePath("/debts");
+    return { success: true, payment };
+  } catch (err) {
+    console.error("[addDebtPayment]", err);
+    return { error: "Gagal menambahkan pembayaran" };
+  }
+}
+
+// ===========================
+// GET DEBT SUMMARY
+// ===========================
+
+export async function getDebtSummary(branchId?: string) {
+  const branchFilter = branchId ? { branchId } : {};
+
+  const [
+    totalPayable,
+    totalReceivable,
+    totalPayablePaid,
+    totalReceivablePaid,
+    overdueCount,
+    unpaidPayableCount,
+    unpaidReceivableCount,
+    recentPayments,
+  ] = await Promise.all([
+    // Total hutang (PAYABLE) - remaining
+    prisma.debt.aggregate({
+      where: { type: "PAYABLE", status: { not: "PAID" }, ...branchFilter },
+      _sum: { remainingAmount: true },
+    }),
+    // Total piutang (RECEIVABLE) - remaining
+    prisma.debt.aggregate({
+      where: { type: "RECEIVABLE", status: { not: "PAID" }, ...branchFilter },
+      _sum: { remainingAmount: true },
+    }),
+    // Total hutang sudah dibayar
+    prisma.debt.aggregate({
+      where: { type: "PAYABLE", ...branchFilter },
+      _sum: { paidAmount: true },
+    }),
+    // Total piutang sudah dibayar
+    prisma.debt.aggregate({
+      where: { type: "RECEIVABLE", ...branchFilter },
+      _sum: { paidAmount: true },
+    }),
+    // Overdue count
+    prisma.debt.count({
+      where: {
+        status: { not: "PAID" },
+        dueDate: { lt: new Date() },
+        ...branchFilter,
+      },
+    }),
+    // Unpaid payable count
+    prisma.debt.count({
+      where: { type: "PAYABLE", status: { not: "PAID" }, ...branchFilter },
+    }),
+    // Unpaid receivable count
+    prisma.debt.count({
+      where: { type: "RECEIVABLE", status: { not: "PAID" }, ...branchFilter },
+    }),
+    // Recent payments
+    prisma.debtPayment.findMany({
+      where: branchId ? { debt: { branchId } } : {},
+      include: {
+        debt: { select: { type: true, partyName: true } },
+        payer: { select: { name: true } },
+      },
+      orderBy: { paidAt: "desc" },
+      take: 5,
+    }),
+  ]);
+
+  return {
+    totalPayableRemaining: totalPayable._sum.remainingAmount ?? 0,
+    totalReceivableRemaining: totalReceivable._sum.remainingAmount ?? 0,
+    totalPayablePaid: totalPayablePaid._sum.paidAmount ?? 0,
+    totalReceivablePaid: totalReceivablePaid._sum.paidAmount ?? 0,
+    overdueCount,
+    unpaidPayableCount,
+    unpaidReceivableCount,
+    recentPayments,
+  };
+}

@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { expenseSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { createAuditLog } from "@/lib/audit";
 
 export async function getExpenses(params?: {
   search?: string;
@@ -63,6 +64,8 @@ export async function createExpense(data: FormData) {
 
   try {
     await prisma.expense.create({ data: parsed.data });
+    const branchId = data.get("branchId") as string | null;
+    createAuditLog({ action: "CREATE", entity: "Expense", details: { data: { description: parsed.data.description, amount: parsed.data.amount, category: parsed.data.category, date: parsed.data.date } }, ...(branchId ? { branchId } : {}) }).catch(() => {});
     revalidatePath("/expenses");
     return { success: true };
   } catch {
@@ -81,7 +84,11 @@ export async function updateExpense(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
+    const old = await prisma.expense.findUnique({ where: { id }, select: { description: true, amount: true, category: true, date: true, branchId: true } });
     await prisma.expense.update({ where: { id }, data: parsed.data });
+    if (old) {
+      createAuditLog({ action: "UPDATE", entity: "Expense", entityId: id, details: { before: { description: old.description, amount: old.amount, category: old.category, date: old.date, branchId: old.branchId }, after: { description: parsed.data.description, amount: parsed.data.amount, category: parsed.data.category, date: parsed.data.date, branchId: old.branchId } } }).catch(() => {});
+    }
     revalidatePath("/expenses");
     return { success: true };
   } catch {
@@ -92,7 +99,9 @@ export async function updateExpense(id: string, data: FormData) {
 export async function deleteExpense(id: string) {
   await assertMenuActionAccess("expenses", "delete");
   try {
+    const old = await prisma.expense.findUnique({ where: { id } });
     await prisma.expense.delete({ where: { id } });
+    createAuditLog({ action: "DELETE", entity: "Expense", entityId: id, details: { deleted: { description: old?.description, amount: old?.amount } } }).catch(() => {});
     revalidatePath("/expenses");
     return { success: true };
   } catch {

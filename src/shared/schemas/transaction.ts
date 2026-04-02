@@ -13,7 +13,7 @@ export const transactionFormSchema = z.object({
     name: z.string().optional(),
     phone: z.string().optional(),
   }),
-  paymentMethod: z.enum(["CASH", "TRANSFER", "QRIS", "EWALLET", "DEBIT", "CREDIT_CARD"]),
+  paymentMethod: z.enum(["CASH", "TRANSFER", "QRIS", "EWALLET", "DEBIT", "CREDIT_CARD", "TERMIN"]),
   paymentAmount: z.number().min(0),
   notes: z.string().optional(),
   items: z.array(transactionLineSchema).min(1, "Minimal ada 1 item"),

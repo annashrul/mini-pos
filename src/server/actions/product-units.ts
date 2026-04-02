@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { createAuditLog } from "@/lib/audit";
 
 export interface ProductUnitInput {
   name: string;
@@ -41,6 +42,23 @@ export async function saveProductUnits(productId: string, units: ProductUnitInpu
     }
   });
   revalidatePath("/products");
+
+  if (units.length > 0) {
+    createAuditLog({
+      action: "CREATE",
+      entity: "ProductUnit",
+      entityId: productId,
+      details: { data: { productId, units: units.map((u) => u.name) } },
+    }).catch(() => {});
+  } else {
+    createAuditLog({
+      action: "DELETE",
+      entity: "ProductUnit",
+      entityId: productId,
+      details: "Deleted all product units",
+    }).catch(() => {});
+  }
+
   return { success: true };
 }
 

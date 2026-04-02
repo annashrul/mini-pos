@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { Suspense } from "react";
 import { AppLayout } from "@/components/layouts";
 import { hasMenuAccessByPath } from "@/lib/access-control";
@@ -12,9 +10,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = (await headers()).get("x-pathname") || "/dashboard";
-  const allowed = await hasMenuAccessByPath(pathname, "view");
-  if (!allowed) {
-    redirect("/dashboard");
+  // Skip access check for the unauthorized page itself and dashboard
+  const skipCheck = pathname === "/unauthorized" || pathname === "/dashboard";
+  if (!skipCheck) {
+    const allowed = await hasMenuAccessByPath(pathname, "view");
+    if (!allowed) {
+      redirect(`/unauthorized?page=${encodeURIComponent(pathname)}`);
+    }
   }
 
   return (
