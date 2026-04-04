@@ -21,7 +21,6 @@ export async function getSalesReport(
 ) {
   const now = new Date();
   const results = [];
-  const branchWhere = branchId ? { branchId } : {};
 
   const branchCondition = branchId ? `AND "branchId" = '${branchId}'` : "";
 
