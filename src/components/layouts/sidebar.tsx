@@ -44,6 +44,7 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     "access-control": ShieldCheck,
     debts: Landmark,
     "cashier-performance": Users,
+    "ai-assistant": BrainCircuit,
 };
 
 interface SidebarProps {

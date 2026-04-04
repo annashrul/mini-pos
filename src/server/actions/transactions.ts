@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
 interface CartItem {
   productId: string;
@@ -331,6 +332,8 @@ export async function createTransaction(input: CreateTransactionInput) {
 
     createAuditLog({ action: "CREATE", entity: "Transaction", entityId: transaction.id, details: { data: { invoiceNumber, grandTotal: input.grandTotal, paymentMethod: input.paymentMethod, itemCount: input.items.length, ...(terminPayment && terminPayment.amount > 0 ? { terminAmount: terminPayment.amount } : {}) } } }).catch(() => {});
 
+    emitEvent(EVENTS.TRANSACTION_CREATED, { invoiceNumber: transaction.invoiceNumber, grandTotal: input.grandTotal }, input.branchId);
+
     return {
       success: true,
       invoiceNumber: transaction.invoiceNumber,
@@ -454,7 +457,7 @@ export async function voidTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
-    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true } });
+    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true, branchId: true } });
 
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -511,6 +514,8 @@ export async function voidTransaction(id: string, reason: string) {
 
     createAuditLog({ action: "VOID", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
 
+    emitEvent(EVENTS.TRANSACTION_VOIDED, { id }, tx0?.branchId || undefined);
+
     return { success: true };
   } catch (err) {
     return {
@@ -526,7 +531,7 @@ export async function refundTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
-    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true } });
+    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true, branchId: true } });
 
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -582,6 +587,8 @@ export async function refundTransaction(id: string, reason: string) {
     revalidatePath("/products");
 
     createAuditLog({ action: "REFUND", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
+
+    emitEvent(EVENTS.TRANSACTION_REFUNDED, { id }, tx0?.branchId || undefined);
 
     return { success: true };
   } catch (err) {

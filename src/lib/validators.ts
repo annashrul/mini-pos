@@ -52,6 +52,7 @@ export const customerSchema = z.object({
   email: z.string().email("Format email tidak valid").nullish().or(z.literal("")),
   address: z.string().nullish(),
   memberLevel: z.enum(["REGULAR", "SILVER", "GOLD", "PLATINUM"]).default("REGULAR"),
+  dateOfBirth: z.date().nullish(),
 });
 
 export const expenseSchema = z.object({

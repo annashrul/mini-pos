@@ -14,3 +14,18 @@ export async function getLowStockProducts() {
   `;
   return products;
 }
+
+export async function getExpiringProducts() {
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+  return prisma.product.findMany({
+    where: {
+      isActive: true,
+      expiryDate: { not: null, lte: thirtyDaysFromNow },
+    },
+    select: { id: true, name: true, code: true, stock: true, expiryDate: true },
+    orderBy: { expiryDate: "asc" },
+    take: 20,
+  });
+}

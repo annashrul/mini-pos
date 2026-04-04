@@ -68,6 +68,7 @@ export interface Customer {
   memberLevel: string;
   totalSpending: number;
   points: number;
+  dateOfBirth: string | null;
   _count: { transactions: number };
 }
 
@@ -362,10 +363,10 @@ export interface DashboardStats {
   branchPerformance: {
     branchId: string;
     branchName: string;
-    todaySales: number;
-    todayTransactions: number;
-    monthSales: number;
-    monthTransactions: number;
+    periodSales: number;
+    periodTransactions: number;
+    prevPeriodSales: number;
+    prevPeriodTransactions: number;
   }[];
 }
 

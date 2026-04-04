@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import { getDashboardStats } from "@/server/actions/dashboard";
@@ -20,6 +20,7 @@ import {
 } from "recharts";
 import Link from "next/link";
 import type { DashboardStats } from "@/types";
+import { useDashboardRealtime } from "@/hooks/use-dashboard-socket";
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: "Cash", TRANSFER: "Transfer", QRIS: "QRIS",
@@ -103,16 +104,46 @@ function ChartTooltipContent({ active, payload, label, valuePrefix }: any) {
   );
 }
 
+type DashboardPeriod = "today" | "week" | "month" | "year";
+
+const PERIOD_OPTIONS: { value: DashboardPeriod; label: string }[] = [
+  { value: "today", label: "Hari Ini" },
+  { value: "week", label: "7 Hari" },
+  { value: "month", label: "Bulan Ini" },
+  { value: "year", label: "Tahun Ini" },
+];
+
 export function DashboardContent() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [period, setPeriod] = useState<DashboardPeriod>("today");
   const { selectedBranchId, branchReady } = useBranch();
   const prevBranchRef = useRef<string | null | undefined>(undefined);
+  const prevPeriodRef = useRef<DashboardPeriod>(period);
+
+  const loadStats = (p: DashboardPeriod, branch?: string) => {
+    getDashboardStats(branch || undefined, p).then(setStats);
+  };
+
+  const refreshStats = useCallback(() => {
+    loadStats(period, selectedBranchId || undefined);
+  }, [period, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useDashboardRealtime(refreshStats, selectedBranchId || undefined);
+
   useEffect(() => {
-    if (!branchReady) return; // Wait until branches are loaded
-    if (prevBranchRef.current === selectedBranchId) return;
+    if (!branchReady) return;
+    const branchChanged = prevBranchRef.current !== selectedBranchId;
+    const periodChanged = prevPeriodRef.current !== period;
+    if (!branchChanged && !periodChanged) return;
     prevBranchRef.current = selectedBranchId;
-    getDashboardStats(selectedBranchId || undefined).then(setStats);
-  }, [selectedBranchId, branchReady]);
+    prevPeriodRef.current = period;
+    loadStats(period, selectedBranchId || undefined);
+  }, [selectedBranchId, branchReady, period]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePeriodChange = (p: DashboardPeriod) => {
+    setPeriod(p);
+    loadStats(p, selectedBranchId || undefined);
+  };
 
   if (!stats) return (
     <div className="space-y-6 animate-pulse">
@@ -208,6 +239,32 @@ export function DashboardContent() {
           </Link>
         </div>
       </div>
+
+      {/* ===== FILTERED SECTION — affected by period ===== */}
+      <div className="rounded-2xl border border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white p-5 space-y-5">
+        {/* Period filter header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">Ringkasan Penjualan</h2>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handlePeriodChange(opt.value)}
+                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all border ${
+                  period === opt.value
+                    ? "bg-primary text-white border-primary shadow-sm"
+                    : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
       {/* ===== ROW 2: Main KPI Cards (3x2) ===== */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -313,7 +370,7 @@ export function DashboardContent() {
 
       {/* ===== Branch Performance (All Locations only) ===== */}
       {!selectedBranchId && stats.branchPerformance?.length > 0 && (() => {
-        const totalMonthRevenue = stats.branchPerformance.reduce((s, b) => s + b.monthSales, 0);
+        const totalMonthRevenue = stats.branchPerformance.reduce((s, b) => s + b.periodSales, 0);
         const gradients = [
           "from-blue-50 to-indigo-50 border-blue-100",
           "from-emerald-50 to-teal-50 border-emerald-100",
@@ -340,19 +397,22 @@ export function DashboardContent() {
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
               {stats.branchPerformance.map((branch, idx) => {
-                const pct = totalMonthRevenue > 0 ? Math.round((branch.monthSales / totalMonthRevenue) * 100) : 0;
+                const pct = totalMonthRevenue > 0 ? Math.round((branch.periodSales / totalMonthRevenue) * 100) : 0;
+                const prevSales = branch.prevPeriodSales;
+                const salesGrowth = prevSales > 0 ? Math.round(((branch.periodSales - prevSales) / prevSales) * 100) : 0;
                 return (
                   <Card key={branch.branchId} className={`min-w-[220px] max-w-[260px] rounded-2xl border bg-gradient-to-br ${gradients[idx % gradients.length]} shadow-sm transition-shadow duration-300 hover:shadow-md shrink-0`}>
                     <CardContent className="p-4">
                       <p className="font-semibold text-sm text-slate-800 truncate">{branch.branchName}</p>
-                      <p className="text-2xl font-bold tabular-nums tracking-tight text-blue-700 mt-2">{formatCurrency(branch.todaySales)}</p>
+                      <p className="text-2xl font-bold tabular-nums tracking-tight text-blue-700 mt-2">{formatCurrency(branch.periodSales)}</p>
                       <div className="flex items-center gap-1.5 mt-1">
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">{branch.todayTransactions} transaksi</Badge>
-                        <span className="text-[10px] text-slate-400">hari ini</span>
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-black/5">
-                        <p className="text-sm font-semibold tabular-nums text-slate-600">{formatCurrency(branch.monthSales)}</p>
-                        <p className="text-[11px] text-slate-400">{branch.monthTransactions} transaksi bulan ini</p>
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">{branch.periodTransactions} transaksi</Badge>
+                        {salesGrowth !== 0 && (
+                          <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${salesGrowth > 0 ? "text-emerald-600" : "text-red-500"}`}>
+                            {salesGrowth > 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                            {Math.abs(salesGrowth)}%
+                          </span>
+                        )}
                       </div>
                       <div className="mt-3">
                         <div className="flex items-center justify-between mb-1">
@@ -564,6 +624,10 @@ export function DashboardContent() {
           </CardContent>
         </Card>
       </div>
+
+      </div>{/* END FILTERED SECTION */}
+
+      {/* ===== NON-FILTERED SECTION — always real-time ===== */}
 
       {/* ===== ROW 5: Alerts Row (3 cards) ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

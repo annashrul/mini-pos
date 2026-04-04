@@ -2,17 +2,32 @@
 
 import { prisma } from "@/lib/prisma";
 
-export async function getDashboardStats(branchId?: string) {
+export async function getDashboardStats(branchId?: string, period?: "today" | "week" | "month" | "year") {
   const branchFilter = branchId ? { branchId } : {};
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const prevMonthEnd = monthStart;
+  // Dynamic period calculation
+  const p = period || "today";
+  let periodStart: Date;
+  let prevPeriodStart: Date;
+
+  if (p === "today") {
+    periodStart = today;
+    prevPeriodStart = new Date(today); prevPeriodStart.setDate(prevPeriodStart.getDate() - 1);
+  } else if (p === "week") {
+    periodStart = new Date(today); periodStart.setDate(today.getDate() - 7);
+    prevPeriodStart = new Date(periodStart); prevPeriodStart.setDate(prevPeriodStart.getDate() - 7);
+  } else if (p === "year") {
+    periodStart = new Date(today.getFullYear(), 0, 1);
+    prevPeriodStart = new Date(today.getFullYear() - 1, 0, 1);
+  } else { // month
+    periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    prevPeriodStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  }
+
 
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -40,17 +55,17 @@ export async function getDashboardStats(branchId?: string) {
     hourlySales,
   ] = await Promise.all([
     // Today
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: today, lt: tomorrow }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
     // Yesterday
     prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
     prisma.transaction.count({ where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
-    // This month
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: monthStart, lt: monthEnd }, ...completedWhere } }),
-    // Last month
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: prevMonthStart, lt: prevMonthEnd }, ...completedWhere } }),
+    // Period total (month/week/year depending on selection)
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    // Previous period
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
     // Totals
     prisma.product.count({ where: { isActive: true } }),
     prisma.customer.count(),
@@ -62,18 +77,17 @@ export async function getDashboardStats(branchId?: string) {
     getDailySalesData(30, branchFilter),
     // Monthly sales 6 months
     getYearlyComparison(branchFilter),
-    // Payment method breakdown this month
-    prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...completedWhere } }),
-    // Top cashiers this month
-    getTopCashiers(monthStart, monthEnd, branchFilter),
-    // Category breakdown
-    getCategoryBreakdown(monthStart, monthEnd, branchFilter),
+    // Payment method breakdown in period
+    prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    // Top cashiers in period
+    getTopCashiers(periodStart, tomorrow, branchFilter),
+    // Category breakdown in period
+    getCategoryBreakdown(periodStart, tomorrow, branchFilter),
     // Hourly sales today
     getHourlySalesData(today, tomorrow, branchFilter),
   ]);
 
   // Week start (Monday)
-  const now = new Date();
   const dayOfWeek = now.getDay();
   const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const weekStart = new Date(today);
@@ -88,19 +102,19 @@ export async function getDashboardStats(branchId?: string) {
     pendingPurchaseOrders,
     todayProfitItems,
   ] = await Promise.all([
-    // Week sales (Monday to now)
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: weekStart }, ...completedWhere } }),
+    // Period sales (used for weekSales field — now same as periodStart)
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
     // Refunded transactions today
-    prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, status: "REFUNDED" as const, ...branchFilter } }),
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, status: "REFUNDED" as const, ...branchFilter } }),
     // Voided transactions today
-    prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, status: "VOIDED" as const, ...branchFilter } }),
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, status: "VOIDED" as const, ...branchFilter } }),
     // Active promotions
     prisma.promotion.count({ where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } } }),
     // Pending purchase orders
     prisma.purchaseOrder.count({ where: { status: { in: ["DRAFT", "ORDERED"] }, ...branchFilter } }),
     // Today's profit: fetch transaction items with product purchasePrice
     prisma.transactionItem.findMany({
-      where: { transaction: { createdAt: { gte: today, lt: tomorrow }, ...completedWhere } },
+      where: { transaction: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } },
       select: { quantity: true, unitPrice: true, product: { select: { purchasePrice: true } } },
     }),
   ]);
@@ -110,25 +124,25 @@ export async function getDashboardStats(branchId?: string) {
   const lowStockProducts = lowStockRaw.filter((p) => p.stock <= p.minStock).slice(0, 10);
 
   // Branch performance (only when viewing all locations)
-  let branchPerformance: { branchId: string; branchName: string; todaySales: number; todayTransactions: number; monthSales: number; monthTransactions: number }[] = [];
+  let branchPerformance: { branchId: string; branchName: string; periodSales: number; periodTransactions: number; prevPeriodSales: number; prevPeriodTransactions: number }[] = [];
   if (!branchId) {
     const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true } });
     branchPerformance = await Promise.all(
       activeBranches.map(async (branch) => {
         const bWhere = { status: "COMPLETED" as const, branchId: branch.id };
-        const [todayAgg, todayCount, monthAgg, monthCount] = await Promise.all([
-          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: today, lt: tomorrow }, ...bWhere } }),
-          prisma.transaction.count({ where: { createdAt: { gte: today, lt: tomorrow }, ...bWhere } }),
-          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...bWhere } }),
-          prisma.transaction.count({ where: { createdAt: { gte: monthStart, lt: monthEnd }, ...bWhere } }),
+        const [periodAgg, periodCount, prevAgg, prevCount] = await Promise.all([
+          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...bWhere } }),
+          prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...bWhere } }),
+          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...bWhere } }),
+          prisma.transaction.count({ where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...bWhere } }),
         ]);
         return {
           branchId: branch.id,
           branchName: branch.name,
-          todaySales: todayAgg._sum.grandTotal || 0,
-          todayTransactions: todayCount,
-          monthSales: monthAgg._sum.grandTotal || 0,
-          monthTransactions: monthCount,
+          periodSales: periodAgg._sum.grandTotal || 0,
+          periodTransactions: periodCount,
+          prevPeriodSales: prevAgg._sum.grandTotal || 0,
+          prevPeriodTransactions: prevCount,
         };
       })
     );

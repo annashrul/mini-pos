@@ -5,6 +5,7 @@ import { stockMovementSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
 interface GetStockMovementsParams {
   page?: number;
@@ -148,6 +149,15 @@ export async function createStockMovement(formData: FormData) {
     revalidatePath("/products");
 
     createAuditLog({ action: "CREATE", entity: "StockMovement", details: { data: { type: parsed.data.type, productId: parsed.data.productId, quantity: parsed.data.quantity, notes: parsed.data.note, ...(branchIds.length > 0 ? { branchId: branchIds.length === 1 ? branchIds[0] : branchIds } : {}) } } }).catch(() => {});
+
+    // Emit stock updated event for each branch, or globally
+    if (branchIds.length > 0) {
+      for (const bid of branchIds) {
+        emitEvent(EVENTS.STOCK_UPDATED, { productId: parsed.data.productId }, bid);
+      }
+    } else {
+      emitEvent(EVENTS.STOCK_UPDATED, { productId: parsed.data.productId });
+    }
 
     return { success: true };
   } catch (err) {

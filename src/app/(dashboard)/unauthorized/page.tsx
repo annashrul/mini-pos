@@ -33,6 +33,7 @@ const pageLabels: Record<string, string> = {
     "/dashboard": "Dashboard",
     "/debts": "Hutang Piutang",
     "/cashier-performance": "Performa Kasir",
+    "/ai-assistant": "AI Assistant",
 };
 
 export default function UnauthorizedPage() {

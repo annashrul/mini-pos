@@ -61,12 +61,14 @@ export async function getCustomers(params?: {
 
 export async function createCustomer(data: FormData) {
   await assertMenuActionAccess("customers", "create");
+  const rawDob = data.get("dateOfBirth");
   const parsed = customerSchema.safeParse({
     name: data.get("name"),
     phone: data.get("phone") || null,
     email: data.get("email") || null,
     address: data.get("address") || null,
     memberLevel: data.get("memberLevel") || "REGULAR",
+    dateOfBirth: rawDob ? new Date(rawDob as string) : null,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
@@ -78,6 +80,7 @@ export async function createCustomer(data: FormData) {
         email: parsed.data.email ?? null,
         address: parsed.data.address ?? null,
         memberLevel: parsed.data.memberLevel,
+        dateOfBirth: parsed.data.dateOfBirth ?? null,
       },
     });
     createAuditLog({ action: "CREATE", entity: "Customer", details: { data: { name: parsed.data.name, phone: parsed.data.phone ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, memberLevel: parsed.data.memberLevel } } }).catch(() => {});
@@ -90,12 +93,14 @@ export async function createCustomer(data: FormData) {
 
 export async function updateCustomer(id: string, data: FormData) {
   await assertMenuActionAccess("customers", "update");
+  const rawDob = data.get("dateOfBirth");
   const parsed = customerSchema.safeParse({
     name: data.get("name"),
     phone: data.get("phone") || null,
     email: data.get("email") || null,
     address: data.get("address") || null,
     memberLevel: data.get("memberLevel") || "REGULAR",
+    dateOfBirth: rawDob ? new Date(rawDob as string) : null,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
@@ -109,6 +114,7 @@ export async function updateCustomer(id: string, data: FormData) {
         email: parsed.data.email ?? null,
         address: parsed.data.address ?? null,
         memberLevel: parsed.data.memberLevel,
+        dateOfBirth: parsed.data.dateOfBirth ?? null,
       },
     });
     if (old) {
@@ -119,6 +125,24 @@ export async function updateCustomer(id: string, data: FormData) {
   } catch {
     return { error: "Gagal mengupdate customer" };
   }
+}
+
+export async function getUpcomingBirthdays() {
+  const customers = await prisma.customer.findMany({
+    where: { dateOfBirth: { not: null } },
+    select: { id: true, name: true, phone: true, dateOfBirth: true, memberLevel: true },
+  });
+
+  const today = new Date();
+  const upcoming = customers.filter((c) => {
+    if (!c.dateOfBirth) return false;
+    const bday = new Date(c.dateOfBirth);
+    const thisYearBday = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+    const diff = (thisYearBday.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    return diff >= 0 && diff <= 7;
+  });
+
+  return upcoming;
 }
 
 export async function deleteCustomer(id: string) {
@@ -136,4 +160,55 @@ export async function deleteCustomer(id: string) {
   } catch {
     return { error: "Gagal menghapus customer" };
   }
+}
+
+export async function getCustomerPurchaseHistory(customerId: string, page: number = 1, perPage: number = 10) {
+    const [transactions, total] = await Promise.all([
+        prisma.transaction.findMany({
+            where: { customerId, status: "COMPLETED" },
+            include: {
+                items: { select: { productName: true, quantity: true, unitPrice: true, subtotal: true, unitName: true } },
+                payments: { select: { method: true, amount: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * perPage,
+            take: perPage,
+        }),
+        prisma.transaction.count({ where: { customerId, status: "COMPLETED" } }),
+    ]);
+
+    // Also get customer stats
+    const stats = await prisma.transaction.aggregate({
+        where: { customerId, status: "COMPLETED" },
+        _sum: { grandTotal: true },
+        _count: true,
+        _avg: { grandTotal: true },
+    });
+
+    return {
+        transactions,
+        total,
+        totalPages: Math.ceil(total / perPage),
+        stats: {
+            totalSpent: stats._sum.grandTotal || 0,
+            totalTransactions: stats._count,
+            averageSpent: Math.round(stats._avg.grandTotal || 0),
+        },
+    };
+}
+
+export async function getCustomerFavoriteProducts(customerId: string) {
+    const items = await prisma.transactionItem.groupBy({
+        by: ["productName"],
+        _sum: { quantity: true, subtotal: true },
+        where: { transaction: { customerId, status: "COMPLETED" } },
+        orderBy: { _sum: { quantity: "desc" } },
+        take: 10,
+    });
+    return items.map((i, idx) => ({
+        rank: idx + 1,
+        productName: i.productName,
+        totalQty: i._sum.quantity || 0,
+        totalSpent: i._sum.subtotal || 0,
+    }));
 }

@@ -15,7 +15,7 @@ import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
 import { SmartSelect } from "@/components/ui/smart-select";
-import { Plus, Pencil, Trash2, Users, Phone, Mail, Crown, Star, AlertTriangle, Heart, MapPin } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Phone, Mail, Crown, Star, AlertTriangle, Heart, MapPin, Cake } from "lucide-react";
 import { toast } from "sonner";
 import type { Customer } from "@/types";
 
@@ -93,7 +93,7 @@ export function CustomersContent() {
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
             };
             const result = await getCustomers(query);
-            setData(result);
+            setData(result as typeof data);
         });
     };
 
@@ -413,6 +413,19 @@ export function CustomersContent() {
                                 }
                             />
                             <input type="hidden" name="memberLevel" value={formMemberLevel} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="dateOfBirth" className="text-sm font-medium flex items-center gap-1.5">
+                                <Cake className="w-3.5 h-3.5 text-muted-foreground" />
+                                Tanggal Lahir
+                            </Label>
+                            <Input
+                                id="dateOfBirth"
+                                name="dateOfBirth"
+                                type="date"
+                                defaultValue={editing?.dateOfBirth ? new Date(editing.dateOfBirth).toISOString().split("T")[0] : ""}
+                                className="rounded-xl"
+                            />
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" onClick={closeDialog} className="rounded-xl shadow-sm">Batal</Button>
