@@ -40,7 +40,7 @@ export async function getSalesReport(
              COALESCE(SUM("discountAmount"), 0) as discount,
              COALESCE(SUM("taxAmount"), 0) as tax,
              COUNT(*)::bigint as count
-      FROM "Transaction"
+      FROM transactions
       WHERE "createdAt" >= $1 AND "createdAt" < $2
         AND "status" = 'COMPLETED'
         ${branchCondition}
@@ -80,7 +80,7 @@ export async function getSalesReport(
              COALESCE(SUM("discountAmount"), 0) as discount,
              COALESCE(SUM("taxAmount"), 0) as tax,
              COUNT(*)::bigint as count
-      FROM "Transaction"
+      FROM transactions
       WHERE "createdAt" >= $1 AND "createdAt" < $2
         AND "status" = 'COMPLETED'
         ${branchCondition}

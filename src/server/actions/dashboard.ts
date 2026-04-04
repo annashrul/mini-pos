@@ -183,9 +183,9 @@ async function getDailySalesData(days: number, bf: Record<string, string> = {}) 
     SELECT DATE_TRUNC('day', "createdAt") as d,
            COALESCE(SUM("grandTotal"), 0) as total,
            COUNT(*)::bigint as count
-    FROM "Transaction"
+    FROM transactions
     WHERE "createdAt" >= $1
-      AND "status" = 'COMPLETED'
+      AND status = 'COMPLETED'
       ${branchCondition}
     GROUP BY DATE_TRUNC('day', "createdAt")
     ORDER BY d ASC
@@ -227,7 +227,7 @@ async function getYearlyComparison(bf: Record<string, string> = {}) {
            EXTRACT(MONTH FROM "createdAt")::int as m,
            COALESCE(SUM("grandTotal"), 0) as total,
            COUNT(*)::bigint as count
-    FROM "Transaction"
+    FROM transactions
     WHERE "createdAt" >= $1
       AND "status" = 'COMPLETED'
       ${branchCondition}
@@ -285,7 +285,7 @@ async function getHourlySalesData(start: Date, end: Date, bf: Record<string, str
     SELECT EXTRACT(HOUR FROM "createdAt")::int as h,
            COALESCE(SUM("grandTotal"), 0) as total,
            COUNT(*)::bigint as count
-    FROM "Transaction"
+    FROM transactions
     WHERE "createdAt" >= $1
       AND "createdAt" < $2
       AND "status" = 'COMPLETED'
