@@ -23,68 +23,87 @@ export async function getSalesReport(
   const results = [];
   const branchWhere = branchId ? { branchId } : {};
 
+  const branchCondition = branchId ? `AND "branchId" = '${branchId}'` : "";
+
   if (period === "daily") {
     const startDate = dateFrom
       ? new Date(dateFrom)
       : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    startDate.setHours(0, 0, 0, 0);
     const endDate = dateTo ? new Date(dateTo) : now;
-    const days =
-      Math.ceil(
-        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-      ) + 1;
+    const endNext = new Date(endDate);
+    endNext.setDate(endNext.getDate() + 1);
+    endNext.setHours(0, 0, 0, 0);
 
+    const rows = await prisma.$queryRawUnsafe<{ d: Date; sales: bigint; discount: bigint; tax: bigint; count: bigint }[]>(`
+      SELECT DATE_TRUNC('day', "createdAt") as d,
+             COALESCE(SUM("grandTotal"), 0) as sales,
+             COALESCE(SUM("discountAmount"), 0) as discount,
+             COALESCE(SUM("taxAmount"), 0) as tax,
+             COUNT(*)::bigint as count
+      FROM "Transaction"
+      WHERE "createdAt" >= $1 AND "createdAt" < $2
+        AND "status" = 'COMPLETED'
+        ${branchCondition}
+      GROUP BY DATE_TRUNC('day', "createdAt")
+      ORDER BY d ASC
+    `, startDate, endNext);
+
+    const salesMap = new Map<string, { sales: number; discount: number; tax: number; count: number }>();
+    for (const row of rows) {
+      const key = new Date(row.d).toISOString().slice(0, 10);
+      salesMap.set(key, { sales: Number(row.sales), discount: Number(row.discount), tax: Number(row.tax), count: Number(row.count) });
+    }
+
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
       date.setHours(0, 0, 0, 0);
-      const nextDate = new Date(date);
-      nextDate.setDate(nextDate.getDate() + 1);
-
-      const sales = await prisma.transaction.aggregate({
-        _sum: { grandTotal: true, discountAmount: true, taxAmount: true },
-        _count: true,
-        where: {
-          createdAt: { gte: date, lt: nextDate },
-          status: "COMPLETED",
-          ...branchWhere,
-        },
-      });
-
+      const key = date.toISOString().slice(0, 10);
+      const data = salesMap.get(key) || { sales: 0, discount: 0, tax: 0, count: 0 };
       results.push({
-        label: date.toLocaleDateString("id-ID", {
-          day: "2-digit",
-          month: "short",
-        }),
-        sales: sales._sum.grandTotal || 0,
-        discount: sales._sum.discountAmount || 0,
-        tax: sales._sum.taxAmount || 0,
-        transactions: sales._count,
+        label: date.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
+        sales: data.sales,
+        discount: data.discount,
+        tax: data.tax,
+        transactions: data.count,
       });
     }
   } else {
+    const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const rows = await prisma.$queryRawUnsafe<{ y: number; m: number; sales: bigint; discount: bigint; tax: bigint; count: bigint }[]>(`
+      SELECT EXTRACT(YEAR FROM "createdAt")::int as y,
+             EXTRACT(MONTH FROM "createdAt")::int as m,
+             COALESCE(SUM("grandTotal"), 0) as sales,
+             COALESCE(SUM("discountAmount"), 0) as discount,
+             COALESCE(SUM("taxAmount"), 0) as tax,
+             COUNT(*)::bigint as count
+      FROM "Transaction"
+      WHERE "createdAt" >= $1 AND "createdAt" < $2
+        AND "status" = 'COMPLETED'
+        ${branchCondition}
+      GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
+      ORDER BY y, m
+    `, startMonth, endMonth);
+
+    const salesMap = new Map<string, { sales: number; discount: number; tax: number; count: number }>();
+    for (const row of rows) {
+      salesMap.set(`${row.y}-${row.m}`, { sales: Number(row.sales), discount: Number(row.discount), tax: Number(row.tax), count: Number(row.count) });
+    }
+
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-
-      const sales = await prisma.transaction.aggregate({
-        _sum: { grandTotal: true, discountAmount: true, taxAmount: true },
-        _count: true,
-        where: {
-          createdAt: { gte: date, lt: nextMonth },
-          status: "COMPLETED",
-          ...branchWhere,
-        },
-      });
-
+      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+      const data = salesMap.get(key) || { sales: 0, discount: 0, tax: 0, count: 0 };
       results.push({
-        label: date.toLocaleDateString("id-ID", {
-          month: "short",
-          year: "2-digit",
-        }),
-        sales: sales._sum.grandTotal || 0,
-        discount: sales._sum.discountAmount || 0,
-        tax: sales._sum.taxAmount || 0,
-        transactions: sales._count,
+        label: date.toLocaleDateString("id-ID", { month: "short", year: "2-digit" }),
+        sales: data.sales,
+        discount: data.discount,
+        tax: data.tax,
+        transactions: data.count,
       });
     }
   }

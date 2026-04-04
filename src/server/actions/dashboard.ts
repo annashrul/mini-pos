@@ -9,7 +9,6 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // Dynamic period calculation
   const p = period || "today";
   let periodStart: Date;
   let prevPeriodStart: Date;
@@ -23,17 +22,17 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
   } else if (p === "year") {
     periodStart = new Date(today.getFullYear(), 0, 1);
     prevPeriodStart = new Date(today.getFullYear() - 1, 0, 1);
-  } else { // month
+  } else {
     periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
     prevPeriodStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   }
-
 
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
   const completedWhere = { status: "COMPLETED" as const, ...branchFilter };
 
+  // Single batch of parallel queries — no loops
   const [
     todaySales,
     todayTxCount,
@@ -53,77 +52,47 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
     topCashiers,
     categoryBreakdown,
     hourlySales,
-  ] = await Promise.all([
-    // Today
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    // Yesterday
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
-    // Period total (month/week/year depending on selection)
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    // Previous period
-    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
-    prisma.transaction.count({ where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
-    // Totals
-    prisma.product.count({ where: { isActive: true } }),
-    prisma.customer.count(),
-    // Recent transactions
-    prisma.transaction.findMany({ include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 7 }),
-    // Top products
-    prisma.transactionItem.groupBy({ by: ["productName"], _sum: { quantity: true, subtotal: true }, orderBy: { _sum: { quantity: "desc" } }, take: 5 }),
-    // Daily sales 30 days
-    getDailySalesData(30, branchFilter),
-    // Monthly sales 6 months
-    getYearlyComparison(branchFilter),
-    // Payment method breakdown in period
-    prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    // Top cashiers in period
-    getTopCashiers(periodStart, tomorrow, branchFilter),
-    // Category breakdown in period
-    getCategoryBreakdown(periodStart, tomorrow, branchFilter),
-    // Hourly sales today
-    getHourlySalesData(today, tomorrow, branchFilter),
-  ]);
-
-  // Week start (Monday)
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - mondayOffset);
-  weekStart.setHours(0, 0, 0, 0);
-
-  const [
     weekSalesAgg,
     refundCount,
     voidCount,
     activePromotions,
     pendingPurchaseOrders,
     todayProfitItems,
+    lowStockRaw,
   ] = await Promise.all([
-    // Period sales (used for weekSales field — now same as periodStart)
     prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
-    // Refunded transactions today
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere } }),
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
+    prisma.transaction.count({ where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...completedWhere } }),
+    prisma.product.count({ where: { isActive: true } }),
+    prisma.customer.count(),
+    prisma.transaction.findMany({ include: { user: { select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 7 }),
+    prisma.transactionItem.groupBy({ by: ["productName"], _sum: { quantity: true, subtotal: true }, orderBy: { _sum: { quantity: "desc" } }, take: 5 }),
+    getDailySalesData(30, branchFilter),
+    getYearlyComparison(branchFilter),
+    prisma.transaction.groupBy({ by: ["paymentMethod"], _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
+    getTopCashiers(periodStart, tomorrow, branchFilter),
+    getCategoryBreakdown(periodStart, tomorrow, branchFilter),
+    getHourlySalesData(today, tomorrow, branchFilter),
+    prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
     prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, status: "REFUNDED" as const, ...branchFilter } }),
-    // Voided transactions today
     prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, status: "VOIDED" as const, ...branchFilter } }),
-    // Active promotions
     prisma.promotion.count({ where: { isActive: true, startDate: { lte: now }, endDate: { gte: now } } }),
-    // Pending purchase orders
     prisma.purchaseOrder.count({ where: { status: { in: ["DRAFT", "ORDERED"] }, ...branchFilter } }),
-    // Today's profit: fetch transaction items with product purchasePrice
     prisma.transactionItem.findMany({
       where: { transaction: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } },
       select: { quantity: true, unitPrice: true, product: { select: { purchasePrice: true } } },
     }),
+    prisma.product.findMany({ where: { isActive: true }, include: { category: true }, orderBy: { stock: "asc" } }),
   ]);
 
-  // Low stock
-  const lowStockRaw = await prisma.product.findMany({ where: { isActive: true }, include: { category: true }, orderBy: { stock: "asc" } });
   const lowStockProducts = lowStockRaw.filter((p) => p.stock <= p.minStock).slice(0, 10);
 
-  // Branch performance (only when viewing all locations)
+  // Branch performance
   let branchPerformance: { branchId: string; branchName: string; periodSales: number; periodTransactions: number; prevPeriodSales: number; prevPeriodTransactions: number }[] = [];
   if (!branchId) {
     const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true } });
@@ -148,7 +117,6 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
     );
   }
 
-  // Growth calculations
   const todaySalesVal = todaySales._sum.grandTotal || 0;
   const yesterdaySalesVal = yesterdaySales._sum.grandTotal || 0;
   const monthRevenueVal = monthRevenue._sum.grandTotal || 0;
@@ -203,46 +171,86 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
   };
 }
 
+// Single query with GROUP BY instead of 30 individual queries
 async function getDailySalesData(days: number, bf: Record<string, string> = {}) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - (days - 1));
+  startDate.setHours(0, 0, 0, 0);
+
+  const branchCondition = bf.branchId ? `AND "branchId" = '${bf.branchId}'` : "";
+
+  const rows = await prisma.$queryRawUnsafe<{ d: Date; total: bigint; count: bigint }[]>(`
+    SELECT DATE_TRUNC('day', "createdAt") as d,
+           COALESCE(SUM("grandTotal"), 0) as total,
+           COUNT(*)::bigint as count
+    FROM "Transaction"
+    WHERE "createdAt" >= $1
+      AND "status" = 'COMPLETED'
+      ${branchCondition}
+    GROUP BY DATE_TRUNC('day', "createdAt")
+    ORDER BY d ASC
+  `, startDate);
+
+  const salesMap = new Map<string, { total: number; count: number }>();
+  for (const row of rows) {
+    const dateKey = new Date(row.d).toISOString().slice(0, 10);
+    salesMap.set(dateKey, { total: Number(row.total), count: Number(row.count) });
+  }
+
   const result = [];
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(today); date.setDate(date.getDate() - i); date.setHours(0, 0, 0, 0);
-    const next = new Date(date); next.setDate(next.getDate() + 1);
-    const sales = await prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: date, lt: next }, status: "COMPLETED", ...bf } });
-    result.push({ date: date.toLocaleDateString("id-ID", { day: "numeric", month: "short" }), total: sales._sum.grandTotal || 0, count: sales._count });
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    date.setHours(0, 0, 0, 0);
+    const dateKey = date.toISOString().slice(0, 10);
+    const data = salesMap.get(dateKey) || { total: 0, count: 0 };
+    result.push({
+      date: date.toLocaleDateString("id-ID", { day: "numeric", month: "short" }),
+      total: data.total,
+      count: data.count,
+    });
   }
   return result;
 }
 
+// Single query instead of 24 queries (12 months × 2 years)
 async function getYearlyComparison(bf: Record<string, string> = {}) {
-  const today = new Date();
-  const thisYear = today.getFullYear();
+  const thisYear = new Date().getFullYear();
   const lastYear = thisYear - 1;
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const result = [];
 
-  for (let m = 0; m < 12; m++) {
-    const thisStart = new Date(thisYear, m, 1);
-    const thisEnd = new Date(thisYear, m + 1, 1);
-    const lastStart = new Date(lastYear, m, 1);
-    const lastEnd = new Date(lastYear, m + 1, 1);
+  const branchCondition = bf.branchId ? `AND "branchId" = '${bf.branchId}'` : "";
 
-    const [thisSales, lastSales] = await Promise.all([
-      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: thisStart, lt: thisEnd }, status: "COMPLETED", ...bf } }),
-      prisma.transaction.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: lastStart, lt: lastEnd }, status: "COMPLETED", ...bf } }),
-    ]);
+  const rows = await prisma.$queryRawUnsafe<{ y: number; m: number; total: bigint; count: bigint }[]>(`
+    SELECT EXTRACT(YEAR FROM "createdAt")::int as y,
+           EXTRACT(MONTH FROM "createdAt")::int as m,
+           COALESCE(SUM("grandTotal"), 0) as total,
+           COUNT(*)::bigint as count
+    FROM "Transaction"
+    WHERE "createdAt" >= $1
+      AND "status" = 'COMPLETED'
+      ${branchCondition}
+    GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
+    ORDER BY y, m
+  `, new Date(lastYear, 0, 1));
 
-    result.push({
-      month: monthNames[m]!,
-      thisYear: thisSales._sum.grandTotal || 0,
-      lastYear: lastSales._sum.grandTotal || 0,
-      thisYearCount: thisSales._count,
-      lastYearCount: lastSales._count,
-    });
+  const dataMap = new Map<string, { total: number; count: number }>();
+  for (const row of rows) {
+    dataMap.set(`${row.y}-${row.m}`, { total: Number(row.total), count: Number(row.count) });
   }
 
-  return result;
+  return monthNames.map((month, i) => {
+    const thisData = dataMap.get(`${thisYear}-${i + 1}`) || { total: 0, count: 0 };
+    const lastData = dataMap.get(`${lastYear}-${i + 1}`) || { total: 0, count: 0 };
+    return {
+      month,
+      thisYear: thisData.total,
+      lastYear: lastData.total,
+      thisYearCount: thisData.count,
+      lastYearCount: lastData.count,
+    };
+  });
 }
 
 async function getTopCashiers(start: Date, end: Date, bf: Record<string, string> = {}) {
@@ -269,16 +277,30 @@ async function getCategoryBreakdown(start: Date, end: Date, bf: Record<string, s
   return Array.from(map.entries()).map(([name, data]) => ({ name, total: data.total, qty: data.qty })).sort((a, b) => b.total - a.total);
 }
 
+// Single query with GROUP BY instead of iterating 24 hours
 async function getHourlySalesData(start: Date, end: Date, bf: Record<string, string> = {}) {
-  const txs = await prisma.transaction.findMany({
-    where: { createdAt: { gte: start, lt: end }, status: "COMPLETED", ...bf },
-    select: { createdAt: true, grandTotal: true },
-  });
-  const hours = Array.from({ length: 24 }, (_, i) => ({ hour: `${String(i).padStart(2, "0")}:00`, total: 0, count: 0 }));
-  for (const tx of txs) {
-    const h = new Date(tx.createdAt).getHours();
-    hours[h]!.total += tx.grandTotal;
-    hours[h]!.count++;
+  const branchCondition = bf.branchId ? `AND "branchId" = '${bf.branchId}'` : "";
+
+  const rows = await prisma.$queryRawUnsafe<{ h: number; total: bigint; count: bigint }[]>(`
+    SELECT EXTRACT(HOUR FROM "createdAt")::int as h,
+           COALESCE(SUM("grandTotal"), 0) as total,
+           COUNT(*)::bigint as count
+    FROM "Transaction"
+    WHERE "createdAt" >= $1
+      AND "createdAt" < $2
+      AND "status" = 'COMPLETED'
+      ${branchCondition}
+    GROUP BY EXTRACT(HOUR FROM "createdAt")
+    ORDER BY h
+  `, start, end);
+
+  const hoursMap = new Map<number, { total: number; count: number }>();
+  for (const row of rows) {
+    hoursMap.set(row.h, { total: Number(row.total), count: Number(row.count) });
   }
-  return hours;
+
+  return Array.from({ length: 24 }, (_, i) => {
+    const data = hoursMap.get(i) || { total: 0, count: 0 };
+    return { hour: `${String(i).padStart(2, "0")}:00`, total: data.total, count: data.count };
+  });
 }
