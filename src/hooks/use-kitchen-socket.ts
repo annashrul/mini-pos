@@ -11,33 +11,40 @@ const KITCHEN_EVENTS = [
 ];
 
 /**
- * Listen for kitchen display realtime events via SSE.
- * Calls onRefresh when an order is created, updated, or cancelled.
- * Debounced to max 1 refresh per 1 second (kitchen needs faster updates than dashboard).
+ * Listen for kitchen display realtime events via SSE/Pusher.
+ * All events coalesced: first event triggers a 1s delay then refresh.
+ * After refresh fires, 3s cooldown before accepting new events.
+ * This guarantees exactly 1 API call + 1 audio per "burst" of events.
  */
 export function useKitchenRealtime(onRefresh: () => void, branchId?: string) {
     const { on } = useRealtimeEvents();
     const refreshRef = useRef(onRefresh);
     refreshRef.current = onRefresh;
-
-    const lastRefreshRef = useRef(0);
+    const cooldownUntilRef = useRef(0);
 
     useEffect(() => {
-        const unsubs = KITCHEN_EVENTS.map((event) =>
-            on(event, (data) => {
-                // Branch filtering
-                const eventBranch = data.branchId as string | undefined;
-                if (branchId && eventBranch && eventBranch !== branchId) return;
+        let timer: ReturnType<typeof setTimeout> | null = null;
 
-                // Debounce: max 1 refresh per second
-                const now = Date.now();
-                if (now - lastRefreshRef.current < 1000) return;
-                lastRefreshRef.current = now;
+        const handler = (data: Record<string, unknown>) => {
+            const eventBranch = data.branchId as string | undefined;
+            if (branchId && eventBranch && eventBranch !== branchId) return;
 
+            // Skip if in cooldown or already have a pending timer
+            const now = Date.now();
+            if (now < cooldownUntilRef.current || timer) return;
+
+            timer = setTimeout(() => {
+                timer = null;
+                cooldownUntilRef.current = Date.now() + 3000; // 3s cooldown after firing
                 refreshRef.current();
-            })
-        );
+            }, 1000);
+        };
 
-        return () => { unsubs.forEach((u) => u()); };
+        const unsubs = KITCHEN_EVENTS.map((event) => on(event, handler));
+
+        return () => {
+            unsubs.forEach((u) => u());
+            if (timer) clearTimeout(timer);
+        };
     }, [on, branchId]);
 }

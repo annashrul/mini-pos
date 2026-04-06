@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import NextTopLoader from "nextjs-toploader";
 import { FetchProgressProvider } from "@/components/providers/fetch-progress-provider";
 import { BranchProvider } from "@/components/providers/branch-provider";
+import { ServiceWorkerRegister } from "@/components/providers/sw-register";
 
 const fontSans = Plus_Jakarta_Sans({
     subsets: ["latin"],
@@ -25,8 +26,13 @@ export default function RootLayout({
 }) {
     return (
         <html lang="id">
+            <head>
+                <link rel="manifest" href="/manifest.json" />
+                <meta name="theme-color" content="#2BBECB" />
+            </head>
             <body className={`${fontSans.variable} font-sans antialiased`}>
                 <SessionProvider>
+                    <ServiceWorkerRegister />
                     <BranchProvider>
                     <NextTopLoader />
                     <FetchProgressProvider />

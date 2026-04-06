@@ -297,68 +297,83 @@ export function KitchenDisplayContent() {
       });
   }
 
-  // Text-to-speech announcement
+  // Text-to-speech with strict single-play guarantee
+  const speakingRef = useRef(false);
   const speak = useCallback((text: string) => {
     if (!soundEnabledRef.current) return;
-    try {
-      // Play beep first
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      }
-      // Then speak after short delay
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        // Cancel any ongoing speech
-        window.speechSynthesis.cancel();
-        setTimeout(() => {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = "id-ID";
-          utterance.rate = 1.0;
-          utterance.pitch = 1.0;
-          utterance.volume = 0.9;
-          // Try to find Indonesian voice
-          const voices = window.speechSynthesis.getVoices();
-          const idVoice = voices.find((v) => v.lang.startsWith("id")) || voices.find((v) => v.lang.startsWith("ms"));
-          if (idVoice) utterance.voice = idVoice;
-          window.speechSynthesis.speak(utterance);
-        }, 400);
-      }
-    } catch { /* Speech not supported */ }
+    if (speakingRef.current) return; // Already speaking — block
+
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!synth) {
+      // Fallback beep
+      if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); }
+      return;
+    }
+
+    speakingRef.current = true;
+    synth.cancel(); // Clear any queued utterances
+
+    // Small delay after cancel to avoid browser bugs
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "id-ID";
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.9;
+      const voices = synth.getVoices();
+      const idVoice = voices.find((v) => v.lang.startsWith("id")) || voices.find((v) => v.lang.startsWith("ms"));
+      if (idVoice) utterance.voice = idVoice;
+
+      // Unlock after speech ends (or after 10s timeout as safety)
+      const unlock = () => { speakingRef.current = false; };
+      utterance.onend = unlock;
+      utterance.onerror = unlock;
+      setTimeout(unlock, 10000); // Safety timeout
+
+      synth.speak(utterance);
+    }, 100);
   }, []);
 
-  const playNotificationSound = useCallback(() => {
-    speak("Ada antrian baru");
-  }, [speak]);
+  // Atomic lock + cooldown: 1 fetch at a time, 3s cooldown after completion
+  const fetchingRef = useRef(false);
+  const cooldownUntilRef = useRef(0);
+  const speakRef = useRef(speak);
+  speakRef.current = speak;
 
-  const fetchData = useCallback(() => {
-    startTransition(async () => {
-      try {
-        const [queueData, statsData] = await Promise.all([
-          getOrderQueue(),
-          getQueueStats(),
-        ]);
-        setOrders(queueData as unknown as GroupedOrders);
-        setStats({
-          totalToday: statsData.totalToday ?? 0,
-          inQueue: statsData.inQueue ?? 0,
-          preparing: statsData.preparing ?? 0,
-          ready: statsData.ready ?? 0,
-          served: statsData.served ?? 0,
-          cancelled: statsData.cancelled ?? 0,
-          avgPrepTime: statsData.avgPrepTime ?? 0,
-        });
+  const fetchData = useCallback(async () => {
+    const now = Date.now();
+    if (fetchingRef.current || now < cooldownUntilRef.current) return;
+    fetchingRef.current = true;
 
-        // Sound notification on new order
-        const newCount = (queueData as unknown as GroupedOrders).NEW?.length ?? 0;
-        if (prevNewCountRef.current >= 0 && newCount > prevNewCountRef.current) {
-          playNotificationSound();
-        }
-        prevNewCountRef.current = newCount; // first load sets baseline, subsequent detect increases
-      } catch {
-        // Silently fail on auto-refresh
+    try {
+      const [queueData, statsData] = await Promise.all([
+        getOrderQueue(),
+        getQueueStats(),
+      ]);
+      setOrders(queueData as unknown as GroupedOrders);
+      setStats({
+        totalToday: statsData.totalToday ?? 0,
+        inQueue: statsData.inQueue ?? 0,
+        preparing: statsData.preparing ?? 0,
+        ready: statsData.ready ?? 0,
+        served: statsData.served ?? 0,
+        cancelled: statsData.cancelled ?? 0,
+        avgPrepTime: statsData.avgPrepTime ?? 0,
+      });
+
+      // Sound notification — only when NEW count increases
+      const newCount = (queueData as unknown as GroupedOrders).NEW?.length ?? 0;
+      if (prevNewCountRef.current >= 0 && newCount > prevNewCountRef.current) {
+        speakRef.current("Ada antrian baru");
       }
-    });
-  }, [playNotificationSound]);
+      prevNewCountRef.current = newCount;
+    } catch {
+      // Silently fail
+    } finally {
+      fetchingRef.current = false;
+      cooldownUntilRef.current = Date.now() + 3000; // 3s cooldown
+    }
+  }, []); // Stable — no deps, uses refs
 
   const { selectedBranchId } = useBranch();
 

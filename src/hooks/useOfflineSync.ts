@@ -89,10 +89,27 @@ export function useOfflineSync(isOnline: boolean) {
   // Auto-sync when coming back online
   useEffect(() => {
     if (isOnline && pendingCount > 0 && !syncingRef.current) {
-      const timer = setTimeout(() => { void syncAll(); }, 0);
+      const timer = setTimeout(() => { void syncAll(); }, 2000);
       return () => clearTimeout(timer);
     }
   }, [isOnline, pendingCount, syncAll]);
+
+  // Periodic auto-retry when online (every 30s)
+  useEffect(() => {
+    if (!isOnline) return;
+    const interval = setInterval(async () => {
+      if (syncingRef.current) return;
+      try {
+        const count = await getPendingCount();
+        if (count > 0) {
+          const pending = await getPendingTransactions();
+          const retryable = pending.filter((t) => t.status === "failed" && (t.retryCount ?? 0) < 5);
+          if (retryable.length > 0) syncAll();
+        }
+      } catch { /* silent */ }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isOnline, syncAll]);
 
   // Check pending count on mount
   useEffect(() => {

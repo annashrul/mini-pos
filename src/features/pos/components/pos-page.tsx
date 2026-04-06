@@ -775,9 +775,25 @@ function POSPageContent() {
                     scrollTop: productScrollRef.current?.scrollTop ?? 0,
                 });
                 persistCache();
+                // Also save to IndexedDB for offline
+                import("@/lib/offline-product-cache").then(({ setCacheData }) => {
+                    setCacheData(`pos-browse-${cacheKey}`, { items: current, page, hasMore: result.hasMore }).catch(() => {});
+                }).catch(() => {});
                 return current;
             });
-        } catch { /**/ }
+        } catch {
+            // Offline fallback: load from IndexedDB cache
+            try {
+                const offCacheKey = catId || "__all__";
+                const { getCacheData } = await import("@/lib/offline-product-cache");
+                const cached = await getCacheData<{ items: ProductSearchResult[]; page: number; hasMore: boolean }>(`pos-browse-${offCacheKey}`);
+                if (cached) {
+                    setBrowseItems(cached.items);
+                    setBrowsePage(cached.page);
+                    setBrowseHasMore(false); // Don't try to load more pages offline
+                }
+            } catch { /**/ }
+        }
         setBrowseLoading(false);
     }, [activeBranchId, browseLoading]);
 
@@ -810,6 +826,7 @@ function POSPageContent() {
 
     useEffect(() => {
         const initialize = async () => {
+          try {
             const [categoryData, branchData, shiftData, receiptCfg, posCfg] = await Promise.all([
                 getAllCategories(),
                 getAllBranches(),
@@ -818,7 +835,8 @@ function POSPageContent() {
                 getPosConfig(),
             ]);
             const activeBranches = branchData.filter((branch) => branch.isActive);
-            setCategories(categoryData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
+            const mappedCategories = categoryData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
+            setCategories(mappedCategories);
             setBranches(activeBranches);
             setReceiptConfig(receiptCfg);
             setPosConfig(posCfg);
@@ -832,6 +850,14 @@ function POSPageContent() {
             import("@/server/actions/bundles").then(({ getActiveBundles }) => {
                 getActiveBundles(activeBranchId || undefined).then((b) => setBundles(b as any)).catch(() => { });
             }).catch(() => { });
+
+            // Cache data for offline use
+            import("@/lib/offline-product-cache").then(({ setCacheData }) => {
+                setCacheData("pos-categories", mappedCategories).catch(() => {});
+                setCacheData("pos-config", posCfg).catch(() => {});
+                setCacheData("pos-receipt-config", receiptCfg).catch(() => {});
+                setCacheData("pos-branches", activeBranches).catch(() => {});
+            }).catch(() => {});
             if (shiftData) {
                 setActiveShift({ id: shiftData.id, openingCash: shiftData.openingCash, openedAt: shiftData.openedAt });
             }
@@ -859,6 +885,28 @@ function POSPageContent() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) { setCart(p); toast.info("Draft dipulihkan"); } } catch { /**/ } }
             barcodeInputRef.current?.focus();
+          } catch {
+            // Offline fallback: load from IndexedDB cache
+            try {
+                const { getCacheData } = await import("@/lib/offline-product-cache");
+                const [cachedCategories, cachedConfig, cachedReceipt, cachedBranches] = await Promise.all([
+                    getCacheData<{ id: string; name: string }[]>("pos-categories"),
+                    getCacheData<typeof posConfig>("pos-config"),
+                    getCacheData<typeof receiptConfig>("pos-receipt-config"),
+                    getCacheData<typeof branches>("pos-branches"),
+                ]);
+                if (cachedCategories) setCategories(cachedCategories);
+                if (cachedConfig) { setPosConfig(cachedConfig as any); if ((cachedConfig as any)?.defaultTaxPercent !== undefined) setTaxPercent((cachedConfig as any).defaultTaxPercent); }
+                if (cachedReceipt) setReceiptConfig(cachedReceipt as any);
+                if (cachedBranches) setBranches(cachedBranches as any);
+                toast.info("Mode offline — menggunakan data cache", { duration: 3000 });
+            } catch {
+                toast.error("Gagal memuat data. Periksa koneksi internet.");
+            }
+            // Restore cart draft
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) { setCart(p); } } catch { /**/ } }
+          }
         };
         initialize();
     }, [setSetupValue, sidebarBranchId, userBranchId]);

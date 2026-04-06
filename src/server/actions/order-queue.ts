@@ -1,7 +1,6 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
@@ -120,7 +119,8 @@ export async function createOrderFromTransaction(transactionId: string) {
   });
 
   emitEvent(EVENTS.ORDER_QUEUE_CREATED, { orderId: order.id, queueNumber: nextNumber }, transaction.branchId || undefined);
-  revalidatePath("/kitchen-display");
+  // NOTE: Do NOT revalidatePath("/kitchen-display") here — it causes component re-mount
+  // which resets refs and triggers double audio. Kitchen display uses realtime events instead.
   return order;
 }
 
@@ -176,7 +176,7 @@ export async function updateOrderStatus(id: string, status: string) {
   });
 
   emitEvent(EVENTS.ORDER_QUEUE_UPDATED, { orderId: id, status }, order.branchId || undefined);
-  revalidatePath("/kitchen-display");
+  // Kitchen display uses realtime events, no revalidatePath needed
   return order;
 }
 
@@ -226,7 +226,7 @@ export async function updateOrderItemStatus(id: string, status: string) {
     }
   }
 
-  revalidatePath("/kitchen-display");
+  // Kitchen display uses realtime events, no revalidatePath needed
   return item;
 }
 
@@ -254,7 +254,7 @@ export async function cancelOrder(id: string) {
   });
 
   emitEvent(EVENTS.ORDER_QUEUE_CANCELLED, { orderId: id }, order.branchId || undefined);
-  revalidatePath("/kitchen-display");
+  // Kitchen display uses realtime events, no revalidatePath needed
   return order;
 }
 
@@ -342,7 +342,7 @@ export async function resetDailyQueue(branchId?: string) {
     ...(branchId ? { branchId } : {}),
   });
 
-  revalidatePath("/kitchen-display");
+  // Kitchen display uses realtime events, no revalidatePath needed
   return { cancelledCount: result.count };
 }
 
@@ -388,6 +388,6 @@ export async function createManualOrder(params: {
   });
 
   emitEvent(EVENTS.ORDER_QUEUE_CREATED, { orderId: order.id, queueNumber: nextNumber }, params.branchId);
-  revalidatePath("/kitchen-display");
+  // Kitchen display uses realtime events, no revalidatePath needed
   return order;
 }

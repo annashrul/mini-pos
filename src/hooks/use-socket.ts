@@ -40,7 +40,8 @@ export function useRealtimeEvents() {
         channel = pusher.subscribe("pos-events");
         channel.bind_global(
           (eventName: string, data: Record<string, unknown>) => {
-            if (!eventName) return;
+            // Skip Pusher internal events
+            if (!eventName || eventName.startsWith("pusher:") || eventName.startsWith("pusher_internal:")) return;
             dispatch(eventName, data || {});
           },
         );
