@@ -11,33 +11,40 @@ const CONFIG_EVENTS = [
 ];
 
 /**
- * Listen for config changes via SSE.
- * When any POS/Receipt/Kitchen config is saved from settings page,
- * this hook triggers onRefresh so the POS page reloads its config instantly.
+ * Listen for config changes via SSE/Pusher.
+ * Settings page saves POS + Receipt + Kitchen configs together,
+ * emitting 3 events. This hook coalesces them into 1 refresh call.
  */
 export function useConfigRealtime(onRefresh: () => void, branchId?: string) {
     const { on } = useRealtimeEvents();
     const refreshRef = useRef(onRefresh);
     refreshRef.current = onRefresh;
 
-    const lastRefreshRef = useRef(0);
-
     useEffect(() => {
-        const unsubs = CONFIG_EVENTS.map((event) =>
-            on(event, (data) => {
-                const eventBranch = data.branchId as string | undefined;
-                // If branch-specific config, only refresh if matching or no branch selected
-                if (branchId && eventBranch && eventBranch !== branchId) return;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let cooldownUntil = 0;
 
-                // Debounce: max 1 refresh per 2 seconds
-                const now = Date.now();
-                if (now - lastRefreshRef.current < 2000) return;
-                lastRefreshRef.current = now;
+        const handler = (data: Record<string, unknown>) => {
+            const eventBranch = data.branchId as string | undefined;
+            if (branchId && eventBranch && eventBranch !== branchId) return;
 
+            // Skip if in cooldown or already have a pending timer
+            const now = Date.now();
+            if (now < cooldownUntil || timer) return;
+
+            // Wait 1s for all config events to arrive, then fire once
+            timer = setTimeout(() => {
+                timer = null;
+                cooldownUntil = Date.now() + 5000; // 5s cooldown
                 refreshRef.current();
-            })
-        );
+            }, 1000);
+        };
 
-        return () => { unsubs.forEach((u) => u()); };
+        const unsubs = CONFIG_EVENTS.map((event) => on(event, handler));
+
+        return () => {
+            unsubs.forEach((u) => u());
+            if (timer) clearTimeout(timer);
+        };
     }, [on, branchId]);
 }

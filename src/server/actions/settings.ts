@@ -49,23 +49,38 @@ const settingsStore = prisma.setting as unknown as {
   count: (args: { where?: Record<string, unknown> }) => Promise<number>;
 };
 
+// Track which groups have been ensured this process lifetime
+const _ensuredGroups = new Set<string>();
+
 async function ensureSettingsDefaults<T extends object>(
   group: string,
   prefix: string,
   defaults: T,
 ) {
-  // Ensure global defaults (branchId = null)
+  // Skip if already ensured in this process
+  if (_ensuredGroups.has(group)) return;
+
+  // Single query: get all existing global keys for this group
+  const existing = await settingsStore.findMany({ where: { group } });
+  const existingGlobalKeys = new Set(
+    existing.filter((s) => (s as Record<string, unknown>).branchId == null).map((s) => s.key)
+  );
+
+  // Only insert missing defaults
   const entries = Object.entries(defaults) as [string, PrimitiveSettingValue][];
-  for (const [key, value] of entries) {
-    const fullKey = `${prefix}.${key}`;
-    const scoped = await settingsStore.findMany({ where: { key: fullKey } });
-    const existing = scoped.find((setting) => setting.branchId == null);
-    if (!existing) {
-      await settingsStore.create({
-        data: { key: fullKey, value: String(value), label: key, group },
-      });
-    }
+  const missing = entries.filter(([key]) => !existingGlobalKeys.has(`${prefix}.${key}`));
+
+  if (missing.length > 0) {
+    await Promise.all(
+      missing.map(([key, value]) =>
+        settingsStore.create({
+          data: { key: `${prefix}.${key}`, value: String(value), label: key, group },
+        })
+      )
+    );
   }
+
+  _ensuredGroups.add(group);
 }
 
 function buildConfigFromDefaults<T extends object>(

@@ -826,53 +826,41 @@ function POSPageContent() {
 
     useEffect(() => {
         const initialize = async () => {
+          // Restore local state immediately (no server call)
+          const savedTerminal = localStorage.getItem(POS_TERMINAL_KEY);
+          let savedRegister = "";
+          if (savedTerminal) {
+              try {
+                  const parsed = JSON.parse(savedTerminal) as { branchId?: string; register?: string };
+                  if (parsed.register) {
+                      savedRegister = parsed.register;
+                      setSelectedRegister(parsed.register);
+                      setSetupValue("register", parsed.register, { shouldValidate: true });
+                  }
+              } catch { }
+          }
+          const savedCart = localStorage.getItem(STORAGE_KEY);
+          if (savedCart) { try { const p = JSON.parse(savedCart); if (Array.isArray(p) && p.length > 0) { setCart(p); toast.info("Draft dipulihkan"); } } catch { /**/ } }
+
           try {
-            const [categoryData, branchData, shiftData, receiptCfg, posCfg] = await Promise.all([
+            // Critical data — load in parallel, needed before UI is usable
+            const [categoryData, branchData, shiftData, posCfg] = await Promise.all([
                 getAllCategories(),
                 getAllBranches(),
                 getActiveShift(),
-                getReceiptConfig(),
                 getPosConfig(),
             ]);
             const activeBranches = branchData.filter((branch) => branch.isActive);
             const mappedCategories = categoryData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
             setCategories(mappedCategories);
             setBranches(activeBranches);
-            setReceiptConfig(receiptCfg);
             setPosConfig(posCfg);
             if (posCfg.defaultTaxPercent !== undefined) setTaxPercent(posCfg.defaultTaxPercent);
-            if (posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") {
-                import("@/server/actions/tables").then(({ getTables }) => {
-                    getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
-                }).catch(() => { });
-            }
-            // Load bundles
-            import("@/server/actions/bundles").then(({ getActiveBundles }) => {
-                getActiveBundles(activeBranchId || undefined).then((b) => setBundles(b as any)).catch(() => { });
-            }).catch(() => { });
-
-            // Cache data for offline use
-            import("@/lib/offline-product-cache").then(({ setCacheData }) => {
-                setCacheData("pos-categories", mappedCategories).catch(() => {});
-                setCacheData("pos-config", posCfg).catch(() => {});
-                setCacheData("pos-receipt-config", receiptCfg).catch(() => {});
-                setCacheData("pos-branches", activeBranches).catch(() => {});
-            }).catch(() => {});
             if (shiftData) {
                 setActiveShift({ id: shiftData.id, openingCash: shiftData.openingCash, openedAt: shiftData.openedAt });
             }
-            const savedTerminal = localStorage.getItem(POS_TERMINAL_KEY);
-            let savedRegister = "";
-            if (savedTerminal) {
-                try {
-                    const parsed = JSON.parse(savedTerminal) as { branchId?: string; register?: string };
-                    if (parsed.register) {
-                        savedRegister = parsed.register;
-                        setSelectedRegister(parsed.register);
-                        setSetupValue("register", parsed.register, { shouldValidate: true });
-                    }
-                } catch { }
-            }
+
+            // Setup branch/session
             if (sidebarBranchId && activeBranches.some((branch) => branch.id === sidebarBranchId)) {
                 setSelectedBranchId(sidebarBranchId);
                 setSetupValue("branchId", sidebarBranchId, { shouldValidate: true });
@@ -882,30 +870,40 @@ function POSPageContent() {
                 setSetupValue("branchId", "", { shouldValidate: true });
                 setSessionStarted(false);
             }
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) { setCart(p); toast.info("Draft dipulihkan"); } } catch { /**/ } }
             barcodeInputRef.current?.focus();
+
+            // Non-critical data — load in background AFTER UI is rendered
+            const bid = activeBranchId || sidebarBranchId || undefined;
+            getReceiptConfig().then((cfg) => setReceiptConfig(cfg)).catch(() => {});
+            if (posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") {
+                import("@/server/actions/tables").then(({ getTables }) => {
+                    getTables(bid).then((t) => setTables(t as typeof tables)).catch(() => {});
+                }).catch(() => {});
+            }
+            import("@/server/actions/bundles").then(({ getActiveBundles }) => {
+                getActiveBundles(bid).then((b) => setBundles(b as any)).catch(() => {});
+            }).catch(() => {});
+            import("@/lib/offline-product-cache").then(({ setCacheData }) => {
+                setCacheData("pos-categories", mappedCategories).catch(() => {});
+                setCacheData("pos-config", posCfg).catch(() => {});
+                setCacheData("pos-branches", activeBranches).catch(() => {});
+            }).catch(() => {});
           } catch {
-            // Offline fallback: load from IndexedDB cache
+            // Offline fallback
             try {
                 const { getCacheData } = await import("@/lib/offline-product-cache");
-                const [cachedCategories, cachedConfig, cachedReceipt, cachedBranches] = await Promise.all([
+                const [cachedCategories, cachedConfig, cachedBranches] = await Promise.all([
                     getCacheData<{ id: string; name: string }[]>("pos-categories"),
                     getCacheData<typeof posConfig>("pos-config"),
-                    getCacheData<typeof receiptConfig>("pos-receipt-config"),
                     getCacheData<typeof branches>("pos-branches"),
                 ]);
                 if (cachedCategories) setCategories(cachedCategories);
                 if (cachedConfig) { setPosConfig(cachedConfig as any); if ((cachedConfig as any)?.defaultTaxPercent !== undefined) setTaxPercent((cachedConfig as any).defaultTaxPercent); }
-                if (cachedReceipt) setReceiptConfig(cachedReceipt as any);
                 if (cachedBranches) setBranches(cachedBranches as any);
                 toast.info("Mode offline — menggunakan data cache", { duration: 3000 });
             } catch {
                 toast.error("Gagal memuat data. Periksa koneksi internet.");
             }
-            // Restore cart draft
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) { try { const p = JSON.parse(saved); if (Array.isArray(p) && p.length > 0) { setCart(p); } } catch { /**/ } }
           }
         };
         initialize();
@@ -944,9 +942,10 @@ function POSPageContent() {
     // Realtime config sync — reload POS/Receipt config when changed from settings page
     const reloadConfig = useCallback(async () => {
         try {
+            const bid = activeBranchId || undefined;
             const [posCfg, receiptCfg] = await Promise.all([
-                getPosConfig(),
-                getReceiptConfig(),
+                getPosConfig(bid),
+                getReceiptConfig(bid),
             ]);
             setPosConfig(posCfg);
             setReceiptConfig(receiptCfg);
@@ -954,14 +953,14 @@ function POSPageContent() {
             // Load tables when restaurant/cafe mode
             if (posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") {
                 import("@/server/actions/tables").then(({ getTables }) => {
-                    getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
-                }).catch(() => { });
+                    getTables(bid).then((t) => setTables(t as typeof tables)).catch(() => {});
+                }).catch(() => {});
             } else {
                 setTables([]);
             }
             toast.info("Konfigurasi POS diperbarui", { duration: 2000 });
         } catch { /* silent */ }
-    }, [activeBranchId, tables]);
+    }, [activeBranchId]); // removed `tables` dep — not needed, causes unnecessary re-creates
     useConfigRealtime(reloadConfig, activeBranchId || undefined);
 
     // Load tables when posConfig changes to restaurant/cafe mode
