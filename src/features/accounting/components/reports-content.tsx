@@ -65,34 +65,34 @@ export function ReportsContent() {
                 onValueChange={(v) => setTab(v as Tab)}
                 className="space-y-6"
             >
-                <TabsList className="bg-slate-100/80 rounded-2xl p-1 h-auto gap-1">
+                <TabsList className="bg-slate-100/80 rounded-2xl p-1 h-12 flex w-full gap-0.5 overflow-x-auto scrollbar-hide">
                     <TabsTrigger
                         value="trial-balance"
-                        className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
+                        className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium shrink-0 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
                     >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        Neraca Saldo
+                        <BarChart3 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Neraca </span>Saldo
                     </TabsTrigger>
                     <TabsTrigger
                         value="income"
-                        className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
+                        className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium shrink-0 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
                     >
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Laba Rugi
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="hidden sm:inline">Laba </span>Rugi
                     </TabsTrigger>
                     <TabsTrigger
                         value="balance-sheet"
-                        className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
+                        className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium shrink-0 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
                     >
-                        <PieChart className="w-4 h-4 mr-2" />
+                        <PieChart className="w-4 h-4" />
                         Neraca
                     </TabsTrigger>
                     <TabsTrigger
                         value="cash-flow"
-                        className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
+                        className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium shrink-0 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-gray-900 text-gray-500 transition-all"
                     >
-                        <Wallet className="w-4 h-4 mr-2" />
-                        Arus Kas
+                        <Wallet className="w-4 h-4" />
+                        <span className="hidden sm:inline">Arus </span>Kas
                     </TabsTrigger>
                 </TabsList>
 
@@ -241,14 +241,14 @@ function TrialBalanceTab({ date, setDate, branchId }: {
                         return (
                             <Card key={categoryName} className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
                                 {/* Category header */}
-                                <div className={`px-6 py-3 ${colors.bg} border-b ${colors.border} flex items-center justify-between`}>
-                                    <div className="flex items-center gap-2">
-                                        <Badge className={`${colors.bg} ${colors.text} border ${colors.border} text-[10px] font-bold uppercase tracking-widest rounded-lg px-2.5 py-0.5`}>
+                                <div className={`px-3 sm:px-6 py-2.5 sm:py-3 ${colors.bg} border-b ${colors.border} flex items-center justify-between gap-2`}>
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <Badge className={`${colors.bg} ${colors.text} border ${colors.border} text-[10px] font-bold uppercase tracking-widest rounded-lg px-2 sm:px-2.5 py-0.5 shrink-0`}>
                                             {categoryName}
                                         </Badge>
-                                        <span className="text-[11px] text-slate-400">{rows.length} akun</span>
+                                        <span className="text-[10px] sm:text-[11px] text-slate-400 shrink-0">{rows.length}</span>
                                     </div>
-                                    <div className="flex items-center gap-4 text-[11px] font-mono tabular-nums">
+                                    <div className="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px] font-mono tabular-nums shrink-0">
                                         {catDebit > 0 && <span className="text-emerald-600 font-semibold">D: {formatAccountingCurrency(catDebit)}</span>}
                                         {catCredit > 0 && <span className="text-rose-600 font-semibold">K: {formatAccountingCurrency(catCredit)}</span>}
                                     </div>
@@ -256,13 +256,13 @@ function TrialBalanceTab({ date, setDate, branchId }: {
                                 {/* Rows */}
                                 <div className="divide-y divide-slate-50">
                                     {rows.map((r, i) => (
-                                        <div key={i} className="flex items-center px-6 py-3 hover:bg-slate-50/60 transition-colors">
-                                            <span className="w-24 shrink-0 font-mono text-xs text-slate-400">{r.accountCode}</span>
-                                            <span className="flex-1 text-[13px] text-slate-700 font-medium">{r.accountName}</span>
-                                            <span className="w-32 text-right font-mono tabular-nums text-xs font-semibold text-emerald-600">
+                                        <div key={i} className="flex items-baseline gap-2 px-3 sm:px-6 py-2.5 sm:py-3 hover:bg-slate-50/60 transition-colors">
+                                            <span className="hidden sm:inline w-24 shrink-0 font-mono text-xs text-slate-400">{r.accountCode}</span>
+                                            <span className="flex-1 text-xs sm:text-[13px] text-slate-700 font-medium min-w-0 truncate">{r.accountName}</span>
+                                            <span className="shrink-0 text-right font-mono tabular-nums text-xs font-semibold text-emerald-600">
                                                 {r.debit > 0 ? formatAccountingCurrency(r.debit) : <span className="text-slate-200">—</span>}
                                             </span>
-                                            <span className="w-32 text-right font-mono tabular-nums text-xs font-semibold text-rose-600">
+                                            <span className="shrink-0 text-right font-mono tabular-nums text-xs font-semibold text-rose-600">
                                                 {r.credit > 0 ? formatAccountingCurrency(r.credit) : <span className="text-slate-200">—</span>}
                                             </span>
                                         </div>
@@ -275,13 +275,13 @@ function TrialBalanceTab({ date, setDate, branchId }: {
                     {/* Grand total footer */}
                     {grouped.length > 0 && (
                         <Card className={`rounded-2xl overflow-hidden border-0 shadow-md ${data.isBalanced ? "bg-gradient-to-r from-emerald-500 to-teal-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
-                            <CardContent className="py-4 px-6">
-                                <div className="flex items-center justify-between text-white">
-                                    <div className="flex items-center gap-2">
-                                        {data.isBalanced ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-                                        <span className="font-bold text-sm">{data.isBalanced ? "Neraca Saldo Seimbang" : "Neraca Saldo Tidak Seimbang"}</span>
+                            <CardContent className="py-3 sm:py-4 px-3 sm:px-6">
+                                <div className="flex items-center justify-between gap-2 text-white">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {data.isBalanced ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
+                                        <span className="font-bold text-xs sm:text-sm truncate">{data.isBalanced ? "Seimbang" : "Tidak Seimbang"}</span>
                                     </div>
-                                    <div className="flex items-center gap-8 font-mono tabular-nums text-sm font-bold">
+                                    <div className="flex items-center gap-3 sm:gap-8 font-mono tabular-nums text-xs sm:text-sm font-bold shrink-0">
                                         <span>Debit: {formatAccountingCurrency(data.totalDebit)}</span>
                                         <span>Kredit: {formatAccountingCurrency(data.totalCredit)}</span>
                                     </div>
@@ -331,15 +331,15 @@ function PresetTabs({ presets, activeKey, onSelect, onCustom }: {
     presets: Preset[]; activeKey: PresetKey; onSelect: (p: Preset) => void; onCustom: () => void;
 }) {
     return (
-        <div className="inline-flex items-center bg-slate-100/80 rounded-xl p-1 gap-0.5">
+        <div className="flex items-center bg-slate-100/80 rounded-xl p-1 gap-0.5 overflow-x-auto scrollbar-hide w-full sm:w-auto">
             {presets.map((p) => (
                 <button key={p.key} type="button" onClick={() => onSelect(p)}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${activeKey === p.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap shrink-0 ${activeKey === p.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
                     {p.label}
                 </button>
             ))}
             <button type="button" onClick={onCustom}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${activeKey === "custom" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap shrink-0 ${activeKey === "custom" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
                 <SlidersHorizontal className="w-3 h-3" />
                 Custom
             </button>
@@ -357,29 +357,27 @@ function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo, isPending }
 
     const handleSelect = (p: Preset) => {
         setSelectedKey(p.key);
-        // Set from first, then to — ensures useEffect triggers even if to is same
         setDateFrom(p.from);
         setDateTo(p.to);
     };
 
     return (
         <Card className="rounded-2xl border-0 shadow-sm bg-white">
-            <CardContent className="px-5 py-4">
-                <div className="flex flex-wrap items-center gap-3">
+            <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
+                <div className="flex items-center gap-2">
                     <PresetTabs presets={presets} activeKey={selectedKey}
                         onSelect={handleSelect}
                         onCustom={() => setSelectedKey("custom")} />
-
-                    {selectedKey === "custom" && (
-                        <div className="flex items-center gap-2">
-                            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-[150px] rounded-xl h-8 text-xs" />
-                            <span className="text-slate-300 text-xs">—</span>
-                            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-[150px] rounded-xl h-8 text-xs" />
-                        </div>
-                    )}
-
-                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
                 </div>
+
+                {selectedKey === "custom" && (
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-full sm:w-[150px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                        <span className="text-slate-300 text-xs text-center hidden sm:block">—</span>
+                        <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-full sm:w-[150px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -400,19 +398,18 @@ function SingleDateFilter({ date, setDate, isPending, badge }: {
 
     return (
         <Card className="rounded-2xl border-0 shadow-sm bg-white">
-            <CardContent className="px-5 py-4">
-                <div className="flex flex-wrap items-center gap-3">
+            <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
+                <div className="flex items-center gap-2">
                     <PresetTabs presets={presets} activeKey={selectedKey}
                         onSelect={handleSelect}
                         onCustom={() => setSelectedKey("custom")} />
-
-                    {selectedKey === "custom" && (
-                        <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-[180px] rounded-xl h-8 text-xs" />
-                    )}
-
-                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
                     {badge}
                 </div>
+
+                {selectedKey === "custom" && (
+                    <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-full sm:w-[180px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                )}
             </CardContent>
         </Card>
     );
@@ -439,18 +436,18 @@ function AccountList({ items, color, totalLabel, total, totalBorderColor }: {
                 {items.map((r: { accountName: string; amount?: number; balance?: number }, i: number) => {
                     const value = r.amount ?? r.balance ?? 0;
                     return (
-                        <div key={i} className="flex justify-between items-center py-3 px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
-                            <span className="text-[13px] text-gray-700">{r.accountName}</span>
-                            <span className={`text-[13px] font-mono tabular-nums font-semibold ${color}`}>
+                        <div key={i} className="flex justify-between items-baseline gap-2 py-2.5 sm:py-3 px-2 sm:px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
+                            <span className="text-xs sm:text-[13px] text-gray-700 min-w-0 truncate">{r.accountName}</span>
+                            <span className={`text-xs sm:text-[13px] font-mono tabular-nums font-semibold shrink-0 ${color}`}>
                                 {formatAccountingCurrency(value)}
                             </span>
                         </div>
                     );
                 })}
             </div>
-            <div className={`flex justify-between items-center pt-4 mt-3 border-t-2 ${totalBorderColor} px-1`}>
-                <span className={`text-sm font-bold ${color}`}>{totalLabel}</span>
-                <span className={`text-base font-extrabold font-mono tabular-nums ${color}`}>
+            <div className={`flex justify-between items-center pt-3 sm:pt-4 mt-2 sm:mt-3 border-t-2 ${totalBorderColor} px-1`}>
+                <span className={`text-xs sm:text-sm font-bold ${color}`}>{totalLabel}</span>
+                <span className={`text-sm sm:text-base font-extrabold font-mono tabular-nums ${color}`}>
                     {formatAccountingCurrency(total)}
                 </span>
             </div>
@@ -496,38 +493,38 @@ function IncomeStatementTab({ dateFrom, setDateFrom, dateTo, setDateTo, branchId
                         </CardContent>
                     </Card>
 
-                    {/* Revenue & Expense side by side */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Revenue & Expense */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
                         {/* Revenue */}
-                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden min-w-0">
                             <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                            <CardHeader className="pb-0 pt-5 px-6">
+                            <CardHeader className="pb-0 pt-4 sm:pt-5 px-4 sm:px-6">
                                 <CardTitle className="text-xs font-bold text-emerald-700 flex items-center gap-2 uppercase tracking-widest">
-                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                        <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                        <TrendingUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
                                     </div>
                                     Pendapatan
-                                    <Badge variant="secondary" className="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border-emerald-200 rounded-lg">{data.revenues.length} akun</Badge>
+                                    <Badge variant="secondary" className="ml-auto text-[10px] bg-emerald-50 text-emerald-600 border-emerald-200 rounded-lg">{data.revenues.length}</Badge>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="px-6 pb-5 pt-4">
+                            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-5 pt-3 sm:pt-4">
                                 <AccountList items={data.revenues} color="text-emerald-600" totalLabel="Total Pendapatan" total={data.totalRevenue} totalBorderColor="border-emerald-100" />
                             </CardContent>
                         </Card>
 
                         {/* Expense */}
-                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden min-w-0">
                             <div className="h-1 bg-gradient-to-r from-orange-400 to-red-500" />
-                            <CardHeader className="pb-0 pt-5 px-6">
+                            <CardHeader className="pb-0 pt-4 sm:pt-5 px-4 sm:px-6">
                                 <CardTitle className="text-xs font-bold text-orange-700 flex items-center gap-2 uppercase tracking-widest">
-                                    <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
-                                        <TrendingDown className="w-3.5 h-3.5 text-orange-600" />
+                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-orange-100 flex items-center justify-center">
+                                        <TrendingDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-600" />
                                     </div>
                                     Beban
-                                    <Badge variant="secondary" className="ml-auto text-[10px] bg-orange-50 text-orange-600 border-orange-200 rounded-lg">{data.expenses.length} akun</Badge>
+                                    <Badge variant="secondary" className="ml-auto text-[10px] bg-orange-50 text-orange-600 border-orange-200 rounded-lg">{data.expenses.length}</Badge>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="px-6 pb-5 pt-4">
+                            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-5 pt-3 sm:pt-4">
                                 <AccountList items={data.expenses} color="text-orange-600" totalLabel="Total Beban" total={data.totalExpense} totalBorderColor="border-orange-100" />
                             </CardContent>
                         </Card>
@@ -551,31 +548,31 @@ function BalanceSheetTab({ date, setDate, branchId }: {
         textColor: string; borderColor: string;
     }) {
         return (
-            <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
+            <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden min-w-0">
                 <div className={`h-1 ${gradient}`} />
-                <CardHeader className="pb-0 pt-5 px-6">
+                <CardHeader className="pb-0 pt-4 sm:pt-5 px-4 sm:px-6">
                     <CardTitle className={`text-xs font-bold ${textColor} flex items-center gap-2 uppercase tracking-widest`}>
-                        <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
-                            <Icon className={`w-3.5 h-3.5 ${textColor}`} />
+                        <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${iconBg} flex items-center justify-center`}>
+                            <Icon className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${textColor}`} />
                         </div>
                         {title}
-                        <Badge variant="secondary" className={`ml-auto text-[10px] rounded-lg ${iconBg} ${textColor} border-0`}>{items.length} akun</Badge>
+                        <Badge variant="secondary" className={`ml-auto text-[10px] rounded-lg ${iconBg} ${textColor} border-0`}>{items.length}</Badge>
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="px-6 pb-5 pt-4">
+                <CardContent className="px-4 sm:px-6 pb-4 sm:pb-5 pt-3 sm:pt-4">
                     <div className="divide-y divide-gray-100/80">
                         {items.map((a, i) => (
-                            <div key={i} className="flex justify-between items-center py-3 px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
-                                <span className="text-[13px] text-gray-700">{a.accountName}</span>
-                                <span className={`text-[13px] font-mono tabular-nums font-semibold ${textColor}`}>
+                            <div key={i} className="flex justify-between items-baseline gap-2 py-2.5 sm:py-3 px-2 sm:px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
+                                <span className="text-xs sm:text-[13px] text-gray-700 min-w-0 truncate">{a.accountName}</span>
+                                <span className={`text-xs sm:text-[13px] font-mono tabular-nums font-semibold shrink-0 ${textColor}`}>
                                     {formatAccountingCurrency(a.balance)}
                                 </span>
                             </div>
                         ))}
                     </div>
-                    <div className={`flex justify-between items-center pt-4 mt-3 border-t-2 ${borderColor} px-1`}>
-                        <span className={`text-sm font-bold ${textColor}`}>Total {title}</span>
-                        <span className={`text-base font-extrabold font-mono tabular-nums ${textColor}`}>
+                    <div className={`flex justify-between items-center pt-3 sm:pt-4 mt-2 sm:mt-3 border-t-2 ${borderColor} px-1`}>
+                        <span className={`text-xs sm:text-sm font-bold ${textColor}`}>Total {title}</span>
+                        <span className={`text-sm sm:text-base font-extrabold font-mono tabular-nums ${textColor}`}>
                             {formatAccountingCurrency(total)}
                         </span>
                     </div>
@@ -598,29 +595,29 @@ function BalanceSheetTab({ date, setDate, branchId }: {
             {isPending ? <LoadingState message="Memuat neraca..." /> : data && (
                 <>
                     {/* Summary Bar */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-50/30">
-                            <CardContent className="p-5 text-center">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-50/30 min-w-0">
+                            <CardContent className="p-3 sm:p-5 text-center">
                                 <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-widest">Total Aset</p>
-                                <p className="text-xl font-extrabold font-mono tabular-nums text-blue-700 mt-1">{formatAccountingCurrency(data.totalAssets)}</p>
+                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-blue-700 mt-1">{formatAccountingCurrency(data.totalAssets)}</p>
                             </CardContent>
                         </Card>
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-red-50 to-rose-50/30">
-                            <CardContent className="p-5 text-center">
-                                <p className="text-[10px] font-semibold text-red-400 uppercase tracking-widest">Total Kewajiban</p>
-                                <p className="text-xl font-extrabold font-mono tabular-nums text-red-700 mt-1">{formatAccountingCurrency(data.totalLiabilities)}</p>
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-red-50 to-rose-50/30 min-w-0">
+                            <CardContent className="p-3 sm:p-5 text-center">
+                                <p className="text-[10px] font-semibold text-red-400 uppercase tracking-widest">Kewajiban</p>
+                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-red-700 mt-1">{formatAccountingCurrency(data.totalLiabilities)}</p>
                             </CardContent>
                         </Card>
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-50/30">
-                            <CardContent className="p-5 text-center">
-                                <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest">Total Ekuitas</p>
-                                <p className="text-xl font-extrabold font-mono tabular-nums text-purple-700 mt-1">{formatAccountingCurrency(data.totalEquity + data.retainedEarnings)}</p>
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-50/30 min-w-0">
+                            <CardContent className="p-3 sm:p-5 text-center">
+                                <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest">Ekuitas</p>
+                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-purple-700 mt-1">{formatAccountingCurrency(data.totalEquity + data.retainedEarnings)}</p>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Two column layout */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Two column layout — scroll horizontal on mobile */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
                         <Section title="Aset" items={data.assets.accounts} total={data.totalAssets}
                             gradient="bg-gradient-to-r from-blue-400 to-blue-600" iconBg="bg-blue-100"
                             icon={BarChart3} textColor="text-blue-700" borderColor="border-blue-100" />
@@ -683,74 +680,88 @@ function CashFlowTab({ dateFrom, setDateFrom, dateTo, setDateTo, branchId }: {
             {isPending ? <LoadingState message="Memuat arus kas..." /> : data && (
                 <div className="space-y-5">
                     {/* Cash Flow Waterfall: Opening → Movement → Closing */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
                         <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
                             <div className="h-1 bg-gradient-to-r from-blue-400 to-blue-600" />
-                            <CardContent className="p-5">
-                                <div className="flex items-start justify-between">
+                            <CardContent className="p-2.5 sm:p-5">
+                                <div className="hidden sm:flex items-start justify-between gap-2">
                                     <div>
                                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Kas Awal</p>
                                         <p className="text-2xl font-extrabold font-mono tabular-nums text-gray-900 mt-1">{formatAccountingCurrency(data.openingCash)}</p>
                                     </div>
-                                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
                                         <Wallet className="w-5 h-5 text-white" />
                                     </div>
+                                </div>
+                                <div className="sm:hidden text-center">
+                                    <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">Kas Awal</p>
+                                    <p className="text-sm font-extrabold font-mono tabular-nums text-gray-900 mt-0.5">{formatAccountingCurrency(data.openingCash)}</p>
                                 </div>
                             </CardContent>
                         </Card>
 
                         <Card className={`rounded-2xl border-0 shadow-sm overflow-hidden ${data.netCashFlow >= 0 ? "bg-gradient-to-br from-emerald-50 to-green-50" : "bg-gradient-to-br from-red-50 to-rose-50"}`}>
                             <div className={`h-1 ${data.netCashFlow >= 0 ? "bg-gradient-to-r from-emerald-400 to-teal-500" : "bg-gradient-to-r from-red-400 to-rose-500"}`} />
-                            <CardContent className="p-5">
-                                <div className="flex items-start justify-between">
+                            <CardContent className="p-2.5 sm:p-5">
+                                <div className="hidden sm:flex items-start justify-between gap-2">
                                     <div>
                                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Arus Kas Bersih</p>
                                         <p className={`text-2xl font-extrabold font-mono tabular-nums mt-1 ${data.netCashFlow >= 0 ? "text-emerald-700" : "text-red-700"}`}>
                                             {data.netCashFlow >= 0 ? "+" : ""}{formatAccountingCurrency(data.netCashFlow)}
                                         </p>
                                     </div>
-                                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-lg ${data.netCashFlow >= 0 ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/25" : "bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/25"}`}>
+                                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-lg shrink-0 ${data.netCashFlow >= 0 ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/25" : "bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/25"}`}>
                                         {data.netCashFlow >= 0 ? <ArrowUpRight className="w-5 h-5 text-white" /> : <ArrowDownRight className="w-5 h-5 text-white" />}
                                     </div>
+                                </div>
+                                <div className="sm:hidden text-center">
+                                    <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">Arus Bersih</p>
+                                    <p className={`text-sm font-extrabold font-mono tabular-nums mt-0.5 ${data.netCashFlow >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                                        {data.netCashFlow >= 0 ? "+" : ""}{formatAccountingCurrency(data.netCashFlow)}
+                                    </p>
                                 </div>
                             </CardContent>
                         </Card>
 
                         <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
                             <div className="h-1 bg-gradient-to-r from-violet-400 to-purple-600" />
-                            <CardContent className="p-5">
-                                <div className="flex items-start justify-between">
+                            <CardContent className="p-2.5 sm:p-5">
+                                <div className="hidden sm:flex items-start justify-between gap-2">
                                     <div>
                                         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Kas Akhir</p>
                                         <p className="text-2xl font-extrabold font-mono tabular-nums text-gray-900 mt-1">{formatAccountingCurrency(data.closingCash)}</p>
                                     </div>
-                                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25 shrink-0">
                                         <Wallet className="w-5 h-5 text-white" />
                                     </div>
+                                </div>
+                                <div className="sm:hidden text-center">
+                                    <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest">Kas Akhir</p>
+                                    <p className="text-sm font-extrabold font-mono tabular-nums text-gray-900 mt-0.5">{formatAccountingCurrency(data.closingCash)}</p>
                                 </div>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Cash In / Cash Out */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
+                    {/* Cash In / Cash Out — scroll horizontal on mobile */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden min-w-0">
                             <div className="h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-                            <CardHeader className="pb-0 pt-5 px-6">
+                            <CardHeader className="pb-0 pt-4 sm:pt-5 px-4 sm:px-6">
                                 <CardTitle className="text-xs font-bold text-emerald-700 flex items-center gap-2 uppercase tracking-widest">
-                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
-                                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                        <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
                                     </div>
                                     Kas Masuk
-                                    <span className="ml-auto text-base font-extrabold font-mono tabular-nums">{formatAccountingCurrency(data.totalCashIn)}</span>
+                                    <span className="ml-auto text-sm sm:text-base font-extrabold font-mono tabular-nums">{formatAccountingCurrency(data.totalCashIn)}</span>
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="px-6 pb-5 pt-4">
                                 <div className="divide-y divide-gray-100/80">
                                     {data.cashIn.map((c: { description: string; amount: number }, i: number) => (
-                                        <div key={i} className="flex justify-between items-center py-3 px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
-                                            <span className="text-[13px] text-gray-700">{c.description}</span>
-                                            <span className="text-[13px] font-mono tabular-nums text-emerald-600 font-semibold">+{formatAccountingCurrency(c.amount)}</span>
+                                        <div key={i} className="flex justify-between items-baseline gap-2 py-2.5 sm:py-3 px-2 sm:px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
+                                            <span className="text-xs sm:text-[13px] text-gray-700 min-w-0 truncate">{c.description}</span>
+                                            <span className="text-xs sm:text-[13px] font-mono tabular-nums text-emerald-600 font-semibold shrink-0">+{formatAccountingCurrency(c.amount)}</span>
                                         </div>
                                     ))}
                                     {data.cashIn.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">Tidak ada kas masuk</p>}
@@ -758,23 +769,23 @@ function CashFlowTab({ dateFrom, setDateFrom, dateTo, setDateTo, branchId }: {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-white overflow-hidden min-w-0">
                             <div className="h-1 bg-gradient-to-r from-red-400 to-rose-500" />
-                            <CardHeader className="pb-0 pt-5 px-6">
+                            <CardHeader className="pb-0 pt-4 sm:pt-5 px-4 sm:px-6">
                                 <CardTitle className="text-xs font-bold text-red-700 flex items-center gap-2 uppercase tracking-widest">
-                                    <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
-                                        <ArrowDownRight className="w-3.5 h-3.5 text-red-600" />
+                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-red-100 flex items-center justify-center">
+                                        <ArrowDownRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
                                     </div>
                                     Kas Keluar
-                                    <span className="ml-auto text-base font-extrabold font-mono tabular-nums">{formatAccountingCurrency(data.totalCashOut)}</span>
+                                    <span className="ml-auto text-sm sm:text-base font-extrabold font-mono tabular-nums">{formatAccountingCurrency(data.totalCashOut)}</span>
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="px-6 pb-5 pt-4">
+                            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-5 pt-3 sm:pt-4">
                                 <div className="divide-y divide-gray-100/80">
                                     {data.cashOut.map((c: { description: string; amount: number }, i: number) => (
-                                        <div key={i} className="flex justify-between items-center py-3 px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
-                                            <span className="text-[13px] text-gray-700">{c.description}</span>
-                                            <span className="text-[13px] font-mono tabular-nums text-red-600 font-semibold">-{formatAccountingCurrency(c.amount)}</span>
+                                        <div key={i} className="flex justify-between items-baseline gap-2 py-2.5 sm:py-3 px-2 sm:px-3 hover:bg-gray-50/60 rounded-lg transition-colors -mx-1">
+                                            <span className="text-xs sm:text-[13px] text-gray-700 min-w-0 truncate">{c.description}</span>
+                                            <span className="text-xs sm:text-[13px] font-mono tabular-nums text-red-600 font-semibold shrink-0">-{formatAccountingCurrency(c.amount)}</span>
                                         </div>
                                     ))}
                                     {data.cashOut.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">Tidak ada kas keluar</p>}

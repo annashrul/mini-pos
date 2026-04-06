@@ -8,6 +8,20 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
+async function invalidateAccelerate(tags: string[]) {
+  const accelerate = (
+    prisma as unknown as {
+      $accelerate?: { invalidate: (args: { tags: string[] }) => Promise<unknown> };
+    }
+  ).$accelerate;
+  if (!accelerate) return;
+  try {
+    await accelerate.invalidate({ tags });
+  } catch {
+    //
+  }
+}
+
 interface BundleComponentItem {
   productId: string;
   productName: string;
@@ -478,6 +492,9 @@ export async function createTransaction(input: CreateTransactionInput) {
     if (terminPayment && terminPayment.amount > 0) {
       revalidatePath("/debts");
     }
+    revalidateTag("dashboard-stats", "seconds");
+    revalidateTag("accounting-dashboard", "seconds");
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 
     createAuditLog({
       action: "CREATE",
@@ -725,6 +742,7 @@ export async function voidTransaction(id: string, reason: string) {
       revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
       revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
     }
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 
     createAuditLog({
       action: "VOID",
@@ -823,6 +841,7 @@ export async function refundTransaction(id: string, reason: string) {
       revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
       revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
     }
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 
     createAuditLog({
       action: "REFUND",

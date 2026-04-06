@@ -270,29 +270,29 @@ export function StockTransfersContent() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-200">
-                        <ArrowRightLeft className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-200">
+                        <ArrowRightLeft className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Transfer Stok</h1>
-                        <p className="text-muted-foreground text-sm flex items-center gap-2">
+                        <h1 className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">Transfer Stok</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm flex items-center gap-2">
                             Kelola transfer stok antar cabang
                             <Badge variant="secondary" className="text-xs font-normal">{data.total} transfer</Badge>
                         </p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 shadow-lg shadow-purple-200/50 text-white" onClick={() => setCreateOpen(true)}>
+                    <Button disabled={!canCreate} className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 shadow-lg shadow-purple-200/50 text-white" onClick={() => setCreateOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Buat Transfer
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) form.reset(); }}>
-                    <DialogContent className="rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+                    <DialogContent className="rounded-xl sm:rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                         <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500 rounded-t-2xl -mt-6 mb-2" />
                         <DialogHeader>
                             <DialogTitle className="text-lg font-bold">Buat Transfer Stok</DialogTitle>
@@ -377,8 +377,8 @@ export function StockTransfersContent() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
-                                        <Package className="w-6 h-6 text-slate-400" />
+                                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
+                                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-slate-400" />
                                     </div>
                                     <p className="text-sm text-muted-foreground">Belum ada item ditambahkan</p>
                                     <p className="text-xs text-muted-foreground/70">Pilih produk di atas untuk menambahkan</p>
@@ -413,48 +413,48 @@ export function StockTransfersContent() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex items-center gap-3 flex-wrap">
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 px-4 py-2">
-                    <Clock className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-semibold text-amber-700">{stats.pending}</span>
-                    <span className="text-xs text-amber-600">Menunggu</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-amber-700">{stats.pending}</span>
+                    <span className="text-[11px] sm:text-xs text-amber-600">Menunggu</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-200 px-4 py-2">
-                    <ShieldCheck className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-blue-700">{stats.approved}</span>
-                    <span className="text-xs text-blue-600">Disetujui</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.approved}</span>
+                    <span className="text-[11px] sm:text-xs text-blue-600">Disetujui</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 px-4 py-2">
-                    <Truck className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm font-semibold text-purple-700">{stats.inTransit}</span>
-                    <span className="text-xs text-purple-600">Dalam Perjalanan</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <Truck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-purple-700">{stats.inTransit}</span>
+                    <span className="text-[11px] sm:text-xs text-purple-600">Dalam Perjalanan</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-4 py-2">
-                    <PackageOpen className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm font-semibold text-emerald-700">{stats.received}</span>
-                    <span className="text-xs text-emerald-600">Diterima</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <PackageOpen className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.received}</span>
+                    <span className="text-[11px] sm:text-xs text-emerald-600">Diterima</span>
                 </div>
             </div>
 
             {/* Search Bar + Status Filter Pills */}
             <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <div className="relative flex-1 sm:max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                             value={search}
                             onChange={(e) => handleSearchChange(e.target.value)}
                             placeholder="Cari nomor transfer, cabang..."
-                            className="pl-9 rounded-xl"
+                            className="pl-9 rounded-xl h-9 sm:h-10 text-sm"
                         />
                     </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap overflow-x-auto scrollbar-hide">
                     {STATUS_PILLS.map((pill) => (
                         <button
                             key={pill.value}
                             onClick={() => handleStatusPill(pill.value)}
-                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeFilters.status === pill.value
+                            className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${activeFilters.status === pill.value
                                 ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
                                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
                                 }`}
@@ -475,19 +475,19 @@ export function StockTransfersContent() {
                 )}
 
                 {!loading && data.transfers.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-violet-100 flex items-center justify-center mb-4">
-                            <ArrowRightLeft className="w-8 h-8 text-purple-400" />
+                    <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-center">
+                        <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-100 to-violet-100 flex items-center justify-center mb-4">
+                            <ArrowRightLeft className="w-5 h-5 sm:w-8 sm:h-8 text-purple-400" />
                         </div>
-                        <h3 className="text-lg font-semibold text-foreground mb-1">Belum ada transfer stok</h3>
-                        <p className="text-sm text-muted-foreground max-w-sm">
+                        <h3 className="text-sm sm:text-lg font-semibold text-foreground mb-1">Belum ada transfer stok</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground max-w-sm">
                             Tidak ada data transfer yang ditemukan. Buat transfer baru untuk memulai.
                         </p>
                     </div>
                 )}
 
                 {!loading && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                         {data.transfers.map((row) => {
                             const cfg = statusConfig[row.status] || { label: row.status, color: "bg-slate-100 text-slate-700", icon: Clock, borderColor: "border-l-slate-400", gradientBg: "from-slate-400 to-gray-500" };
                             const IconComp = cfg.icon;
@@ -503,7 +503,7 @@ export function StockTransfersContent() {
                                         {cfg.label}
                                     </Badge>
 
-                                    <div className="flex items-center gap-3 p-4">
+                                    <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
                                         {/* Left: Icon */}
                                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradientBg} flex items-center justify-center shadow-sm shrink-0`}>
                                             <ArrowRightLeft className="w-4.5 h-4.5 text-white" />
@@ -531,7 +531,7 @@ export function StockTransfersContent() {
                                         </div>
 
                                         {/* Right: Action buttons */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
                                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-purple-50 hover:text-purple-600 transition-colors" onClick={() => handleViewDetail(row.id)}>
                                                 <Eye className="w-3.5 h-3.5" />
                                             </Button>
@@ -577,7 +577,7 @@ export function StockTransfersContent() {
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl max-w-lg p-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 overflow-hidden">
                     {/* Gradient accent line */}
                     <div className="h-1.5 bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500" />
                     <div className="p-6">
@@ -629,7 +629,7 @@ export function StockTransfersContent() {
                                 </div>
 
                                 {/* Info grid */}
-                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
                                     <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
                                         <p className="text-xs text-muted-foreground mb-1">Tanggal Request</p>
                                         <p className="font-medium">{format(new Date(selectedTransfer.requestedAt), "dd MMM yyyy HH:mm", { locale: idLocale })}</p>
@@ -653,7 +653,7 @@ export function StockTransfersContent() {
                                 </div>
 
                                 {/* Items list */}
-                                <div className="border rounded-xl overflow-hidden">
+                                <div className="border rounded-xl overflow-hidden overflow-x-auto">
                                     <div className="bg-gradient-to-r from-purple-50 to-violet-50 border-b border-purple-100 px-4 py-2.5 flex items-center gap-2">
                                         <Package className="w-4 h-4 text-purple-600" />
                                         <span className="text-sm font-semibold text-purple-700">Item Transfer ({selectedTransfer.items.length})</span>
@@ -663,7 +663,7 @@ export function StockTransfersContent() {
                                             <TableRow>
                                                 <TableHead>Produk</TableHead>
                                                 <TableHead className="text-center">Qty</TableHead>
-                                                <TableHead className="text-center">Diterima</TableHead>
+                                                <TableHead className="text-center hidden sm:table-cell">Diterima</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -680,7 +680,7 @@ export function StockTransfersContent() {
                                                     <TableCell className="text-center">
                                                         <Badge variant="secondary" className="rounded-lg font-semibold">{item.quantity}</Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center hidden sm:table-cell">
                                                         <Badge className={`rounded-lg font-semibold ${item.receivedQty >= item.quantity
                                                             ? "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200"
                                                             : "bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200"
@@ -730,7 +730,7 @@ export function StockTransfersContent() {
 
             {/* Reject Dialog */}
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-                <DialogContent className="rounded-2xl p-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl p-0 overflow-hidden">
                     <div className="h-1.5 bg-gradient-to-r from-red-500 via-rose-500 to-pink-500" />
                     <div className="p-6">
                         <DialogHeader>
@@ -767,7 +767,7 @@ export function StockTransfersContent() {
 
             {/* Confirm Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm p-0 overflow-hidden">
                     <div className="h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
                     <div className="p-6">
                         <DialogHeader>

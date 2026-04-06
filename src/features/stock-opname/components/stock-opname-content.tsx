@@ -301,31 +301,31 @@ export function StockOpnameContent() {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-200/50">
-                        <ClipboardCheck className="h-6 w-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-200/50">
+                        <ClipboardCheck className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                     </div>
                     <div>
                         <div className="flex items-center gap-2.5">
-                            <h1 className="text-3xl font-bold tracking-tight text-foreground">Stock Opname</h1>
+                            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Stock Opname</h1>
                             <Badge variant="secondary" className="rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 text-xs font-medium px-2.5">
                                 {data.total} opname
                             </Badge>
                         </div>
-                        <p className="text-muted-foreground text-sm mt-0.5">Penyesuaian stok berdasarkan penghitungan fisik</p>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Penyesuaian stok berdasarkan penghitungan fisik</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50 transition-all duration-200 hover:shadow-xl hover:shadow-amber-200/50 hover:-translate-y-0.5" onClick={() => setCreateOpen(true)}>
+                    <Button disabled={!canCreate} className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50 transition-all duration-200 hover:shadow-xl hover:shadow-amber-200/50 hover:-translate-y-0.5" onClick={() => setCreateOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Buat Opname
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) createForm.reset(); }}>
-                    <DialogContent className="rounded-2xl border-0 shadow-2xl">
+                    <DialogContent className="rounded-xl sm:rounded-2xl border-0 shadow-2xl">
                         {/* Gradient accent line */}
                         <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
                         <form onSubmit={createForm.handleSubmit(onCreateSubmit)}>
@@ -385,47 +385,47 @@ export function StockOpnameContent() {
             </div>
 
             {/* Stats bar */}
-            <div className="flex items-center gap-3 flex-wrap">
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/60 px-4 py-2">
-                    <FileEdit className="w-4 h-4 text-slate-500" />
-                    <span className="text-sm font-semibold text-slate-700">{stats.draft}</span>
-                    <span className="text-xs text-slate-500">Draft</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <FileEdit className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-slate-700">{stats.draft}</span>
+                    <span className="text-[11px] sm:text-xs text-slate-500">Draft</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200/60 px-4 py-2">
-                    <Loader2 className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-semibold text-blue-700">{stats.inProgress}</span>
-                    <span className="text-xs text-blue-500">Berlangsung</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.inProgress}</span>
+                    <span className="text-[11px] sm:text-xs text-blue-500">Berlangsung</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200/60 px-4 py-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-sm font-semibold text-emerald-700">{stats.completed}</span>
-                    <span className="text-xs text-emerald-500">Selesai</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.completed}</span>
+                    <span className="text-[11px] sm:text-xs text-emerald-500">Selesai</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200/60 px-4 py-2">
-                    <XCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-sm font-semibold text-red-700">{stats.cancelled}</span>
-                    <span className="text-xs text-red-400">Dibatalkan</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-400" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-red-700">{stats.cancelled}</span>
+                    <span className="text-[11px] sm:text-xs text-red-400">Dibatalkan</span>
                 </div>
             </div>
 
             {/* Search bar + Status filter pills */}
             <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <div className="relative flex-1 max-w-md">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+                    <div className="relative flex-1 sm:max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input
                             value={search}
                             onChange={(e) => handleSearchChange(e.target.value)}
                             placeholder="Cari nomor opname..."
-                            className="pl-10 rounded-xl border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
+                            className="pl-10 rounded-xl h-9 sm:h-10 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
                         />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100/80 rounded-xl p-1">
+                    <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-100/80 rounded-xl p-1 overflow-x-auto scrollbar-hide">
                         {statusPills.map((pill) => (
                             <button
                                 key={pill.value}
                                 onClick={() => handleStatusFilter(pill.value)}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                                className={`shrink-0 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
                                     activeFilters.status === pill.value
                                         ? "bg-white text-slate-800 shadow-sm"
                                         : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
@@ -458,16 +458,16 @@ export function StockOpnameContent() {
                     </div>
                 ) : data.opnames.length === 0 ? (
                     /* Empty state */
-                    <div className="flex flex-col items-center justify-center py-16 px-4">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 mb-4">
-                            <ClipboardCheck className="w-8 h-8 text-amber-400" />
+                    <div className="flex flex-col items-center justify-center py-10 sm:py-16 px-4">
+                        <div className="flex h-10 w-10 sm:h-16 sm:w-16 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 mb-4">
+                            <ClipboardCheck className="w-5 h-5 sm:w-8 sm:h-8 text-amber-400" />
                         </div>
-                        <h3 className="text-lg font-semibold text-slate-700 mb-1">Belum ada stock opname</h3>
-                        <p className="text-sm text-slate-400 text-center max-w-sm">Buat stock opname pertama untuk mulai menghitung stok fisik</p>
+                        <h3 className="text-sm sm:text-lg font-semibold text-slate-700 mb-1">Belum ada stock opname</h3>
+                        <p className="text-xs sm:text-sm text-slate-400 text-center max-w-sm">Buat stock opname pertama untuk mulai menghitung stok fisik</p>
                     </div>
                 ) : (
                     /* Opname card grid — 2 columns */
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                         {data.opnames.map((opname) => {
                             const cfg = statusConfig[opname.status];
                             const info = getDiscrepancyInfo(opname);
@@ -484,7 +484,7 @@ export function StockOpnameContent() {
                                         {cfg?.label || null}
                                     </Badge>
 
-                                    <div className="flex items-center gap-4 p-4">
+                                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
                                         {/* Left icon */}
                                         <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} shadow-md`}>
                                             <ClipboardCheck className="h-5 w-5 text-white" />
@@ -521,7 +521,7 @@ export function StockOpnameContent() {
                                         </div>
 
                                         {/* Action buttons */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
                                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors" onClick={() => handleViewDetail(opname.id)}>
                                                 <Eye className="w-3.5 h-3.5" />
                                             </Button>
@@ -562,7 +562,7 @@ export function StockOpnameContent() {
 
             {/* Detail / Edit Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl p-0">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl p-0">
                     {/* Gradient accent line */}
                     <div className="h-1 rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shrink-0" />
 
@@ -593,7 +593,7 @@ export function StockOpnameContent() {
                             <div className="space-y-5">
                                 {/* Summary - at top */}
                                 {selectedOpname.items.length > 0 && (
-                                    <div className="grid grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                         <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 rounded-xl p-3 text-center">
                                             <Package className="w-4 h-4 text-slate-400 mx-auto mb-1" />
                                             <p className="text-lg font-bold text-slate-700">{detailSummary.total}</p>
@@ -618,7 +618,7 @@ export function StockOpnameContent() {
                                 )}
 
                                 {/* Info cards */}
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                     <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 p-3.5">
                                         <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Cabang</p>
                                         <p className="font-semibold text-sm text-slate-700 mt-1">{selectedOpname.branch?.name || "Semua Cabang"}</p>
@@ -649,11 +649,11 @@ export function StockOpnameContent() {
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm">
+                                        <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
-                                                        <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kode</TableHead>
+                                                        <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Kode</TableHead>
                                                         <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Produk</TableHead>
                                                         <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Stok Sistem</TableHead>
                                                         <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Stok Aktual</TableHead>
@@ -666,7 +666,7 @@ export function StockOpnameContent() {
                                                         const diff = actualStock - item.systemStock;
                                                         return (
                                                             <TableRow key={item.id} className="group hover:bg-amber-50/30 transition-colors">
-                                                                <TableCell>
+                                                                <TableCell className="hidden sm:table-cell">
                                                                     <span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5 text-slate-600">{item.product.code}</span>
                                                                 </TableCell>
                                                                 <TableCell className="text-sm font-medium text-slate-700">{item.product.name}</TableCell>
@@ -739,7 +739,7 @@ export function StockOpnameContent() {
 
             {/* Confirmation dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm border-0 shadow-2xl p-0">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm border-0 shadow-2xl p-0">
                     <div className="h-1 rounded-t-2xl bg-gradient-to-r from-red-400 to-orange-400" />
                     <div className="px-6 pb-6 pt-4">
                         <DialogHeader>

@@ -73,13 +73,13 @@ export function AutoReorderList({ branchId }: Props) {
   if (groups.length === 0) {
     return (
       <Card>
-        <CardContent className="py-16">
+        <CardContent className="py-10 sm:py-16">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-              <ShoppingCart className="w-8 h-8 text-emerald-500" />
+            <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <ShoppingCart className="w-5 h-5 sm:w-8 sm:h-8 text-emerald-500" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-700 mb-1">Semua Stok Aman</h3>
-            <p className="text-sm text-slate-400">Tidak ada produk yang memerlukan pemesanan ulang saat ini.</p>
+            <h3 className="text-sm sm:text-lg font-semibold text-slate-700 mb-1">Semua Stok Aman</h3>
+            <p className="text-xs sm:text-sm text-slate-400">Tidak ada produk yang memerlukan pemesanan ulang saat ini.</p>
           </div>
         </CardContent>
       </Card>
@@ -90,9 +90,9 @@ export function AutoReorderList({ branchId }: Props) {
   const totalCost = groups.reduce((s, g) => s + g.totalEstimatedCost, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-4 p-4 rounded-xl bg-violet-50 border border-violet-100">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 sm:p-4 rounded-xl bg-violet-50 border border-violet-100">
         <div className="flex items-center gap-2">
           <Truck className="w-4 h-4 text-violet-600" />
           <span className="text-sm font-medium text-violet-700">{groups.length} supplier</span>
@@ -148,11 +148,11 @@ export function AutoReorderList({ branchId }: Props) {
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Produk</TableHead>
                   <TableHead className="text-right">Stok</TableHead>
-                  <TableHead className="text-right">Avg/Hari</TableHead>
-                  <TableHead className="text-right">Sisa Hari</TableHead>
-                  <TableHead>Risiko</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Avg/Hari</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Sisa Hari</TableHead>
+                  <TableHead className="hidden sm:table-cell">Risiko</TableHead>
                   <TableHead className="text-right">Order Qty</TableHead>
-                  <TableHead className="text-right">Harga Beli</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Harga Beli</TableHead>
                   <TableHead className="text-right">Est. Biaya</TableHead>
                 </TableRow>
               </TableHeader>
@@ -166,19 +166,19 @@ export function AutoReorderList({ branchId }: Props) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-sm tabular-nums text-slate-700">{item.currentStock}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-slate-700">{item.avgDailySales}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right text-sm tabular-nums text-slate-700 hidden sm:table-cell">{item.avgDailySales}</TableCell>
+                    <TableCell className="text-right hidden sm:table-cell">
                       <span className={`text-sm tabular-nums font-medium ${item.daysUntilStockout < 3 ? "text-red-600" : item.daysUntilStockout < 7 ? "text-amber-600" : "text-slate-700"}`}>
                         {item.daysUntilStockout >= 9999 ? "N/A" : `${item.daysUntilStockout}d`}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge variant="outline" className={riskColors[item.riskLevel]}>
                         {riskLabels[item.riskLevel]}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right text-sm font-semibold tabular-nums text-violet-700">{item.recommendedQty}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-slate-600">{formatCurrency(item.purchasePrice)}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums text-slate-600 hidden sm:table-cell">{formatCurrency(item.purchasePrice)}</TableCell>
                     <TableCell className="text-right text-sm font-medium tabular-nums text-slate-800">{formatCurrency(item.estimatedCost)}</TableCell>
                   </TableRow>
                 ))}

@@ -18,8 +18,8 @@ interface ShoppingFrequencyTabProps {
 
 export function ShoppingFrequencyTab({ shoppingFrequency }: ShoppingFrequencyTabProps) {
   return (
-    <Card className="rounded-2xl shadow-sm border-border/30">
-      <CardHeader className="pb-4">
+    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+      <CardHeader className="pb-4 p-3 sm:p-5">
         <CardTitle className="flex items-center gap-3 text-lg">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center shadow-md shadow-purple-500/20">
             <Clock className="w-4.5 h-4.5 text-white" />
@@ -30,7 +30,7 @@ export function ShoppingFrequencyTab({ shoppingFrequency }: ShoppingFrequencyTab
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-5">
         {shoppingFrequency.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
@@ -45,13 +45,13 @@ export function ShoppingFrequencyTab({ shoppingFrequency }: ShoppingFrequencyTab
               <TableHeader>
                 <TableRow className="border-slate-100 hover:bg-transparent">
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Customer</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Kontak</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Level</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 hidden sm:table-cell">Kontak</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center hidden sm:table-cell">Level</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Kunjungan</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Aktivitas</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right">Total Belanja</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right">Avg/Kunjungan</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Terakhir</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right hidden sm:table-cell">Avg/Kunjungan</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 hidden sm:table-cell">Terakhir</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -65,8 +65,8 @@ export function ShoppingFrequencyTab({ shoppingFrequency }: ShoppingFrequencyTab
                           <span className="font-semibold text-slate-800 text-sm">{c.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-3.5 text-slate-500 text-sm">{c.phone || "-"}</TableCell>
-                      <TableCell className="py-3.5 text-center">
+                      <TableCell className="py-3.5 text-slate-500 text-sm hidden sm:table-cell">{c.phone || "-"}</TableCell>
+                      <TableCell className="py-3.5 text-center hidden sm:table-cell">
                         <MemberLevelBadge level={c.memberLevel} />
                       </TableCell>
                       <TableCell className="py-3.5 text-center">
@@ -81,8 +81,8 @@ export function ShoppingFrequencyTab({ shoppingFrequency }: ShoppingFrequencyTab
                         </div>
                       </TableCell>
                       <TableCell className="py-3.5 text-right font-semibold text-slate-800 tabular-nums text-sm">{formatCurrency(c.totalSpent)}</TableCell>
-                      <TableCell className="py-3.5 text-right tabular-nums text-sm text-slate-600">{formatCurrency(c.avgSpending)}</TableCell>
-                      <TableCell className="py-3.5 text-sm text-slate-500">
+                      <TableCell className="py-3.5 text-right tabular-nums text-sm text-slate-600 hidden sm:table-cell">{formatCurrency(c.avgSpending)}</TableCell>
+                      <TableCell className="py-3.5 text-sm text-slate-500 hidden sm:table-cell">
                         {c.lastVisit ? format(new Date(c.lastVisit), "dd MMM", { locale: idLocale }) : "-"}
                       </TableCell>
                     </TableRow>

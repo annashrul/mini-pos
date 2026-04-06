@@ -22,7 +22,7 @@ export function AnalyticsFraudSection({ voidAbuse, unusualDiscounts, suspiciousC
     <>
       {/* ═══════════════════ Fraud Detection ═══════════════════ */}
       <TabsContent value="fraud">
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {suspiciousCount > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border-l-4 border-red-500">
               <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -35,22 +35,22 @@ export function AnalyticsFraudSection({ voidAbuse, unusualDiscounts, suspiciousC
             </div>
           )}
 
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={Shield} title="Fraud Detection - Void Abuse (7 Hari)" description="Deteksi pola void yang mencurigakan" accentColor="red" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-5">
               {voidAbuse.length > 0 ? (
                 <div className="space-y-3">
                   {voidAbuse.map((v, i) => (
                     <div
                       key={i}
-                      className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${v.suspicious
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl border transition-colors gap-2 sm:gap-4 ${v.suspicious
                         ? "bg-red-50/50 border-red-200 hover:bg-red-50"
                         : "bg-white border-slate-100 hover:bg-slate-50/50"
                       }`}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 sm:gap-4">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${v.suspicious ? "bg-red-100" : "bg-emerald-100"}`}>
                           {v.suspicious ? <XCircle className="w-5 h-5 text-red-600" /> : <CheckCircle2 className="w-5 h-5 text-emerald-600" />}
                         </div>
@@ -61,7 +61,7 @@ export function AnalyticsFraudSection({ voidAbuse, unusualDiscounts, suspiciousC
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-slate-800 tabular-nums">{v.voidCount}</p>
+                          <p className="text-lg sm:text-2xl font-bold text-slate-800 tabular-nums">{v.voidCount}</p>
                           <p className="text-xs text-slate-400">void</p>
                         </div>
                         <Badge className={`text-xs font-semibold px-3 py-1 ${v.suspicious ? "bg-red-100 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
@@ -87,7 +87,7 @@ export function AnalyticsFraudSection({ voidAbuse, unusualDiscounts, suspiciousC
 
       {/* ═══════════════════ Unusual Discounts ═══════════════════ */}
       <TabsContent value="unusualdiscount">
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {unusualDiscounts.length > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border-l-4 border-amber-500">
               <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -100,12 +100,12 @@ export function AnalyticsFraudSection({ voidAbuse, unusualDiscounts, suspiciousC
             </div>
           )}
 
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={AlertTriangle} title="Diskon Unusual (>20%) - 7 Hari Terakhir" description="Transaksi dengan diskon di atas ambang batas normal" accentColor="amber" />
             </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <CardContent className="px-3 sm:px-5">
+              <div className="rounded-xl border border-slate-100 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">

@@ -150,35 +150,35 @@ function AnalyticsContentInner() {
     const isTabLoading = loading && !loadedTabs.has(activeTab);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <BarChart3 className="w-5 h-5 text-white" />
+                    <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <BarChart3 className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Business Intelligence</h1>
-                            <p className="text-slate-400 text-sm">Analisis profit, stok, dan performa bisnis</p>
+                            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">Business Intelligence</h1>
+                            <p className="text-slate-400 text-xs sm:text-sm">Analisis profit, stok, dan performa bisnis</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* KPI Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 {/* Negative Margins */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-rose-500/10 group-hover:from-red-500/10 group-hover:to-rose-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Margin Negatif</p>
-                                <p className="text-3xl font-bold text-slate-900 tabular-nums">{negativeMargins.length}</p>
-                                <p className="text-xs text-slate-400">produk merugi</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Margin Negatif</p>
+                                <p className="text-sm sm:text-xl font-bold text-slate-900 tabular-nums">{negativeMargins.length}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">produk merugi</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 items-center justify-center shadow-lg shadow-red-500/25">
                                 <TrendingDown className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -186,16 +186,16 @@ function AnalyticsContentInner() {
                 </Card>
 
                 {/* Dead Stock Count */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-amber-500/10 group-hover:from-orange-500/10 group-hover:to-amber-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Dead Stock (30 hari)</p>
-                                <p className="text-3xl font-bold text-orange-600 tabular-nums">{inventory.deadStock.length}</p>
-                                <p className="text-xs text-slate-400">produk tidak terjual</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Dead Stock (30 hari)</p>
+                                <p className="text-sm sm:text-xl font-bold text-orange-600 tabular-nums">{inventory.deadStock.length}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">produk tidak terjual</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 items-center justify-center shadow-lg shadow-orange-500/25">
                                 <PackageX className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -203,16 +203,16 @@ function AnalyticsContentInner() {
                 </Card>
 
                 {/* Dead Stock Value */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-yellow-500/10 group-hover:from-amber-500/10 group-hover:to-yellow-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Nilai Dead Stock</p>
-                                <p className="text-3xl font-bold text-amber-600 tabular-nums">{formatCurrency(inventory.deadStockValue)}</p>
-                                <p className="text-xs text-slate-400">modal tertahan</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Nilai Dead Stock</p>
+                                <p className="text-sm sm:text-xl font-bold text-amber-600 tabular-nums">{formatCurrency(inventory.deadStockValue)}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">modal tertahan</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 items-center justify-center shadow-lg shadow-amber-500/25">
                                 <DollarSign className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -220,16 +220,16 @@ function AnalyticsContentInner() {
                 </Card>
 
                 {/* Slow Moving */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-violet-500/10 group-hover:from-purple-500/10 group-hover:to-violet-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Slow Moving</p>
-                                <p className="text-3xl font-bold text-purple-600 tabular-nums">{inventory.slowMoving.length}</p>
-                                <p className="text-xs text-slate-400">produk lambat terjual</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Slow Moving</p>
+                                <p className="text-sm sm:text-xl font-bold text-purple-600 tabular-nums">{inventory.slowMoving.length}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">produk lambat terjual</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 items-center justify-center shadow-lg shadow-purple-500/25">
                                 <Snail className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -238,17 +238,18 @@ function AnalyticsContentInner() {
             </div>
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <div className="overflow-x-auto -mx-1 px-1 pb-1">
-                    <TabsList className="inline-flex h-12 items-center gap-1 rounded-xl bg-slate-100/80 p-1 min-w-max">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
+                <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+                    <TabsList className="inline-flex h-10 sm:h-12 items-center gap-0.5 sm:gap-1 rounded-xl bg-slate-100/80 p-1 min-w-max">
                         {TAB_CONFIG.map(({ value, label, icon: Icon }) => (
                             <TabsTrigger
                                 key={value}
                                 value={value}
-                                className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-sm font-medium text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm whitespace-nowrap"
                             >
-                                <Icon className="w-4 h-4" />
-                                {label}
+                                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                <span className="hidden sm:inline">{label}</span>
+                                <span className="sm:hidden">{label.split(" ")[0]}</span>
                             </TabsTrigger>
                         ))}
                     </TabsList>

@@ -75,7 +75,7 @@ export function CustomerIntelligenceContent() {
                     <div className="h-4 w-72 bg-slate-100 rounded-lg mt-2" />
                 </div>
                 {/* Summary cards skeleton */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                     {Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} className="rounded-2xl border border-border/30 bg-white p-6 space-y-3">
                             <div className="flex items-start justify-between">
@@ -124,26 +124,26 @@ export function CustomerIntelligenceContent() {
     }
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-4 sm:space-y-8">
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Customer Intelligence</h1>
-                <p className="text-slate-500 text-sm mt-1">Analisis pelanggan, loyalitas, dan pola belanja</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">Customer Intelligence</h1>
+                <p className="text-slate-500 text-xs sm:text-sm mt-1">Analisis pelanggan, loyalitas, dan pola belanja</p>
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 {/* Total Customers */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-purple-500/10 group-hover:from-violet-500/10 group-hover:to-purple-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Customer</p>
-                                <p className="text-3xl font-bold text-slate-900 tabular-nums">{totalCustomers.toLocaleString()}</p>
-                                <p className="text-xs text-slate-400">Semua pelanggan terdaftar</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Total Customer</p>
+                                <p className="text-sm sm:text-xl font-bold text-slate-900 tabular-nums">{totalCustomers.toLocaleString()}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">Semua pelanggan terdaftar</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 items-center justify-center shadow-lg shadow-violet-500/25">
                                 <Users className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -151,18 +151,18 @@ export function CustomerIntelligenceContent() {
                 </Card>
 
                 {/* Repeat Customers */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-green-500/10 group-hover:from-emerald-500/10 group-hover:to-green-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Repeat Customer</p>
-                                <p className="text-3xl font-bold text-emerald-600 tabular-nums">{repeatCount.toLocaleString()}</p>
-                                <p className="text-xs text-slate-400">
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Repeat Customer</p>
+                                <p className="text-sm sm:text-xl font-bold text-emerald-600 tabular-nums">{repeatCount.toLocaleString()}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">
                                     {totalCustomers > 0 ? `${Math.round((repeatCount / totalCustomers) * 100)}% retention rate` : "Belum ada data"}
                                 </p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 items-center justify-center shadow-lg shadow-emerald-500/25">
                                 <UserCheck className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -170,16 +170,16 @@ export function CustomerIntelligenceContent() {
                 </Card>
 
                 {/* Total Points */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-fuchsia-500/10 group-hover:from-purple-500/10 group-hover:to-fuchsia-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Poin Beredar</p>
-                                <p className="text-3xl font-bold text-purple-600 tabular-nums">{totalPoints.toLocaleString()}</p>
-                                <p className="text-xs text-slate-400">Akumulasi loyalty points</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Total Poin Beredar</p>
+                                <p className="text-sm sm:text-xl font-bold text-purple-600 tabular-nums">{totalPoints.toLocaleString()}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">Akumulasi loyalty points</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 items-center justify-center shadow-lg shadow-purple-500/25">
                                 <Zap className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -187,16 +187,16 @@ export function CustomerIntelligenceContent() {
                 </Card>
 
                 {/* Total Spending */}
-                <Card className="rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md transition-shadow duration-300 overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-violet-500/10 group-hover:from-indigo-500/10 group-hover:to-violet-500/15 transition-colors duration-300" />
-                    <CardContent className="pt-6 pb-5 relative">
+                    <CardContent className="p-2.5 sm:p-5 relative">
                         <div className="flex items-start justify-between">
                             <div className="space-y-2">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Spending</p>
-                                <p className="text-2xl font-bold text-indigo-600 tabular-nums">{formatCurrency(totalSpendingAll)}</p>
-                                <p className="text-xs text-slate-400">Revenue dari member</p>
+                                <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wider">Total Spending</p>
+                                <p className="text-sm sm:text-xl font-bold text-indigo-600 tabular-nums">{formatCurrency(totalSpendingAll)}</p>
+                                <p className="text-[10px] sm:text-xs text-slate-400">Revenue dari member</p>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-500/25">
                                 <TrendingUp className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -205,21 +205,26 @@ export function CustomerIntelligenceContent() {
             </div>
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="rounded-2xl bg-slate-100/80 p-1.5 h-auto">
-                    <TabsTrigger value="repeat" className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-2">
-                        <Repeat className="w-4 h-4" />
-                        Repeat Customer
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
+                <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+                <TabsList className="inline-flex rounded-2xl bg-slate-100/80 p-1 h-10 sm:h-12 gap-0.5 min-w-max">
+                    <TabsTrigger value="repeat" className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-1.5 sm:gap-2">
+                        <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Repeat Customer</span>
+                        <span className="sm:hidden">Repeat</span>
                     </TabsTrigger>
-                    <TabsTrigger value="frequency" className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-2">
-                        <Clock className="w-4 h-4" />
-                        Shopping Frequency
+                    <TabsTrigger value="frequency" className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-1.5 sm:gap-2">
+                        <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Shopping Frequency</span>
+                        <span className="sm:hidden">Frekuensi</span>
                     </TabsTrigger>
-                    <TabsTrigger value="loyalty" className="rounded-xl px-5 py-2.5 text-sm font-medium data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-2">
-                        <Crown className="w-4 h-4" />
-                        Loyalty Summary
+                    <TabsTrigger value="loyalty" className="rounded-xl px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-medium whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-violet-700 data-[state=active]:shadow-sm gap-1.5 sm:gap-2">
+                        <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Loyalty Summary</span>
+                        <span className="sm:hidden">Loyalty</span>
                     </TabsTrigger>
                 </TabsList>
+                </div>
 
                 <TabsContent value="repeat">
                     <RepeatCustomersTab repeatCustomers={repeatCustomers} />

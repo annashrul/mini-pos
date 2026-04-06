@@ -18,12 +18,12 @@ interface AnalyticsPromoSectionProps {
 export function AnalyticsPromoSection({ promoEffectiveness }: AnalyticsPromoSectionProps) {
   return (
     <TabsContent value="promo">
-      <Card className="rounded-2xl shadow-sm border-border/30">
-        <CardHeader className="pb-4">
+      <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+        <CardHeader className="pb-4 p-3 sm:p-5">
           <SectionHeader icon={Megaphone} title="Promo Effectiveness Report" description="Efektivitas dan penggunaan setiap promosi" accentColor="purple" />
         </CardHeader>
-        <CardContent>
-          <div className="rounded-xl border border-slate-100 overflow-hidden">
+        <CardContent className="px-3 sm:px-5">
+          <div className="rounded-xl border border-slate-100 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">

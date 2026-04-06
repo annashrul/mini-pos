@@ -16,8 +16,8 @@ interface RepeatCustomersTabProps {
 
 export function RepeatCustomersTab({ repeatCustomers }: RepeatCustomersTabProps) {
   return (
-    <Card className="rounded-2xl shadow-sm border-border/30">
-      <CardHeader className="pb-4">
+    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+      <CardHeader className="pb-4 p-3 sm:p-5">
         <CardTitle className="flex items-center gap-3 text-lg">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/20">
             <Repeat className="w-4.5 h-4.5 text-white" />
@@ -28,7 +28,7 @@ export function RepeatCustomersTab({ repeatCustomers }: RepeatCustomersTabProps)
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-5">
         {repeatCustomers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
@@ -44,11 +44,11 @@ export function RepeatCustomersTab({ repeatCustomers }: RepeatCustomersTabProps)
                 <TableRow className="border-slate-100 hover:bg-transparent">
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 w-10">#</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Customer</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Kontak</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Level</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 hidden sm:table-cell">Kontak</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center hidden sm:table-cell">Level</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-right">Total Belanja</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Transaksi</TableHead>
-                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Poin</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center hidden sm:table-cell">Transaksi</TableHead>
+                  <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center hidden sm:table-cell">Poin</TableHead>
                   <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -65,13 +65,13 @@ export function RepeatCustomersTab({ repeatCustomers }: RepeatCustomersTabProps)
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="py-3.5 text-slate-500 text-sm">{c.phone || "-"}</TableCell>
-                    <TableCell className="py-3.5 text-center">
+                    <TableCell className="py-3.5 text-slate-500 text-sm hidden sm:table-cell">{c.phone || "-"}</TableCell>
+                    <TableCell className="py-3.5 text-center hidden sm:table-cell">
                       <MemberLevelBadge level={c.memberLevel} />
                     </TableCell>
                     <TableCell className="py-3.5 text-right font-semibold text-slate-800 tabular-nums text-sm">{formatCurrency(c.totalSpending)}</TableCell>
-                    <TableCell className="py-3.5 text-center tabular-nums font-medium text-slate-600">{c.transactionCount}</TableCell>
-                    <TableCell className="py-3.5 text-center tabular-nums font-medium text-purple-600">{c.points.toLocaleString()}</TableCell>
+                    <TableCell className="py-3.5 text-center tabular-nums font-medium text-slate-600 hidden sm:table-cell">{c.transactionCount}</TableCell>
+                    <TableCell className="py-3.5 text-center tabular-nums font-medium text-purple-600 hidden sm:table-cell">{c.points.toLocaleString()}</TableCell>
                     <TableCell className="py-3.5 text-center">
                       <Badge className={
                         c.isRepeat

@@ -24,7 +24,7 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
     <>
       {/* ═══════════════════ Dead Stock ═══════════════════ */}
       <TabsContent value="deadstock">
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Alert Banner */}
           {deadStock.length > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
@@ -40,12 +40,12 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
             </div>
           )}
 
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={PackageX} title="Dead Stock (Tidak Terjual 30 Hari)" description="Produk yang tidak memiliki penjualan dalam 30 hari" accentColor="red" />
             </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <CardContent className="px-3 sm:px-5">
+              <div className="rounded-xl border border-slate-100 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
@@ -84,7 +84,7 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
 
       {/* ═══════════════════ Slow Moving ═══════════════════ */}
       <TabsContent value="slowmoving">
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {slowMoving.length > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-100">
               <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -97,12 +97,12 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
             </div>
           )}
 
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={Snail} title="Slow Moving (Terjual <5 dalam 30 Hari)" description="Produk dengan perputaran sangat rendah" accentColor="amber" />
             </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <CardContent className="px-3 sm:px-5">
+              <div className="rounded-xl border border-slate-100 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
@@ -141,7 +141,7 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
 
       {/* ═══════════════════ Smart Reorder ═══════════════════ */}
       <TabsContent value="reorder">
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {reorderRecommendations.filter(r => r.daysUntilOut <= 3 && r.daysUntilOut < 999).length > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border-l-4 border-red-500">
               <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -156,12 +156,12 @@ export function AnalyticsInventorySection({ deadStock, slowMoving, reorderRecomm
             </div>
           )}
 
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={ShoppingCart} title="Smart Reorder Recommendations" description="Rekomendasi pemesanan otomatis berdasarkan tren penjualan" accentColor="emerald" />
             </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <CardContent className="px-3 sm:px-5">
+              <div className="rounded-xl border border-slate-100 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">

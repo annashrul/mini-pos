@@ -21,11 +21,11 @@ interface ReportsSupplierTabProps {
 
 export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-2xl shadow-sm border-0 bg-gradient-to-br from-indigo-50 to-indigo-50/30">
-          <CardContent className="p-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-0 bg-gradient-to-br from-indigo-50 to-indigo-50/30">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2.5 bg-indigo-100 rounded-xl">
                 <Truck className="w-4 h-4 text-indigo-600" />
@@ -34,14 +34,14 @@ export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
                 Supplier
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-indigo-900 tracking-tight">
+            <p className="text-sm sm:text-xl font-extrabold text-indigo-900 tracking-tight">
               {supplierSales.length}
             </p>
             <p className="text-xs text-indigo-600/60 mt-2 font-medium">Total supplier aktif</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl shadow-sm border-0 bg-gradient-to-br from-blue-50 to-blue-50/30">
-          <CardContent className="p-6">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-0 bg-gradient-to-br from-blue-50 to-blue-50/30">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2.5 bg-blue-100 rounded-xl">
                 <DollarSign className="w-4 h-4 text-blue-600" />
@@ -50,14 +50,14 @@ export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
                 Revenue
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-blue-900 tracking-tight">
+            <p className="text-sm sm:text-xl font-extrabold text-blue-900 tracking-tight">
               {formatCurrency(supplierSales.reduce((s, sup) => s + sup.totalRevenue, 0))}
             </p>
             <p className="text-xs text-blue-600/60 mt-2 font-medium">Total pendapatan semua supplier</p>
           </CardContent>
         </Card>
-        <Card className="rounded-2xl shadow-sm border-0 bg-gradient-to-br from-emerald-50 to-emerald-50/30">
-          <CardContent className="p-6">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-0 bg-gradient-to-br from-emerald-50 to-emerald-50/30 col-span-2 sm:col-span-1">
+          <CardContent className="p-2.5 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="p-2.5 bg-emerald-100 rounded-xl">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -66,7 +66,7 @@ export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
                 Rata-rata
               </span>
             </div>
-            <p className="text-3xl font-extrabold text-emerald-900 tracking-tight">
+            <p className="text-sm sm:text-xl font-extrabold text-emerald-900 tracking-tight">
               {formatCurrency(supplierSales.length > 0 ? supplierSales.reduce((s, sup) => s + sup.totalRevenue, 0) / supplierSales.length : 0)}
             </p>
             <p className="text-xs text-emerald-600/60 mt-2 font-medium">Revenue rata-rata per supplier</p>
@@ -75,15 +75,15 @@ export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
       </div>
 
       {/* Supplier Bar Chart - Top 10 */}
-      <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-        <CardHeader className="pb-2">
+      <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+        <CardHeader className="pb-2 p-3 sm:p-5">
           <div>
-            <CardTitle className="text-base font-semibold">Top 10 Supplier berdasarkan Revenue</CardTitle>
+            <CardTitle className="text-sm sm:text-base font-semibold">Top 10 Supplier berdasarkan Revenue</CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">Perbandingan pendapatan antar supplier</p>
           </div>
         </CardHeader>
-        <CardContent className="pt-2 pb-4">
-          <ResponsiveContainer width="100%" height={400}>
+        <CardContent className="pt-2 pb-4 px-3 sm:px-5">
+          <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
             <BarChart data={supplierSales.slice(0, 10)} layout="vertical" barSize={24}>
               <defs>
                 <linearGradient id="supBarGradient" x1="0" y1="0" x2="1" y2="0">
@@ -111,12 +111,12 @@ export function ReportsSupplierTab({ supplierSales }: ReportsSupplierTabProps) {
           <div className="h-5 w-1 bg-indigo-500 rounded-full" />
           <h2 className="text-sm font-semibold text-foreground uppercase tracking-wide">Detail per Supplier</h2>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4">
           {supplierSales.map((sup) => {
             const profitMarginSup = sup.totalRevenue > 0 ? (sup.profit / sup.totalRevenue) * 100 : 0;
             return (
-              <Card key={sup.supplierId || "__none__"} className="rounded-2xl shadow-sm border border-border/30 bg-white hover:shadow-md transition-shadow duration-300">
-                <CardContent className="p-5">
+              <Card key={sup.supplierId || "__none__"} className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white hover:shadow-md transition-shadow duration-300">
+                <CardContent className="p-3 sm:p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h3 className="text-base font-bold text-foreground">{sup.supplierName}</h3>

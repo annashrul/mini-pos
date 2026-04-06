@@ -24,8 +24,8 @@ export function AnalyticsMarginSection({ marginData, categoryMargins }: Analytic
     <>
       {/* ═══════════════════ Margin per Product ═══════════════════ */}
       <TabsContent value="margin">
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <div className="flex items-center justify-between">
               <SectionHeader icon={TrendingUp} title="Margin Analyzer per Produk" description="Analisis margin keuntungan setiap produk" accentColor="blue" />
               <Button variant="outline" size="sm" className="rounded-lg border-slate-200 text-slate-600 hover:bg-slate-50" onClick={() =>
@@ -39,15 +39,15 @@ export function AnalyticsMarginSection({ marginData, categoryMargins }: Analytic
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Produk</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kategori</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Harga Beli</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Harga Jual</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Kategori</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Harga Beli</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Harga Jual</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Margin</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">%</TableHead>
                   </TableRow>
@@ -61,11 +61,11 @@ export function AnalyticsMarginSection({ marginData, categoryMargins }: Analytic
                           <p className="text-xs text-slate-400">{p.code}</p>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant="secondary" className="bg-slate-100 text-slate-600 text-xs font-normal">{p.category.name}</Badge>
                       </TableCell>
-                      <TableCell className="text-right text-sm text-slate-600 tabular-nums">{formatCurrency(p.purchasePrice)}</TableCell>
-                      <TableCell className="text-right text-sm text-slate-600 tabular-nums">{formatCurrency(p.sellingPrice)}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-600 tabular-nums hidden sm:table-cell">{formatCurrency(p.purchasePrice)}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-600 tabular-nums hidden sm:table-cell">{formatCurrency(p.sellingPrice)}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         <span className={`font-semibold ${p.margin > 0 ? "text-emerald-600" : "text-red-600"}`}>
                           {formatCurrency(p.margin)}
@@ -87,22 +87,22 @@ export function AnalyticsMarginSection({ marginData, categoryMargins }: Analytic
 
       {/* ═══════════════════ Margin per Category ═══════════════════ */}
       <TabsContent value="category">
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <SectionHeader icon={Layers} title="Margin Analyzer per Kategori" description="Rata-rata margin keuntungan per kategori" accentColor="purple" />
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kategori</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">Produk</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Avg Beli</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Avg Jual</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-center hidden sm:table-cell">Produk</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Avg Beli</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Avg Jual</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Avg Margin</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Margin %</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Total Stok</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Total Stok</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -114,18 +114,18 @@ export function AnalyticsMarginSection({ marginData, categoryMargins }: Analytic
                           <span className="font-medium text-slate-800">{c.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center hidden sm:table-cell">
                         <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold">{c.productCount}</span>
                       </TableCell>
-                      <TableCell className="text-right text-sm text-slate-600 tabular-nums">{formatCurrency(c.avgCost)}</TableCell>
-                      <TableCell className="text-right text-sm text-slate-600 tabular-nums">{formatCurrency(c.avgSell)}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-600 tabular-nums hidden sm:table-cell">{formatCurrency(c.avgCost)}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-600 tabular-nums hidden sm:table-cell">{formatCurrency(c.avgSell)}</TableCell>
                       <TableCell className="text-right text-sm font-semibold text-emerald-600 tabular-nums">{formatCurrency(c.avgMargin)}</TableCell>
                       <TableCell className="text-right">
                         <Badge className={`text-xs font-semibold ${getMarginBadgeClass(c.avgMarginPercent)}`}>
                           {c.avgMarginPercent.toFixed(1)}%
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-sm text-slate-600 tabular-nums">{c.totalStock.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-600 tabular-nums hidden sm:table-cell">{c.totalStock.toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

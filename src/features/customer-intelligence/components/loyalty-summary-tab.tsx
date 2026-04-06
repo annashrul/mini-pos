@@ -12,8 +12,8 @@ interface LoyaltySummaryTabProps {
 
 export function LoyaltySummaryTab({ loyaltySummary }: LoyaltySummaryTabProps) {
   return (
-    <Card className="rounded-2xl shadow-sm border-border/30">
-      <CardHeader className="pb-4">
+    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+      <CardHeader className="pb-4 p-3 sm:p-5">
         <CardTitle className="flex items-center gap-3 text-lg">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/20">
             <Crown className="w-4.5 h-4.5 text-white" />
@@ -24,7 +24,7 @@ export function LoyaltySummaryTab({ loyaltySummary }: LoyaltySummaryTabProps) {
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-5">
         {loyaltySummary.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
@@ -34,14 +34,14 @@ export function LoyaltySummaryTab({ loyaltySummary }: LoyaltySummaryTabProps) {
             <p className="text-xs text-slate-300 mt-1">Data akan muncul setelah member terdaftar</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             {loyaltySummary.map((l) => {
               const gradient = loyaltyGradients[l.level] ?? DEFAULT_LOYALTY_GRADIENT;
               const IconComp = loyaltyIcons[l.level] || CircleDot;
               return (
                 <div
                   key={l.level}
-                  className={`rounded-2xl bg-gradient-to-br ${gradient.bg} p-5 text-white shadow-lg hover:shadow-xl transition-shadow duration-300 relative overflow-hidden`}
+                  className={`rounded-xl sm:rounded-2xl bg-gradient-to-br ${gradient.bg} p-3 sm:p-5 text-white shadow-lg hover:shadow-xl transition-shadow duration-300 relative overflow-hidden`}
                 >
                   {/* Decorative circle */}
                   <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
@@ -56,7 +56,7 @@ export function LoyaltySummaryTab({ loyaltySummary }: LoyaltySummaryTabProps) {
                     </div>
 
                     <div>
-                      <p className="text-4xl font-bold tabular-nums">{l.count.toLocaleString()}</p>
+                      <p className="text-xl sm:text-4xl font-bold tabular-nums">{l.count.toLocaleString()}</p>
                       <p className="text-white/70 text-xs mt-0.5">member terdaftar</p>
                     </div>
 

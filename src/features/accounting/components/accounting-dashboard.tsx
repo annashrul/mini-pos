@@ -76,17 +76,15 @@ interface QuickActionProps {
 function QuickActionCard({ href, icon: Icon, label, gradient, shadowColor }: QuickActionProps) {
     return (
         <Link href={href}>
-            <Card className="rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300 group cursor-pointer">
-                <CardContent className="p-4 flex items-center gap-3">
+            <Card className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300 group cursor-pointer">
+                <CardContent className="p-2.5 sm:p-4 flex items-center gap-2.5 sm:gap-3">
                     <div
-                        className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md ${shadowColor} group-hover:shadow-lg transition-shadow`}
+                        className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md ${shadowColor} group-hover:shadow-lg transition-shadow shrink-0`}
                     >
-                        <Icon className="w-5 h-5 text-white" />
+                        <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="flex-1">
-                        <p className="text-sm font-semibold text-slate-700">{label}</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                    <p className="text-xs sm:text-sm font-semibold text-slate-700 flex-1 min-w-0 truncate">{label}</p>
+                    <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
                 </CardContent>
             </Card>
         </Link>
@@ -106,21 +104,23 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, icon: Icon, gradient, shadowColor, valueColor }: KpiCardProps) {
     return (
-        <Card className="rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300 group">
-            <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-4">
+        <Card className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300 group">
+            <CardContent className="p-3 sm:p-5">
+                <div className="flex items-center gap-2.5 sm:block">
                     <div
-                        className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md ${shadowColor} group-hover:shadow-lg transition-shadow`}
+                        className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md ${shadowColor} group-hover:shadow-lg transition-shadow shrink-0 sm:mb-4`}
                     >
-                        <Icon className="w-5 h-5 text-white" />
+                        <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className={`text-base sm:text-2xl font-extrabold font-mono tabular-nums tracking-tight truncate ${valueColor}`}>
+                            {fmtCompact(value)}
+                        </p>
+                        <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mt-0.5 sm:mt-1.5">
+                            {label}
+                        </p>
                     </div>
                 </div>
-                <p className={`text-2xl font-extrabold font-mono tabular-nums tracking-tight ${valueColor}`}>
-                    {fmtCompact(value)}
-                </p>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1.5">
-                    {label}
-                </p>
             </CardContent>
         </Card>
     );
@@ -224,16 +224,16 @@ export function AccountingDashboard() {
         <div className="space-y-6">
             {/* ===== Header ===== */}
             <div>
-                <h1 className="text-2xl font-bold text-foreground tracking-tight">
+                <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
                     Dashboard Akuntansi
                 </h1>
-                <p className="text-sm text-slate-500 mt-1">
-                    Ringkasan keuangan dan aktivitas akuntansi terkini
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">
+                    Ringkasan keuangan dan aktivitas terkini
                 </p>
             </div>
 
             {/* ===== Quick Action Cards ===== */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 <QuickActionCard
                     href="/accounting/journals"
                     icon={Plus}
@@ -265,7 +265,7 @@ export function AccountingDashboard() {
             </div>
 
             {/* ===== KPI Stat Cards ===== */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 <KpiCard
                     label="Total Kas"
                     value={data.totalCash}
@@ -305,15 +305,15 @@ export function AccountingDashboard() {
             </div>
 
             {/* ===== Charts Section ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                 {/* Revenue Trend - wider */}
-                <Card className="lg:col-span-2 rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
-                    <CardHeader className="pb-2">
-                        <SectionHeader title="Tren Pendapatan 7 Hari Terakhir" />
+                <Card className="lg:col-span-2 rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
+                    <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <SectionHeader title="Tren Pendapatan 7 Hari" />
                     </CardHeader>
                     <CardContent>
                         {data.revenueTrend.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={280}>
+                            <ResponsiveContainer width="100%" height={200} className="sm:!h-[280px]">
                                 <AreaChart data={data.revenueTrend}>
                                     <defs>
                                         <linearGradient id="accRevGrad" x1="0" y1="0" x2="0" y2="1">
@@ -369,13 +369,13 @@ export function AccountingDashboard() {
                 </Card>
 
                 {/* Top Expenses */}
-                <Card className="rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
-                    <CardHeader className="pb-2">
-                        <SectionHeader title="Top 5 Beban Bulan Ini" />
+                <Card className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
+                    <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <SectionHeader title="Top 5 Beban" />
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="px-3 sm:px-6">
                         {data.topExpenses.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={280}>
+                            <ResponsiveContainer width="100%" height={200} className="sm:!h-[280px]">
                                 <BarChart data={data.topExpenses} layout="vertical">
                                     <CartesianGrid
                                         strokeDasharray="3 3"
@@ -426,8 +426,8 @@ export function AccountingDashboard() {
             </div>
 
             {/* ===== Recent Journals ===== */}
-            <Card className="rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
-                <CardHeader className="pb-2">
+            <Card className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-300">
+                <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
                     <SectionHeader
                         title="Jurnal Terbaru"
                         action={
@@ -445,80 +445,64 @@ export function AccountingDashboard() {
                     />
                 </CardHeader>
                 <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-slate-100 bg-slate-50/50">
-                                    <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">
-                                        No. Jurnal
-                                    </th>
-                                    <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">
-                                        Tanggal
-                                    </th>
-                                    <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">
-                                        Deskripsi
-                                    </th>
-                                    <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">
-                                        Tipe
-                                    </th>
-                                    <th className="text-right px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">
-                                        Jumlah
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.recentJournals.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="text-center py-12">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                                                    <FileSpreadsheet className="w-5 h-5 text-slate-300" />
-                                                </div>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Belum ada jurnal
-                                                </p>
+                    {data.recentJournals.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 py-12">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                                <FileSpreadsheet className="w-5 h-5 text-slate-300" />
+                            </div>
+                            <p className="text-sm text-muted-foreground">Belum ada jurnal</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Mobile: card list */}
+                            <div className="sm:hidden divide-y divide-slate-50">
+                                {data.recentJournals.map((j) => {
+                                    const badge = TYPE_BADGE[j.referenceType || "MANUAL"] ?? TYPE_BADGE.MANUAL;
+                                    return (
+                                        <div key={j.id} className="px-3 py-2.5">
+                                            <div className="flex items-baseline justify-between gap-2">
+                                                <span className="font-mono text-[11px] font-medium text-slate-700 truncate">{j.entryNumber}</span>
+                                                <span className="text-right font-mono text-[11px] font-semibold text-slate-700 shrink-0">{formatCurrency(j.totalDebit)}</span>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    data.recentJournals.map((j) => {
-                                        const badge = TYPE_BADGE[j.referenceType || "MANUAL"] ?? TYPE_BADGE.MANUAL;
-                                        return (
-                                            <tr
-                                                key={j.id}
-                                                className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
-                                            >
-                                                <td className="px-5 py-3.5 font-mono text-xs font-medium text-slate-700">
-                                                    {j.entryNumber}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-500">
-                                                    {new Date(j.date).toLocaleDateString("id-ID", {
-                                                        day: "2-digit",
-                                                        month: "short",
-                                                        year: "numeric",
-                                                    })}
-                                                </td>
-                                                <td className="px-5 py-3.5 text-xs text-slate-600 truncate max-w-[240px]">
-                                                    {j.description}
-                                                </td>
-                                                <td className="px-5 py-3.5">
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={`text-[10px] font-semibold border ${badge?.className ?? ""}`}
-                                                    >
-                                                        {badge?.label ?? j.referenceType ?? "Manual"}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-5 py-3.5 text-right font-mono text-xs font-semibold text-slate-700">
-                                                    {formatCurrency(j.totalDebit)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <span className="text-[10px] text-slate-400">{new Date(j.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
+                                                <Badge variant="outline" className={`text-[9px] font-semibold border px-1.5 py-0 ${badge?.className ?? ""}`}>{badge?.label ?? "Manual"}</Badge>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 truncate mt-0.5">{j.description}</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {/* Desktop: table */}
+                            <div className="hidden sm:block overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                                            <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">No. Jurnal</th>
+                                            <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">Tanggal</th>
+                                            <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">Deskripsi</th>
+                                            <th className="text-left px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">Tipe</th>
+                                            <th className="text-right px-5 py-3 font-semibold text-xs uppercase tracking-wider text-slate-400">Jumlah</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {data.recentJournals.map((j) => {
+                                            const badge = TYPE_BADGE[j.referenceType || "MANUAL"] ?? TYPE_BADGE.MANUAL;
+                                            return (
+                                                <tr key={j.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-5 py-3.5 font-mono text-xs font-medium text-slate-700">{j.entryNumber}</td>
+                                                    <td className="px-5 py-3.5 text-xs text-slate-500">{new Date(j.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                                                    <td className="px-5 py-3.5 text-xs text-slate-600 truncate max-w-[240px]">{j.description}</td>
+                                                    <td className="px-5 py-3.5"><Badge variant="outline" className={`text-[10px] font-semibold border ${badge?.className ?? ""}`}>{badge?.label ?? "Manual"}</Badge></td>
+                                                    <td className="px-5 py-3.5 text-right font-mono text-xs font-semibold text-slate-700">{formatCurrency(j.totalDebit)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         </div>

@@ -14,17 +14,17 @@ export function BranchesHeader(props: {
   const { total, canCreate, cannotMessage, onCreate } = props;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 shadow-lg shadow-cyan-500/20">
-          <Building2 className="w-6 h-6 text-white" />
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-600 shadow-lg shadow-cyan-500/20 shrink-0">
+          <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Cabang / Store</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Kelola cabang toko Anda{" "}
-            <Badge variant="secondary" className="ml-1 rounded-full text-xs tabular-nums font-medium">
-              {total} cabang
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Cabang</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+            Kelola cabang toko
+            <Badge variant="secondary" className="ml-1.5 rounded-full text-[10px] sm:text-xs tabular-nums font-medium">
+              {total}
             </Badge>
           </p>
         </div>

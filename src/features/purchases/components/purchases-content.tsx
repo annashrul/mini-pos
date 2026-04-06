@@ -386,17 +386,17 @@ export function PurchasesContent() {
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
-                        <ShoppingBasket className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
+                        <ShoppingBasket className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Purchase Order</h1>
+                        <h1 className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">Purchase Order</h1>
                         <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-muted-foreground text-sm">Kelola pemesanan barang ke supplier</p>
+                            <p className="text-muted-foreground text-xs sm:text-sm">Kelola pemesanan barang ke supplier</p>
                             <Badge variant="secondary" className="rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
                                 {data.total} PO
                             </Badge>
@@ -404,13 +404,13 @@ export function PurchasesContent() {
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
+                    <Button disabled={!canCreate} className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Buat PO
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); setSelectedProductId(""); setNewQty(1); setNewPrice(0); } }}>
-                    <DialogContent className="rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+                    <DialogContent className="rounded-xl sm:rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                         <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-2xl -mt-6 mb-2" />
                         <DialogHeader>
                             <DialogTitle className="text-lg font-bold">Buat Purchase Order</DialogTitle>
@@ -418,7 +418,7 @@ export function PurchasesContent() {
 
                         <DialogBody className={`space-y-5 overflow-x-hidden ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
                             {/* Supplier, Location, Date — inline */}
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="space-y-2">
                                     <Label className="text-sm font-medium">Supplier</Label>
                                     <Controller name="supplierId" control={poForm.control} render={({ field }) => (
@@ -508,7 +508,7 @@ export function PurchasesContent() {
                                             <div className="text-right min-w-[100px]">
                                                 <p className="text-sm font-semibold tabular-nums">{formatCurrency(item.quantity * item.unitPrice)}</p>
                                             </div>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all" onClick={() => removeCartItem(i)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg lg:opacity-0 lg:group-hover:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all" onClick={() => removeCartItem(i)}>
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </Button>
                                         </div>
@@ -516,8 +516,8 @@ export function PurchasesContent() {
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
-                                        <Package className="w-6 h-6 text-slate-400" />
+                                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
+                                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-slate-400" />
                                     </div>
                                     <p className="text-sm text-muted-foreground">Belum ada item</p>
                                     <p className="text-xs text-muted-foreground/70">Pilih produk di atas untuk menambahkan</p>
@@ -560,49 +560,51 @@ export function PurchasesContent() {
             </div>
 
             {/* Stats bar */}
-            <div className="flex items-center gap-3 flex-wrap">
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 px-4 py-2">
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    <span className="text-sm font-semibold text-slate-700">{stats.draftCount}</span>
-                    <span className="text-xs text-slate-500">Draft</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-slate-700">{stats.draftCount}</span>
+                    <span className="text-[11px] sm:text-xs text-slate-500">Draft</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-4 py-2">
-                    <Send className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-semibold text-blue-700">{stats.orderedCount}</span>
-                    <span className="text-xs text-blue-500">Dipesan</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.orderedCount}</span>
+                    <span className="text-[11px] sm:text-xs text-blue-500">Dipesan</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-4 py-2">
-                    <PackageCheck className="w-4 h-4 text-emerald-500" />
-                    <span className="text-sm font-semibold text-emerald-700">{stats.receivedCount}</span>
-                    <span className="text-xs text-emerald-500">Diterima</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <PackageCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.receivedCount}</span>
+                    <span className="text-[11px] sm:text-xs text-emerald-500">Diterima</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-4 py-2">
-                    <DollarSign className="w-4 h-4 text-amber-500" />
-                    <span className="text-sm font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
-                    <span className="text-xs text-amber-500">Total</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <DollarSign className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
+                    <span className="text-[11px] sm:text-xs text-amber-500">Total</span>
                 </div>
             </div>
 
             {/* Search bar + Status filter pills */}
             <div className="space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        placeholder="Cari PO berdasarkan nomor, supplier..."
-                        className="pl-10 rounded-xl border-slate-200 bg-white h-10"
-                    />
-                    {loading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
-                    )}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <div className="relative flex-1 sm:max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            value={search}
+                            onChange={(e) => handleSearchChange(e.target.value)}
+                            placeholder="Cari PO berdasarkan nomor, supplier..."
+                            className="pl-10 rounded-xl border-slate-200 bg-white h-9 sm:h-10 text-sm"
+                        />
+                        {loading && (
+                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap overflow-x-auto scrollbar-hide">
                     {statusFilterPills.map((pill) => (
                         <button
                             key={pill.value}
                             onClick={() => handleStatusFilter(pill.value)}
-                            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            className={`shrink-0 px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                                 activeFilters.status === pill.value
                                     ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
                                     : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
@@ -633,19 +635,19 @@ export function PurchasesContent() {
                     </div>
                 ) : data.orders.length === 0 ? (
                     /* Empty state */
-                    <div className="flex flex-col items-center justify-center py-16 rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-white to-slate-50/50">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mb-4">
-                            <ShoppingBasket className="w-8 h-8 text-emerald-300" />
+                    <div className="flex flex-col items-center justify-center py-10 sm:py-16 rounded-xl sm:rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-white to-slate-50/50">
+                        <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center mb-4">
+                            <ShoppingBasket className="w-5 h-5 sm:w-8 sm:h-8 text-emerald-300" />
                         </div>
-                        <p className="text-base font-semibold text-foreground mb-1">Belum ada purchase order</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm sm:text-base font-semibold text-foreground mb-1">Belum ada purchase order</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">
                             {search || activeFilters.status !== "ALL"
                                 ? "Tidak ada PO yang cocok dengan filter"
                                 : "Buat PO pertama untuk mulai mengelola pembelian"}
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                         {data.orders.map((row) => {
                             const cfg = statusConfig[row.status] || { label: row.status, className: "" };
                             const borderColor = statusBorderColor[row.status] || "border-l-slate-300";
@@ -665,7 +667,7 @@ export function PurchasesContent() {
                                         {cfg.label}
                                     </Badge>
 
-                                    <div className="flex items-center gap-3 p-4">
+                                    <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
                                         {/* Left: Icon */}
                                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${iconBg} flex items-center justify-center shadow-sm shrink-0`}>
                                             <ClipboardList className="w-4.5 h-4.5" />
@@ -696,7 +698,7 @@ export function PurchasesContent() {
                                         </div>
 
                                         {/* Right: Action buttons */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
                                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-slate-100" onClick={() => handleViewDetail(row.id)}>
                                                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                                             </Button>
@@ -742,7 +744,7 @@ export function PurchasesContent() {
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
                     <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
                     <DialogHeader className="px-6 pt-5 pb-3">
                         <DialogTitle className="text-lg font-bold">Detail Purchase Order</DialogTitle>
@@ -750,7 +752,7 @@ export function PurchasesContent() {
                     {selectedPO && (
                         <div className="px-6 pb-6 space-y-4">
                             {/* Info cards grid */}
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3">
                                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">No. PO</p>
                                     <p className="font-mono font-bold text-sm text-foreground">{selectedPO.orderNumber}</p>
@@ -775,13 +777,13 @@ export function PurchasesContent() {
                             </div>
 
                             {/* Items table */}
-                            <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-gradient-to-r from-slate-50 to-white">
                                             <TableHead className="text-xs font-semibold">Produk</TableHead>
                                             <TableHead className="text-center text-xs font-semibold">Order</TableHead>
-                                            <TableHead className="text-center text-xs font-semibold">Diterima</TableHead>
+                                            <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Diterima</TableHead>
                                             <TableHead className="text-right text-xs font-semibold">Subtotal</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -790,7 +792,7 @@ export function PurchasesContent() {
                                             <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                 <TableCell className="text-sm font-medium">{item.product.name}</TableCell>
                                                 <TableCell className="text-center text-sm tabular-nums">{item.quantity}</TableCell>
-                                                <TableCell className="text-center text-sm">
+                                                <TableCell className="text-center text-sm hidden sm:table-cell">
                                                     <Badge
                                                         variant={item.receivedQty >= item.quantity ? "default" : "secondary"}
                                                         className={`rounded-lg font-semibold ${item.receivedQty >= item.quantity
@@ -849,7 +851,7 @@ export function PurchasesContent() {
 
             {/* Receive Dialog */}
             <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
-                <DialogContent className="rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
                     <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500" />
                     <DialogHeader className="px-6 pt-5 pb-3">
                         <DialogTitle className="text-lg font-bold flex items-center gap-2">
@@ -863,13 +865,13 @@ export function PurchasesContent() {
                     {selectedPO && (
                         <div className="px-6 pb-6 space-y-4">
                             <p className="text-sm text-muted-foreground">Masukkan jumlah barang yang diterima untuk setiap item.</p>
-                            <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-gradient-to-r from-slate-50 to-white">
                                             <TableHead className="text-xs font-semibold">Produk</TableHead>
-                                            <TableHead className="text-center text-xs font-semibold">Order</TableHead>
-                                            <TableHead className="text-center text-xs font-semibold">Sudah</TableHead>
+                                            <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Order</TableHead>
+                                            <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Sudah</TableHead>
                                             <TableHead className="text-center text-xs font-semibold">Terima</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -879,8 +881,8 @@ export function PurchasesContent() {
                                             return (
                                                 <TableRow key={item.id} className="hover:bg-slate-50/50">
                                                     <TableCell className="text-sm font-medium">{item.product.name}</TableCell>
-                                                    <TableCell className="text-center text-sm tabular-nums">{item.quantity}</TableCell>
-                                                    <TableCell className="text-center text-sm">
+                                                    <TableCell className="text-center text-sm tabular-nums hidden sm:table-cell">{item.quantity}</TableCell>
+                                                    <TableCell className="text-center text-sm hidden sm:table-cell">
                                                         <Badge variant="secondary" className="rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 font-semibold">
                                                             {item.receivedQty}
                                                         </Badge>
@@ -918,7 +920,7 @@ export function PurchasesContent() {
 
             {/* Confirm Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold">Konfirmasi</DialogTitle>
                     </DialogHeader>

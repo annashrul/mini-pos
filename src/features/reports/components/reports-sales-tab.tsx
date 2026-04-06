@@ -46,20 +46,20 @@ export function ReportsSalesTab({ dailySales, monthlySales, variant }: ReportsSa
   };
 
   return (
-    <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-      <CardHeader className="pb-2">
+    <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+      <CardHeader className="pb-2 p-3 sm:p-5">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+            <CardTitle className="text-sm sm:text-base font-semibold">{title}</CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
           </div>
           <Button variant="ghost" size="sm" className="rounded-xl text-xs h-8 hover:bg-slate-100" onClick={handleExport}>
-            <Download className="w-3.5 h-3.5 mr-1.5" /> Export
+            <Download className="w-3.5 h-3.5 mr-1.5" /> <span className="hidden sm:inline">Export</span>
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="pt-2 pb-4">
-        <ResponsiveContainer width="100%" height={380}>
+      <CardContent className="pt-2 pb-4 px-3 sm:px-5">
+        <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
           <AreaChart data={data}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

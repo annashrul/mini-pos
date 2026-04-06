@@ -190,21 +190,21 @@ export function PeriodsContent() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
-                        <BookOpenCheck className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25 shrink-0">
+                        <BookOpenCheck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Tutup Buku</h1>
-                        <p className="text-sm text-gray-500">
-                            Kelola periode akuntansi, tutup buku, dan kunci periode
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Tutup Buku</h1>
+                        <p className="text-xs sm:text-sm text-gray-500">
+                            Kelola periode akuntansi
                         </p>
                     </div>
                 </div>
                 <Button
                     onClick={() => setShowCreate(true)}
-                    className="rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20"
+                    className="rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20 w-full sm:w-auto"
                 >
                     <Plus className="w-4 h-4" />
                     Buat Periode
@@ -221,16 +221,6 @@ export function PeriodsContent() {
                 loading={isPending}
                 title="Daftar Periode"
                 titleIcon={<Calendar className="w-4 h-4 text-amber-600" />}
-                headerActions={
-                    <Button
-                        onClick={() => setShowCreate(true)}
-                        size="sm"
-                        className="rounded-lg h-8 text-xs gap-1.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-sm shadow-amber-500/20"
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                        Buat Periode
-                    </Button>
-                }
                 searchPlaceholder="Cari periode..."
                 onSearch={(q) => { setSearch(q); setPage(1); }}
                 onPageChange={setPage}

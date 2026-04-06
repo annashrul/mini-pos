@@ -1,6 +1,7 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, shouldUseAccelerate } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 
 // ===========================
@@ -22,7 +23,6 @@ function endOfDay(iso: string): Date {
   d.setHours(23, 59, 59, 999);
   return d;
 }
-
 
 // ===========================
 // 1. BUKU BESAR (General Ledger)
@@ -78,7 +78,7 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
       ${branchSQL(branchId, "je")}
     `,
     accountId,
-    from
+    from,
   );
 
   const priorDebit = priorMovements[0]?.totalDebit ?? 0;
@@ -121,7 +121,7 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
     `,
     accountId,
     from,
-    to
+    to,
   );
 
   // Calculate running balance
@@ -210,11 +210,14 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
       ${branchSQL(branchId, "je")}
     GROUP BY jel."accountId"
     `,
-    upTo
+    upTo,
   );
 
   const movementMap = new Map(
-    movements.map((m) => [m.accountId, { debit: m.totalDebit, credit: m.totalCredit }])
+    movements.map((m) => [
+      m.accountId,
+      { debit: m.totalDebit, credit: m.totalCredit },
+    ]),
   );
 
   let grandTotalDebit = 0;
@@ -324,7 +327,7 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
     ORDER BY a.code ASC
     `,
     from,
-    to
+    to,
   );
 
   // Expense accounts: net = debit - credit (positive = expense)
@@ -351,7 +354,7 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
     ORDER BY a.code ASC
     `,
     from,
-    to
+    to,
   );
 
   const revenues: IncomeStatementAccount[] = revenueRows
@@ -450,7 +453,7 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
     GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
     ORDER BY a.code ASC
     `,
-    upTo
+    upTo,
   );
 
   // Calculate retained earnings (laba ditahan) = accumulated (revenue - expense) up to date
@@ -470,11 +473,12 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
       AND ac.type IN ('REVENUE', 'EXPENSE')
       ${branchSQL(branchId, "je")}
     `,
-    upTo
+    upTo,
   );
 
   const retainedEarnings =
-    (retainedEarningsResult[0]?.revenue ?? 0) - (retainedEarningsResult[0]?.expense ?? 0);
+    (retainedEarningsResult[0]?.revenue ?? 0) -
+    (retainedEarningsResult[0]?.expense ?? 0);
 
   // Build groups
   const groupMap: Record<string, BalanceSheetGroup> = {};
@@ -521,8 +525,16 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
     groupMap["EQUITY"].total += retainedEarnings;
   }
 
-  const assets = groupMap["ASSET"] ?? { categoryName: "Aset", accounts: [], total: 0 };
-  const liabilities = groupMap["LIABILITY"] ?? { categoryName: "Kewajiban", accounts: [], total: 0 };
+  const assets = groupMap["ASSET"] ?? {
+    categoryName: "Aset",
+    accounts: [],
+    total: 0,
+  };
+  const liabilities = groupMap["LIABILITY"] ?? {
+    categoryName: "Kewajiban",
+    accounts: [],
+    total: 0,
+  };
   const equity = groupMap["EQUITY"];
 
   const totalAssets = assets.total;
@@ -567,9 +579,7 @@ export async function getCashFlow(params: CashFlowParams) {
   const to = endOfDay(dateTo);
 
   // Opening cash balance: opening balance of cash accounts + movements before dateFrom
-  const openingCashResult = await prisma.$queryRawUnsafe<
-    { balance: number }[]
-  >(
+  const openingCashResult = await prisma.$queryRawUnsafe<{ balance: number }[]>(
     `
     SELECT
       COALESCE(SUM(
@@ -593,7 +603,7 @@ export async function getCashFlow(params: CashFlowParams) {
       AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
       AND a."isActive" = true
     `,
-    from
+    from,
   );
 
   const openingCash = openingCashResult[0]?.balance ?? 0;
@@ -629,7 +639,7 @@ export async function getCashFlow(params: CashFlowParams) {
     ORDER BY je.date ASC, je."createdAt" ASC
     `,
     from,
-    to
+    to,
   );
 
   // Cash Out: journal lines where cash accounts are credited (money going out)
@@ -663,7 +673,7 @@ export async function getCashFlow(params: CashFlowParams) {
     ORDER BY je.date ASC, je."createdAt" ASC
     `,
     from,
-    to
+    to,
   );
 
   const cashIn: CashFlowItem[] = cashInRows.map((r) => ({
@@ -704,7 +714,7 @@ export async function getCashFlow(params: CashFlowParams) {
 }
 
 function summarizeCashByType(
-  rows: { referenceType: string | null; amount: number; description: string }[]
+  rows: { referenceType: string | null; amount: number; description: string }[],
 ): { type: string; description: string; amount: number }[] {
   const map = new Map<string, number>();
   for (const r of rows) {
@@ -734,6 +744,7 @@ function summarizeCashByType(
 // ===========================
 
 async function getAccountingDashboardUncached(branchId?: string) {
+  const cacheTags = ["accounting_dashboard"];
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(todayStart);
@@ -743,7 +754,18 @@ async function getAccountingDashboardUncached(branchId?: string) {
 
   const branchCond = branchSQL(branchId, "je");
 
-  // Run all queries in parallel
+  const recentJournalInclude = {
+    lines: {
+      include: { account: { select: { code: true, name: true } } },
+      orderBy: { sortOrder: "asc" as const },
+    },
+    createdByUser: { select: { name: true } },
+  } as const;
+
+  type RecentJournal = Prisma.JournalEntryGetPayload<{
+    include: typeof recentJournalInclude;
+  }>;
+
   const [
     cashBalance,
     receivableBalance,
@@ -771,7 +793,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
         AND a."isActive" = true
-      `
+      `,
     ),
 
     // Total Piutang (receivable: typically code 1-1003*)
@@ -791,7 +813,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE a.code LIKE '1-1003%'
         AND a."isActive" = true
-      `
+      `,
     ),
 
     // Total Hutang (payable: liability accounts code 2-%)
@@ -811,7 +833,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE ac.type = 'LIABILITY'
         AND a."isActive" = true
-      `
+      `,
     ),
 
     // Laba Hari Ini
@@ -830,7 +852,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
         ${branchCond}
       `,
       todayStart,
-      todayEnd
+      todayEnd,
     ),
 
     // Laba Bulan Ini
@@ -849,7 +871,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
         ${branchCond}
       `,
       monthStart,
-      todayEnd
+      todayEnd,
     ),
 
     // Revenue trend last 7 days
@@ -870,12 +892,18 @@ async function getAccountingDashboardUncached(branchId?: string) {
       GROUP BY je.date
       ORDER BY je.date ASC
       `,
-      (() => { const d = new Date(todayStart); d.setDate(d.getDate() - 6); return d; })(),
-      todayEnd
+      (() => {
+        const d = new Date(todayStart);
+        d.setDate(d.getDate() - 6);
+        return d;
+      })(),
+      todayEnd,
     ),
 
     // Top 5 expense accounts this month
-    prisma.$queryRawUnsafe<{ accountCode: string; accountName: string; amount: number }[]>(
+    prisma.$queryRawUnsafe<
+      { accountCode: string; accountName: string; amount: number }[]
+    >(
       `
       SELECT
         a.code AS "accountCode",
@@ -895,7 +923,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       LIMIT 5
       `,
       monthStart,
-      todayEnd
+      todayEnd,
     ),
 
     // Recent 10 journal entries
@@ -904,17 +932,18 @@ async function getAccountingDashboardUncached(branchId?: string) {
         status: "POSTED",
         ...(branchId ? { branchId } : {}),
       },
-      include: {
-        lines: {
-          include: { account: { select: { code: true, name: true } } },
-          orderBy: { sortOrder: "asc" },
-        },
-        createdByUser: { select: { name: true } },
-      },
+      include: recentJournalInclude,
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: 10,
+      ...(shouldUseAccelerate
+        ? ({
+            cacheStrategy: { ttl: 30, swr: 60, tags: cacheTags },
+          } as unknown as Record<string, unknown>)
+        : {}),
     }),
-  ]);
+  ] as const);
+
+  const recentJournalsTyped = recentJournals as unknown as RecentJournal[];
 
   const todayRevenue = todayPnL[0]?.revenue ?? 0;
   const todayExpense = todayPnL[0]?.expense ?? 0;
@@ -923,7 +952,10 @@ async function getAccountingDashboardUncached(branchId?: string) {
 
   // Build revenue trend with zero-fill for missing days
   const trendMap = new Map(
-    revenueTrend.map((r) => [new Date(r.date).toISOString().split("T")[0], r.revenue])
+    revenueTrend.map((r) => [
+      new Date(r.date).toISOString().split("T")[0],
+      r.revenue,
+    ]),
   );
   const revenueTrendFilled: { date: string; revenue: number }[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -945,7 +977,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
     monthExpense,
     revenueTrend: revenueTrendFilled,
     topExpenses,
-    recentJournals: recentJournals.map((j) => ({
+    recentJournals: recentJournalsTyped.map((j) => ({
       id: j.id,
       entryNumber: j.entryNumber,
       date: j.date,
@@ -970,7 +1002,10 @@ export async function getAccountingDashboard(branchId?: string) {
   const cached = unstable_cache(
     () => getAccountingDashboardUncached(branchId),
     ["accounting-dashboard", b],
-    { revalidate: 30, tags: ["accounting-dashboard", `accounting-dashboard:${b}`] },
+    {
+      revalidate: 30,
+      tags: ["accounting-dashboard", `accounting-dashboard:${b}`],
+    },
   );
   return cached();
 }

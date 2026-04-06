@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const shouldUseAccelerate =
+export const shouldUseAccelerate =
   !!process.env.PRISMA_ACCELERATE_URL ||
   (process.env.DATABASE_URL?.startsWith("prisma://") ?? false) ||
   (process.env.DATABASE_URL?.startsWith("prisma+postgres://") ?? false);

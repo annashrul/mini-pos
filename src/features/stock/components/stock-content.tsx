@@ -172,16 +172,16 @@ export function StockContent() {
     ];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                        <BoxesIcon className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <BoxesIcon className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Manajemen Stok</h1>
-                        <p className="text-muted-foreground text-sm flex items-center gap-2">
+                        <h1 className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">Manajemen Stok</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm flex items-center gap-2">
                             Kelola pergerakan stok produk
                             <Badge variant="secondary" className="text-xs font-normal">{data.total} pergerakan</Badge>
                         </p>
@@ -190,7 +190,7 @@ export function StockContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
+                        className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
                         onClick={() => setOpen(true)}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
@@ -199,34 +199,34 @@ export function StockContent() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-4 py-2">
-                    <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm font-semibold text-emerald-700">{stats.inCount}</span>
-                    <span className="text-xs text-emerald-600">Masuk</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.inCount}</span>
+                    <span className="text-[11px] sm:text-xs text-emerald-600">Masuk</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 px-4 py-2">
-                    <ArrowUpRight className="w-4 h-4 text-red-600" />
-                    <span className="text-sm font-semibold text-red-700">{stats.outCount}</span>
-                    <span className="text-xs text-red-600">Keluar</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-red-700">{stats.outCount}</span>
+                    <span className="text-[11px] sm:text-xs text-red-600">Keluar</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-4 py-2">
-                    <RefreshCw className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-blue-700">{stats.adjCount}</span>
-                    <span className="text-xs text-blue-600">Penyesuaian</span>
+                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
+                    <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
+                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.adjCount}</span>
+                    <span className="text-[11px] sm:text-xs text-blue-600">Penyesuaian</span>
                 </div>
             </div>
 
             {/* Movement List */}
-            <div className="rounded-2xl border border-border/30 bg-white shadow-sm">
+            <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
                 {/* Search bar */}
-                <div className="flex items-center gap-3 p-4 border-b border-border/20">
-                    <div className="relative flex-1 max-w-sm">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 p-4 border-b border-border/20">
+                    <div className="relative flex-1 sm:max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
                         <Input
                             placeholder="Cari produk..."
-                            className="pl-9 pr-9 rounded-xl h-10 border-border/40"
+                            className="pl-9 pr-9 rounded-xl h-9 sm:h-10 text-sm border-border/40"
                             defaultValue={search}
                             onChange={(e) => handleSearch(e.target.value)}
                         />
@@ -234,7 +234,7 @@ export function StockContent() {
                 </div>
 
                 {/* Grouped movement list */}
-                <div className="p-4 space-y-6">
+                <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
                     {loading && data.movements.length === 0 ? (
                         <div className="space-y-6">
                             {Array.from({ length: 2 }).map((_, gi) => (
@@ -246,7 +246,7 @@ export function StockContent() {
                                     </div>
                                     <div className="space-y-2">
                                         {Array.from({ length: gi === 0 ? 3 : 2 }).map((_, i) => (
-                                            <div key={i} className="rounded-xl border border-border/30 bg-white px-4 py-3 flex items-center gap-4">
+                                            <div key={i} className="rounded-xl border border-border/30 bg-white px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
                                                 <Skeleton className="w-9 h-9 rounded-full shrink-0" />
                                                 <div className="flex-1 min-w-0 space-y-1.5">
                                                     <Skeleton className="h-4 w-40" />
@@ -260,9 +260,9 @@ export function StockContent() {
                             ))}
                         </div>
                     ) : data.movements.length === 0 && !loading ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <BoxesIcon className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                            <p className="text-sm font-medium text-slate-500">Belum ada pergerakan stok</p>
+                        <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-center">
+                            <BoxesIcon className="w-10 h-10 sm:w-16 sm:h-16 text-muted-foreground/30 mb-3" />
+                            <p className="text-sm sm:text-lg font-medium text-slate-500">Belum ada pergerakan stok</p>
                             <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                                 <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-full mt-3" onClick={() => setOpen(true)}>
                                     <Plus className="w-3 h-3 mr-1" /> Tambah Pergerakan
@@ -301,7 +301,7 @@ export function StockContent() {
                                             return (
                                                 <div
                                                     key={movement.id}
-                                                    className={`rounded-xl border border-border/30 border-l-4 ${cfg.borderColor} bg-white hover:shadow-sm transition-all group px-4 py-3 flex items-center gap-4`}
+                                                    className={`rounded-xl border border-border/30 border-l-4 ${cfg.borderColor} bg-white hover:shadow-sm transition-all group px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4`}
                                                 >
                                                     {/* Left: type icon */}
                                                     <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${cfg.bgColor} flex items-center justify-center shrink-0 shadow-sm`}>
@@ -319,7 +319,7 @@ export function StockContent() {
                                                                 <TooltipProvider>
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
-                                                                            <span className="text-[11px] text-muted-foreground truncate max-w-[150px] cursor-help">
+                                                                            <span className="text-[11px] text-muted-foreground truncate max-w-[100px] sm:max-w-[150px] cursor-help">
                                                                                 {movement.note.length > 30 ? `${movement.note.slice(0, 30)}...` : movement.note}
                                                                             </span>
                                                                         </TooltipTrigger>
@@ -371,7 +371,7 @@ export function StockContent() {
             </div>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="rounded-2xl max-w-lg p-0 overflow-hidden">
+                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 overflow-hidden">
                     {/* Gradient accent line */}
                     <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500" />
                     <div className="p-6">

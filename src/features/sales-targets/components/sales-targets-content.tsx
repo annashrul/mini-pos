@@ -51,6 +51,12 @@ const periodLabels: Record<PeriodType, string> = {
 const fmt = (n: number) =>
   new Intl.NumberFormat("id-ID").format(n);
 
+function fmtCompact(value: number): string {
+  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
+  if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(0)}rb`;
+  return formatCurrency(value);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SalesTargetsContent() {
@@ -160,52 +166,53 @@ export function SalesTargetsContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
-            <Trophy className="w-6 h-6 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shrink-0">
+            <Trophy className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Sales Target & Gamification</h1>
-            <p className="text-sm text-gray-500">Leaderboard, target penjualan, dan pencapaian kasir</p>
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Sales Target</h1>
+            <p className="text-xs sm:text-sm text-gray-500">Leaderboard, target & pencapaian</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex items-center gap-0.5 sm:gap-1 bg-gray-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto scrollbar-hide">
         {([
-          { key: "leaderboard" as TabKey, label: "Leaderboard", icon: Trophy },
-          { key: "targets" as TabKey, label: "Target", icon: Target },
-          { key: "badges" as TabKey, label: "Badges", icon: Award },
-        ]).map(({ key, label, icon: Icon }) => (
+          { key: "leaderboard" as TabKey, label: "Leaderboard", shortLabel: "Board", icon: Trophy },
+          { key: "targets" as TabKey, label: "Target", shortLabel: "Target", icon: Target },
+          { key: "badges" as TabKey, label: "Badges", shortLabel: "Badge", icon: Award },
+        ]).map(({ key, label, shortLabel, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap shrink-0 flex-1 sm:flex-none justify-center ${
               tab === key
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            <Icon className="w-4 h-4" />
-            {label}
+            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">{label}</span>
+            <span className="sm:hidden">{shortLabel}</span>
           </button>
         ))}
       </div>
 
       {/* ─── Leaderboard Tab ──────────────────────────────────────────────── */}
       {tab === "leaderboard" && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Period Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {(["DAILY", "WEEKLY", "MONTHLY"] as PeriodType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setPeriodType(t)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all ${
                   periodType === t
                     ? "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md"
                     : "bg-white text-gray-600 border border-gray-200 hover:border-amber-300"
@@ -216,59 +223,59 @@ export function SalesTargetsContent() {
             ))}
             <Button
               variant="outline"
-              size="sm"
-              className="ml-auto rounded-full"
+              size="icon"
+              className="ml-auto rounded-full h-8 w-8 sm:h-9 sm:w-auto sm:px-3 sm:rounded-full"
               onClick={loadLeaderboard}
               disabled={isPending}
             >
-              <RefreshCw className={`w-4 h-4 mr-1 ${isPending ? "animate-spin" : ""}`} />
-              Refresh
+              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isPending ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline ml-1 text-xs">Refresh</span>
             </Button>
           </div>
 
           {/* Podium */}
           {top3.length > 0 && (
-            <Card className="overflow-hidden border-0 shadow-lg">
-              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
-                <div className="text-center mb-8">
-                  <h2 className="text-xl font-bold text-white flex items-center justify-center gap-2">
-                    <Crown className="w-6 h-6 text-yellow-400" />
+            <Card className="overflow-hidden border-0 shadow-lg rounded-xl sm:rounded-2xl">
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-8">
+                <div className="text-center mb-4 sm:mb-8">
+                  <h2 className="text-base sm:text-xl font-bold text-white flex items-center justify-center gap-2">
+                    <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400" />
                     Top Performers
                   </h2>
-                  <p className="text-slate-400 text-sm mt-1">{periodLabels[periodType]} - {getCurrentPeriod(periodType)}</p>
+                  <p className="text-slate-400 text-[10px] sm:text-sm mt-1">{periodLabels[periodType]} - {getCurrentPeriod(periodType)}</p>
                 </div>
 
-                <div className="flex items-end justify-center gap-4 sm:gap-8">
+                <div className="flex items-end justify-center gap-2 sm:gap-8">
                   {podiumOrder.map((entry, i) => {
                     if (!entry) return null;
                     return (
                       <div key={entry.userId} className="flex flex-col items-center">
                         {/* Avatar */}
-                        <div className="relative mb-3">
-                          <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br ${podiumColors[i]} flex items-center justify-center text-2xl sm:text-3xl font-bold text-white shadow-xl`}>
+                        <div className="relative mb-2 sm:mb-3">
+                          <div className={`w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br ${podiumColors[i]} flex items-center justify-center text-lg sm:text-3xl font-bold text-white shadow-xl`}>
                             {entry.avatarInitial}
                           </div>
-                          <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gradient-to-br ${podiumColors[i]} flex items-center justify-center shadow-lg border-2 border-slate-900`}>
+                          <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-gradient-to-br ${podiumColors[i]} flex items-center justify-center shadow-lg border-2 border-slate-900`}>
                             {renderPodiumIcon(i)}
                           </div>
                         </div>
 
                         {/* Name & Revenue */}
-                        <p className="text-white font-semibold text-sm sm:text-base truncate max-w-[100px] sm:max-w-[140px]">
+                        <p className="text-white font-semibold text-[11px] sm:text-base truncate max-w-[70px] sm:max-w-[140px]">
                           {entry.name}
                         </p>
-                        <p className="text-amber-400 font-bold text-sm sm:text-lg">
-                          {formatCurrency(entry.revenue)}
+                        <p className="text-amber-400 font-bold text-xs sm:text-lg">
+                          {fmtCompact(entry.revenue)}
                         </p>
                         {entry.target > 0 && (
-                          <p className={`text-xs font-medium ${entry.percentage >= 100 ? "text-emerald-400" : "text-slate-400"}`}>
-                            {entry.percentage}% target
+                          <p className={`text-[10px] sm:text-xs font-medium ${entry.percentage >= 100 ? "text-emerald-400" : "text-slate-400"}`}>
+                            {entry.percentage}%
                           </p>
                         )}
 
                         {/* Podium bar */}
-                        <div className={`${podiumHeights[i]} w-20 sm:w-28 mt-3 rounded-t-xl bg-gradient-to-t ${podiumColors[i]} flex items-start justify-center pt-3 shadow-lg`}>
-                          <span className="text-white/90 font-bold text-xl">{podiumLabels[i]}</span>
+                        <div className={`${podiumHeights[i]} w-16 sm:w-28 mt-2 sm:mt-3 rounded-t-xl bg-gradient-to-t ${podiumColors[i]} flex items-start justify-center pt-2 sm:pt-3 shadow-lg`}>
+                          <span className="text-white/90 font-bold text-base sm:text-xl">{podiumLabels[i]}</span>
                         </div>
                       </div>
                     );
@@ -280,18 +287,18 @@ export function SalesTargetsContent() {
 
           {/* Empty state */}
           {top3.length === 0 && !isPending && (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="py-16 text-center">
-                <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-500">Belum ada data penjualan</h3>
-                <p className="text-gray-400 text-sm mt-1">Data leaderboard akan muncul saat ada transaksi</p>
+            <Card className="border-0 shadow-lg rounded-xl sm:rounded-2xl">
+              <CardContent className="py-10 sm:py-16 text-center">
+                <Trophy className="w-10 h-10 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-500">Belum ada data penjualan</h3>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1">Data akan muncul saat ada transaksi</p>
               </CardContent>
             </Card>
           )}
 
           {/* Full Ranking Table */}
           {leaderboard.length > 0 && (
-            <Card className="border-0 shadow-lg overflow-hidden">
+            <Card className="border-0 shadow-lg overflow-hidden rounded-xl sm:rounded-2xl">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -396,30 +403,30 @@ export function SalesTargetsContent() {
 
       {/* ─── Targets Tab ──────────────────────────────────────────────────── */}
       {tab === "targets" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Target Penjualan</h2>
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Target Penjualan</h2>
             <Button
               onClick={() => setShowSetTarget(true)}
-              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md"
+              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md text-xs sm:text-sm w-full sm:w-auto"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-1.5 sm:mr-2" />
               Set Target
             </Button>
           </div>
 
           {targets.length === 0 && !isPending && (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="py-16 text-center">
-                <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-500">Belum ada target</h3>
-                <p className="text-gray-400 text-sm mt-1">Buat target penjualan untuk kasir atau cabang</p>
+            <Card className="border-0 shadow-lg rounded-xl sm:rounded-2xl">
+              <CardContent className="py-10 sm:py-16 text-center">
+                <Target className="w-10 h-10 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-500">Belum ada target</h3>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1">Buat target untuk kasir atau cabang</p>
               </CardContent>
             </Card>
           )}
 
           {targets.length > 0 && (
-            <Card className="border-0 shadow-lg overflow-hidden">
+            <Card className="border-0 shadow-lg overflow-hidden rounded-xl sm:rounded-2xl">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -504,30 +511,30 @@ export function SalesTargetsContent() {
 
       {/* ─── Badges Tab ───────────────────────────────────────────────────── */}
       {tab === "badges" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Badges & Achievements</h2>
+        <div className="space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Badges & Achievements</h2>
             <Button
               onClick={handleEvaluateBadges}
               disabled={isPending}
-              className="rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-md"
+              className="rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-md text-xs sm:text-sm w-full sm:w-auto"
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isPending ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 ${isPending ? "animate-spin" : ""}`} />
               Evaluasi Badges
             </Button>
           </div>
 
           {/* All available badges */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Badge Tersedia</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 sm:mb-3">Badge Tersedia</h3>
             <BadgeDisplay definitions={BADGE_DEFINITIONS} earned={badges} />
           </div>
 
           {/* Badge history */}
           {badges.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Riwayat Penghargaan</h3>
-              <Card className="border-0 shadow-lg overflow-hidden">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 sm:mb-3">Riwayat Penghargaan</h3>
+              <Card className="border-0 shadow-lg overflow-hidden rounded-xl sm:rounded-2xl">
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full">
@@ -577,11 +584,11 @@ export function SalesTargetsContent() {
           )}
 
           {badges.length === 0 && !isPending && (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="py-12 text-center">
-                <Award className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-500">Belum ada badge diberikan</h3>
-                <p className="text-gray-400 text-sm mt-1">Klik &quot;Evaluasi Badges&quot; untuk memberikan penghargaan</p>
+            <Card className="border-0 shadow-lg rounded-xl sm:rounded-2xl">
+              <CardContent className="py-10 sm:py-12 text-center">
+                <Award className="w-10 h-10 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-500">Belum ada badge</h3>
+                <p className="text-gray-400 text-xs sm:text-sm mt-1">Klik &quot;Evaluasi Badges&quot; untuk memberikan penghargaan</p>
               </CardContent>
             </Card>
           )}

@@ -268,16 +268,16 @@ export function InventoryForecastContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200">
-            <BarChart3 className="w-6 h-6 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200">
+            <BarChart3 className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Prediksi Inventaris</h1>
-            <p className="text-sm text-slate-500">Analisis stok dan prediksi kehabisan barang</p>
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-800">Prediksi Inventaris</h1>
+            <p className="text-xs sm:text-sm text-slate-500">Analisis stok dan prediksi kehabisan barang</p>
           </div>
         </div>
         <Button
@@ -285,7 +285,7 @@ export function InventoryForecastContent() {
           size="sm"
           onClick={loadData}
           disabled={isPending}
-          className="gap-2"
+          className="w-full sm:w-auto text-xs sm:text-sm gap-2"
         >
           <RefreshCw className={`w-4 h-4 ${isPending ? "animate-spin" : ""}`} />
           Refresh
@@ -294,7 +294,7 @@ export function InventoryForecastContent() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
           {([
             { key: "CRITICAL" as const, count: summary.criticalCount, label: "Kritis (<3 hari)", gradient: "from-red-500 to-rose-600", shadow: "shadow-red-200" },
             { key: "WARNING" as const, count: summary.warningCount, label: "Peringatan (<7 hari)", gradient: "from-amber-500 to-orange-500", shadow: "shadow-amber-200" },
@@ -306,21 +306,22 @@ export function InventoryForecastContent() {
               className={`cursor-pointer transition-all hover:scale-[1.02] ${riskFilter === card.key ? "ring-2 ring-offset-2 ring-slate-400" : ""}`}
               onClick={() => setRiskFilter(prev => prev === card.key ? "ALL" : card.key)}
             >
-              <CardContent className="pt-5 pb-4 px-5">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} ${card.shadow} shadow-md flex items-center justify-center mb-3`}>
+              <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
+                <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} ${card.shadow} shadow-md items-center justify-center mb-3`}>
                   <span className="text-white font-bold text-lg">{card.count}</span>
                 </div>
-                <p className="text-xs text-slate-500 font-medium">{card.label}</p>
+                <p className="text-sm sm:text-xl font-bold text-slate-800 sm:hidden">{card.count}</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{card.label}</p>
               </CardContent>
             </Card>
           ))}
           <Card>
-            <CardContent className="pt-5 pb-4 px-5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 shadow-md shadow-slate-200 flex items-center justify-center mb-3">
+            <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
+              <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 shadow-md shadow-slate-200 items-center justify-center mb-3">
                 <ShoppingCart className="w-5 h-5 text-white" />
               </div>
-              <p className="text-sm font-semibold text-slate-800">{summary.productsNeedingReorder}</p>
-              <p className="text-xs text-slate-500 font-medium">Perlu Reorder</p>
+              <p className="text-sm sm:text-xl font-bold sm:font-semibold text-slate-800">{summary.productsNeedingReorder}</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Perlu Reorder</p>
             </CardContent>
           </Card>
         </div>
@@ -328,7 +329,7 @@ export function InventoryForecastContent() {
 
       {/* Risk Chart + Value at Risk */}
       {summary && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4">
           <Card className="lg:col-span-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold text-slate-700">Distribusi Risiko</CardTitle>
@@ -371,20 +372,20 @@ export function InventoryForecastContent() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold text-slate-700">Ringkasan Risiko</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl bg-red-50 border border-red-100 p-4">
+            <CardContent className="space-y-3 sm:space-y-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4">
+                <div className="rounded-xl bg-red-50 border border-red-100 p-3 sm:p-4">
                   <p className="text-xs text-red-600 font-medium mb-1">Nilai Stok Berisiko</p>
                   <p className="text-xl font-bold text-red-700">{formatCurrency(summary.totalStockValueAtRisk)}</p>
                   <p className="text-[11px] text-red-500 mt-1">Stok kritis & peringatan</p>
                 </div>
-                <div className="rounded-xl bg-violet-50 border border-violet-100 p-4">
+                <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 sm:p-4">
                   <p className="text-xs text-violet-600 font-medium mb-1">Total Produk Dipantau</p>
                   <p className="text-xl font-bold text-violet-700">{summary.totalProducts}</p>
                   <p className="text-[11px] text-violet-500 mt-1">Produk aktif</p>
                 </div>
               </div>
-              <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+              <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 sm:p-4">
                 <p className="text-xs text-slate-500 font-medium mb-2">Kebutuhan Aksi</p>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
@@ -409,12 +410,12 @@ export function InventoryForecastContent() {
       )}
 
       {/* Tab Switch */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
         <Button
           variant={activeTab === "forecast" ? "default" : "outline"}
           size="sm"
           onClick={() => setActiveTab("forecast")}
-          className="gap-2"
+          className="shrink-0 text-xs sm:text-sm gap-2"
         >
           <BarChart3 className="w-4 h-4" />
           Prediksi Stok
@@ -423,7 +424,7 @@ export function InventoryForecastContent() {
           variant={activeTab === "reorder" ? "default" : "outline"}
           size="sm"
           onClick={() => setActiveTab("reorder")}
-          className="gap-2"
+          className="shrink-0 text-xs sm:text-sm gap-2"
         >
           <ShoppingCart className="w-4 h-4" />
           Auto Reorder
@@ -451,6 +452,32 @@ export function InventoryForecastContent() {
           onFilterChange={handleFilterChange}
           onRowClick={setSelectedProduct}
           exportFilename="prediksi-stok"
+          mobileRender={(row) => {
+            const riskColors: Record<string, string> = { critical: "bg-red-100 text-red-700", warning: "bg-amber-100 text-amber-700", low: "bg-blue-100 text-blue-700", safe: "bg-emerald-100 text-emerald-700" };
+            const riskLabels: Record<string, string> = { critical: "Kritis", warning: "Waspada", low: "Rendah", safe: "Aman" };
+            const trendIcons: Record<string, string> = { up: "↑", down: "↓", stable: "→" };
+            return (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{row.productName}</p>
+                    <p className="text-[10px] text-muted-foreground">{row.categoryName}{row.supplierName ? ` • ${row.supplierName}` : ""}</p>
+                  </div>
+                  <Badge className={`shrink-0 text-[10px] rounded-full ${riskColors[row.riskLevel] ?? "bg-gray-100 text-gray-600"}`}>
+                    {riskLabels[row.riskLevel] ?? row.riskLevel}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className={row.currentStock <= row.minStock ? "text-red-600 font-semibold" : "text-muted-foreground"}>Stok: {row.currentStock}</span>
+                  <span className="text-muted-foreground">Avg: {row.avgDailySales.toFixed(1)}/hari</span>
+                  <span className="text-muted-foreground">{trendIcons[row.trend] ?? ""} {row.daysUntilStockout > 999 ? "999+" : row.daysUntilStockout} hari</span>
+                </div>
+                {row.recommendedReorderQty > 0 && (
+                  <p className="text-[10px] text-blue-600 font-medium">Reorder: {row.recommendedReorderQty} pcs</p>
+                )}
+              </div>
+            );
+          }}
           emptyIcon={<Package className="w-10 h-10 text-slate-300" />}
           emptyTitle="Tidak ada produk ditemukan"
           emptyDescription="Coba ubah filter atau kata kunci pencarian"

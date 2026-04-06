@@ -155,20 +155,39 @@ export function SettingsContent() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="rounded-2xl h-12 flex w-full bg-muted/50 p-1.5 gap-1 overflow-x-auto scrollbar-hide">
-                    <TabsTrigger value="pos" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                {/* Mobile: 5 equal tabs in grid */}
+                <TabsList className="sm:hidden grid grid-cols-5 w-full h-auto bg-muted/50 rounded-2xl p-1.5 gap-1">
+                    <TabsTrigger value="pos" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <ShoppingCart className="w-4 h-4" /> POS
                     </TabsTrigger>
-                    <TabsTrigger value="store" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Store className="w-4 h-4" /> <span className="hidden sm:inline">Toko &</span> Struk
+                    <TabsTrigger value="store" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Store className="w-4 h-4" /> Struk
                     </TabsTrigger>
-                    <TabsTrigger value="earn" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Coins className="w-4 h-4" /> <span className="hidden sm:inline">Perolehan</span> Poin
+                    <TabsTrigger value="earn" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Coins className="w-4 h-4" /> Poin
                     </TabsTrigger>
-                    <TabsTrigger value="redeem" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                    <TabsTrigger value="redeem" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <ArrowRightLeft className="w-4 h-4" /> Tukar
+                    </TabsTrigger>
+                    <TabsTrigger value="levels" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <TrendingUp className="w-4 h-4" /> Level
+                    </TabsTrigger>
+                </TabsList>
+                {/* Desktop: horizontal tabs */}
+                <TabsList className="hidden sm:flex rounded-2xl h-12 w-full bg-muted/50 p-1.5 gap-1">
+                    <TabsTrigger value="pos" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <ShoppingCart className="w-4 h-4" /> POS
+                    </TabsTrigger>
+                    <TabsTrigger value="store" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Store className="w-4 h-4" /> Toko & Struk
+                    </TabsTrigger>
+                    <TabsTrigger value="earn" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Coins className="w-4 h-4" /> Perolehan Poin
+                    </TabsTrigger>
+                    <TabsTrigger value="redeem" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <ArrowRightLeft className="w-4 h-4" /> Penukaran
                     </TabsTrigger>
-                    <TabsTrigger value="levels" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                    <TabsTrigger value="levels" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <TrendingUp className="w-4 h-4" /> Level
                     </TabsTrigger>
                 </TabsList>

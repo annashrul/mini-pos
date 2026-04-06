@@ -132,7 +132,7 @@ export function ForecastDetailDialog({ product, onClose, branchId }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 mt-2">
+        <div className="space-y-4 sm:space-y-6 mt-2">
           {/* Info row */}
           <div className="flex flex-wrap items-center gap-2">
             <TrendBadge />
@@ -146,14 +146,14 @@ export function ForecastDetailDialog({ product, onClose, branchId }: Props) {
           </div>
 
           {/* Metrics grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             {[
               { label: "Stok Saat Ini", value: `${product.currentStock} unit`, icon: Package, color: "text-violet-600 bg-violet-50" },
               { label: "Rata-rata/Hari", value: `${product.avgDailySales} unit`, icon: Calendar, color: "text-blue-600 bg-blue-50" },
               { label: "Penjualan Puncak", value: `${peak} unit`, icon: TrendingUp, color: "text-emerald-600 bg-emerald-50" },
               { label: "Penjualan Minimum", value: `${minDay} unit`, icon: TrendingDown, color: "text-slate-600 bg-slate-50" },
             ].map(m => (
-              <div key={m.label} className="rounded-xl border border-slate-100 p-3">
+              <div key={m.label} className="rounded-xl border border-slate-100 p-2.5 sm:p-3">
                 <div className={`w-8 h-8 rounded-lg ${m.color} flex items-center justify-center mb-2`}>
                   <m.icon className="w-4 h-4" />
                 </div>
@@ -164,8 +164,8 @@ export function ForecastDetailDialog({ product, onClose, branchId }: Props) {
           </div>
 
           {/* Sales Trend Chart */}
-          <div className="rounded-xl border border-slate-100 p-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Tren Penjualan (30 Hari Terakhir)</h3>
+          <div className="rounded-xl border border-slate-100 p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-3">Tren Penjualan (30 Hari Terakhir)</h3>
             {isPending ? (
               <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Memuat data...</div>
             ) : (
@@ -188,8 +188,8 @@ export function ForecastDetailDialog({ product, onClose, branchId }: Props) {
           </div>
 
           {/* Projected Stock Chart */}
-          <div className="rounded-xl border border-slate-100 p-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Proyeksi Level Stok (30 Hari ke Depan)</h3>
+          <div className="rounded-xl border border-slate-100 p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-semibold text-slate-700 mb-3">Proyeksi Level Stok (30 Hari ke Depan)</h3>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={projectedStock} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
                 <defs>
@@ -228,22 +228,22 @@ export function ForecastDetailDialog({ product, onClose, branchId }: Props) {
 
           {/* Reorder Recommendation */}
           {product.recommendedReorderQty > 0 && (
-            <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4">
+            <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 sm:p-4">
               <div className="flex items-center gap-2 mb-2">
                 <ShoppingCart className="w-4 h-4 text-violet-600" />
-                <h3 className="text-sm font-semibold text-violet-700">Rekomendasi Pemesanan</h3>
+                <h3 className="text-xs sm:text-sm font-semibold text-violet-700">Rekomendasi Pemesanan</h3>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-violet-700">{product.recommendedReorderQty}</p>
+                  <p className="text-sm sm:text-2xl font-bold text-violet-700">{product.recommendedReorderQty}</p>
                   <p className="text-xs text-violet-500">Unit direkomendasikan</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-violet-700">{formatCurrency(product.recommendedReorderQty * product.purchasePrice)}</p>
+                  <p className="text-sm sm:text-2xl font-bold text-violet-700">{formatCurrency(product.recommendedReorderQty * product.purchasePrice)}</p>
                   <p className="text-xs text-violet-500">Estimasi biaya</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-violet-700">{Math.ceil(product.recommendedReorderQty / Math.max(product.avgDailySales, 0.1))}</p>
+                  <p className="text-sm sm:text-2xl font-bold text-violet-700">{Math.ceil(product.recommendedReorderQty / Math.max(product.avgDailySales, 0.1))}</p>
                   <p className="text-xs text-violet-500">Hari tercukupi</p>
                 </div>
               </div>

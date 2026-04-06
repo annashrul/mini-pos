@@ -81,14 +81,14 @@ export function ReportsContent() {
     }
 
     return (
-        <div className={`space-y-8 transition-opacity duration-300 ${isFiltering ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
+        <div className={`space-y-4 sm:space-y-8 transition-opacity duration-300 ${isFiltering ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
             {/* Header Section */}
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4">
                 <div className="space-y-1">
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                    <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
                         Analytics & Reports
                     </h1>
-                    <p className="text-muted-foreground text-[15px]">
+                    <p className="text-muted-foreground text-xs sm:text-sm">
                         Pantau performa bisnis Anda secara real-time
                     </p>
                 </div>
@@ -115,7 +115,7 @@ export function ReportsContent() {
             </div>
 
             {/* Date Range Filter */}
-            <Card className="rounded-2xl shadow-sm border border-border/40 bg-white/80 backdrop-blur-sm">
+            <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/40 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-4">
                     <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
@@ -152,36 +152,38 @@ export function ReportsContent() {
             <ReportsOverviewSection profitLoss={profitLoss} overview={overview} />
 
             {/* Sales Charts with Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-5">
-                <div className="flex items-center justify-between">
-                    <TabsList className="rounded-2xl bg-slate-100/80 p-1 h-11">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-5">
+                <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+                    <TabsList className="inline-flex rounded-2xl bg-slate-100/80 p-1 h-10 sm:h-11 gap-0.5 min-w-max">
                         <TabsTrigger
                             value="daily"
-                            className="rounded-xl px-5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+                            className="rounded-xl px-3 sm:px-5 text-xs sm:text-sm font-semibold whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                         >
-                            Harian (30 Hari)
+                            <span className="hidden sm:inline">Harian (30 Hari)</span>
+                            <span className="sm:hidden">Harian</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="monthly"
-                            className="rounded-xl px-5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+                            className="rounded-xl px-3 sm:px-5 text-xs sm:text-sm font-semibold whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                         >
-                            Bulanan (12 Bulan)
+                            <span className="hidden sm:inline">Bulanan (12 Bulan)</span>
+                            <span className="sm:hidden">Bulanan</span>
                         </TabsTrigger>
                         <TabsTrigger
                             value="category"
-                            className="rounded-xl px-5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+                            className="rounded-xl px-3 sm:px-5 text-xs sm:text-sm font-semibold whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                         >
                             Kategori
                         </TabsTrigger>
                         <TabsTrigger
                             value="supplier"
-                            className="rounded-xl px-5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+                            className="rounded-xl px-3 sm:px-5 text-xs sm:text-sm font-semibold whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                         >
                             Supplier
                         </TabsTrigger>
                         <TabsTrigger
                             value="cashier"
-                            className="rounded-xl px-5 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
+                            className="rounded-xl px-3 sm:px-5 text-xs sm:text-sm font-semibold whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all duration-200"
                         >
                             Kasir
                         </TabsTrigger>

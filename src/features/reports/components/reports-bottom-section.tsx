@@ -45,16 +45,16 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
   return (
     <>
       {/* Payment Methods & Hourly Sales */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-          <CardHeader className="pb-2">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+          <CardHeader className="pb-2 p-3 sm:p-5">
             <div>
-              <CardTitle className="text-base font-semibold">Metode Pembayaran</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-semibold">Metode Pembayaran</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">Distribusi berdasarkan metode</p>
             </div>
           </CardHeader>
-          <CardContent className="pt-2 pb-4">
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="pt-2 pb-4 px-3 sm:px-5">
+            <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
               <BarChart data={paymentMethods} barSize={36}>
                 <defs>
                   <linearGradient id="paymentBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -83,15 +83,15 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-          <CardHeader className="pb-2">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+          <CardHeader className="pb-2 p-3 sm:p-5">
             <div>
-              <CardTitle className="text-base font-semibold">Jam Penjualan</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-semibold">Jam Penjualan</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">Distribusi transaksi per jam</p>
             </div>
           </CardHeader>
-          <CardContent className="pt-2 pb-4">
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="pt-2 pb-4 px-3 sm:px-5">
+            <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
               <AreaChart data={hourlySales}>
                 <defs>
                   <linearGradient id="hourlyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -123,15 +123,15 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
       </div>
 
       {/* Cashier Performance & Category Sales */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-          <CardHeader className="pb-3">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+          <CardHeader className="pb-3 p-3 sm:p-5">
             <div>
-              <CardTitle className="text-base font-semibold">Top Kasir</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-semibold">Top Kasir</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">Performa kasir terbaik</p>
             </div>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 px-3 sm:px-5">
             <Table>
               <TableHeader>
                 <TableRow className="border-border/30 hover:bg-transparent">
@@ -178,15 +178,15 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-          <CardHeader className="pb-2">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+          <CardHeader className="pb-2 p-3 sm:p-5">
             <div>
-              <CardTitle className="text-base font-semibold">Penjualan per Kategori</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-semibold">Penjualan per Kategori</CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">Breakdown berdasarkan kategori produk</p>
             </div>
           </CardHeader>
-          <CardContent className="pt-2 pb-4">
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="pt-2 pb-4 px-3 sm:px-5">
+            <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
               <BarChart data={overview.categorySales} barSize={36}>
                 <defs>
                   <linearGradient id="categoryBarGradient" x1="0" y1="0" x2="0" y2="1">
@@ -210,8 +210,8 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
       </div>
 
       {/* Top Products */}
-      <Card className="rounded-2xl shadow-sm border border-border/30 bg-white">
-        <CardHeader className="pb-3">
+      <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 bg-white">
+        <CardHeader className="pb-3 p-3 sm:p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-amber-50 rounded-xl">
@@ -232,13 +232,14 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="pt-0 px-3 sm:px-5">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border/30 hover:bg-transparent">
                 <TableHead className="w-14 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Rank</TableHead>
                 <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Produk</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Kode</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hidden sm:table-cell">Kode</TableHead>
                 <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Qty Terjual</TableHead>
                 <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Total Penjualan</TableHead>
               </TableRow>
@@ -259,7 +260,7 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
                     </div>
                   </TableCell>
                   <TableCell className="font-medium text-sm py-3.5">{product.productName}</TableCell>
-                  <TableCell className="py-3.5">
+                  <TableCell className="py-3.5 hidden sm:table-cell">
                     <code className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-md font-mono">
                       {product.productCode}
                     </code>
@@ -291,6 +292,7 @@ export function ReportsBottomSection({ paymentMethods, hourlySales, topProducts,
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </>

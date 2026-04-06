@@ -550,6 +550,32 @@ export function BundlesContent() {
                     },
                 }]}
                 exportFilename="paket-produk"
+                mobileRender={(row) => {
+                    const savings = row.totalBasePrice - row.sellingPrice;
+                    return (
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold truncate">{row.name}</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono">{row.code}</p>
+                                </div>
+                                <Badge className={`shrink-0 text-[10px] rounded-full ${row.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                                    {row.isActive ? "Aktif" : "Nonaktif"}
+                                </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{row.items.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")}</p>
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-primary tabular-nums">{formatCurrency(row.sellingPrice)}</span>
+                                {savings > 0 && (
+                                    <>
+                                        <span className="text-[10px] text-muted-foreground line-through tabular-nums">{formatCurrency(row.totalBasePrice)}</span>
+                                        <span className="text-[10px] font-medium text-green-600">Hemat {formatCurrency(savings)}</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    );
+                }}
                 emptyIcon={<PackageOpen className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Belum ada paket produk"
                 emptyDescription="Buat paket bundling untuk menawarkan produk dengan harga spesial"

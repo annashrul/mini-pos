@@ -20,13 +20,13 @@ interface AnalyticsSupplierSectionProps {
 export function AnalyticsSupplierSection({ supplierRanking, supplierDebt }: AnalyticsSupplierSectionProps) {
   return (
     <TabsContent value="supplierintel">
-      <div className="space-y-6">
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+      <div className="space-y-4 sm:space-y-6">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <SectionHeader icon={Truck} title="Supplier Ranking" description="Peringkat supplier berdasarkan volume dan nilai PO" accentColor="blue" />
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
@@ -56,12 +56,12 @@ export function AnalyticsSupplierSection({ supplierRanking, supplierDebt }: Anal
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <SectionHeader icon={DollarSign} title="Supplier Debt Tracking" description="Monitoring hutang ke setiap supplier" accentColor="red" />
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">

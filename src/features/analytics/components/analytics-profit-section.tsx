@@ -25,20 +25,20 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
     <>
       {/* ═══════════════════ Cashier Performance ═══════════════════ */}
       <TabsContent value="cashier">
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <SectionHeader icon={Users} title="Performa Kasir (30 Hari)" description="Ranking kasir berdasarkan transaksi dan revenue" accentColor="blue" />
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 w-16">Rank</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kasir</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Transaksi</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Transaksi</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Total Revenue</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Avg/Transaksi</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Avg/Transaksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -48,11 +48,11 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
                       <TableCell>
                         <span className="font-medium text-slate-800">{c.name}</span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right hidden sm:table-cell">
                         <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold">{c.transactions}</span>
                       </TableCell>
                       <TableCell className="text-right font-semibold text-slate-800 tabular-nums">{formatCurrency(c.revenue)}</TableCell>
-                      <TableCell className="text-right text-sm text-slate-500 tabular-nums">{formatCurrency(c.avgTransaction)}</TableCell>
+                      <TableCell className="text-right text-sm text-slate-500 tabular-nums hidden sm:table-cell">{formatCurrency(c.avgTransaction)}</TableCell>
                     </TableRow>
                   ))}
                   {cashierPerf.length === 0 && <EmptyState icon={Users} message="Belum ada data performa kasir" colSpan={5} />}
@@ -65,14 +65,14 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
 
       {/* ═══════════════════ Daily Profit ═══════════════════ */}
       <TabsContent value="dailyprofit">
-        <div className="space-y-6">
-          <Card className="rounded-2xl shadow-sm border-border/30">
-            <CardHeader className="pb-4">
+        <div className="space-y-4 sm:space-y-6">
+          <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+            <CardHeader className="pb-4 p-3 sm:p-5">
               <SectionHeader icon={DollarSign} title="Laba Harian (30 Hari Terakhir)" description="Tren pendapatan, biaya, dan profit harian" accentColor="emerald" />
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="rounded-xl bg-slate-50/50 p-4">
-                <ResponsiveContainer width="100%" height={380}>
+            <CardContent className="space-y-4 sm:space-y-6 px-3 sm:px-5">
+              <div className="rounded-xl bg-slate-50/50 p-2 sm:p-4">
+                <ResponsiveContainer width="100%" height={180} className="sm:!h-[280px]">
                   <AreaChart data={dailyProfit}>
                     <defs>
                       <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
@@ -123,13 +123,13 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-100 overflow-hidden">
+              <div className="rounded-xl border border-slate-100 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Tanggal</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Revenue</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Cost</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right hidden sm:table-cell">Cost</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Profit</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -138,7 +138,7 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
                       <TableRow key={d.date} className="hover:bg-emerald-50/30 transition-colors">
                         <TableCell className="font-medium text-slate-700">{d.date}</TableCell>
                         <TableCell className="text-right text-sm text-blue-600 tabular-nums font-medium">{formatCurrency(d.revenue)}</TableCell>
-                        <TableCell className="text-right text-sm text-orange-600 tabular-nums">{formatCurrency(d.cost)}</TableCell>
+                        <TableCell className="text-right text-sm text-orange-600 tabular-nums hidden sm:table-cell">{formatCurrency(d.cost)}</TableCell>
                         <TableCell className="text-right tabular-nums">
                           <span className={`font-semibold ${d.profit >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                             {formatCurrency(d.profit)}
@@ -157,18 +157,18 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
 
       {/* ═══════════════════ Shift Profit ═══════════════════ */}
       <TabsContent value="shiftprofit">
-        <Card className="rounded-2xl shadow-sm border-border/30">
-          <CardHeader className="pb-4">
+        <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30">
+          <CardHeader className="pb-4 p-3 sm:p-5">
             <SectionHeader icon={Timer} title="Laba per Shift" description="Performa pendapatan setiap shift kasir" accentColor="purple" />
           </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border border-slate-100 overflow-hidden">
+          <CardContent className="px-3 sm:px-5">
+            <div className="rounded-xl border border-slate-100 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kasir</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Mulai</TableHead>
-                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selesai</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Mulai</TableHead>
+                    <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Selesai</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Transaksi</TableHead>
                     <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-right">Revenue</TableHead>
                   </TableRow>
@@ -177,8 +177,8 @@ export function AnalyticsProfitSection({ dailyProfit, shiftProfit, cashierPerf }
                   {shiftProfit.map((s) => (
                     <TableRow key={s.shiftId} className="hover:bg-purple-50/30 transition-colors">
                       <TableCell className="font-medium text-slate-800">{s.cashier}</TableCell>
-                      <TableCell className="text-sm text-slate-500">{new Date(s.openedAt).toLocaleString("id-ID")}</TableCell>
-                      <TableCell className="text-sm text-slate-500">{new Date(s.closedAt).toLocaleString("id-ID")}</TableCell>
+                      <TableCell className="text-sm text-slate-500 hidden sm:table-cell">{new Date(s.openedAt).toLocaleString("id-ID")}</TableCell>
+                      <TableCell className="text-sm text-slate-500 hidden sm:table-cell">{new Date(s.closedAt).toLocaleString("id-ID")}</TableCell>
                       <TableCell className="text-right">
                         <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-xs font-semibold">{s.transactions}</span>
                       </TableCell>

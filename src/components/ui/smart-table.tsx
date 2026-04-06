@@ -399,14 +399,20 @@ export function SmartTable<T>({
                                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                                 >
                                     {mobileRender ? (
-                                        /* Custom mobile render from each page */
+                                        /* Custom mobile render + auto-appended actions */
                                         <div className="p-3">
-                                            {selectable && (
-                                                <div className="float-right ml-2">
-                                                    <Checkbox checked={isSelected} onCheckedChange={() => toggleRow(id)} onClick={(e) => e.stopPropagation()} />
+                                            <div className="flex items-start gap-2">
+                                                {selectable && (
+                                                    <Checkbox checked={isSelected} onCheckedChange={() => toggleRow(id)} className="mt-0.5 shrink-0" onClick={(e) => e.stopPropagation()} />
+                                                )}
+                                                <div className="flex-1 min-w-0">{mobileRender(row, i)}</div>
+                                            </div>
+                                            {/* Action column — always shown at bottom of card */}
+                                            {columns.find((c) => c.sticky) && (
+                                                <div className="mt-2 pt-2 border-t border-border/30 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                                                    {columns.find((c) => c.sticky)!.render(row, i)}
                                                 </div>
                                             )}
-                                            {mobileRender(row, i)}
                                         </div>
                                     ) : (
                                         /* Default fallback: auto-layout from columns */
