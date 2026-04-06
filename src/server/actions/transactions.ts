@@ -36,7 +36,14 @@ interface CartItem {
 }
 
 interface PaymentEntry {
-  method: "CASH" | "TRANSFER" | "QRIS" | "EWALLET" | "DEBIT" | "CREDIT_CARD" | "TERMIN";
+  method:
+    | "CASH"
+    | "TRANSFER"
+    | "QRIS"
+    | "EWALLET"
+    | "DEBIT"
+    | "CREDIT_CARD"
+    | "TERMIN";
   amount: number;
   reference?: string;
 }
@@ -124,20 +131,32 @@ export async function createTransaction(input: CreateTransactionInput) {
 
   // Check if stock validation is enabled (branch-specific first, then global)
   let validateStockSetting = input.branchId
-    ? await prisma.setting.findFirst({ where: { key: "pos.validateStock", branchId: input.branchId } })
+    ? await prisma.setting.findFirst({
+        where: { key: "pos.validateStock", branchId: input.branchId },
+      })
     : null;
   if (!validateStockSetting) {
-    validateStockSetting = await prisma.setting.findFirst({ where: { key: "pos.validateStock", branchId: null } });
+    validateStockSetting = await prisma.setting.findFirst({
+      where: { key: "pos.validateStock", branchId: null },
+    });
   }
   const shouldValidateStock = validateStockSetting?.value !== "false";
 
   try {
     // Separate regular items and bundle items
-    const regularItems = input.items.filter((i) => !i.productId.startsWith("bundle:"));
-    const bundleItems = input.items.filter((i) => i.productId.startsWith("bundle:"));
+    const regularItems = input.items.filter(
+      (i) => !i.productId.startsWith("bundle:"),
+    );
+    const bundleItems = input.items.filter((i) =>
+      i.productId.startsWith("bundle:"),
+    );
 
     // Flatten bundle components for stock validation
-    const bundleComponents: { productId: string; productName: string; quantity: number }[] = [];
+    const bundleComponents: {
+      productId: string;
+      productName: string;
+      quantity: number;
+    }[] = [];
     for (const bundle of bundleItems) {
       if (bundle.bundleItems) {
         for (const comp of bundle.bundleItems) {
@@ -152,187 +171,254 @@ export async function createTransaction(input: CreateTransactionInput) {
 
     // All product IDs that need stock validation
     const allStockItems = [
-      ...regularItems.map((i) => ({ productId: i.productId, productName: i.productName, quantity: i.quantity * (i.conversionQty || 1) })),
+      ...regularItems.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        quantity: i.quantity * (i.conversionQty || 1),
+      })),
       ...bundleComponents,
     ];
-
-    const transaction = await prisma.$transaction(async (tx) => {
-      // Check stock availability (skip if validation disabled)
-      if (shouldValidateStock && allStockItems.length > 0) {
-        const productIds = allStockItems.map((i) => i.productId);
-        if (input.branchId) {
-          const branchStocks = await tx.branchStock.findMany({
-            where: { branchId: input.branchId, productId: { in: productIds } },
-          });
-          const stockMap = new Map(branchStocks.map(bs => [bs.productId, bs.quantity]));
-          for (const item of allStockItems) {
-            const available = stockMap.get(item.productId) ?? 0;
-            if (available < item.quantity) {
-              throw new Error(`Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`);
-            }
-          }
-        } else {
-          const products = await tx.product.findMany({
-            where: { id: { in: productIds } },
-            select: { id: true, name: true, stock: true },
-          });
-          const stockMap = new Map(products.map(p => [p.id, p.stock]));
-          for (const item of allStockItems) {
-            const stock = stockMap.get(item.productId);
-            if (stock === undefined) throw new Error(`Produk ${item.productName} tidak ditemukan`);
-            if (stock < item.quantity) {
-              throw new Error(`Stok ${item.productName} tidak mencukupi (sisa: ${stock})`);
-            }
-          }
-        }
-      }
-
-      // Validate regular products exist (skip bundle: prefixed items)
-      const regularProductIds = regularItems.map((i) => i.productId);
-      const bundleComponentIds = bundleComponents.map((i) => i.productId);
-      const allRealProductIds = [...new Set([...regularProductIds, ...bundleComponentIds])];
-      if (allRealProductIds.length > 0) {
-        const existingProducts = await tx.product.findMany({
-          where: { id: { in: allRealProductIds } },
-          select: { id: true },
-        });
-        const existingIds = new Set(existingProducts.map((p) => p.id));
-        for (const item of regularItems) {
-          if (!existingIds.has(item.productId)) {
-            throw new Error(`Produk "${item.productName}" tidak ditemukan. Muat ulang halaman POS.`);
-          }
-        }
-      }
-
-      // Determine primary payment method (highest amount or first)
-      const paymentsData =
-        input.payments && input.payments.length > 0
-          ? input.payments
-          : [{ method: input.paymentMethod, amount: input.paymentAmount }];
-      const primaryMethod = paymentsData.reduce((a, b) =>
-        a.amount >= b.amount ? a : b,
-      ).method;
-      const totalPaid = paymentsData.reduce((s, p) => s + p.amount, 0);
-
-      // Create transaction
-      const newTx = await tx.transaction.create({
-        data: {
-          invoiceNumber,
-          userId,
-          branchId: input.branchId || null,
-          customerId: input.customerId || null,
-          subtotal: input.subtotal,
-          discountAmount: input.discountAmount,
-          taxAmount: input.taxAmount,
-          grandTotal: input.grandTotal,
-          paymentMethod: primaryMethod as never,
-          paymentAmount: totalPaid,
-          changeAmount: input.changeAmount,
-          promoApplied: input.promoApplied || null,
-          notes: input.notes || null,
-          status: "COMPLETED",
-          items: {
-            create: input.items.map((item) => {
-              // For bundles, use first component's productId as reference
-              const isBundle = item.productId.startsWith("bundle:");
-              const refProductId = isBundle && item.bundleItems?.[0]
-                ? item.bundleItems[0].productId
-                : item.productId;
-              return {
-                productId: refProductId,
-                productName: item.productName,
-                productCode: item.productCode,
-                quantity: item.quantity,
-                unitName: isBundle ? "PAKET" : (item.unitName || "PCS"),
-                conversionQty: item.conversionQty || 1,
-                baseQty: item.quantity * (item.conversionQty || 1),
-                unitPrice: item.unitPrice,
-                discount: item.discount,
-                subtotal: item.subtotal,
-              };
-            }),
-          },
-          payments: {
-            create: paymentsData.map((p) => ({
-              method: p.method as never,
-              amount: p.amount,
-              reference: (p as PaymentEntry).reference || null,
-            })),
-          },
-        },
-        include: { items: true },
+    const aggregatedStockMap = new Map<
+      string,
+      { productName: string; quantity: number }
+    >();
+    for (const it of allStockItems) {
+      const prev = aggregatedStockMap.get(it.productId);
+      aggregatedStockMap.set(it.productId, {
+        productName: prev?.productName ?? it.productName,
+        quantity: (prev?.quantity ?? 0) + it.quantity,
       });
+    }
+    const aggregatedStockItems = Array.from(aggregatedStockMap.entries()).map(
+      ([productId, v]) => ({
+        productId,
+        productName: v.productName,
+        quantity: v.quantity,
+      }),
+    );
 
-      if (input.promoIds && input.promoIds.length > 0) {
-        await tx.promotion.updateMany({
-          where: { id: { in: Array.from(new Set(input.promoIds)) } },
-          data: { usageCount: { increment: 1 } },
+    const transaction = await prisma.$transaction(
+      async (tx) => {
+        // Check stock availability (skip if validation disabled)
+        if (shouldValidateStock && aggregatedStockItems.length > 0) {
+          const productIds = aggregatedStockItems.map((i) => i.productId);
+          if (input.branchId) {
+            const branchStocks = await tx.branchStock.findMany({
+              where: {
+                branchId: input.branchId,
+                productId: { in: productIds },
+              },
+            });
+            const stockMap = new Map(
+              branchStocks.map((bs) => [bs.productId, bs.quantity]),
+            );
+            for (const item of aggregatedStockItems) {
+              const available = stockMap.get(item.productId) ?? 0;
+              if (available < item.quantity) {
+                throw new Error(
+                  `Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`,
+                );
+              }
+            }
+          } else {
+            const products = await tx.product.findMany({
+              where: { id: { in: productIds } },
+              select: { id: true, name: true, stock: true },
+            });
+            const stockMap = new Map(products.map((p) => [p.id, p.stock]));
+            for (const item of aggregatedStockItems) {
+              const stock = stockMap.get(item.productId);
+              if (stock === undefined)
+                throw new Error(`Produk ${item.productName} tidak ditemukan`);
+              if (stock < item.quantity) {
+                throw new Error(
+                  `Stok ${item.productName} tidak mencukupi (sisa: ${stock})`,
+                );
+              }
+            }
+          }
+        }
+
+        // Validate regular products exist (skip bundle: prefixed items)
+        const regularProductIds = regularItems.map((i) => i.productId);
+        const bundleComponentIds = bundleComponents.map((i) => i.productId);
+        const allRealProductIds = [
+          ...new Set([...regularProductIds, ...bundleComponentIds]),
+        ];
+        if (allRealProductIds.length > 0) {
+          const existingProducts = await tx.product.findMany({
+            where: { id: { in: allRealProductIds } },
+            select: { id: true },
+          });
+          const existingIds = new Set(existingProducts.map((p) => p.id));
+          for (const item of regularItems) {
+            if (!existingIds.has(item.productId)) {
+              throw new Error(
+                `Produk "${item.productName}" tidak ditemukan. Muat ulang halaman POS.`,
+              );
+            }
+          }
+        }
+
+        // Determine primary payment method (highest amount or first)
+        const paymentsData =
+          input.payments && input.payments.length > 0
+            ? input.payments
+            : [{ method: input.paymentMethod, amount: input.paymentAmount }];
+        const primaryMethod = paymentsData.reduce((a, b) =>
+          a.amount >= b.amount ? a : b,
+        ).method;
+        const totalPaid = paymentsData.reduce((s, p) => s + p.amount, 0);
+
+        // Create transaction
+        const newTx = await tx.transaction.create({
+          data: {
+            invoiceNumber,
+            userId,
+            branchId: input.branchId || null,
+            customerId: input.customerId || null,
+            subtotal: input.subtotal,
+            discountAmount: input.discountAmount,
+            taxAmount: input.taxAmount,
+            grandTotal: input.grandTotal,
+            paymentMethod: primaryMethod as never,
+            paymentAmount: totalPaid,
+            changeAmount: input.changeAmount,
+            promoApplied: input.promoApplied || null,
+            notes: input.notes || null,
+            status: "COMPLETED",
+            items: {
+              create: input.items.map((item) => {
+                // For bundles, use first component's productId as reference
+                const isBundle = item.productId.startsWith("bundle:");
+                const refProductId =
+                  isBundle && item.bundleItems?.[0]
+                    ? item.bundleItems[0].productId
+                    : item.productId;
+                return {
+                  productId: refProductId,
+                  productName: item.productName,
+                  productCode: item.productCode,
+                  quantity: item.quantity,
+                  unitName: isBundle ? "PAKET" : item.unitName || "PCS",
+                  conversionQty: item.conversionQty || 1,
+                  baseQty: item.quantity * (item.conversionQty || 1),
+                  unitPrice: item.unitPrice,
+                  discount: item.discount,
+                  subtotal: item.subtotal,
+                };
+              }),
+            },
+            payments: {
+              create: paymentsData.map((p) => ({
+                method: p.method as never,
+                amount: p.amount,
+                reference: (p as PaymentEntry).reference || null,
+              })),
+            },
+          },
+          include: { items: true },
         });
-      }
 
-      // Update stock & create stock movements
-      // Build stock deduction list: regular items + exploded bundle components
-      const stockDeductions: { productId: string; quantity: number; note: string }[] = [];
-      for (const item of input.items) {
-        if (item.productId.startsWith("bundle:") && item.bundleItems) {
-          // Bundle: deduct stock for each component
-          for (const comp of item.bundleItems) {
+        if (input.promoIds && input.promoIds.length > 0) {
+          await tx.promotion.updateMany({
+            where: { id: { in: Array.from(new Set(input.promoIds)) } },
+            data: { usageCount: { increment: 1 } },
+          });
+        }
+
+        // Update stock & create stock movements
+        // Build stock deduction list: regular items + exploded bundle components
+        const stockDeductions: {
+          productId: string;
+          quantity: number;
+          note: string;
+        }[] = [];
+        for (const item of input.items) {
+          if (item.productId.startsWith("bundle:") && item.bundleItems) {
+            // Bundle: deduct stock for each component
+            for (const comp of item.bundleItems) {
+              stockDeductions.push({
+                productId: comp.productId,
+                quantity: comp.quantity * item.quantity,
+                note: `Penjualan ${invoiceNumber} (${item.productName})`,
+              });
+            }
+          } else {
+            // Regular item
             stockDeductions.push({
-              productId: comp.productId,
-              quantity: comp.quantity * item.quantity,
-              note: `Penjualan ${invoiceNumber} (${item.productName})`,
+              productId: item.productId,
+              quantity: item.quantity * (item.conversionQty || 1),
+              note: `Penjualan ${invoiceNumber}`,
             });
           }
-        } else {
-          // Regular item
-          stockDeductions.push({
-            productId: item.productId,
-            quantity: item.quantity * (item.conversionQty || 1),
-            note: `Penjualan ${invoiceNumber}`,
+        }
+
+        const aggregatedDeductions = new Map<
+          string,
+          { quantity: number; note: string }
+        >();
+        for (const d of stockDeductions) {
+          const prev = aggregatedDeductions.get(d.productId);
+          aggregatedDeductions.set(d.productId, {
+            quantity: (prev?.quantity ?? 0) + d.quantity,
+            note: prev?.note ?? d.note,
           });
         }
-      }
-
-      await Promise.all(stockDeductions.map(async (deduction) => {
-        const ops: Promise<unknown>[] = [
-          tx.product.update({
-            where: { id: deduction.productId },
-            data: { stock: { decrement: deduction.quantity } },
+        const uniqueDeductions = Array.from(aggregatedDeductions.entries()).map(
+          ([productId, v]) => ({
+            productId,
+            quantity: v.quantity,
+            note: v.note,
           }),
-          tx.stockMovement.create({
-            data: {
-              productId: deduction.productId,
-              branchId: input.branchId || null,
-              type: "OUT",
-              quantity: deduction.quantity,
-              note: deduction.note,
-              reference: invoiceNumber,
-            },
-          }),
-        ];
+        );
 
-        if (input.branchId) {
-          ops.push(
-            tx.branchStock.update({
-              where: {
-                branchId_productId: {
-                  branchId: input.branchId,
+        await Promise.all(
+          uniqueDeductions.map(async (deduction) => {
+            const ops: Promise<unknown>[] = [
+              tx.product.update({
+                where: { id: deduction.productId },
+                data: { stock: { decrement: deduction.quantity } },
+              }),
+              tx.stockMovement.create({
+                data: {
                   productId: deduction.productId,
+                  branchId: input.branchId || null,
+                  type: "OUT",
+                  quantity: deduction.quantity,
+                  note: deduction.note,
+                  reference: invoiceNumber,
                 },
-              },
-              data: { quantity: { decrement: deduction.quantity } },
-            })
-          );
-        }
+              }),
+            ];
 
-        return Promise.all(ops);
-      }));
+            if (input.branchId) {
+              ops.push(
+                tx.branchStock.update({
+                  where: {
+                    branchId_productId: {
+                      branchId: input.branchId,
+                      productId: deduction.productId,
+                    },
+                  },
+                  data: { quantity: { decrement: deduction.quantity } },
+                }),
+              );
+            }
 
-      return newTx;
-    });
+            return Promise.all(ops);
+          }),
+        );
+
+        return newTx;
+      },
+      { maxWait: 5000, timeout: 20000 },
+    );
 
     // Auto-create receivable debt for TERMIN payment
-    const terminPayment = (input.payments ?? []).find(p => p.method === "TERMIN");
+    const terminPayment = (input.payments ?? []).find(
+      (p) => p.method === "TERMIN",
+    );
     if (terminPayment && terminPayment.amount > 0) {
       let partyName = "Customer";
       if (input.customerId) {
@@ -393,28 +479,61 @@ export async function createTransaction(input: CreateTransactionInput) {
       revalidatePath("/debts");
     }
 
-    createAuditLog({ action: "CREATE", entity: "Transaction", entityId: transaction.id, details: { data: { invoiceNumber, grandTotal: input.grandTotal, paymentMethod: input.paymentMethod, itemCount: input.items.length, ...(terminPayment && terminPayment.amount > 0 ? { terminAmount: terminPayment.amount } : {}) } } }).catch(() => {});
+    createAuditLog({
+      action: "CREATE",
+      entity: "Transaction",
+      entityId: transaction.id,
+      details: {
+        data: {
+          invoiceNumber,
+          grandTotal: input.grandTotal,
+          paymentMethod: input.paymentMethod,
+          itemCount: input.items.length,
+          ...(terminPayment && terminPayment.amount > 0
+            ? { terminAmount: terminPayment.amount }
+            : {}),
+        },
+      },
+    }).catch(() => {});
 
-    emitEvent(EVENTS.TRANSACTION_CREATED, { invoiceNumber: transaction.invoiceNumber, grandTotal: input.grandTotal }, input.branchId);
+    emitEvent(
+      EVENTS.TRANSACTION_CREATED,
+      {
+        invoiceNumber: transaction.invoiceNumber,
+        grandTotal: input.grandTotal,
+      },
+      input.branchId,
+    );
 
     // Auto-create accounting journal
-    import("@/server/actions/accounting").then(({ createAutoJournal }) => {
-      createAutoJournal({
-        referenceType: "TRANSACTION",
-        referenceId: transaction.id,
-        ...(input.branchId ? { branchId: input.branchId } : {}),
-      });
-    }).catch(() => {});
+    import("@/server/actions/accounting")
+      .then(({ createAutoJournal }) => {
+        createAutoJournal({
+          referenceType: "TRANSACTION",
+          referenceId: transaction.id,
+          ...(input.branchId ? { branchId: input.branchId } : {}),
+        });
+      })
+      .catch(() => {});
 
     // Auto-create kitchen display order (if enabled)
-    import("@/server/actions/settings").then(async ({ getSetting }) => {
-      const kitchenEnabled = await getSetting("kitchen.enabled", input.branchId || null);
-      const autoSendKitchen = await getSetting("pos.autoSendKitchen", input.branchId || null);
-      if (kitchenEnabled === "true" || autoSendKitchen === "true") {
-        const { createOrderFromTransaction } = await import("@/server/actions/order-queue");
-        createOrderFromTransaction(transaction.id);
-      }
-    }).catch(() => {});
+    import("@/server/actions/settings")
+      .then(async ({ getSetting }) => {
+        const kitchenEnabled = await getSetting(
+          "kitchen.enabled",
+          input.branchId || null,
+        );
+        const autoSendKitchen = await getSetting(
+          "pos.autoSendKitchen",
+          input.branchId || null,
+        );
+        if (kitchenEnabled === "true" || autoSendKitchen === "true") {
+          const { createOrderFromTransaction } =
+            await import("@/server/actions/order-queue");
+          createOrderFromTransaction(transaction.id);
+        }
+      })
+      .catch(() => {});
 
     return {
       success: true,
@@ -539,7 +658,10 @@ export async function voidTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
-    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true, branchId: true } });
+    const tx0 = await prisma.transaction.findUnique({
+      where: { id },
+      select: { invoiceNumber: true, grandTotal: true, branchId: true },
+    });
 
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -552,24 +674,27 @@ export async function voidTransaction(id: string, reason: string) {
         throw new Error("Hanya transaksi COMPLETED yang bisa di-void");
 
       // Restore stock (use baseQty which accounts for unit conversion)
-      await Promise.all(transaction.items.map(async (item) => {
-        const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
-        return Promise.all([
-          tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: restoreQty } },
-          }),
-          tx.stockMovement.create({
-            data: {
-              productId: item.productId,
-              type: "IN",
-              quantity: restoreQty,
-              note: `Void transaksi ${transaction.invoiceNumber}`,
-              reference: transaction.invoiceNumber,
-            },
-          }),
-        ]);
-      }));
+      await Promise.all(
+        transaction.items.map(async (item) => {
+          const restoreQty =
+            item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
+          return Promise.all([
+            tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: restoreQty } },
+            }),
+            tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: "IN",
+                quantity: restoreQty,
+                note: `Void transaksi ${transaction.invoiceNumber}`,
+                reference: transaction.invoiceNumber,
+              },
+            }),
+          ]);
+        }),
+      );
 
       await tx.transaction.update({
         where: { id },
@@ -595,7 +720,18 @@ export async function voidTransaction(id: string, reason: string) {
     revalidatePath("/dashboard");
     revalidatePath("/products");
 
-    createAuditLog({ action: "VOID", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
+    createAuditLog({
+      action: "VOID",
+      entity: "Transaction",
+      entityId: id,
+      details: {
+        data: {
+          invoiceNumber: tx0?.invoiceNumber,
+          grandTotal: tx0?.grandTotal,
+          reason,
+        },
+      },
+    }).catch(() => {});
 
     emitEvent(EVENTS.TRANSACTION_VOIDED, { id }, tx0?.branchId || undefined);
 
@@ -614,7 +750,10 @@ export async function refundTransaction(id: string, reason: string) {
   const userId = authResult.userId;
 
   try {
-    const tx0 = await prisma.transaction.findUnique({ where: { id }, select: { invoiceNumber: true, grandTotal: true, branchId: true } });
+    const tx0 = await prisma.transaction.findUnique({
+      where: { id },
+      select: { invoiceNumber: true, grandTotal: true, branchId: true },
+    });
 
     await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -627,24 +766,27 @@ export async function refundTransaction(id: string, reason: string) {
         throw new Error("Hanya transaksi COMPLETED yang bisa di-refund");
 
       // Restore stock (use baseQty which accounts for unit conversion)
-      await Promise.all(transaction.items.map(async (item) => {
-        const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
-        return Promise.all([
-          tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: restoreQty } },
-          }),
-          tx.stockMovement.create({
-            data: {
-              productId: item.productId,
-              type: "IN",
-              quantity: restoreQty,
-              note: `Refund transaksi ${transaction.invoiceNumber}`,
-              reference: transaction.invoiceNumber,
-            },
-          }),
-        ]);
-      }));
+      await Promise.all(
+        transaction.items.map(async (item) => {
+          const restoreQty =
+            item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
+          return Promise.all([
+            tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: restoreQty } },
+            }),
+            tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: "IN",
+                quantity: restoreQty,
+                note: `Refund transaksi ${transaction.invoiceNumber}`,
+                reference: transaction.invoiceNumber,
+              },
+            }),
+          ]);
+        }),
+      );
 
       await tx.transaction.update({
         where: { id },
@@ -670,7 +812,18 @@ export async function refundTransaction(id: string, reason: string) {
     revalidatePath("/dashboard");
     revalidatePath("/products");
 
-    createAuditLog({ action: "REFUND", entity: "Transaction", entityId: id, details: { data: { invoiceNumber: tx0?.invoiceNumber, grandTotal: tx0?.grandTotal, reason } } }).catch(() => {});
+    createAuditLog({
+      action: "REFUND",
+      entity: "Transaction",
+      entityId: id,
+      details: {
+        data: {
+          invoiceNumber: tx0?.invoiceNumber,
+          grandTotal: tx0?.grandTotal,
+          reason,
+        },
+      },
+    }).catch(() => {});
 
     emitEvent(EVENTS.TRANSACTION_REFUNDED, { id }, tx0?.branchId || undefined);
 
