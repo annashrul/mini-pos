@@ -369,6 +369,31 @@ export function ProductsContent() {
                 data={data.products}
                 columns={columns}
                 totalItems={data.total}
+                mobileRender={(row) => (
+                    <div className="flex items-start gap-3">
+                        {row.imageUrl ? (
+                            <Image src={row.imageUrl} alt={row.name} width={40} height={40} className="w-10 h-10 rounded-xl object-cover shrink-0 border-2 border-border/40 shadow-sm" />
+                        ) : (
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center shrink-0 shadow-sm">
+                                <span className="text-sm font-bold text-white">{row.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="font-semibold text-sm truncate text-foreground">{row.name}</p>
+                                {renderStatusBadge(row)}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                                {row.code} &middot; {row.category.name}{row.brand ? ` \u00b7 ${row.brand.name}` : ""}
+                            </p>
+                            <p className="text-xs mt-1">
+                                <span className="font-semibold text-indigo-600">{formatCurrency(row.sellingPrice)}</span>
+                                <span className="text-muted-foreground"> &middot; Stok: </span>
+                                {renderStockBadge(row)}
+                            </p>
+                        </div>
+                    </div>
+                )}
                 totalPages={data.totalPages}
                 currentPage={page}
                 pageSize={pageSize}

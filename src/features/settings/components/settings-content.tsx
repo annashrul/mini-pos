@@ -114,14 +114,14 @@ export function SettingsContent() {
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-                        <Settings className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                        <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-bold text-foreground tracking-tight">Pengaturan</h1>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Pengaturan</h1>
                             {selectedBranchId ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
                                     <MapPin className="w-3 h-3" />
@@ -141,7 +141,7 @@ export function SettingsContent() {
                     <Button
                         onClick={handleSave}
                         disabled={!canUpdate || isSaving || !hasChanges}
-                        className={`rounded-xl h-11 px-6 font-semibold transition-all duration-300 ${
+                        className={`rounded-xl h-11 px-6 font-semibold transition-all duration-300 w-full sm:w-auto ${
                             hasChanges
                                 ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 text-white"
                                 : "bg-muted text-muted-foreground"
@@ -155,20 +155,20 @@ export function SettingsContent() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="rounded-2xl h-12 grid grid-cols-5 w-full bg-muted/50 p-1.5">
-                    <TabsTrigger value="pos" className="rounded-xl h-full text-sm gap-2 font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                <TabsList className="rounded-2xl h-12 flex w-full bg-muted/50 p-1.5 gap-1 overflow-x-auto scrollbar-hide">
+                    <TabsTrigger value="pos" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <ShoppingCart className="w-4 h-4" /> POS
                     </TabsTrigger>
-                    <TabsTrigger value="store" className="rounded-xl h-full text-sm gap-2 font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Store className="w-4 h-4" /> Toko & Struk
+                    <TabsTrigger value="store" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Store className="w-4 h-4" /> <span className="hidden sm:inline">Toko &</span> Struk
                     </TabsTrigger>
-                    <TabsTrigger value="earn" className="rounded-xl h-full text-sm gap-2 font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Coins className="w-4 h-4" /> Perolehan Poin
+                    <TabsTrigger value="earn" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Coins className="w-4 h-4" /> <span className="hidden sm:inline">Perolehan</span> Poin
                     </TabsTrigger>
-                    <TabsTrigger value="redeem" className="rounded-xl h-full text-sm gap-2 font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                    <TabsTrigger value="redeem" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <ArrowRightLeft className="w-4 h-4" /> Penukaran
                     </TabsTrigger>
-                    <TabsTrigger value="levels" className="rounded-xl h-full text-sm gap-2 font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                    <TabsTrigger value="levels" className="rounded-xl h-full text-xs sm:text-sm gap-1.5 sm:gap-2 font-medium shrink-0 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <TrendingUp className="w-4 h-4" /> Level
                     </TabsTrigger>
                 </TabsList>
@@ -176,7 +176,7 @@ export function SettingsContent() {
                 <div className={!canUpdate ? "pointer-events-none opacity-70" : ""}>
                 {/* ====== POS Settings Tab ====== */}
                 <TabsContent value="pos" className="space-y-5">
-                    <div className="rounded-2xl bg-white border border-border/40 p-6 space-y-5 max-w-2xl shadow-sm">
+                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 max-w-2xl shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
                                 <ShoppingCart className="w-5 h-5 text-white" />
@@ -208,7 +208,7 @@ export function SettingsContent() {
                                         setPosCfg({ ...posCfg, ...updates });
                                         setHasChanges(true);
                                     }}>
-                                        <SelectTrigger className="w-40 rounded-xl h-10">
+                                        <SelectTrigger className="w-full sm:w-40 rounded-xl h-10">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -333,7 +333,7 @@ export function SettingsContent() {
                         </div>
                     </div>
                     {/* Kitchen Display Section */}
-                    <div className="rounded-2xl bg-white border border-border/40 p-6 space-y-5 max-w-2xl shadow-sm">
+                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 max-w-2xl shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
                                 <ChefHat className="w-5 h-5 text-white" />
@@ -404,9 +404,9 @@ export function SettingsContent() {
 
                 {/* ====== Tab Toko & Struk ====== */}
                 <TabsContent value="store" className="space-y-5">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
                         {/* Store Info */}
-                        <div className="bg-white rounded-2xl border border-border/40 p-5 space-y-4 shadow-sm">
+                        <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-5 space-y-4 shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
                                     <Store className="w-4.5 h-4.5 text-white" />
@@ -434,7 +434,7 @@ export function SettingsContent() {
                         </div>
 
                         {/* Receipt Content */}
-                        <div className="bg-white rounded-2xl border border-border/40 p-5 space-y-4 shadow-sm">
+                        <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-5 space-y-4 shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/20">
                                     <FileText className="w-4.5 h-4.5 text-white" />
@@ -494,7 +494,7 @@ export function SettingsContent() {
                         </div>
 
                         {/* Preview */}
-                        <div className="bg-white rounded-2xl border border-border/40 p-5 shadow-sm">
+                        <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-5 shadow-sm">
                             <p className="font-semibold text-sm mb-4 flex items-center gap-2">
                                 <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center">
                                     <Eye className="w-3.5 h-3.5 text-white" />
@@ -539,16 +539,16 @@ export function SettingsContent() {
                 {/* ====== Tab Perolehan Poin ====== */}
                 <TabsContent value="earn" className="space-y-5">
                     {/* Master Toggle */}
-                    <div className={`bg-white rounded-2xl border border-border/40 p-6 flex items-center justify-between shadow-sm transition-all duration-300 ${
+                    <div className={`bg-white rounded-2xl border border-border/40 p-4 sm:p-6 flex items-center justify-between gap-3 shadow-sm transition-all duration-300 ${
                         pointCfg.pointsEnabled ? "ring-2 ring-primary/20" : ""
                     }`}>
-                        <div className="flex items-center gap-4">
-                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shrink-0 ${
                                 pointCfg.pointsEnabled
                                     ? "bg-gradient-to-br from-primary to-primary/70 shadow-lg shadow-primary/30"
                                     : "bg-muted"
                             }`}>
-                                <Star className={`w-7 h-7 transition-colors ${pointCfg.pointsEnabled ? "text-white" : "text-muted-foreground"}`} />
+                                <Star className={`w-5 h-5 sm:w-7 sm:h-7 transition-colors ${pointCfg.pointsEnabled ? "text-white" : "text-muted-foreground"}`} />
                             </div>
                             <div>
                                 <p className="font-bold text-lg">Sistem Loyalty Point</p>
@@ -565,7 +565,7 @@ export function SettingsContent() {
                     </div>
 
                     {/* Earn Config */}
-                    <div className="bg-white rounded-2xl border border-border/40 p-6 space-y-6 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/20">
                                 <Gift className="w-4.5 h-4.5 text-white" />
@@ -574,11 +574,11 @@ export function SettingsContent() {
                         </div>
 
                         {/* Earn Rate */}
-                        <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-xl p-5 border border-blue-100/50">
+                        <div className="bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-xl p-4 sm:p-5 border border-blue-100/50">
                             <Label className="text-sm font-semibold text-blue-900">Rupiah per 1 Poin</Label>
-                            <div className="flex items-center gap-3 mt-3">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-3">
                                 <span className="text-sm font-medium text-blue-700 bg-blue-100/80 px-3 py-1.5 rounded-lg">Setiap</span>
-                                <Input type="number" value={pointCfg.earnRate} onChange={(e) => updatePoint("earnRate", Number(e.target.value))} className="rounded-xl w-36 h-11 text-center text-lg font-bold bg-white border-blue-200 focus-visible:ring-blue-400" min={1000} step={1000} />
+                                <Input type="number" value={pointCfg.earnRate} onChange={(e) => updatePoint("earnRate", Number(e.target.value))} className="rounded-xl w-full sm:w-36 h-11 text-center text-lg font-bold bg-white border-blue-200 focus-visible:ring-blue-400" min={1000} step={1000} />
                                 <div className="flex items-center gap-2">
                                     <span className="text-blue-400 text-lg">=</span>
                                     <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary font-bold text-sm">
@@ -591,7 +591,7 @@ export function SettingsContent() {
                         {/* Multiplier per Level */}
                         <div className="space-y-3">
                             <Label className="text-sm font-semibold">Multiplier per Level</Label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                 {([
                                     { key: "multiplierRegular" as const, label: "Regular", color: "from-slate-100 to-slate-50 border-slate-200", badge: "bg-slate-200 text-slate-700" },
                                     { key: "multiplierSilver" as const, label: "Silver", color: "from-gray-100 to-gray-50 border-gray-200", badge: "bg-gray-200 text-gray-700" },
@@ -628,7 +628,7 @@ export function SettingsContent() {
 
                 {/* ====== Tab Penukaran ====== */}
                 <TabsContent value="redeem" className="space-y-5">
-                    <div className="bg-white rounded-2xl border border-border/40 p-6 space-y-6 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center shadow-md shadow-rose-500/20">
                                 <Award className="w-4.5 h-4.5 text-white" />
@@ -636,7 +636,7 @@ export function SettingsContent() {
                             <p className="font-semibold">Konfigurasi Penukaran Poin</p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="bg-gradient-to-br from-emerald-50/80 to-teal-50/50 rounded-xl p-4 border border-emerald-100/50 space-y-2">
                                 <Label className="text-sm font-semibold text-emerald-900">Nilai 1 Poin</Label>
                                 <div className="flex items-center gap-2">
@@ -657,14 +657,14 @@ export function SettingsContent() {
                             <p className="text-xs font-semibold text-muted-foreground mb-4 flex items-center gap-1.5">
                                 <ArrowRightLeft className="w-3.5 h-3.5" /> Simulasi Penukaran
                             </p>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-3 gap-2 sm:gap-4">
                                 {[10, 50, 100].map((pts, i) => (
                                     <div key={pts} className={`rounded-xl p-4 text-center border shadow-sm transition-transform hover:scale-105 ${
                                         i === 0 ? "bg-gradient-to-br from-blue-50 to-sky-50 border-blue-100" :
                                         i === 1 ? "bg-gradient-to-br from-purple-50 to-violet-50 border-purple-100" :
                                         "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100"
                                     }`}>
-                                        <p className="text-2xl font-black text-primary">{pts}</p>
+                                        <p className="text-xl sm:text-2xl font-black text-primary">{pts}</p>
                                         <p className="text-[11px] text-muted-foreground font-medium">poin</p>
                                         <div className="my-2 h-px bg-border/50" />
                                         <p className="text-sm font-bold text-foreground">{formatCurrency(pts * pointCfg.redeemValue)}</p>
@@ -677,7 +677,7 @@ export function SettingsContent() {
 
                 {/* ====== Tab Level ====== */}
                 <TabsContent value="levels" className="space-y-5">
-                    <div className="bg-white rounded-2xl border border-border/40 p-6 space-y-6 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center shadow-md shadow-teal-500/20">
                                 <TrendingUp className="w-4.5 h-4.5 text-white" />
@@ -694,15 +694,17 @@ export function SettingsContent() {
                                 { key: "levelGold" as const, label: "Gold", icon: "🥇", desc: "Member premium", borderColor: "border-l-amber-400", gradientBg: "from-amber-50/80 to-yellow-50/50" },
                                 { key: "levelPlatinum" as const, label: "Platinum", icon: "💎", desc: "Member VIP", borderColor: "border-l-purple-500", gradientBg: "from-purple-50/80 to-violet-50/50" },
                             ]).map((item) => (
-                                <div key={item.key} className={`flex items-center gap-4 rounded-xl border border-l-4 ${item.borderColor} border-t-border/40 border-r-border/40 border-b-border/40 p-5 bg-gradient-to-r ${item.gradientBg} transition-all hover:shadow-md`}>
-                                    <span className="text-4xl">{item.icon}</span>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-bold">{item.label}</p>
-                                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                                <div key={item.key} className={`flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-l-4 ${item.borderColor} border-t-border/40 border-r-border/40 border-b-border/40 p-4 sm:p-5 bg-gradient-to-r ${item.gradientBg} transition-all hover:shadow-md`}>
+                                    <div className="flex items-center gap-3 sm:gap-4">
+                                        <span className="text-3xl sm:text-4xl">{item.icon}</span>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold">{item.label}</p>
+                                            <p className="text-xs text-muted-foreground">{item.desc}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right space-y-1.5">
+                                    <div className="text-right space-y-1.5 sm:shrink-0">
                                         <Label className="text-[11px] text-muted-foreground">Min. Total Belanja</Label>
-                                        <Input type="number" value={pointCfg[item.key]} onChange={(e) => updatePoint(item.key, Number(e.target.value))} className="rounded-xl w-44 text-right font-semibold bg-white" min={0} step={100000} />
+                                        <Input type="number" value={pointCfg[item.key]} onChange={(e) => updatePoint(item.key, Number(e.target.value))} className="rounded-xl w-full sm:w-44 text-right font-semibold bg-white" min={0} step={100000} />
                                         <p className="text-xs font-medium text-primary">{formatCurrency(pointCfg[item.key] as number)}</p>
                                     </div>
                                 </div>
@@ -710,11 +712,11 @@ export function SettingsContent() {
                         </div>
 
                         {/* Level Flow Visualization */}
-                        <div className="bg-gradient-to-r from-muted/30 to-muted/10 rounded-xl p-5 border border-border/30">
-                            <p className="text-xs font-semibold text-muted-foreground mb-5">Alur Level</p>
-                            <div className="flex items-center justify-between relative">
-                                {/* Gradient connecting line */}
-                                <div className="absolute top-1/2 left-[10%] right-[10%] h-1 bg-gradient-to-r from-slate-300 via-amber-300 to-purple-400 rounded-full -translate-y-1/2 z-0" />
+                        <div className="bg-gradient-to-r from-muted/30 to-muted/10 rounded-xl p-4 sm:p-5 border border-border/30">
+                            <p className="text-xs font-semibold text-muted-foreground mb-4 sm:mb-5">Alur Level</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-0 sm:flex sm:items-center sm:justify-between relative">
+                                {/* Gradient connecting line — hidden on mobile grid */}
+                                <div className="hidden sm:block absolute top-1/2 left-[10%] right-[10%] h-1 bg-gradient-to-r from-slate-300 via-amber-300 to-purple-400 rounded-full -translate-y-1/2 z-0" />
 
                                 {([
                                     { label: "Regular", emoji: "👤", value: "Rp 0", gradient: "from-slate-200 to-slate-300 border-slate-300" },
@@ -723,10 +725,10 @@ export function SettingsContent() {
                                     { label: "Platinum", emoji: "💎", value: formatCurrency(pointCfg.levelPlatinum), gradient: "from-purple-200 to-violet-300 border-purple-300" },
                                 ]).map((level) => (
                                     <div key={level.label} className="flex flex-col items-center relative z-10">
-                                        <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${level.gradient} border-2 flex items-center justify-center shadow-md`}>
-                                            <span className="text-xl">{level.emoji}</span>
+                                        <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br ${level.gradient} border-2 flex items-center justify-center shadow-md`}>
+                                            <span className="text-lg sm:text-xl">{level.emoji}</span>
                                         </div>
-                                        <p className="text-sm font-semibold mt-2">{level.label}</p>
+                                        <p className="text-xs sm:text-sm font-semibold mt-2">{level.label}</p>
                                         <p className="text-[10px] text-muted-foreground">{level.value}</p>
                                     </div>
                                 ))}

@@ -496,7 +496,7 @@ export function StockOpnameContent() {
                                                 <span className="font-mono text-sm font-bold text-slate-800">{opname.opnameNumber}</span>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100"
+                                                    className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100"
                                                 >
                                                     <Copy className="w-3 h-3 text-slate-400" />
                                                 </button>

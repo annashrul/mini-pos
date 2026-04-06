@@ -38,7 +38,7 @@ export function BranchPricesCopyDialog(props: {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="rounded-2xl max-w-sm p-6 overflow-hidden">
+            <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-4 sm:p-6 overflow-hidden">
                 <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl -mt-6 mb-2" />
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2.5">

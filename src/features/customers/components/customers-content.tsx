@@ -320,6 +320,28 @@ export function CustomersContent() {
                 data={data.customers}
                 columns={columns}
                 totalItems={data.total}
+                mobileRender={(row) => (
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-sm truncate text-foreground">{row.name}</p>
+                            <Badge className={`${memberColors[row.memberLevel] || ""} rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0`}>
+                                {row.memberLevel === "PLATINUM" && <Crown className="w-3 h-3 mr-0.5" />}
+                                {row.memberLevel === "GOLD" && <Star className="w-3 h-3 mr-0.5" />}
+                                {row.memberLevel}
+                            </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {row.phone || "-"} &middot; {row.email || "-"}
+                        </p>
+                        <p className="text-xs mt-1">
+                            <span className="text-muted-foreground">Total: </span>
+                            <span className="font-semibold text-foreground">{formatCurrency(row.totalSpending)}</span>
+                            <span className="text-muted-foreground"> &middot; </span>
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400 inline" />
+                            <span className="font-medium"> {row.points} poin</span>
+                        </p>
+                    </div>
+                )}
                 totalPages={data.totalPages}
                 currentPage={page}
                 pageSize={pageSize}

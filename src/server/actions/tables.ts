@@ -35,6 +35,7 @@ export async function createTable(data: {
     },
   });
   revalidatePath("/pos");
+  revalidatePath("/tables");
   return table;
 }
 
@@ -44,6 +45,7 @@ export async function updateTableStatus(id: string, status: string) {
     data: { status },
   });
   revalidatePath("/pos");
+  revalidatePath("/tables");
   return table;
 }
 
@@ -65,4 +67,48 @@ export async function getTableSections(branchId?: string) {
     distinct: ["section"],
   });
   return tables.map(t => t.section).filter(Boolean) as string[];
+}
+
+export async function updateTable(id: string, data: {
+  number?: number;
+  name?: string;
+  capacity?: number;
+  section?: string;
+  isActive?: boolean;
+  sortOrder?: number;
+}) {
+  const table = await prisma.restaurantTable.update({
+    where: { id },
+    data: {
+      ...(data.number !== undefined ? { number: data.number } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.capacity !== undefined ? { capacity: data.capacity } : {}),
+      ...(data.section !== undefined ? { section: data.section } : {}),
+      ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
+    },
+  });
+  revalidatePath("/tables");
+  return table;
+}
+
+export async function deleteTable(id: string) {
+  await prisma.restaurantTable.delete({ where: { id } });
+  revalidatePath("/tables");
+  return { success: true };
+}
+
+export async function getTableStats(branchId?: string) {
+  const where: Record<string, unknown> = {};
+  if (branchId) where.OR = [{ branchId: null }, { branchId }];
+
+  const tables = await prisma.restaurantTable.findMany({ where, select: { status: true, isActive: true } });
+  return {
+    total: tables.length,
+    active: tables.filter(t => t.isActive).length,
+    available: tables.filter(t => t.status === "AVAILABLE" && t.isActive).length,
+    occupied: tables.filter(t => t.status === "OCCUPIED").length,
+    reserved: tables.filter(t => t.status === "RESERVED").length,
+    cleaning: tables.filter(t => t.status === "CLEANING").length,
+  };
 }

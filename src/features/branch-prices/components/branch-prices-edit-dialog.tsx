@@ -43,7 +43,7 @@ export function BranchPricesEditDialog(props: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl max-w-sm p-6 overflow-hidden">
+      <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-4 sm:p-6 overflow-hidden">
         <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl -mt-6 mb-2" />
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2.5">
@@ -62,7 +62,7 @@ export function BranchPricesEditDialog(props: {
                 {item.productCode} · Default: {formatCurrency(item.defaultSellingPrice)}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground font-medium">Harga Beli</Label>
                 <Input type="number" value={buyPrice} onChange={(e) => onBuyPriceChange(Number(e.target.value))} className="rounded-xl h-10 border-slate-200/60" min={0} />

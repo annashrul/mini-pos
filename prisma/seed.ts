@@ -227,6 +227,14 @@ const MENU_SEED = [
     actions: ["view", "manage"],
   },
   {
+    key: "tables",
+    name: "Manajemen Meja",
+    path: "/tables",
+    group: "Admin",
+    sortOrder: 7,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
     key: "accounting",
     name: "Dashboard Akuntansi",
     path: "/accounting",
@@ -308,6 +316,7 @@ const MENU_ACCESS_BY_ROLE: Record<Role, string[]> = {
     "accounting-ledger",
     "accounting-reports",
     "accounting-periods",
+    "tables",
   ],
   CASHIER: ["dashboard", "pos", "transactions", "shifts"],
 };

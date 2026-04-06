@@ -18,7 +18,7 @@ import {
     Wallet, Clock, ScrollText, Percent, Building2, ClipboardList,
     BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
     ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
-    RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays,
+    RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays, Armchair,
     Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine,
 } from "lucide-react";
 import {
@@ -60,6 +60,7 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     "accounting-ledger": BookMarked,
     "accounting-reports": Layers,
     "accounting-periods": LockKeyhole,
+    tables: Armchair,
 };
 
 interface SidebarProps {
@@ -114,7 +115,7 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
     useEffect(() => {
         if (!currentRole) return;
         let active = true;
-        const CACHE_KEY = "sidebar-menus-v4";
+        const CACHE_KEY = "sidebar-menus-v5";
 
         // Show cached menus immediately as preview (non-blocking)
         try {

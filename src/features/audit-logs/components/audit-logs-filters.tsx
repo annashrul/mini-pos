@@ -22,7 +22,7 @@ export function AuditLogsFilters(props: {
                 <Filter className="w-3.5 h-3.5" /> Filter
             </div>
             <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px]">
+                <div className="relative flex-1 min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                     <Input
                         placeholder="Cari log..."
@@ -32,7 +32,7 @@ export function AuditLogsFilters(props: {
                     />
                 </div>
                 <Select value={filters.entity ?? "ALL"} onValueChange={(v) => onFilterChange("entity", v)}>
-                    <SelectTrigger className="w-[150px] rounded-xl h-9 text-xs">
+                    <SelectTrigger className="w-full sm:w-[150px] rounded-xl h-9 text-xs">
                         <SelectValue placeholder="Entity" />
                     </SelectTrigger>
                     <SelectContent>
@@ -53,7 +53,7 @@ export function AuditLogsFilters(props: {
                     </SelectContent>
                 </Select>
                 <Select value={filters.action ?? "ALL"} onValueChange={(v) => onFilterChange("action", v)}>
-                    <SelectTrigger className="w-[130px] rounded-xl h-9 text-xs">
+                    <SelectTrigger className="w-full sm:w-[130px] rounded-xl h-9 text-xs">
                         <SelectValue placeholder="Action" />
                     </SelectTrigger>
                     <SelectContent>

@@ -12,7 +12,7 @@ export function UsersHeader(props: {
   const { canCreate, cannotMessage, onCreate } = props;
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-4">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-200/50">
           <Users className="w-6 h-6 text-white" />

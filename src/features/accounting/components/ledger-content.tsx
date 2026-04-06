@@ -463,6 +463,18 @@ export function LedgerContent() {
                             emptyIcon={<BookText className="w-6 h-6 text-muted-foreground/40" />}
                             emptyTitle="Tidak ada transaksi"
                             emptyDescription="Tidak ada mutasi pada periode ini atau filter pencarian tidak menemukan hasil."
+                            mobileRender={(row) => (
+                                <div className="space-y-1">
+                                    <span className="font-mono text-xs font-medium text-slate-700">{row.entryNumber}</span>
+                                    <div className="text-xs text-slate-500">{formatDate(row.date)}</div>
+                                    <p className="text-xs text-slate-600 truncate">{row.description}</p>
+                                    <div className="flex items-center gap-2 text-xs font-mono tabular-nums">
+                                        <span>D: {row.debit > 0 ? <span className="font-semibold text-emerald-600">{formatCurrency(row.debit)}</span> : <span className="text-muted-foreground/40">&mdash;</span>}</span>
+                                        <span>K: {row.credit > 0 ? <span className="font-semibold text-rose-600">{formatCurrency(row.credit)}</span> : <span className="text-muted-foreground/40">&mdash;</span>}</span>
+                                        <span className="font-bold text-slate-800">Saldo: {formatCurrency(row.runningBalance)}</span>
+                                    </div>
+                                </div>
+                            )}
                         />
                     </div>
                 </>

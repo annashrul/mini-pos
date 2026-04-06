@@ -261,6 +261,14 @@ const menuDefinitions = [
     actions: ["view", "manage"],
   },
   {
+    key: "tables",
+    name: "Manajemen Meja",
+    path: "/tables",
+    group: "Admin",
+    sortOrder: 7,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
     key: "kitchen-display",
     name: "Kitchen Display",
     path: "/kitchen-display",
@@ -391,6 +399,7 @@ const menuAccessByRole: Record<Role, string[]> = {
     "accounting-ledger",
     "accounting-reports",
     "accounting-periods",
+    "tables",
   ],
   CASHIER: ["dashboard", "pos", "transactions", "returns", "shifts", "kitchen-display", "sales-targets"],
 };

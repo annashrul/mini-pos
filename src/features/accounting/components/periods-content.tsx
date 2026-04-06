@@ -242,6 +242,46 @@ export function PeriodsContent() {
                 emptyIcon={<Calendar className="w-6 h-6 text-muted-foreground/40" />}
                 emptyTitle={isPending ? "Memuat periode..." : "Belum Ada Periode"}
                 emptyDescription={isPending ? "Mohon tunggu" : "Buat periode baru untuk memulai"}
+                mobileRender={(row) => (
+                    <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm text-foreground">{row.name}</span>
+                            {row.status === "OPEN" && (
+                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 rounded-lg px-2 py-0.5 text-[11px] font-medium gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Terbuka
+                                </Badge>
+                            )}
+                            {row.status === "CLOSED" && (
+                                <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 rounded-lg px-2 py-0.5 text-[11px] font-medium gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    Ditutup
+                                </Badge>
+                            )}
+                            {row.status === "LOCKED" && (
+                                <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 rounded-lg px-2 py-0.5 text-[11px] font-medium gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    Terkunci
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="text-xs text-muted-foreground font-mono">
+                            {new Date(row.startDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })} —{" "}
+                            {new Date(row.endDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                        </div>
+                        {row.status === "OPEN" && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-lg gap-1.5 text-xs h-7 border-amber-200 text-amber-700 hover:bg-amber-50 mt-0.5"
+                                onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: row.id, action: "close" }); }}
+                            >
+                                <Lock className="w-3 h-3" />
+                                Tutup
+                            </Button>
+                        )}
+                    </div>
+                )}
             />
 
             {/* Create Period Dialog */}

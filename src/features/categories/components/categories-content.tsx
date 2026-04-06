@@ -214,7 +214,20 @@ export function CategoriesContent() {
 
             {/* --- Table --- */}
             <SmartTable<Category> data={data.categories} columns={columns} totalItems={data.total} totalPages={data.totalPages}
-                currentPage={page} pageSize={pageSize} loading={loading} title="Daftar Kategori" titleIcon={<FolderTree className="w-4 h-4 text-emerald-500" />}
+                currentPage={page} pageSize={pageSize} loading={loading} title="Daftar Kategori"
+                mobileRender={(row) => (
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-sm truncate text-foreground">{row.name}</p>
+                            <Badge variant="secondary" className="rounded-full text-[10px] font-medium shrink-0">
+                                {row._count.products} produk
+                            </Badge>
+                        </div>
+                        {row.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{row.description}</p>
+                        )}
+                    </div>
+                )} titleIcon={<FolderTree className="w-4 h-4 text-emerald-500" />}
                 searchPlaceholder="Cari kategori..." onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }} onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} exportFilename="kategori"

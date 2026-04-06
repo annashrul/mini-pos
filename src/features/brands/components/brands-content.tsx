@@ -165,6 +165,19 @@ export function BrandsContent() {
                 data={data.brands} columns={columns} totalItems={data.total} totalPages={data.totalPages}
                 currentPage={page} pageSize={pageSize} loading={loading}
                 title="Daftar Brand"
+                mobileRender={(row) => (
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <Tag className="w-3.5 h-3.5 text-blue-600" />
+                            </div>
+                            <span className="font-semibold text-sm text-foreground truncate">{row.name}</span>
+                        </div>
+                        <Badge className="rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 shadow-sm px-2.5 py-0.5 text-[10px] font-semibold shrink-0">
+                            {row._count.products} produk
+                        </Badge>
+                    </div>
+                )}
                 titleIcon={<div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"><Tag className="w-4 h-4 text-white" /></div>}
                 searchPlaceholder="Cari brand..."
                 onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}

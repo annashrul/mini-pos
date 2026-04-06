@@ -157,7 +157,7 @@ export function BranchPricesContent() {
                             <DollarSign className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight text-foreground">Harga per Cabang</h1>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Harga per Cabang</h1>
                             <p className="text-muted-foreground text-sm mt-0.5">Set harga produk berbeda untuk setiap cabang</p>
                         </div>
                     </div>

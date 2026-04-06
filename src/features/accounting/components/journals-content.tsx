@@ -223,6 +223,36 @@ export function JournalsContent() {
         emptyIcon={<BookOpen className="w-6 h-6 text-muted-foreground/40" />}
         emptyTitle="Belum ada jurnal"
         emptyDescription='Klik "Buat Jurnal" untuk membuat entri pertama'
+        mobileRender={(row) => {
+          const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
+          const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
+          const statusClass =
+            row.status === "DRAFT"
+              ? "bg-gray-100 text-gray-600"
+              : row.status === "POSTED"
+              ? "bg-emerald-100 text-emerald-700"
+              : row.status === "VOID"
+              ? "bg-red-100 text-red-700"
+              : statusCfg?.className;
+          return (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm font-medium text-gray-900">{row.number}</span>
+                <Badge variant="secondary" className={`rounded-full px-2 py-0.5 text-[11px] font-medium border-0 ${statusClass}`}>
+                  {statusCfg?.label}
+                </Badge>
+              </div>
+              <div className="text-xs text-gray-500">
+                {formatDate(row.date)} <span className="mx-1">&bull;</span> {typeCfg?.label}
+              </div>
+              <p className="text-xs text-gray-600 truncate">{row.description}</p>
+              <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+                <span className="text-gray-700">Debit: <span className="font-semibold">{formatCurrency(row.totalDebit)}</span></span>
+                <span className="text-gray-700">Kredit: <span className="font-semibold">{formatCurrency(row.totalCredit)}</span></span>
+              </div>
+            </div>
+          );
+        }}
       />
 
       {/* ── Dialogs ────────────────────────────────────────────────────── */}

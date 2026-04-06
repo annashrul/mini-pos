@@ -388,6 +388,31 @@ export function TransactionsContent() {
                 exportFilename="transaksi"
                 emptyIcon={<Receipt className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Tidak ada transaksi ditemukan"
+                mobileRender={(row) => {
+                    const cfg = statusConfig[row.status];
+                    const StatusIcon = cfg?.icon || Clock;
+                    const pm = paymentConfig[row.paymentMethod];
+                    return (
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="font-mono text-sm font-semibold text-foreground">{row.invoiceNumber}</span>
+                                <Badge variant="outline" className={`rounded-full text-[11px] font-medium px-2 py-0.5 border-0 ${cfg?.badge || "bg-slate-50 text-slate-600"}`}>
+                                    <StatusIcon className="w-3 h-3 mr-1" />
+                                    {cfg?.label || row.status}
+                                </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                {formatDateTime(row.createdAt)} <span className="mx-1">&bull;</span> {getCashierName(row)}
+                            </div>
+                            <div className="flex items-center justify-between text-xs">
+                                <Badge variant="outline" className={`rounded-full text-[10px] font-medium px-2 py-0.5 border-0 ${pm?.color || "bg-slate-50 text-slate-600"}`}>
+                                    {pm?.label || row.paymentMethod}
+                                </Badge>
+                                <span className="font-semibold text-sm text-foreground font-mono tabular-nums">{formatCurrency(row.grandTotal)}</span>
+                            </div>
+                        </div>
+                    );
+                }}
             />
 
             {/* Detail Dialog */}

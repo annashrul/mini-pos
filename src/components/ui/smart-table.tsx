@@ -97,6 +97,10 @@ export interface SmartTableProps<T> {
     headerActions?: ReactNode;
     emptyDescription?: string;
 
+    // Mobile card render — custom card layout per page
+    // If provided, this replaces the default auto-generated card layout on mobile
+    mobileRender?: (row: T, index: number) => ReactNode;
+
     // Row click
     onRowClick?: (row: T) => void;
 }
@@ -137,6 +141,7 @@ export function SmartTable<T>({
     headerActions,
     emptyDescription,
     onRowClick,
+    mobileRender,
 }: SmartTableProps<T>) {
     const [searchValue, setSearchValue] = useState("");
     const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -232,34 +237,24 @@ export function SmartTable<T>({
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-border/50 overflow-hidden">
             {/* Header */}
-            <div className="px-5 py-4 border-b border-border/50">
-                <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        {titleIcon}
-                        {title && <h3 className="font-semibold text-base text-foreground">{title}</h3>}
+            <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-border/50 space-y-3">
+                {/* Row 1: Title + actions */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                        {titleIcon && <span className="shrink-0">{titleIcon}</span>}
+                        {title && <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">{title}</h3>}
                     </div>
-                    <div className="flex items-center gap-2">
-                        {/* Search */}
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                            <Input
-                                placeholder={searchPlaceholder}
-                                value={searchValue}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                className="pl-8 rounded-lg w-[220px] h-8 text-sm"
-                            />
-                        </div>
-
+                    <div className="flex items-center gap-1.5 shrink-0">
                         {/* Filter button */}
                         {filters && filters.length > 0 && (
                             <Button
                                 variant="outline"
-                                size="sm"
-                                className="rounded-lg h-8 text-xs gap-1.5"
+                                size="icon"
+                                className="rounded-lg h-8 w-8 sm:h-8 sm:w-auto sm:px-3 sm:gap-1.5"
                                 onClick={() => { setTempFilters(activeFilters); setFilterModalOpen(true); }}
                             >
                                 <SlidersHorizontal className="w-3.5 h-3.5" />
-                                Filter
+                                <span className="hidden sm:inline text-xs">Filter</span>
                                 {activeFilterCount > 0 && (
                                     <Badge className="h-4 w-4 p-0 text-[10px] rounded-full bg-primary text-primary-foreground">
                                         {activeFilterCount}
@@ -268,11 +263,12 @@ export function SmartTable<T>({
                             </Button>
                         )}
 
-                        {/* Column visibility */}
+                        {/* Column visibility — hidden on mobile */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs gap-1.5">
-                                    <Columns3 className="w-3.5 h-3.5" /> Kolom
+                                <Button variant="outline" size="icon" className="rounded-lg h-8 w-8 hidden sm:inline-flex sm:w-auto sm:px-3 sm:gap-1.5">
+                                    <Columns3 className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline text-xs">Kolom</span>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-xl w-[180px]">
@@ -295,10 +291,11 @@ export function SmartTable<T>({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* Export */}
+                        {/* Export — icon only on mobile */}
                         {exportFilename && (
-                            <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs gap-1.5" onClick={handleExport}>
-                                <Download className="w-3.5 h-3.5" /> Export
+                            <Button variant="outline" size="icon" className="rounded-lg h-8 w-8 sm:w-auto sm:px-3 sm:gap-1.5" onClick={handleExport}>
+                                <Download className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline text-xs">Export</span>
                             </Button>
                         )}
 
@@ -306,26 +303,36 @@ export function SmartTable<T>({
                     </div>
                 </div>
 
+                {/* Row 2: Search — full width */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        placeholder={searchPlaceholder}
+                        value={searchValue}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="pl-9 rounded-xl w-full h-9 sm:h-8 text-sm"
+                    />
+                </div>
+
                 {/* Active filter chips */}
                 {activeFilterCount > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                         {Object.entries(activeFilters).map(([key, val]) => {
                             if (!val || val === "ALL") return null;
-                            // Find filter definition - handle _from/_to suffixes for daterange
                             const baseKey = key.replace(/_from$|_to$/, "");
                             const suffix = key.endsWith("_from") ? " dari" : key.endsWith("_to") ? " s/d" : "";
                             const filterDef = filters?.find((f) => f.key === key || f.key === baseKey);
                             const label = filterDef?.options?.find((o) => o.value === val)?.label || val;
                             return (
-                                <Badge key={key} variant="secondary" className="rounded-lg text-xs gap-1 pl-2 pr-1 py-0.5 bg-accent text-accent-foreground">
-                                    {filterDef?.label}{suffix}: {label}
+                                <Badge key={key} variant="secondary" className="rounded-lg text-[10px] sm:text-xs gap-1 pl-2 pr-1 py-0.5 bg-accent text-accent-foreground">
+                                    <span className="hidden sm:inline">{filterDef?.label}{suffix}: </span>{label}
                                     <button onClick={() => removeFilter(key)} className="ml-0.5 hover:text-destructive">
                                         <X className="w-3 h-3" />
                                     </button>
                                 </Badge>
                             );
                         })}
-                        <button onClick={resetFilters} className="text-xs text-muted-foreground hover:text-foreground ml-1">
+                        <button onClick={resetFilters} className="text-[10px] sm:text-xs text-muted-foreground hover:text-foreground">
                             Reset
                         </button>
                     </div>
@@ -334,7 +341,7 @@ export function SmartTable<T>({
 
             {/* Bulk action bar */}
             {hasSelection && bulkActions && (
-                <div className="px-5 py-2 bg-accent/60 border-b border-border/50 flex items-center gap-3">
+                <div className="px-3 sm:px-5 py-2 bg-accent/60 border-b border-border/50 flex items-center gap-2 sm:gap-3 flex-wrap">
                     <span className="text-xs text-muted-foreground">{selectedRows.size} dipilih</span>
                     {bulkActions.map((action, i) => (
                         <Button
@@ -353,8 +360,91 @@ export function SmartTable<T>({
                 </div>
             )}
 
-            {/* Table */}
-            <div className="overflow-x-auto">
+            {/* Mobile: Card view */}
+            <div className="sm:hidden">
+                {loading && data.length === 0 ? (
+                    <div className="p-3 space-y-3 animate-pulse">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="rounded-xl border border-border/30 p-3 space-y-2">
+                                <div className="h-4 w-2/3 bg-gray-200 rounded" />
+                                <div className="h-3 w-1/2 bg-gray-100 rounded" />
+                                <div className="h-3 w-1/3 bg-gray-100 rounded" />
+                            </div>
+                        ))}
+                    </div>
+                ) : data.length === 0 ? (
+                    <div className="px-3 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            {emptyIcon}
+                            <p className="text-sm">{emptyTitle}</p>
+                            {emptyDescription && <p className="text-xs text-muted-foreground">{emptyDescription}</p>}
+                            {emptyAction}
+                        </div>
+                    </div>
+                ) : (
+                    <div className={cn("p-3 space-y-2", loading && data.length > 0 && "opacity-50 pointer-events-none")}>
+                        {data.map((row, i) => {
+                            const id = rowKey ? rowKey(row) : String(i);
+                            const isSelected = selectedRows.has(id);
+
+                            return (
+                                <div
+                                    key={id}
+                                    className={cn(
+                                        "rounded-xl border border-border/40 bg-white transition-all active:scale-[0.99]",
+                                        isSelected && "ring-2 ring-primary/30 bg-primary/5",
+                                        onRowClick && "cursor-pointer",
+                                        !mobileRender && "p-3",
+                                    )}
+                                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                                >
+                                    {mobileRender ? (
+                                        /* Custom mobile render from each page */
+                                        <div className="p-3">
+                                            {selectable && (
+                                                <div className="float-right ml-2">
+                                                    <Checkbox checked={isSelected} onCheckedChange={() => toggleRow(id)} onClick={(e) => e.stopPropagation()} />
+                                                </div>
+                                            )}
+                                            {mobileRender(row, i)}
+                                        </div>
+                                    ) : (
+                                        /* Default fallback: auto-layout from columns */
+                                        <>
+                                            <div className="flex items-start gap-2">
+                                                {selectable && (
+                                                    <Checkbox checked={isSelected} onCheckedChange={() => toggleRow(id)} className="mt-0.5 shrink-0" onClick={(e) => e.stopPropagation()} />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    {columns.find((c) => !c.sticky) && <div className="mb-1">{columns.find((c) => !c.sticky)!.render(row, i)}</div>}
+                                                </div>
+                                                {columns.find((c) => c.sticky) && (
+                                                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                        {columns.find((c) => c.sticky)!.render(row, i)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {columns.filter((c) => !c.sticky && c !== columns.find((cc) => !cc.sticky)).length > 0 && (
+                                                <div className="mt-2 pt-2 border-t border-border/30 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                                    {columns.filter((c) => !c.sticky && c !== columns.find((cc) => !cc.sticky)).map((col) => (
+                                                        <div key={col.key} className={cn(col.align === "right" && "text-right")}>
+                                                            <p className="text-[10px] text-muted-foreground/70 mb-0.5">{col.header}</p>
+                                                            <div>{col.render(row, i)}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            {/* Desktop: Table view */}
+            <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-muted/50 z-10">
                         <tr>
@@ -492,10 +582,17 @@ export function SmartTable<T>({
             </div>
 
             {/* Footer: pagination + page size */}
-            <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+            <div className="px-3 sm:px-5 py-3 border-t border-border/50 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
+                <div className="flex items-center justify-between sm:justify-start gap-3">
                     <span className="text-xs text-muted-foreground">
-                        {totalItems > 0 ? `Menampilkan ${startItem}–${endItem} dari ${totalItems.toLocaleString()} data` : "0 data"}
+                        {totalItems > 0 ? (
+                            <>
+                                <span className="hidden sm:inline">Menampilkan </span>
+                                {startItem}–{endItem}
+                                <span className="hidden sm:inline"> dari</span>
+                                <span className="sm:hidden"> /</span> {totalItems.toLocaleString()}
+                            </>
+                        ) : "0 data"}
                     </span>
                     <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
                         <SelectTrigger className="w-[70px] h-7 rounded-lg text-xs">
@@ -508,42 +605,53 @@ export function SmartTable<T>({
                         </SelectContent>
                     </Select>
                 </div>
-                <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => onPageChange(1)}>
-                        <ChevronsLeft className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                    </Button>
-                    {(() => {
-                        const pages: (number | "...")[] = [];
-                        if (totalPages <= 5) {
-                            for (let i = 1; i <= totalPages; i++) pages.push(i);
-                        } else {
-                            pages.push(1);
-                            if (currentPage > 3) pages.push("...");
-                            for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
-                            if (currentPage < totalPages - 2) pages.push("...");
-                            pages.push(totalPages);
-                        }
-                        return pages.map((p, idx) =>
-                            p === "..." ? (
-                                <span key={`e${idx}`} className="px-1 text-xs text-muted-foreground/50">...</span>
-                            ) : (
-                                <button key={p} type="button" onClick={() => onPageChange(p)}
-                                    className={`h-7 min-w-[28px] rounded-lg text-xs font-medium transition-all ${p === currentPage ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>
-                                    {p}
-                                </button>
-                            )
-                        );
-                    })()}
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)}>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" disabled={currentPage >= totalPages} onClick={() => onPageChange(totalPages)}>
-                        <ChevronsRight className="w-3.5 h-3.5" />
-                    </Button>
-                </div>
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center sm:justify-end gap-1">
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg hidden sm:inline-flex" disabled={currentPage <= 1} onClick={() => onPageChange(1)}>
+                            <ChevronsLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        {/* Mobile: compact page indicator */}
+                        <span className="sm:hidden text-xs font-medium text-muted-foreground px-2 tabular-nums">
+                            {currentPage} / {totalPages}
+                        </span>
+                        {/* Desktop: page number buttons */}
+                        {(() => {
+                            const pages: (number | "...")[] = [];
+                            if (totalPages <= 5) {
+                                for (let i = 1; i <= totalPages; i++) pages.push(i);
+                            } else {
+                                pages.push(1);
+                                if (currentPage > 3) pages.push("...");
+                                for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+                                if (currentPage < totalPages - 2) pages.push("...");
+                                pages.push(totalPages);
+                            }
+                            return (
+                                <div className="hidden sm:flex items-center gap-1">
+                                    {pages.map((p, idx) =>
+                                        p === "..." ? (
+                                            <span key={`e${idx}`} className="px-1 text-xs text-muted-foreground/50">...</span>
+                                        ) : (
+                                            <button key={p} type="button" onClick={() => onPageChange(p)}
+                                                className={`h-7 min-w-[28px] rounded-lg text-xs font-medium transition-all ${p === currentPage ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent"}`}>
+                                                {p}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+                            );
+                        })()}
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg" disabled={currentPage >= totalPages} onClick={() => onPageChange(currentPage + 1)}>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg hidden sm:inline-flex" disabled={currentPage >= totalPages} onClick={() => onPageChange(totalPages)}>
+                            <ChevronsRight className="w-3.5 h-3.5" />
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Filter Modal */}

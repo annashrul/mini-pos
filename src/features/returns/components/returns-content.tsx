@@ -452,6 +452,30 @@ export function ReturnsContent() {
                 emptyIcon={<RotateCcw className="h-10 w-10 opacity-30" />}
                 emptyTitle="Belum ada data return"
                 emptyDescription="Return & exchange akan muncul di sini"
+                mobileRender={(row) => {
+                    const sc = statusConfig[row.status] ?? statusConfig.PENDING!;
+                    const tc = typeConfig[row.type] ?? typeConfig.RETURN!;
+                    return (
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                                <span className="font-mono text-sm font-medium text-gray-900">{row.returnNumber}</span>
+                                <Badge variant="outline" className={`gap-1 text-[11px] ${sc!.badge}`}>
+                                    <sc.icon className="h-3 w-3" />
+                                    {sc!.label}
+                                </Badge>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                {formatDateTime(row.createdAt)} <span className="mx-1">&bull;</span> {row.transaction.invoiceNumber}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                                <Badge variant="outline" className={`gap-1 text-[11px] ${tc!.badge}`}>
+                                    {tc!.label}
+                                </Badge>
+                                <span className="font-semibold text-gray-900">{formatCurrency(row.totalRefund)}</span>
+                            </div>
+                        </div>
+                    );
+                }}
             />
 
             {/* New Return Dialog */}

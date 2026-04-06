@@ -246,6 +246,22 @@ export function ShiftsContent() {
                 data={data.shifts}
                 columns={columns}
                 totalItems={data.total}
+                mobileRender={(row) => (
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-sm truncate text-foreground">{getCashierName(row)}</p>
+                            <Badge className={`${row.isOpen ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-700"} text-[10px] shrink-0`}>
+                                {row.isOpen ? "Open" : "Closed"}
+                            </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            {format(new Date(row.openedAt), "HH:mm")} &mdash; {row.closedAt ? format(new Date(row.closedAt), "HH:mm") : "..."} &middot; {format(new Date(row.openedAt), "dd MMM yyyy", { locale: idLocale })}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Kas: {formatCurrency(row.openingCash)} &rarr; {row.closingCash != null ? formatCurrency(row.closingCash) : "-"}
+                        </p>
+                    </div>
+                )}
                 totalPages={data.totalPages}
                 currentPage={page}
                 pageSize={pageSize}

@@ -61,7 +61,7 @@ export function UsersGrid(props: {
     <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? "opacity-50 pointer-events-none transition-opacity" : ""}`}>
       {users.map((user) => (
         <div key={user.id} className="rounded-xl border border-border/40 bg-white hover:shadow-md transition-all group p-5 relative">
-          <div className="absolute top-3 right-3 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-3 right-3 flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
             <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
               <Button
                 disabled={!canUpdate}

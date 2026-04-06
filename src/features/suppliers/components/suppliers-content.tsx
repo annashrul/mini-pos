@@ -275,7 +275,31 @@ export function SuppliersContent() {
             <SmartTable<Supplier>
                 data={data.suppliers} columns={columns} totalItems={data.total} totalPages={data.totalPages}
                 currentPage={page} pageSize={pageSize} loading={loading}
-                title="Daftar Supplier" titleIcon={<Truck className="w-4 h-4 text-amber-500" />}
+                title="Daftar Supplier"
+                mobileRender={(row) => (
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-sm truncate text-foreground">{row.name}</p>
+                            {row.isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-600 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Aktif
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-red-200 bg-red-50 text-red-600 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    Nonaktif
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {row.contact || "-"} &middot; {row.email || "-"}
+                        </p>
+                        {row.address && (
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{row.address}</p>
+                        )}
+                    </div>
+                )} titleIcon={<Truck className="w-4 h-4 text-amber-500" />}
                 searchPlaceholder="Cari supplier..."
                 onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}

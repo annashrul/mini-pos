@@ -260,7 +260,7 @@ export function AccessControlContent() {
         return (
             <div className="space-y-6">
                 {/* Header skeleton */}
-                <div className="flex items-center justify-between animate-pulse">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-pulse">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-gray-200" />
                         <div className="space-y-2">
@@ -271,9 +271,16 @@ export function AccessControlContent() {
                     <div className="h-10 w-36 bg-gray-200 rounded-xl" />
                 </div>
 
-                <div className="flex gap-6">
-                    {/* Left sidebar skeleton */}
-                    <div className="w-[300px] shrink-0">
+                {/* Mobile skeleton: horizontal role pills */}
+                <div className="lg:hidden flex gap-2 overflow-hidden pb-2 px-1 animate-pulse">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="shrink-0 h-10 w-28 bg-gray-200 rounded-xl" />
+                    ))}
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:gap-6">
+                    {/* Desktop: Left sidebar skeleton */}
+                    <div className="hidden lg:block w-[300px] shrink-0">
                         <div className="rounded-2xl border border-border/30 bg-white shadow-sm overflow-hidden animate-pulse">
                             <div className="px-4 py-3 border-b border-border/20">
                                 <div className="h-4 w-24 bg-gray-200 rounded" />
@@ -329,13 +336,13 @@ export function AccessControlContent() {
     return (
         <div className={cn("space-y-6 transition-opacity duration-200", isUpdating && "opacity-60 pointer-events-none")}>
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
                         <Shield className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground tracking-tight">Hak Akses & Role</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Hak Akses & Role</h1>
                         <div className="flex items-center gap-2 mt-1">
                             <p className="text-sm text-muted-foreground">Kelola role dan atur akses menu per role</p>
                             <Badge variant="secondary" className="rounded-full text-[10px] px-2">{roleKeys.length} role</Badge>
@@ -345,7 +352,7 @@ export function AccessControlContent() {
                 <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
                     <Button
                         disabled={!canManage}
-                        className="rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
+                        className="hidden lg:inline-flex rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
                         onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah Role
@@ -353,9 +360,89 @@ export function AccessControlContent() {
                 </DisabledActionTooltip>
             </div>
 
-            <div className="flex gap-6">
-                {/* Left Sidebar - Role List */}
-                <div className="sticky top-4 h-fit max-h-[calc(100vh-7rem)] w-[300px] shrink-0 overflow-y-auto">
+            {/* ===== Mobile: Horizontal Role Selector ===== */}
+            <div className="lg:hidden space-y-3">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 px-1 scrollbar-hide">
+                    {roleKeys.map((roleKey) => {
+                        const meta = getRoleMeta(roleKey);
+                        const appRole = appRoles.find((r) => r.key === roleKey);
+                        const isSelected = effectiveRole === roleKey;
+                        const mCount = data.menus.filter((m) => m.permissions[roleKey]).length;
+                        return (
+                            <button
+                                key={roleKey}
+                                onClick={() => setSelectedRole(roleKey)}
+                                className={cn(
+                                    "shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
+                                    isSelected
+                                        ? "bg-primary text-white shadow-md shadow-primary/20"
+                                        : "bg-white border border-border/40 text-muted-foreground hover:border-primary/30"
+                                )}
+                            >
+                                <div className={cn(
+                                    "w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0",
+                                    isSelected ? "bg-white/20 text-white" : meta.color
+                                )}>
+                                    {meta.icon}
+                                </div>
+                                <span>{meta.label}</span>
+                                <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", isSelected ? "bg-white/20" : "bg-muted")}>
+                                    {mCount}
+                                </span>
+                                {appRole?.isSystem && <Lock className="w-3 h-3 opacity-50" />}
+                            </button>
+                        );
+                    })}
+                    {/* Add role button at end of scroll strip */}
+                    {canManage && (
+                        <button
+                            onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
+                            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
+                        >
+                            <Plus className="w-4 h-4" /> Tambah
+                        </button>
+                    )}
+                </div>
+
+                {/* Mobile: Selected role actions (edit/delete) */}
+                {(() => {
+                    const selectedAppRole = appRoles.find((r) => r.key === effectiveRole);
+                    if (!selectedAppRole) return null;
+                    return (
+                        <div className="flex items-center gap-2 px-1">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs text-muted-foreground truncate">{getRoleMeta(effectiveRole).description}</p>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                    <Button disabled={!canManage} variant="ghost" size="sm" className="h-7 px-2 text-[11px] rounded-lg text-muted-foreground" onClick={() => openEditRole(selectedAppRole)}>
+                                        <Pencil className="w-3 h-3 mr-1" /> Edit
+                                    </Button>
+                                </DisabledActionTooltip>
+                                {!selectedAppRole.isSystem && (
+                                    <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                        <Button disabled={!canManage} variant="ghost" size="sm" className="h-7 px-2 text-[11px] rounded-lg text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(selectedAppRole)}>
+                                            <Trash2 className="w-3 h-3 mr-1" /> Hapus
+                                        </Button>
+                                    </DisabledActionTooltip>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* Mobile saving indicator */}
+                {pending && (
+                    <div className="flex items-center gap-2 text-xs text-primary px-1">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span className="animate-pulse">Menyimpan perubahan...</span>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex flex-col lg:flex-row lg:gap-6">
+                {/* ===== Desktop: Left Sidebar - Role List ===== */}
+                <div className="hidden lg:block sticky top-4 h-fit lg:max-h-[calc(100vh-7rem)] w-[300px] shrink-0 overflow-y-auto">
                     <div className="rounded-2xl border border-border/30 bg-white shadow-sm overflow-hidden">
                         <div className="px-4 py-3 border-b border-border/20">
                             <h2 className="text-sm font-semibold text-foreground">Daftar Role</h2>
@@ -472,7 +559,7 @@ export function AccessControlContent() {
                     </div>
 
                     {/* Stats pills */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-border/30 shadow-sm text-xs text-muted-foreground">
                             <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
                             <span className="font-medium text-foreground">{activeMenuCount}</span> dari {totalMenus} menu aktif
@@ -482,109 +569,208 @@ export function AccessControlContent() {
                         </div>
                     </div>
 
-                    {/* Group cards */}
-                    {groupedMenus.map(([groupName, menus]) => {
-                        const groupActiveCount = menus.filter((m) => m.permissions[effectiveRole]).length;
-                        const groupPct = menus.length > 0 ? Math.round(groupActiveCount / menus.length * 100) : 0;
-                        return (
-                            <div key={groupName} className="bg-white rounded-2xl border border-border/30 shadow-sm overflow-hidden">
-                                <button onClick={() => toggleGroup(groupName)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-0.5 h-5 rounded-full bg-gradient-to-b from-primary to-primary/40" />
-                                        {expandedGroups.has(groupName) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                        <span className="text-sm font-bold text-foreground">{groupName}</span>
-                                        <Badge variant="secondary" className="text-[10px] rounded-full px-2">{menus.length}</Badge>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-16 h-1.5 bg-muted/40 rounded-full overflow-hidden">
-                                            <div className="h-full rounded-full bg-primary/60 transition-all duration-300" style={{ width: `${groupPct}%` }} />
+                    {/* ===== Mobile: Card-based permission list ===== */}
+                    <div className="lg:hidden space-y-4 pb-20">
+                        {groupedMenus.map(([groupName, menus]) => {
+                            const groupActiveCount = menus.filter((m) => m.permissions[effectiveRole]).length;
+                            return (
+                                <div key={groupName} className="space-y-2">
+                                    <button onClick={() => toggleGroup(groupName)} className="w-full flex items-center justify-between px-1">
+                                        <div className="flex items-center gap-2">
+                                            {expandedGroups.has(groupName) ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+                                            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{groupName}</p>
+                                            <Badge variant="secondary" className="text-[9px] rounded-full px-1.5 py-0">{groupActiveCount}/{menus.length}</Badge>
                                         </div>
-                                        <span className="text-[11px] text-muted-foreground font-medium">{groupActiveCount}/{menus.length} aktif</span>
-                                    </div>
-                                </button>
-
-                                {expandedGroups.has(groupName) && (
-                                    <div className="border-t border-border/20">
-                                        {menus.map((menu, idx) => {
-                                            const hasAccess = Boolean(menu.permissions[effectiveRole]);
-                                            const isExpanded = expandedMenus.has(menu.id);
-                                            const activeActions = menu.actions.filter((a) => a.permissions[effectiveRole]).length;
-                                            return (
-                                                <div key={menu.id} className={cn("border-b border-border/10 last:border-0", idx % 2 === 1 && "bg-muted/5")}>
-                                                    <div className={cn(
-                                                        "flex items-center gap-3 px-5 py-3 hover:bg-muted/10 transition-colors",
-                                                        hasAccess && "border-l-2 border-l-green-400"
-                                                    )}>
-                                                        {menu.actions.length > 0 ? (
-                                                            <button onClick={() => toggleMenuExpand(menu.id)} className="text-muted-foreground hover:text-foreground transition-colors">
-                                                                {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                                                            </button>
-                                                        ) : <div className="w-3.5" />}
-                                                        <div className={cn("shrink-0", !hasAccess && "opacity-40")}>
-                                                            {hasAccess ? <CheckCircle2 className="w-4.5 h-4.5 text-green-500" /> : <XCircle className="w-4.5 h-4.5 text-muted-foreground" />}
-                                                        </div>
-                                                        <div className={cn("flex-1 min-w-0", !hasAccess && "opacity-50")}>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-medium">{menu.name}</span>
-                                                                {menu.actions.length > 0 && (
-                                                                    <span className="text-[10px] text-muted-foreground">{activeActions}/{menu.actions.length} aksi</span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-[11px] text-muted-foreground font-mono">{menu.path}</p>
-                                                        </div>
-                                                        <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
-                                                    </div>
-
-                                                    {isExpanded && menu.actions.length > 0 && (
-                                                        <div className="mx-5 mb-3 ml-14">
-                                                            <div className="bg-slate-50 rounded-xl p-3">
-                                                                <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
-                                                                    {menu.actions.map((action) => {
-                                                                        const allowed = Boolean(action.permissions[effectiveRole]);
-                                                                        return (
-                                                                            <button key={action.id} disabled={!canManage} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
-                                                                                className={cn(
-                                                                                    "flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all",
-                                                                                    allowed
-                                                                                        ? "bg-primary text-white shadow-sm shadow-primary/20"
-                                                                                        : "bg-white border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                                                                                    !canManage && "opacity-60 cursor-not-allowed"
-                                                                                )}>
-                                                                                {allowed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                                                                                {ACTION_LABELS[action.key] ?? action.key}
-                                                                            </button>
-                                                                        );
-                                                                    })}
+                                    </button>
+                                    {expandedGroups.has(groupName) && (
+                                        <div className="space-y-2">
+                                            {menus.map((menu) => {
+                                                const hasAccess = Boolean(menu.permissions[effectiveRole]);
+                                                const isExpanded = expandedMenus.has(menu.id);
+                                                const activeActions = menu.actions.filter((a) => a.permissions[effectiveRole]).length;
+                                                return (
+                                                    <div key={menu.id} className="bg-white rounded-xl border border-border/30 shadow-sm p-3 space-y-2">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0" onClick={() => { if (menu.actions.length > 0) toggleMenuExpand(menu.id); }}>
+                                                                <div className={cn("shrink-0", !hasAccess && "opacity-40")}>
+                                                                    {hasAccess ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <XCircle className="w-4 h-4 text-muted-foreground" />}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className={cn("text-sm font-medium", !hasAccess && "opacity-50")}>{menu.name}</span>
+                                                                        {menu.actions.length > 0 && (
+                                                                            <span className="text-[10px] text-muted-foreground">{activeActions}/{menu.actions.length}</span>
+                                                                        )}
+                                                                        {menu.actions.length > 0 && (
+                                                                            isExpanded ? <ChevronDown className="w-3 h-3 text-muted-foreground" /> : <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
+                                                            <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
                                                         </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
+                                                        {isExpanded && hasAccess && menu.actions.length > 0 && (
+                                                            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-border/20">
+                                                                {menu.actions.map((action) => {
+                                                                    const allowed = Boolean(action.permissions[effectiveRole]);
+                                                                    return (
+                                                                        <button
+                                                                            key={action.id}
+                                                                            disabled={!canManage}
+                                                                            onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
+                                                                            className={cn(
+                                                                                "text-[11px] px-2.5 py-1.5 rounded-lg font-medium transition-all",
+                                                                                allowed
+                                                                                    ? "bg-primary/10 text-primary border border-primary/20"
+                                                                                    : "bg-muted text-muted-foreground border border-transparent",
+                                                                                !canManage && "opacity-60 cursor-not-allowed"
+                                                                            )}
+                                                                        >
+                                                                            {ACTION_LABELS[action.key] ?? action.key}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
 
-                    {groupedMenus.length === 0 && (
-                        <div className="text-center py-16">
-                            <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
-                                <Search className="w-8 h-8 text-muted-foreground/30" />
+                        {groupedMenus.length === 0 && (
+                            <div className="text-center py-16">
+                                <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+                                    <Search className="w-8 h-8 text-muted-foreground/30" />
+                                </div>
+                                <p className="text-sm font-medium text-muted-foreground">Tidak ada menu ditemukan</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1">Coba ubah kata kunci pencarian</p>
                             </div>
-                            <p className="text-sm font-medium text-muted-foreground">Tidak ada menu ditemukan</p>
-                            <p className="text-xs text-muted-foreground/60 mt-1">Coba ubah kata kunci pencarian</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
+
+                    {/* ===== Desktop: Group cards (original layout) ===== */}
+                    <div className="hidden lg:block space-y-4">
+                        {groupedMenus.map(([groupName, menus]) => {
+                            const groupActiveCount = menus.filter((m) => m.permissions[effectiveRole]).length;
+                            const groupPct = menus.length > 0 ? Math.round(groupActiveCount / menus.length * 100) : 0;
+                            return (
+                                <div key={groupName} className="bg-white rounded-2xl border border-border/30 shadow-sm overflow-hidden">
+                                    <button onClick={() => toggleGroup(groupName)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-0.5 h-5 rounded-full bg-gradient-to-b from-primary to-primary/40" />
+                                            {expandedGroups.has(groupName) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                                            <span className="text-sm font-bold text-foreground">{groupName}</span>
+                                            <Badge variant="secondary" className="text-[10px] rounded-full px-2">{menus.length}</Badge>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-16 h-1.5 bg-muted/40 rounded-full overflow-hidden">
+                                                <div className="h-full rounded-full bg-primary/60 transition-all duration-300" style={{ width: `${groupPct}%` }} />
+                                            </div>
+                                            <span className="text-[11px] text-muted-foreground font-medium">{groupActiveCount}/{menus.length} aktif</span>
+                                        </div>
+                                    </button>
+
+                                    {expandedGroups.has(groupName) && (
+                                        <div className="border-t border-border/20">
+                                            {menus.map((menu, idx) => {
+                                                const hasAccess = Boolean(menu.permissions[effectiveRole]);
+                                                const isExpanded = expandedMenus.has(menu.id);
+                                                const activeActions = menu.actions.filter((a) => a.permissions[effectiveRole]).length;
+                                                return (
+                                                    <div key={menu.id} className={cn("border-b border-border/10 last:border-0", idx % 2 === 1 && "bg-muted/5")}>
+                                                        <div className={cn(
+                                                            "flex items-center gap-3 px-5 py-3 hover:bg-muted/10 transition-colors",
+                                                            hasAccess && "border-l-2 border-l-green-400"
+                                                        )}>
+                                                            {menu.actions.length > 0 ? (
+                                                                <button onClick={() => toggleMenuExpand(menu.id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                                                    {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                                </button>
+                                                            ) : <div className="w-3.5" />}
+                                                            <div className={cn("shrink-0", !hasAccess && "opacity-40")}>
+                                                                {hasAccess ? <CheckCircle2 className="w-4.5 h-4.5 text-green-500" /> : <XCircle className="w-4.5 h-4.5 text-muted-foreground" />}
+                                                            </div>
+                                                            <div className={cn("flex-1 min-w-0", !hasAccess && "opacity-50")}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm font-medium">{menu.name}</span>
+                                                                    {menu.actions.length > 0 && (
+                                                                        <span className="text-[10px] text-muted-foreground">{activeActions}/{menu.actions.length} aksi</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-[11px] text-muted-foreground font-mono">{menu.path}</p>
+                                                            </div>
+                                                            <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
+                                                        </div>
+
+                                                        {isExpanded && menu.actions.length > 0 && (
+                                                            <div className="mx-5 mb-3 ml-14">
+                                                                <div className="bg-slate-50 rounded-xl p-3">
+                                                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+                                                                        {menu.actions.map((action) => {
+                                                                            const allowed = Boolean(action.permissions[effectiveRole]);
+                                                                            return (
+                                                                                <button key={action.id} disabled={!canManage} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
+                                                                                    className={cn(
+                                                                                        "flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all",
+                                                                                        allowed
+                                                                                            ? "bg-primary text-white shadow-sm shadow-primary/20"
+                                                                                            : "bg-white border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                                                                                        !canManage && "opacity-60 cursor-not-allowed"
+                                                                                    )}>
+                                                                                    {allowed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                                                                    {ACTION_LABELS[action.key] ?? action.key}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {groupedMenus.length === 0 && (
+                            <div className="text-center py-16">
+                                <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/30 flex items-center justify-center mb-4">
+                                    <Search className="w-8 h-8 text-muted-foreground/30" />
+                                </div>
+                                <p className="text-sm font-medium text-muted-foreground">Tidak ada menu ditemukan</p>
+                                <p className="text-xs text-muted-foreground/60 mt-1">Coba ubah kata kunci pencarian</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
+            </div>
+
+            {/* Mobile: Sticky bottom "Tambah Role" button */}
+            <div className="lg:hidden fixed bottom-4 right-4 z-50">
+                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                    <Button
+                        disabled={!canManage}
+                        size="lg"
+                        className="rounded-2xl bg-gradient-to-r from-primary to-primary/80 shadow-xl shadow-primary/30 h-12 px-5"
+                        onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
+                    >
+                        <Plus className="w-5 h-5 mr-2" /> Tambah Role
+                    </Button>
+                </DisabledActionTooltip>
             </div>
 
             {/* Create Role Dialog */}
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50" />
-                    <div className="p-6 space-y-5">
+                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden max-h-[90vh]">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50 shrink-0" />
+                    <div className="p-6 space-y-5 overflow-y-auto">
                         <DialogHeader><DialogTitle className="text-lg">Tambah Role Baru</DialogTitle></DialogHeader>
                         <div className="space-y-4">
                             <div className="space-y-2">
@@ -652,9 +838,9 @@ export function AccessControlContent() {
 
             {/* Edit Role Dialog */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50" />
-                    <div className="p-6 space-y-5">
+                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden max-h-[90vh]">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50 shrink-0" />
+                    <div className="p-6 space-y-5 overflow-y-auto">
                         <DialogHeader><DialogTitle className="text-lg">Edit Role: {editingRole?.key}</DialogTitle></DialogHeader>
                         <div className="space-y-4">
                             <div className="space-y-2">

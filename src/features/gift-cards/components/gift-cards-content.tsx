@@ -521,6 +521,28 @@ export function GiftCardsContent() {
         data={data.giftCards}
         columns={columns}
         totalItems={data.total}
+        mobileRender={(row) => (
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                    <button onClick={() => openDetail(row)} className="font-mono text-sm font-semibold text-primary hover:underline tracking-wide truncate">{row.code}</button>
+                    <Badge className={`${statusColors[row.status] || ""} rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0`}>
+                        {statusLabels[row.status] || row.status}
+                    </Badge>
+                </div>
+                <p className="text-xs mt-0.5">
+                    <span className="font-semibold text-foreground">{formatCurrency(row.initialBalance)}</span>
+                    <span className="text-muted-foreground"> (sisa: </span>
+                    <span className="font-semibold text-foreground">{formatCurrency(row.currentBalance)}</span>
+                    <span className="text-muted-foreground">)</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {row.customer?.name || row.purchasedBy || "-"}
+                    {row.expiresAt && (
+                        <> &middot; Exp: {new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(row.expiresAt))}</>
+                    )}
+                </p>
+            </div>
+        )}
         totalPages={data.totalPages}
         currentPage={page}
         pageSize={pageSize}
