@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
@@ -719,6 +719,12 @@ export async function voidTransaction(id: string, reason: string) {
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
     revalidatePath("/products");
+    revalidateTag("dashboard-stats", "seconds");
+    revalidateTag("accounting-dashboard", "seconds");
+    if (tx0?.branchId) {
+      revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
+      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
+    }
 
     createAuditLog({
       action: "VOID",
@@ -811,6 +817,12 @@ export async function refundTransaction(id: string, reason: string) {
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
     revalidatePath("/products");
+    revalidateTag("dashboard-stats", "seconds");
+    revalidateTag("accounting-dashboard", "seconds");
+    if (tx0?.branchId) {
+      revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
+      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
+    }
 
     createAuditLog({
       action: "REFUND",

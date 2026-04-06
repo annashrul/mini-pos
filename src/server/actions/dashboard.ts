@@ -1,8 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { unstable_cache, revalidateTag } from "next/cache";
 
-export async function getDashboardStats(branchId?: string, period?: "today" | "week" | "month" | "year") {
+async function getDashboardStatsUncached(branchId?: string, period?: "today" | "week" | "month" | "year") {
   const branchFilter = branchId ? { branchId } : {};
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -58,7 +59,7 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
     activePromotions,
     pendingPurchaseOrders,
     todayProfitItems,
-    lowStockRaw,
+    lowStockProducts,
   ] = await Promise.all([
     prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
     prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } }),
@@ -87,10 +88,28 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
       where: { transaction: { createdAt: { gte: periodStart, lt: tomorrow }, ...completedWhere } },
       select: { quantity: true, unitPrice: true, product: { select: { purchasePrice: true } } },
     }),
-    prisma.product.findMany({ where: { isActive: true }, include: { category: true }, orderBy: { stock: "asc" } }),
+    prisma.$queryRawUnsafe<
+      { id: string; name: string; code: string; stock: number; minStock: number; categoryId: string; categoryName: string }[]
+    >(
+      `
+      SELECT p.id, p.name, p.code, p.stock, p."minStock", p."categoryId", c.name as "categoryName"
+      FROM products p
+      LEFT JOIN categories c ON c.id = p."categoryId"
+      WHERE p."isActive" = true
+        AND p.stock <= p."minStock"
+      ORDER BY p.stock ASC
+      LIMIT 10
+      `,
+    ),
   ]);
 
-  const lowStockProducts = lowStockRaw.filter((p) => p.stock <= p.minStock).slice(0, 10);
+  const lowStockMapped = lowStockProducts.map((p) => ({
+    id: p.id,
+    name: p.name,
+    stock: p.stock,
+    minStock: p.minStock,
+    category: { name: p.categoryName || "Uncategorized" },
+  }));
 
   // Branch performance — single query with GROUP BY instead of per-branch loops
   let branchPerformance: { branchId: string; branchName: string; periodSales: number; periodTransactions: number; prevPeriodSales: number; prevPeriodTransactions: number }[] = [];
@@ -158,7 +177,7 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
     salesGrowthDay,
     salesGrowthMonth,
     txGrowthMonth,
-    lowStockProducts,
+    lowStockProducts: lowStockMapped,
     recentTransactions,
     topProducts,
     dailySales,
@@ -180,6 +199,25 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
     pendingPurchaseOrders,
     branchPerformance,
   };
+}
+
+export async function getDashboardStats(branchId?: string, period?: "today" | "week" | "month" | "year") {
+  const p = period || "today";
+  const b = branchId || "all";
+  const cached = unstable_cache(
+    () => getDashboardStatsUncached(branchId, p),
+    ["dashboard-stats", b, p],
+    {
+      revalidate: 30,
+      tags: ["dashboard-stats", `dashboard-stats:${b}`],
+    },
+  );
+  return cached();
+}
+
+export async function revalidateDashboardStats(branchId?: string) {
+  revalidateTag("dashboard-stats", "seconds");
+  if (branchId) revalidateTag(`dashboard-stats:${branchId}`, "seconds");
 }
 
 // Single query with GROUP BY instead of 30 individual queries

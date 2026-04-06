@@ -1,4 +1,5 @@
 import { broadcastEvent } from "./event-bus";
+import Pusher from "pusher";
 
 export const EVENTS = {
   TRANSACTION_CREATED: "transaction:created",
@@ -29,7 +30,6 @@ function getPusher() {
   if (!appId || !key || !secret || !cluster) return null;
   if (pusherClient) return pusherClient;
 
-  const Pusher = require("pusher");
   pusherClient = new Pusher({
     appId,
     key,

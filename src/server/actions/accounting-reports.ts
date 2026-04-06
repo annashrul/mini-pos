@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { unstable_cache } from "next/cache";
 
 // ===========================
 // HELPERS
@@ -732,7 +733,7 @@ function summarizeCashByType(
 // 6. DASHBOARD AKUNTANSI
 // ===========================
 
-export async function getAccountingDashboard(branchId?: string) {
+async function getAccountingDashboardUncached(branchId?: string) {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(todayStart);
@@ -962,4 +963,14 @@ export async function getAccountingDashboard(branchId?: string) {
       })),
     })),
   };
+}
+
+export async function getAccountingDashboard(branchId?: string) {
+  const b = branchId || "all";
+  const cached = unstable_cache(
+    () => getAccountingDashboardUncached(branchId),
+    ["accounting-dashboard", b],
+    { revalidate: 30, tags: ["accounting-dashboard", `accounting-dashboard:${b}`] },
+  );
+  return cached();
 }
