@@ -1,1 +1,3 @@
-export * from "./use-customer-intelligence";
+export * from "./use-repeat-customers";
+export * from "./use-shopping-frequency";
+export * from "./use-loyalty-summary";

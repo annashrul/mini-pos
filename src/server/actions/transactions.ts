@@ -8,6 +8,15 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
+interface BundleComponentItem {
+  productId: string;
+  productName: string;
+  productCode: string;
+  quantity: number;
+  unitPrice: number;
+  purchasePrice: number;
+}
+
 interface CartItem {
   productId: string;
   categoryId?: string;
@@ -22,6 +31,8 @@ interface CartItem {
   unitPrice: number;
   discount: number;
   subtotal: number;
+  bundleId?: string;
+  bundleItems?: BundleComponentItem[];
 }
 
 interface PaymentEntry {
@@ -121,54 +132,75 @@ export async function createTransaction(input: CreateTransactionInput) {
   const shouldValidateStock = validateStockSetting?.value !== "false";
 
   try {
+    // Separate regular items and bundle items
+    const regularItems = input.items.filter((i) => !i.productId.startsWith("bundle:"));
+    const bundleItems = input.items.filter((i) => i.productId.startsWith("bundle:"));
+
+    // Flatten bundle components for stock validation
+    const bundleComponents: { productId: string; productName: string; quantity: number }[] = [];
+    for (const bundle of bundleItems) {
+      if (bundle.bundleItems) {
+        for (const comp of bundle.bundleItems) {
+          bundleComponents.push({
+            productId: comp.productId,
+            productName: comp.productName,
+            quantity: comp.quantity * bundle.quantity,
+          });
+        }
+      }
+    }
+
+    // All product IDs that need stock validation
+    const allStockItems = [
+      ...regularItems.map((i) => ({ productId: i.productId, productName: i.productName, quantity: i.quantity * (i.conversionQty || 1) })),
+      ...bundleComponents,
+    ];
+
     const transaction = await prisma.$transaction(async (tx) => {
       // Check stock availability (skip if validation disabled)
-      if (shouldValidateStock) {
-        for (const item of input.items) {
-          if (input.branchId) {
-            const branchStock = await tx.branchStock.findUnique({
-              where: {
-                branchId_productId: {
-                  branchId: input.branchId,
-                  productId: item.productId,
-                },
-              },
-            });
-            const available = branchStock?.quantity ?? 0;
-            const baseQtyNeeded = item.quantity * (item.conversionQty || 1);
-            if (available < baseQtyNeeded) {
-              throw new Error(
-                `Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`,
-              );
+      if (shouldValidateStock && allStockItems.length > 0) {
+        const productIds = allStockItems.map((i) => i.productId);
+        if (input.branchId) {
+          const branchStocks = await tx.branchStock.findMany({
+            where: { branchId: input.branchId, productId: { in: productIds } },
+          });
+          const stockMap = new Map(branchStocks.map(bs => [bs.productId, bs.quantity]));
+          for (const item of allStockItems) {
+            const available = stockMap.get(item.productId) ?? 0;
+            if (available < item.quantity) {
+              throw new Error(`Stok ${item.productName} tidak mencukupi di cabang ini (sisa: ${available})`);
             }
-          } else {
-            const product = await tx.product.findUnique({
-              where: { id: item.productId },
-            });
-            if (!product)
-              throw new Error(`Produk ${item.productName} tidak ditemukan`);
-            const baseQtyNeeded = item.quantity * (item.conversionQty || 1);
-            if (product.stock < baseQtyNeeded) {
-              throw new Error(
-                `Stok ${item.productName} tidak mencukupi (sisa: ${product.stock})`,
-              );
+          }
+        } else {
+          const products = await tx.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, name: true, stock: true },
+          });
+          const stockMap = new Map(products.map(p => [p.id, p.stock]));
+          for (const item of allStockItems) {
+            const stock = stockMap.get(item.productId);
+            if (stock === undefined) throw new Error(`Produk ${item.productName} tidak ditemukan`);
+            if (stock < item.quantity) {
+              throw new Error(`Stok ${item.productName} tidak mencukupi (sisa: ${stock})`);
             }
           }
         }
       }
 
-      // Validate all products exist
-      const productIds = input.items.map((i) => i.productId);
-      const existingProducts = await tx.product.findMany({
-        where: { id: { in: productIds } },
-        select: { id: true },
-      });
-      const existingIds = new Set(existingProducts.map((p) => p.id));
-      for (const item of input.items) {
-        if (!existingIds.has(item.productId)) {
-          throw new Error(
-            `Produk "${item.productName}" tidak ditemukan. Muat ulang halaman POS.`,
-          );
+      // Validate regular products exist (skip bundle: prefixed items)
+      const regularProductIds = regularItems.map((i) => i.productId);
+      const bundleComponentIds = bundleComponents.map((i) => i.productId);
+      const allRealProductIds = [...new Set([...regularProductIds, ...bundleComponentIds])];
+      if (allRealProductIds.length > 0) {
+        const existingProducts = await tx.product.findMany({
+          where: { id: { in: allRealProductIds } },
+          select: { id: true },
+        });
+        const existingIds = new Set(existingProducts.map((p) => p.id));
+        for (const item of regularItems) {
+          if (!existingIds.has(item.productId)) {
+            throw new Error(`Produk "${item.productName}" tidak ditemukan. Muat ulang halaman POS.`);
+          }
         }
       }
 
@@ -200,18 +232,25 @@ export async function createTransaction(input: CreateTransactionInput) {
           notes: input.notes || null,
           status: "COMPLETED",
           items: {
-            create: input.items.map((item) => ({
-              productId: item.productId,
-              productName: item.productName,
-              productCode: item.productCode,
-              quantity: item.quantity,
-              unitName: item.unitName || "PCS",
-              conversionQty: item.conversionQty || 1,
-              baseQty: item.quantity * (item.conversionQty || 1),
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              subtotal: item.subtotal,
-            })),
+            create: input.items.map((item) => {
+              // For bundles, use first component's productId as reference
+              const isBundle = item.productId.startsWith("bundle:");
+              const refProductId = isBundle && item.bundleItems?.[0]
+                ? item.bundleItems[0].productId
+                : item.productId;
+              return {
+                productId: refProductId,
+                productName: item.productName,
+                productCode: item.productCode,
+                quantity: item.quantity,
+                unitName: isBundle ? "PAKET" : (item.unitName || "PCS"),
+                conversionQty: item.conversionQty || 1,
+                baseQty: item.quantity * (item.conversionQty || 1),
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                subtotal: item.subtotal,
+              };
+            }),
           },
           payments: {
             create: paymentsData.map((p) => ({
@@ -232,38 +271,62 @@ export async function createTransaction(input: CreateTransactionInput) {
       }
 
       // Update stock & create stock movements
+      // Build stock deduction list: regular items + exploded bundle components
+      const stockDeductions: { productId: string; quantity: number; note: string }[] = [];
       for (const item of input.items) {
-        // Always update global stock (use base qty)
-        const baseQty = item.quantity * (item.conversionQty || 1);
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: baseQty } },
-        });
-
-        // Update branch stock if applicable
-        if (input.branchId) {
-          await tx.branchStock.update({
-            where: {
-              branchId_productId: {
-                branchId: input.branchId,
-                productId: item.productId,
-              },
-            },
-            data: { quantity: { decrement: baseQty } },
+        if (item.productId.startsWith("bundle:") && item.bundleItems) {
+          // Bundle: deduct stock for each component
+          for (const comp of item.bundleItems) {
+            stockDeductions.push({
+              productId: comp.productId,
+              quantity: comp.quantity * item.quantity,
+              note: `Penjualan ${invoiceNumber} (${item.productName})`,
+            });
+          }
+        } else {
+          // Regular item
+          stockDeductions.push({
+            productId: item.productId,
+            quantity: item.quantity * (item.conversionQty || 1),
+            note: `Penjualan ${invoiceNumber}`,
           });
         }
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            branchId: input.branchId || null,
-            type: "OUT",
-            quantity: baseQty,
-            note: `Penjualan ${invoiceNumber}`,
-            reference: invoiceNumber,
-          },
-        });
       }
+
+      await Promise.all(stockDeductions.map(async (deduction) => {
+        const ops: Promise<unknown>[] = [
+          tx.product.update({
+            where: { id: deduction.productId },
+            data: { stock: { decrement: deduction.quantity } },
+          }),
+          tx.stockMovement.create({
+            data: {
+              productId: deduction.productId,
+              branchId: input.branchId || null,
+              type: "OUT",
+              quantity: deduction.quantity,
+              note: deduction.note,
+              reference: invoiceNumber,
+            },
+          }),
+        ];
+
+        if (input.branchId) {
+          ops.push(
+            tx.branchStock.update({
+              where: {
+                branchId_productId: {
+                  branchId: input.branchId,
+                  productId: deduction.productId,
+                },
+              },
+              data: { quantity: { decrement: deduction.quantity } },
+            })
+          );
+        }
+
+        return Promise.all(ops);
+      }));
 
       return newTx;
     });
@@ -333,6 +396,25 @@ export async function createTransaction(input: CreateTransactionInput) {
     createAuditLog({ action: "CREATE", entity: "Transaction", entityId: transaction.id, details: { data: { invoiceNumber, grandTotal: input.grandTotal, paymentMethod: input.paymentMethod, itemCount: input.items.length, ...(terminPayment && terminPayment.amount > 0 ? { terminAmount: terminPayment.amount } : {}) } } }).catch(() => {});
 
     emitEvent(EVENTS.TRANSACTION_CREATED, { invoiceNumber: transaction.invoiceNumber, grandTotal: input.grandTotal }, input.branchId);
+
+    // Auto-create accounting journal
+    import("@/server/actions/accounting").then(({ createAutoJournal }) => {
+      createAutoJournal({
+        referenceType: "TRANSACTION",
+        referenceId: transaction.id,
+        ...(input.branchId ? { branchId: input.branchId } : {}),
+      });
+    }).catch(() => {});
+
+    // Auto-create kitchen display order (if enabled)
+    import("@/server/actions/settings").then(async ({ getSetting }) => {
+      const kitchenEnabled = await getSetting("kitchen.enabled", input.branchId || null);
+      const autoSendKitchen = await getSetting("pos.autoSendKitchen", input.branchId || null);
+      if (kitchenEnabled === "true" || autoSendKitchen === "true") {
+        const { createOrderFromTransaction } = await import("@/server/actions/order-queue");
+        createOrderFromTransaction(transaction.id);
+      }
+    }).catch(() => {});
 
     return {
       success: true,
@@ -470,23 +552,24 @@ export async function voidTransaction(id: string, reason: string) {
         throw new Error("Hanya transaksi COMPLETED yang bisa di-void");
 
       // Restore stock (use baseQty which accounts for unit conversion)
-      for (const item of transaction.items) {
+      await Promise.all(transaction.items.map(async (item) => {
         const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: restoreQty } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: "IN",
-            quantity: restoreQty,
-            note: `Void transaksi ${transaction.invoiceNumber}`,
-            reference: transaction.invoiceNumber,
-          },
-        });
-      }
+        return Promise.all([
+          tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: restoreQty } },
+          }),
+          tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: "IN",
+              quantity: restoreQty,
+              note: `Void transaksi ${transaction.invoiceNumber}`,
+              reference: transaction.invoiceNumber,
+            },
+          }),
+        ]);
+      }));
 
       await tx.transaction.update({
         where: { id },
@@ -544,23 +627,24 @@ export async function refundTransaction(id: string, reason: string) {
         throw new Error("Hanya transaksi COMPLETED yang bisa di-refund");
 
       // Restore stock (use baseQty which accounts for unit conversion)
-      for (const item of transaction.items) {
+      await Promise.all(transaction.items.map(async (item) => {
         const restoreQty = item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: restoreQty } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            type: "IN",
-            quantity: restoreQty,
-            note: `Refund transaksi ${transaction.invoiceNumber}`,
-            reference: transaction.invoiceNumber,
-          },
-        });
-      }
+        return Promise.all([
+          tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: restoreQty } },
+          }),
+          tx.stockMovement.create({
+            data: {
+              productId: item.productId,
+              type: "IN",
+              quantity: restoreQty,
+              note: `Refund transaksi ${transaction.invoiceNumber}`,
+              reference: transaction.invoiceNumber,
+            },
+          }),
+        ]);
+      }));
 
       await tx.transaction.update({
         where: { id },

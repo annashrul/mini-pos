@@ -150,30 +150,33 @@ export async function getProfitLossReport(
       })()
     : new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      createdAt: { gte: monthStart, lt: monthEnd },
-      status: "COMPLETED",
-      ...(branchId ? { branchId } : {}),
-    },
-    include: {
-      items: { include: { product: { select: { purchasePrice: true } } } },
-    },
-  });
+  const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
 
-  let totalRevenue = 0;
-  let totalCost = 0;
-  let totalDiscount = 0;
-  let totalTax = 0;
+  const [totals, costResult] = await Promise.all([
+    prisma.transaction.aggregate({
+      where: {
+        createdAt: { gte: monthStart, lt: monthEnd },
+        status: "COMPLETED",
+        ...(branchId ? { branchId } : {}),
+      },
+      _sum: { grandTotal: true, discountAmount: true, taxAmount: true },
+      _count: true,
+    }),
+    prisma.$queryRawUnsafe<{ cost: bigint }[]>(`
+      SELECT COALESCE(SUM(ti.quantity * p."purchasePrice"), 0) as cost
+      FROM transaction_items ti
+      JOIN transactions t ON t.id = ti."transactionId"
+      JOIN products p ON p.id = ti."productId"
+      WHERE t."createdAt" >= $1 AND t."createdAt" < $2
+        AND t.status = 'COMPLETED'
+        ${branchCondition}
+    `, monthStart, monthEnd),
+  ]);
 
-  for (const tx of transactions) {
-    totalRevenue += tx.grandTotal;
-    totalDiscount += tx.discountAmount;
-    totalTax += tx.taxAmount;
-    for (const item of tx.items) {
-      totalCost += item.product.purchasePrice * item.quantity;
-    }
-  }
+  const totalRevenue = totals._sum.grandTotal || 0;
+  const totalDiscount = totals._sum.discountAmount || 0;
+  const totalTax = totals._sum.taxAmount || 0;
+  const totalCost = Number(costResult[0]?.cost || 0);
 
   const periodLabel =
     dateFrom && dateTo
@@ -187,7 +190,7 @@ export async function getProfitLossReport(
     discount: totalDiscount,
     tax: totalTax,
     netProfit: totalRevenue - totalCost - totalTax,
-    transactionCount: transactions.length,
+    transactionCount: totals._count,
     period: periodLabel,
   };
 }

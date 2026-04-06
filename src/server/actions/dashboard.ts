@@ -92,29 +92,40 @@ export async function getDashboardStats(branchId?: string, period?: "today" | "w
 
   const lowStockProducts = lowStockRaw.filter((p) => p.stock <= p.minStock).slice(0, 10);
 
-  // Branch performance
+  // Branch performance — single query with GROUP BY instead of per-branch loops
   let branchPerformance: { branchId: string; branchName: string; periodSales: number; periodTransactions: number; prevPeriodSales: number; prevPeriodTransactions: number }[] = [];
   if (!branchId) {
-    const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true } });
-    branchPerformance = await Promise.all(
-      activeBranches.map(async (branch) => {
-        const bWhere = { status: "COMPLETED" as const, branchId: branch.id };
-        const [periodAgg, periodCount, prevAgg, prevCount] = await Promise.all([
-          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: periodStart, lt: tomorrow }, ...bWhere } }),
-          prisma.transaction.count({ where: { createdAt: { gte: periodStart, lt: tomorrow }, ...bWhere } }),
-          prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...bWhere } }),
-          prisma.transaction.count({ where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, ...bWhere } }),
-        ]);
-        return {
-          branchId: branch.id,
-          branchName: branch.name,
-          periodSales: periodAgg._sum.grandTotal || 0,
-          periodTransactions: periodCount,
-          prevPeriodSales: prevAgg._sum.grandTotal || 0,
-          prevPeriodTransactions: prevCount,
-        };
-      })
-    );
+    const [activeBranches, periodByBranch, prevByBranch] = await Promise.all([
+      prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true } }),
+      prisma.transaction.groupBy({
+        by: ["branchId"],
+        where: { createdAt: { gte: periodStart, lt: tomorrow }, status: "COMPLETED" },
+        _sum: { grandTotal: true },
+        _count: true,
+      }),
+      prisma.transaction.groupBy({
+        by: ["branchId"],
+        where: { createdAt: { gte: prevPeriodStart, lt: periodStart }, status: "COMPLETED" },
+        _sum: { grandTotal: true },
+        _count: true,
+      }),
+    ]);
+
+    const periodMap = new Map(periodByBranch.map(r => [r.branchId, { sales: r._sum.grandTotal || 0, count: r._count }]));
+    const prevMap = new Map(prevByBranch.map(r => [r.branchId, { sales: r._sum.grandTotal || 0, count: r._count }]));
+
+    branchPerformance = activeBranches.map(branch => {
+      const curr = periodMap.get(branch.id) || { sales: 0, count: 0 };
+      const prev = prevMap.get(branch.id) || { sales: 0, count: 0 };
+      return {
+        branchId: branch.id,
+        branchName: branch.name,
+        periodSales: curr.sales,
+        periodTransactions: curr.count,
+        prevPeriodSales: prev.sales,
+        prevPeriodTransactions: prev.count,
+      };
+    });
   }
 
   const todaySalesVal = todaySales._sum.grandTotal || 0;

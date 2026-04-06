@@ -17,6 +17,7 @@ const pageTitles: Record<string, string> = {
     "/dashboard": "Dashboard",
     "/pos": "POS Kasir",
     "/products": "Produk",
+    "/bundles": "Paket Produk",
     "/categories": "Kategori",
     "/brands": "Brand",
     "/suppliers": "Supplier",
@@ -42,6 +43,20 @@ const pageTitles: Record<string, string> = {
     "/debts": "Hutang Piutang",
     "/cashier-performance": "Performa Kasir",
     "/ai-assistant": "AI Assistant",
+    "/returns": "Return & Exchange",
+    "/gift-cards": "Gift Card",
+    "/sales-targets": "Sales Target",
+    "/price-schedules": "Jadwal Harga",
+    "/inventory-forecast": "Prediksi Stok",
+    "/profit-dashboard": "Dashboard Profit",
+    "/employee-schedules": "Jadwal Karyawan",
+    "/kitchen-display": "Kitchen Display",
+    "/accounting": "Dashboard Akuntansi",
+    "/accounting/coa": "Chart of Accounts",
+    "/accounting/journals": "Jurnal Umum",
+    "/accounting/ledger": "Buku Besar",
+    "/accounting/reports": "Laporan Keuangan",
+    "/accounting/periods": "Tutup Buku",
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

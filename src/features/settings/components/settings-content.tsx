@@ -2,19 +2,20 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { savePointConfig, saveReceiptConfig, savePosConfig, getPointConfig, getReceiptConfig, getPosConfig } from "@/features/settings";
+import { savePointConfig, saveReceiptConfig, savePosConfig, saveKitchenConfig, getPointConfig, getReceiptConfig, getPosConfig, getKitchenConfig } from "@/features/settings";
 import { useMenuActionAccess } from "@/features/access-control";
 import { useBranch } from "@/components/providers/branch-provider";
 import { POINT_DEFAULTS, type PointConfig } from "@/lib/point-config";
 import { RECEIPT_DEFAULTS, type ReceiptConfig } from "@/lib/receipt-config";
-import type { PosConfig } from "@/server/actions/settings";
+import type { PosConfig, KitchenConfig } from "@/server/actions/settings";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Save, Loader2, Star, Coins, ArrowRightLeft, TrendingUp, Award, Gift, FileText, Store, ShoppingCart, Shield, AlertTriangle, Users, Percent, Info, MapPin, Globe, Eye } from "lucide-react";
+import { Settings, Save, Loader2, Star, Coins, ArrowRightLeft, TrendingUp, Award, Gift, FileText, Store, ShoppingCart, Shield, AlertTriangle, Users, Percent, Info, MapPin, Globe, Eye, ChefHat, Bell, RefreshCw, Utensils, LayoutGrid, Send } from "lucide-react";
 import { toast } from "sonner";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 
@@ -24,6 +25,15 @@ const POS_DEFAULTS: PosConfig = {
     defaultTaxPercent: 11,
     requireCustomer: false,
     autoOpenCashDrawer: false,
+    businessMode: "retail",
+    showTableNumber: false,
+    autoSendKitchen: false,
+};
+
+const KITCHEN_DEFAULTS: KitchenConfig = {
+    enabled: false,
+    autoAdvance: false,
+    notificationSound: true,
 };
 
 const VALID_SETTINGS_TABS = ["pos", "store", "earn", "redeem", "levels"] as const;
@@ -45,6 +55,7 @@ export function SettingsContent() {
     const [pointCfg, setPointCfg] = useState<PointConfig>(POINT_DEFAULTS);
     const [receiptCfg, setReceiptCfg] = useState<ReceiptConfig>(RECEIPT_DEFAULTS);
     const [posCfg, setPosCfg] = useState<PosConfig>(POS_DEFAULTS);
+    const [kitchenCfg, setKitchenCfg] = useState<KitchenConfig>(KITCHEN_DEFAULTS);
     const [isSaving, startTransition] = useTransition();
     const [hasChanges, setHasChanges] = useState(false);
     const { selectedBranchId, branchReady, selectedBranchName } = useBranch();
@@ -60,8 +71,8 @@ export function SettingsContent() {
             // First mount — load settings once
             mountedRef.current = true;
             const bid = selectedBranchId || undefined;
-            Promise.all([getPointConfig(bid), getReceiptConfig(bid), getPosConfig(bid)]).then(([p, r, pos]) => {
-                setPointCfg(p); setReceiptCfg(r); setPosCfg(pos); setHasChanges(false);
+            Promise.all([getPointConfig(bid), getReceiptConfig(bid), getPosConfig(bid), getKitchenConfig(bid)]).then(([p, r, pos, kitchen]) => {
+                setPointCfg(p); setReceiptCfg(r); setPosCfg(pos); setKitchenCfg(kitchen); setHasChanges(false);
             });
             prevBranchRef.current = selectedBranchId;
             return;
@@ -70,8 +81,8 @@ export function SettingsContent() {
         if (prevBranchRef.current === selectedBranchId) return;
         prevBranchRef.current = selectedBranchId;
         const bid = selectedBranchId || undefined;
-        Promise.all([getPointConfig(bid), getReceiptConfig(bid), getPosConfig(bid)]).then(([p, r, pos]) => {
-            setPointCfg(p); setReceiptCfg(r); setPosCfg(pos); setHasChanges(false);
+        Promise.all([getPointConfig(bid), getReceiptConfig(bid), getPosConfig(bid), getKitchenConfig(bid)]).then(([p, r, pos, kitchen]) => {
+            setPointCfg(p); setReceiptCfg(r); setPosCfg(pos); setKitchenCfg(kitchen); setHasChanges(false);
         });
     }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -91,7 +102,7 @@ export function SettingsContent() {
         if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         const bid = selectedBranchId || undefined;
         startTransition(async () => {
-            await Promise.all([savePointConfig(pointCfg, bid), saveReceiptConfig(receiptCfg, bid), savePosConfig(posCfg, bid)]);
+            await Promise.all([savePointConfig(pointCfg, bid), saveReceiptConfig(receiptCfg, bid), savePosConfig(posCfg, bid), saveKitchenConfig(kitchenCfg, bid)]);
             toast.success(`Pengaturan berhasil disimpan${selectedBranchId ? ` untuk ${selectedBranchName}` : " (global)"}`);
             setHasChanges(false);
         });
@@ -177,6 +188,78 @@ export function SettingsContent() {
                         </div>
 
                         <div className="space-y-3">
+                            {/* Business Mode */}
+                            <div className="rounded-xl border border-border/40 p-4 space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                                        <Utensils className="w-4 h-4" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium">Mode Bisnis</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Pilih jenis usaha untuk menyesuaikan fitur POS.</p>
+                                    </div>
+                                    <Select value={posCfg.businessMode} onValueChange={(v) => {
+                                        const updates: Partial<PosConfig> = { businessMode: v };
+                                        if (v === "restaurant" || v === "cafe") {
+                                            updates.requireCustomer = true;
+                                            updates.showTableNumber = true;
+                                            updates.autoSendKitchen = true;
+                                        }
+                                        setPosCfg({ ...posCfg, ...updates });
+                                        setHasChanges(true);
+                                    }}>
+                                        <SelectTrigger className="w-40 rounded-xl h-10">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="retail">Retail</SelectItem>
+                                            <SelectItem value="restaurant">Restoran</SelectItem>
+                                            <SelectItem value="cafe">Cafe</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Show Table Number — only for restaurant/cafe */}
+                            {(posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") && (
+                                <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                    posCfg.showTableNumber
+                                        ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
+                                        : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
+                                }`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.showTableNumber ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                            <LayoutGrid className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium">Tampilkan Nomor Meja</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">Menampilkan input nomor meja pada halaman POS.</p>
+                                        </div>
+                                    </div>
+                                    <Switch checked={posCfg.showTableNumber} onCheckedChange={(v) => { setPosCfg({ ...posCfg, showTableNumber: v }); setHasChanges(true); }} />
+                                </div>
+                            )}
+
+                            {/* Auto Send Kitchen — only for restaurant/cafe */}
+                            {(posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") && (
+                                <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                    posCfg.autoSendKitchen
+                                        ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
+                                        : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
+                                }`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.autoSendKitchen ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                            <Send className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium">Auto Kirim ke Kitchen</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">Otomatis kirim order ke kitchen display saat transaksi selesai.</p>
+                                        </div>
+                                    </div>
+                                    <Switch checked={posCfg.autoSendKitchen} onCheckedChange={(v) => { setPosCfg({ ...posCfg, autoSendKitchen: v }); setHasChanges(true); }} />
+                                </div>
+                            )}
+
                             {/* Validate Stock */}
                             <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
                                 posCfg.validateStock
@@ -246,6 +329,74 @@ export function SettingsContent() {
                                     <Input type="number" min={0} max={100} value={posCfg.defaultTaxPercent} onChange={(e) => { setPosCfg({ ...posCfg, defaultTaxPercent: Number(e.target.value) }); setHasChanges(true); }} className="w-28 rounded-xl h-10 text-center font-semibold text-lg bg-white" />
                                     <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">%</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Kitchen Display Section */}
+                    <div className="rounded-2xl bg-white border border-border/40 p-6 space-y-5 max-w-2xl shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
+                                <ChefHat className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-semibold">Kitchen Display</h3>
+                                <p className="text-sm text-muted-foreground mt-0.5">Konfigurasi integrasi kitchen display system</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {/* Kitchen Enabled */}
+                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                kitchenCfg.enabled
+                                    ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
+                                    : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
+                            }`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.enabled ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        <ChefHat className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">Kirim order ke Kitchen Display</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Otomatis kirim order baru ke layar dapur saat transaksi selesai.</p>
+                                    </div>
+                                </div>
+                                <Switch checked={kitchenCfg.enabled} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, enabled: v }); setHasChanges(true); }} />
+                            </div>
+
+                            {/* Auto Advance */}
+                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                kitchenCfg.autoAdvance
+                                    ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
+                                    : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
+                            }`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.autoAdvance ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        <RefreshCw className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">Auto-advance status</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Otomatis ubah status order saat semua item selesai diproses.</p>
+                                    </div>
+                                </div>
+                                <Switch checked={kitchenCfg.autoAdvance} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, autoAdvance: v }); setHasChanges(true); }} />
+                            </div>
+
+                            {/* Notification Sound */}
+                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                kitchenCfg.notificationSound
+                                    ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
+                                    : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
+                            }`}>
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.notificationSound ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        <Bell className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">Suara notifikasi order baru</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Putar suara notifikasi saat ada order baru masuk ke kitchen display.</p>
+                                    </div>
+                                </div>
+                                <Switch checked={kitchenCfg.notificationSound} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, notificationSound: v }); setHasChanges(true); }} />
                             </div>
                         </div>
                     </div>

@@ -72,6 +72,15 @@ export interface CartItem {
   tierPrices?: ProductTierPrice[];
   tebusPromoId?: string;
   tebusPromoName?: string;
+  bundleId?: string;
+  bundleItems?: {
+    productId: string;
+    productName: string;
+    productCode: string;
+    quantity: number;
+    unitPrice: number;
+    purchasePrice: number;
+  }[];
   /** Unit name for display, e.g. "Karung", "Kg" */
   unitName?: string;
   /** How many base units per this unit, e.g. 1 Karung = 25 Kg => conversionQty=25 */

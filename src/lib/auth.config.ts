@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import type { NextAuthConfig } from "next-auth";
 
 /**
@@ -10,25 +11,32 @@ export const authConfig: NextAuthConfig = {
     signIn: "/login",
   },
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
+    authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
-      const pathname = nextUrl.pathname;
+      const pathname = request.nextUrl.pathname;
 
       // Public routes
       if (pathname === "/login") {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/dashboard", nextUrl));
+          return Response.redirect(new URL("/dashboard", request.nextUrl));
         }
         return true;
       }
 
       // Root redirect
       if (pathname === "/" && isLoggedIn) {
-        return Response.redirect(new URL("/dashboard", nextUrl));
+        return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
 
       // Protect all other routes
-      return isLoggedIn;
+      if (!isLoggedIn) return false;
+
+      // Set x-pathname header for layout access control
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set("x-pathname", pathname);
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      });
     },
     async jwt({ token, user }) {
       if (user) {

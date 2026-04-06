@@ -54,17 +54,18 @@ export async function createRole(data: { key: string; name: string; description?
       });
     }
   } else {
-    // Create default permissions (all denied) for all menus
+    // Create default permissions (all denied) for all menus — batch insert
     const menus = await prisma.appMenu.findMany({ include: { actions: true } });
-    for (const menu of menus) {
-      await prisma.roleMenuPermission.create({
-        data: { role: keyFormatted, menuId: menu.id, allowed: false },
-      });
-      for (const action of menu.actions) {
-        await prisma.roleActionPermission.create({
-          data: { role: keyFormatted, menuActionId: action.id, allowed: false },
-        });
-      }
+
+    await prisma.roleMenuPermission.createMany({
+      data: menus.map((menu) => ({ role: keyFormatted, menuId: menu.id, allowed: false })),
+    });
+
+    const allActionPerms = menus.flatMap((menu) =>
+      menu.actions.map((action) => ({ role: keyFormatted, menuActionId: action.id, allowed: false }))
+    );
+    if (allActionPerms.length > 0) {
+      await prisma.roleActionPermission.createMany({ data: allActionPerms });
     }
   }
 
@@ -125,7 +126,5 @@ export async function seedSystemRoles() {
     { key: "CASHIER", name: "Kasir", description: "Transaksi POS & shift kasir", color: "bg-green-100 text-green-700", isSystem: true },
   ];
 
-  for (const role of systemRoles) {
-    await prisma.appRole.create({ data: role });
-  }
+  await prisma.appRole.createMany({ data: systemRoles });
 }

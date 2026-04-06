@@ -410,7 +410,7 @@ export function ClosingReportsContent() {
 
             {/* Detail Report Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl w-[95vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <DialogContent className="rounded-2xl w-[99vw] max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
                     <div className="h-1 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-green-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3 text-lg font-bold">

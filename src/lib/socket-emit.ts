@@ -8,6 +8,12 @@ export const EVENTS = {
     SHIFT_OPENED: "shift:opened",
     SHIFT_CLOSED: "shift:closed",
     DASHBOARD_REFRESH: "dashboard:refresh",
+    ORDER_QUEUE_CREATED: "order-queue:created",
+    ORDER_QUEUE_UPDATED: "order-queue:updated",
+    ORDER_QUEUE_CANCELLED: "order-queue:cancelled",
+    CONFIG_POS_UPDATED: "config:pos-updated",
+    CONFIG_RECEIPT_UPDATED: "config:receipt-updated",
+    CONFIG_KITCHEN_UPDATED: "config:kitchen-updated",
 } as const;
 
 /**

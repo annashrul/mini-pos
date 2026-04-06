@@ -14,8 +14,19 @@ export type RawPosProduct = {
   unit: string;
   imageUrl?: string | null;
   category?: { name: string } | null;
-  units?: { id: string; name: string; conversionQty: number; sellingPrice: number; purchasePrice: number | null; barcode: string | null }[];
-  matchedUnit?: { name: string; conversionQty: number; sellingPrice: number } | null;
+  units?: {
+    id: string;
+    name: string;
+    conversionQty: number;
+    sellingPrice: number;
+    purchasePrice: number | null;
+    barcode: string | null;
+  }[];
+  matchedUnit?: {
+    name: string;
+    conversionQty: number;
+    sellingPrice: number;
+  } | null;
 };
 
 export type PaymentMethodType =
@@ -52,7 +63,14 @@ export type PosHistoryItem = {
   createdAt: string | Date;
   user: { name: string };
   payments?: { method: string; amount: number }[];
-  items: { productName: string; quantity: number; unitPrice: number; subtotal: number; unitName?: string | undefined; conversionQty?: number | undefined }[];
+  items: {
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    unitName?: string | undefined;
+    conversionQty?: number | undefined;
+  }[];
 };
 
 export type ShiftSummary = {
@@ -74,6 +92,9 @@ export type PosConfig = {
   defaultTaxPercent: number;
   requireCustomer: boolean;
   autoOpenCashDrawer: boolean;
+  businessMode: string;
+  showTableNumber: boolean;
+  autoSendKitchen: boolean;
 };
 
 export type DetectedCustomer = {

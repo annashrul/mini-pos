@@ -129,6 +129,13 @@ model User {
   approvalRequests  ApprovalRequest[] @relation("ApprovalRequester")
   approvalDecisions ApprovalRequest[] @relation("ApprovalApprover")
   storeCreditsIssued StoreCredit[]
+  returnsProcessed  ReturnExchange[]  @relation("ReturnProcessedBy")
+  giftCardsCreated  GiftCard[]        @relation("GiftCardCreatedBy")
+  salesTargets      SalesTarget[]
+  badges            CashierBadge[]
+  schedules         EmployeeSchedule[]
+  favorites         CashierFavorite[]
+  journalsCreated   JournalEntry[]    @relation("JournalCreatedBy")
 
   @@index([email])
   @@index([role])
@@ -228,6 +235,16 @@ model Branch {
   settings        Setting[]
   debts           Debt[]
   approvalRequests ApprovalRequest[]
+  returnExchanges  ReturnExchange[]
+  giftCards        GiftCard[]
+  salesTargets     SalesTarget[]
+  priceSchedules   PriceSchedule[]
+  employeeSchedules EmployeeSchedule[]
+  orderQueues      OrderQueue[]
+  accounts         Account[]
+  journalEntries   JournalEntry[]
+  restaurantTables RestaurantTable[]
+  productBundles ProductBundle[]
 
   @@map("branches")
 }
@@ -281,6 +298,7 @@ model Category {
   updatedAt   DateTime      @updatedAt
   products    Product[]
   promotions  Promotion[]
+  bundles     ProductBundle[]
 
   @@index([parentId])
   @@map("categories")
@@ -330,6 +348,11 @@ model Product {
   branchStocks     BranchStock[]
   units            ProductUnit[]
   tierPrices       ProductTierPrice[]
+  returnItems      ReturnExchangeItem[]
+  exchangeItems    ReturnExchangeItem[] @relation("ExchangeProduct")
+  priceSchedules   PriceSchedule[]
+  cashierFavorites CashierFavorite[]
+  bundleItems     ProductBundleItem[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -462,6 +485,8 @@ model Customer {
   transactions    Transaction[]
   pointHistories  CustomerPointHistory[]
   storeCredits    StoreCredit[]
+  returns         ReturnExchange[]
+  giftCards       GiftCard[]
 
   @@index([phone])
   @@index([memberCardCode])
@@ -513,6 +538,10 @@ model Transaction {
   items           TransactionItem[]
   payments        Payment[]
   refund          Refund?
+  returns         ReturnExchange[]
+  orderQueues     OrderQueue[]
+  tableId         String?
+  table           RestaurantTable? @relation(fields: [tableId], references: [id])
 
   @@index([invoiceNumber])
   @@index([userId])
@@ -1057,5 +1086,425 @@ model StoreCreditUsage {
 
     @@index([storeCreditId])
     @@map("store_credit_usages")
+}
+
+// ===========================
+// RETURN & EXCHANGE
+// ===========================
+
+model ReturnExchange {
+    id                String              @id @default(uuid())
+    returnNumber      String              @unique
+    transactionId     String
+    transaction       Transaction         @relation(fields: [transactionId], references: [id])
+    customerId        String?
+    customer          Customer?           @relation(fields: [customerId], references: [id])
+    type              String              // RETURN, EXCHANGE
+    status            String              @default("PENDING") // PENDING, APPROVED, COMPLETED, REJECTED
+    reason            String
+    notes             String?
+    totalRefund       Float               @default(0)
+    refundMethod      String?             // CASH, STORE_CREDIT, ORIGINAL_METHOD
+    approvedBy        String?
+    approvedAt        DateTime?
+    branchId          String?
+    branch            Branch?             @relation(fields: [branchId], references: [id])
+    processedBy       String
+    processedByUser   User                @relation("ReturnProcessedBy", fields: [processedBy], references: [id])
+    items             ReturnExchangeItem[]
+    createdAt         DateTime            @default(now())
+    updatedAt         DateTime            @updatedAt
+
+    @@index([transactionId])
+    @@index([returnNumber])
+    @@map("return_exchanges")
+}
+
+model ReturnExchangeItem {
+    id               String          @id @default(uuid())
+    returnExchangeId String
+    returnExchange   ReturnExchange  @relation(fields: [returnExchangeId], references: [id], onDelete: Cascade)
+    productId        String
+    product          Product         @relation(fields: [productId], references: [id])
+    productName      String
+    quantity         Int
+    unitPrice        Float
+    subtotal         Float
+    reason           String?
+    // For exchange: replacement product
+    exchangeProductId   String?
+    exchangeProduct     Product?     @relation("ExchangeProduct", fields: [exchangeProductId], references: [id])
+    exchangeQuantity    Int?
+    restocked        Boolean         @default(false)
+
+    @@index([returnExchangeId])
+    @@map("return_exchange_items")
+}
+
+// ===========================
+// GIFT CARDS
+// ===========================
+
+model GiftCard {
+    id              String              @id @default(uuid())
+    code            String              @unique
+    initialBalance  Float
+    currentBalance  Float
+    status          String              @default("ACTIVE") // ACTIVE, USED, EXPIRED, DISABLED
+    purchasedBy     String?             // customer name or walk-in
+    customerId      String?
+    customer        Customer?           @relation(fields: [customerId], references: [id])
+    expiresAt       DateTime?
+    branchId        String?
+    branch          Branch?             @relation(fields: [branchId], references: [id])
+    createdBy       String
+    createdByUser   User                @relation("GiftCardCreatedBy", fields: [createdBy], references: [id])
+    transactions    GiftCardTransaction[]
+    createdAt       DateTime            @default(now())
+    updatedAt       DateTime            @updatedAt
+
+    @@index([code])
+    @@index([customerId])
+    @@map("gift_cards")
+}
+
+model GiftCardTransaction {
+    id            String    @id @default(uuid())
+    giftCardId    String
+    giftCard      GiftCard  @relation(fields: [giftCardId], references: [id])
+    type          String    // PURCHASE, REDEEM, TOPUP, REFUND
+    amount        Float
+    balanceBefore Float
+    balanceAfter  Float
+    reference     String?   // invoice number or note
+    createdAt     DateTime  @default(now())
+
+    @@index([giftCardId])
+    @@map("gift_card_transactions")
+}
+
+// ===========================
+// SALES TARGET & GAMIFICATION
+// ===========================
+
+model SalesTarget {
+    id            String    @id @default(uuid())
+    userId        String?
+    user          User?     @relation(fields: [userId], references: [id])
+    branchId      String?
+    branch        Branch?   @relation(fields: [branchId], references: [id])
+    type          String    // DAILY, WEEKLY, MONTHLY
+    targetRevenue Float?
+    targetTx      Int?      // target transaction count
+    targetItems   Int?      // target items sold
+    period        String    // e.g. "2026-04", "2026-W14", "2026-04-04"
+    isActive      Boolean   @default(true)
+    createdBy     String
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    @@unique([userId, type, period])
+    @@index([period])
+    @@map("sales_targets")
+}
+
+model CashierBadge {
+    id          String   @id @default(uuid())
+    userId      String
+    user        User     @relation(fields: [userId], references: [id])
+    badge       String   // TOP_SELLER, ZERO_VOID, SPEED_DEMON, STREAK_7, etc.
+    title       String
+    description String?
+    earnedAt    DateTime @default(now())
+    period      String?  // period when earned
+
+    @@index([userId])
+    @@map("cashier_badges")
+}
+
+// ===========================
+// PRICE SCHEDULER
+// ===========================
+
+model PriceSchedule {
+    id          String    @id @default(uuid())
+    productId   String
+    product     Product   @relation(fields: [productId], references: [id])
+    branchId    String?
+    branch      Branch?   @relation(fields: [branchId], references: [id])
+    newPrice    Float
+    originalPrice Float
+    startDate   DateTime
+    endDate     DateTime
+    reason      String?
+    isActive    Boolean   @default(true)
+    appliedAt   DateTime?
+    revertedAt  DateTime?
+    createdBy   String
+    createdAt   DateTime  @default(now())
+
+    @@index([productId])
+    @@index([startDate, endDate])
+    @@map("price_schedules")
+}
+
+// ===========================
+// EMPLOYEE SCHEDULER
+// ===========================
+
+model EmployeeSchedule {
+    id          String   @id @default(uuid())
+    userId      String
+    user        User     @relation(fields: [userId], references: [id])
+    branchId    String?
+    branch      Branch?  @relation(fields: [branchId], references: [id])
+    date        DateTime @db.Date
+    shiftStart  String   // "08:00"
+    shiftEnd    String   // "16:00"
+    shiftLabel  String?  // "Pagi", "Siang", "Malam"
+    status      String   @default("SCHEDULED") // SCHEDULED, CONFIRMED, ABSENT, LEAVE
+    notes       String?
+    createdBy   String
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@unique([userId, date])
+    @@index([date])
+    @@index([branchId, date])
+    @@map("employee_schedules")
+}
+
+// ===========================
+// KITCHEN / ORDER DISPLAY
+// ===========================
+
+model OrderQueue {
+    id            String           @id @default(uuid())
+    queueNumber   Int
+    transactionId String?
+    transaction   Transaction?     @relation(fields: [transactionId], references: [id])
+    branchId      String?
+    branch        Branch?          @relation(fields: [branchId], references: [id])
+    status        String           @default("NEW") // NEW, PREPARING, READY, SERVED, CANCELLED
+    priority      Int              @default(0)
+    notes         String?
+    tableId       String?
+    table         RestaurantTable? @relation(fields: [tableId], references: [id])
+    items         OrderQueueItem[]
+    createdAt     DateTime         @default(now())
+    updatedAt     DateTime         @updatedAt
+    servedAt      DateTime?
+
+    @@index([branchId, status])
+    @@index([createdAt])
+    @@map("order_queues")
+}
+
+model OrderQueueItem {
+    id           String     @id @default(uuid())
+    orderQueueId String
+    orderQueue   OrderQueue @relation(fields: [orderQueueId], references: [id], onDelete: Cascade)
+    productName  String
+    quantity     Int
+    notes        String?
+    status       String     @default("PENDING") // PENDING, PREPARING, DONE
+
+    @@index([orderQueueId])
+    @@map("order_queue_items")
+}
+
+// ===========================
+// CASHIER FAVORITES (POS Quick Access)
+// ===========================
+
+model CashierFavorite {
+    id        String   @id @default(uuid())
+    userId    String
+    user      User     @relation(fields: [userId], references: [id])
+    productId String
+    product   Product  @relation(fields: [productId], references: [id])
+    sortOrder Int      @default(0)
+    createdAt DateTime @default(now())
+
+    @@unique([userId, productId])
+    @@index([userId])
+    @@map("cashier_favorites")
+}
+
+// ===========================
+// ACCOUNTING MODULE
+// ===========================
+
+model AccountCategory {
+    id          String    @id @default(uuid())
+    name        String    // Aset, Kewajiban, Modal, Pendapatan, Beban
+    type        String    // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+    normalSide  String    // DEBIT, CREDIT
+    sortOrder   Int       @default(0)
+    accounts    Account[]
+    createdAt   DateTime  @default(now())
+
+    @@unique([type])
+    @@map("account_categories")
+}
+
+model Account {
+    id              String           @id @default(uuid())
+    code            String           @unique // e.g. 1-1001
+    name            String
+    description     String?
+    categoryId      String
+    category        AccountCategory  @relation(fields: [categoryId], references: [id])
+    parentId        String?
+    parent          Account?         @relation("AccountHierarchy", fields: [parentId], references: [id])
+    children        Account[]        @relation("AccountHierarchy")
+    isActive        Boolean          @default(true)
+    isSystem        Boolean          @default(false) // System accounts can't be deleted
+    branchId        String?          // null = global account
+    branch          Branch?          @relation(fields: [branchId], references: [id])
+    openingBalance  Float            @default(0)
+    journalLines    JournalEntryLine[]
+    createdAt       DateTime         @default(now())
+    updatedAt       DateTime         @updatedAt
+
+    @@index([categoryId])
+    @@index([parentId])
+    @@index([code])
+    @@index([branchId])
+    @@map("accounts")
+}
+
+model JournalEntry {
+    id              String             @id @default(uuid())
+    entryNumber     String             @unique // JV-260404-0001
+    date            DateTime           @db.Date
+    description     String
+    reference       String?            // invoice number, PO number, etc.
+    referenceType   String?            // TRANSACTION, PURCHASE, RETURN, DEBT_PAYMENT, EXPENSE, MANUAL
+    referenceId     String?            // ID of related entity
+    branchId        String?
+    branch          Branch?            @relation(fields: [branchId], references: [id])
+    periodId        String?
+    period          AccountingPeriod?  @relation(fields: [periodId], references: [id])
+    status          String             @default("POSTED") // DRAFT, POSTED, VOIDED
+    totalDebit      Float              @default(0)
+    totalCredit     Float              @default(0)
+    lines           JournalEntryLine[]
+    createdBy       String
+    createdByUser   User               @relation("JournalCreatedBy", fields: [createdBy], references: [id])
+    updatedBy       String?
+    notes           String?
+    createdAt       DateTime           @default(now())
+    updatedAt       DateTime           @updatedAt
+
+    @@index([date])
+    @@index([entryNumber])
+    @@index([referenceType, referenceId])
+    @@index([branchId])
+    @@index([periodId])
+    @@index([status])
+    @@map("journal_entries")
+}
+
+model JournalEntryLine {
+    id            String       @id @default(uuid())
+    journalId     String
+    journal       JournalEntry @relation(fields: [journalId], references: [id], onDelete: Cascade)
+    accountId     String
+    account       Account      @relation(fields: [accountId], references: [id])
+    description   String?
+    debit         Float        @default(0)
+    credit        Float        @default(0)
+    sortOrder     Int          @default(0)
+
+    @@index([journalId])
+    @@index([accountId])
+    @@map("journal_entry_lines")
+}
+
+model AccountingPeriod {
+    id          String         @id @default(uuid())
+    name        String         // "April 2026"
+    startDate   DateTime       @db.Date
+    endDate     DateTime       @db.Date
+    status      String         @default("OPEN") // OPEN, CLOSED, LOCKED
+    closedBy    String?
+    closedAt    DateTime?
+    journals    JournalEntry[]
+    createdAt   DateTime       @default(now())
+    updatedAt   DateTime       @updatedAt
+
+    @@unique([startDate, endDate])
+    @@index([status])
+    @@map("accounting_periods")
+}
+
+// ===========================
+// PRODUCT BUNDLES
+// ===========================
+
+model ProductBundle {
+  id              String              @id @default(uuid())
+  code            String              @unique
+  name            String
+  description     String?
+  imageUrl        String?
+  sellingPrice    Float               // Bundle price (usually discounted)
+  totalBasePrice  Float               @default(0) // Sum of component prices (for margin calculation)
+  categoryId      String?
+  category        Category?           @relation(fields: [categoryId], references: [id])
+  isActive        Boolean             @default(true)
+  barcode         String?             @unique
+  items           ProductBundleItem[]
+  branchId        String?
+  branch          Branch?             @relation(fields: [branchId], references: [id])
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([isActive])
+  @@index([categoryId])
+  @@index([branchId])
+  @@map("product_bundles")
+}
+
+model ProductBundleItem {
+  id          String        @id @default(uuid())
+  bundleId    String
+  bundle      ProductBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product       @relation(fields: [productId], references: [id])
+  quantity    Int           @default(1)
+  sortOrder   Int           @default(0)
+
+  @@index([bundleId])
+  @@index([productId])
+  @@map("product_bundle_items")
+}
+
+// ===========================
+// RESTAURANT TABLES
+// ===========================
+
+model RestaurantTable {
+  id          String    @id @default(uuid())
+  number      Int
+  name        String?   // e.g. "Meja VIP 1", "Outdoor 3"
+  capacity    Int       @default(4)
+  status      String    @default("AVAILABLE") // AVAILABLE, OCCUPIED, RESERVED, CLEANING
+  branchId    String?
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  section     String?   // e.g. "Indoor", "Outdoor", "VIP"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  transactions Transaction[]
+  orderQueues  OrderQueue[]
+
+  @@unique([number, branchId])
+  @@index([branchId, status])
+  @@index([section])
+  @@map("restaurant_tables")
 }
 

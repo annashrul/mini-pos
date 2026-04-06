@@ -58,7 +58,12 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [browsePage, setBrowsePage] = useState(initCache?.page ?? 1);
   const [browseHasMore, setBrowseHasMore] = useState(initCache?.hasMore ?? true);
   const [browseLoading, setBrowseLoading] = useState(false);
+  const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedTables, setSelectedTables] = useState<{ id: string; number: number; name: string | null; capacity: number }[]>([]);
+  const [tables, setTables] = useState<{ id: string; number: number; name: string | null; capacity: number; status: string; section: string | null }[]>([]);
+  const [leftPanelTab, setLeftPanelTab] = useState<"products" | "bundles" | "tables">("products");
+  const [bundles, setBundles] = useState<any[]>([]);
   const [detectedCustomer, setDetectedCustomer] = useState<DetectedCustomer | null>(null);
   const [appliedPromos, setAppliedPromos] = useState<{ promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[]>([]);
   const [promoDiscount, setPromoDiscount] = useState(0);
@@ -119,6 +124,7 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
     browsePage, setBrowsePage,
     browseHasMore, setBrowseHasMore,
     browseLoading, setBrowseLoading,
+    customerName, setCustomerName,
     customerPhone, setCustomerPhone,
     detectedCustomer, setDetectedCustomer,
     appliedPromos, setAppliedPromos,
@@ -136,5 +142,9 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
     productTab,
     mobileView, setMobileView,
     productSyncing, setProductSyncing,
+    selectedTables, setSelectedTables,
+    tables, setTables,
+    leftPanelTab, setLeftPanelTab,
+    bundles, setBundles,
   };
 }

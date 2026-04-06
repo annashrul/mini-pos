@@ -6,6 +6,7 @@ import { getActiveShift, openShift, closeShift, getShiftSummary } from "@/server
 import { calculateAutoPromo, validateVoucher, findCustomerByPhone, getTebusMurahOptions } from "@/server/actions/promo-engine";
 import { redeemPoints } from "@/server/actions/points";
 import { getReceiptConfig, getPosConfig } from "@/server/actions/settings";
+import { getActiveBundles } from "@/server/actions/bundles";
 
 export const posService = {
   searchProducts,
@@ -25,4 +26,5 @@ export const posService = {
   redeemPoints,
   getReceiptConfig,
   getPosConfig,
+  getActiveBundles,
 };

@@ -21,22 +21,48 @@ export async function getClosingReport(shiftId: string) {
     status: "COMPLETED" as const,
   };
 
-  const transactions = await prisma.transaction.findMany({
-    where,
-    select: {
-      id: true,
-      invoiceNumber: true,
-      grandTotal: true,
-      subtotal: true,
-      discountAmount: true,
-      taxAmount: true,
-      paymentMethod: true,
-      paymentAmount: true,
-      changeAmount: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const [transactions, voidCount, refundCount, cashMovements] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      select: {
+        id: true,
+        invoiceNumber: true,
+        grandTotal: true,
+        subtotal: true,
+        discountAmount: true,
+        taxAmount: true,
+        paymentMethod: true,
+        paymentAmount: true,
+        changeAmount: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.transaction.count({
+      where: {
+        userId: shift.userId,
+        createdAt: {
+          gte: shift.openedAt,
+          ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+        },
+        status: "VOIDED",
+      },
+    }),
+    prisma.transaction.count({
+      where: {
+        userId: shift.userId,
+        createdAt: {
+          gte: shift.openedAt,
+          ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+        },
+        status: "REFUNDED",
+      },
+    }),
+    prisma.cashMovement.findMany({
+      where: { shiftId },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   // Aggregate per payment method
   const paymentSummary: Record<string, { count: number; total: number }> = {};
@@ -60,34 +86,6 @@ export async function getClosingReport(shiftId: string) {
       cashIn += tx.paymentAmount - tx.changeAmount;
     }
   }
-
-  // Void/refund during shift
-  const voidCount = await prisma.transaction.count({
-    where: {
-      userId: shift.userId,
-      createdAt: {
-        gte: shift.openedAt,
-        ...(shift.closedAt ? { lte: shift.closedAt } : {}),
-      },
-      status: "VOIDED",
-    },
-  });
-  const refundCount = await prisma.transaction.count({
-    where: {
-      userId: shift.userId,
-      createdAt: {
-        gte: shift.openedAt,
-        ...(shift.closedAt ? { lte: shift.closedAt } : {}),
-      },
-      status: "REFUNDED",
-    },
-  });
-
-  // Cash movements during shift
-  const cashMovements = await prisma.cashMovement.findMany({
-    where: { shiftId },
-    orderBy: { createdAt: "asc" },
-  });
 
   const cashMovementIn = cashMovements
     .filter((m) => m.type === "CASH_IN")

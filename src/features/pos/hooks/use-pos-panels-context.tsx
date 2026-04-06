@@ -77,6 +77,8 @@ export type PosPanelsContextValue = {
     appliedPromos: { promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[];
     tebusMurahOptions: TebusMurahOption[];
     handleAddTebusMurah: (option: TebusMurahOption) => void;
+    customerName: string;
+    setCustomerName: (v: string) => void;
     customerPhone: string;
     handleCustomerPhoneChange: (phone: string) => Promise<void>;
     detectedCustomer: { name: string; memberLevel: string; points: number } | null;
@@ -91,6 +93,19 @@ export type PosPanelsContextValue = {
     voucherDiscount: number;
     loading: boolean;
     openPaymentDialog: () => void;
+    requireCustomer: boolean;
+    businessMode: string;
+    selectedTables: { id: string; number: number; name: string | null; capacity: number }[];
+    toggleTable: (table: { id: string; number: number; name: string | null; capacity: number }) => void;
+    clearTables: () => void;
+    totalTableCapacity: number;
+    tables: { id: string; number: number; name: string | null; capacity: number; status: string; section: string | null }[];
+    handleReleaseTable: (tableId: string) => void;
+    showTableNumber: boolean;
+    leftPanelTab: "products" | "bundles" | "tables";
+    setLeftPanelTab: (v: "products" | "bundles" | "tables") => void;
+    bundles: any[];
+    addBundleToCart: (bundle: any) => void;
 };
 
 const PosPanelsContext = createContext<PosPanelsContextValue | null>(null);

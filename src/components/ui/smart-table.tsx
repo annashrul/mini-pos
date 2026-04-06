@@ -96,6 +96,9 @@ export interface SmartTableProps<T> {
     titleIcon?: ReactNode;
     headerActions?: ReactNode;
     emptyDescription?: string;
+
+    // Row click
+    onRowClick?: (row: T) => void;
 }
 
 // ===========================
@@ -133,6 +136,7 @@ export function SmartTable<T>({
     titleIcon,
     headerActions,
     emptyDescription,
+    onRowClick,
 }: SmartTableProps<T>) {
     const [searchValue, setSearchValue] = useState("");
     const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -452,8 +456,10 @@ export function SmartTable<T>({
                                             key={id}
                                             className={cn(
                                                 "border-b border-border/30 transition-colors hover:bg-muted/30",
-                                                isSelected && "bg-accent/40"
+                                                isSelected && "bg-accent/40",
+                                                onRowClick && "cursor-pointer",
                                             )}
+                                            onClick={onRowClick ? () => onRowClick(row) : undefined}
                                         >
                                             {selectable && (
                                                 <td className="w-10 px-3 py-2 text-center">

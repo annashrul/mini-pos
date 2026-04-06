@@ -162,6 +162,29 @@ export async function deleteCustomer(id: string) {
   }
 }
 
+export async function quickRegisterCustomer(name: string, phone: string) {
+  if (!name?.trim() || !phone?.trim()) return null;
+
+  // Check if phone already exists
+  const existing = await prisma.customer.findFirst({
+    where: { phone },
+    select: { id: true, name: true, phone: true, memberLevel: true, points: true, totalSpending: true, memberCardCode: true },
+  });
+  if (existing) return existing;
+
+  // Auto-create
+  const customer = await prisma.customer.create({
+    data: {
+      name: name.trim(),
+      phone: phone.trim(),
+      memberLevel: "REGULAR",
+    },
+    select: { id: true, name: true, phone: true, memberLevel: true, points: true, totalSpending: true, memberCardCode: true },
+  });
+
+  return customer;
+}
+
 export async function getCustomerPurchaseHistory(customerId: string, page: number = 1, perPage: number = 10) {
     const [transactions, total] = await Promise.all([
         prisma.transaction.findMany({

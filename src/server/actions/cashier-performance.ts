@@ -58,56 +58,65 @@ export async function getCashierPerformanceList(params?: {
     const baseWhere: Record<string, unknown> = { status: "COMPLETED" };
     if (branchId) baseWhere.branchId = branchId;
 
-    // Get transactions for both periods + users + shifts + void/refund counts
-    const [currentTxs, prevTxs, allUsers, currentTxsWithTime, shifts, voidTxs, refundTxs] = await Promise.all([
-        prisma.transaction.findMany({
+    const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+
+    // Use groupBy + raw SQL for cost instead of loading all transactions with items
+    const [
+        currentAgg, prevAgg, currentCostData, prevCostData,
+        allUsers, currentTxsWithTime, shifts,
+        voidTxs, refundTxs
+    ] = await Promise.all([
+        // Current period: revenue, discount, transactions per user
+        prisma.transaction.groupBy({
+            by: ["userId"],
             where: { ...baseWhere, createdAt: { gte: currentStart, lte: currentEnd } },
-            select: {
-                userId: true,
-                grandTotal: true,
-                discountAmount: true,
-                items: {
-                    select: {
-                        quantity: true,
-                        subtotal: true,
-                        product: { select: { purchasePrice: true } },
-                    },
-                },
-            },
+            _sum: { grandTotal: true, discountAmount: true },
+            _count: true,
         }),
-        prisma.transaction.findMany({
+        // Previous period: same
+        prisma.transaction.groupBy({
+            by: ["userId"],
             where: { ...baseWhere, createdAt: { gte: prevStart, lte: prevEnd } },
-            select: {
-                userId: true,
-                grandTotal: true,
-                discountAmount: true,
-                items: {
-                    select: {
-                        quantity: true,
-                        subtotal: true,
-                        product: { select: { purchasePrice: true } },
-                    },
-                },
-            },
+            _sum: { grandTotal: true, discountAmount: true },
+            _count: true,
         }),
+        // Current period: cost + itemsSold per user via raw SQL
+        prisma.$queryRawUnsafe<{ userId: string; cost: bigint; itemsSold: bigint }[]>(`
+            SELECT t."userId",
+                   COALESCE(SUM(ti.quantity * p."purchasePrice"), 0) as cost,
+                   COALESCE(SUM(ti.quantity), 0) as "itemsSold"
+            FROM transactions t
+            JOIN transaction_items ti ON ti."transactionId" = t.id
+            JOIN products p ON p.id = ti."productId"
+            WHERE t.status = 'COMPLETED'
+              AND t."createdAt" >= $1 AND t."createdAt" <= $2
+              ${branchCondition}
+            GROUP BY t."userId"
+        `, currentStart, currentEnd),
+        // Previous period: cost + itemsSold
+        prisma.$queryRawUnsafe<{ userId: string; cost: bigint; itemsSold: bigint }[]>(`
+            SELECT t."userId",
+                   COALESCE(SUM(ti.quantity * p."purchasePrice"), 0) as cost,
+                   COALESCE(SUM(ti.quantity), 0) as "itemsSold"
+            FROM transactions t
+            JOIN transaction_items ti ON ti."transactionId" = t.id
+            JOIN products p ON p.id = ti."productId"
+            WHERE t.status = 'COMPLETED'
+              AND t."createdAt" >= $1 AND t."createdAt" <= $2
+              ${branchCondition}
+            GROUP BY t."userId"
+        `, prevStart, prevEnd),
         prisma.user.findMany({
             where: { role: { in: ["CASHIER", "SUPER_ADMIN", "ADMIN", "MANAGER"] }, isActive: true },
             select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                branchId: true,
-                createdAt: true,
+                id: true, name: true, email: true, role: true, branchId: true, createdAt: true,
                 branch: { select: { name: true } },
             },
         }),
-        // Current transactions with createdAt for peak hour and largest transaction
         prisma.transaction.findMany({
             where: { ...baseWhere, createdAt: { gte: currentStart, lte: currentEnd } },
             select: { userId: true, grandTotal: true, createdAt: true },
         }),
-        // Shifts in period
         prisma.cashierShift.findMany({
             where: {
                 ...(branchId ? { branchId } : {}),
@@ -116,45 +125,35 @@ export async function getCashierPerformanceList(params?: {
             },
             select: { userId: true, openedAt: true, closedAt: true },
         }),
-        // Void transactions in period
         prisma.transaction.findMany({
-            where: {
-                status: "VOIDED",
-                createdAt: { gte: currentStart, lte: currentEnd },
-                ...(branchId ? { branchId } : {}),
-            },
+            where: { status: "VOIDED", createdAt: { gte: currentStart, lte: currentEnd }, ...(branchId ? { branchId } : {}) },
             select: { userId: true },
         }),
-        // Refund transactions in period
         prisma.transaction.findMany({
-            where: {
-                status: "REFUNDED",
-                createdAt: { gte: currentStart, lte: currentEnd },
-                ...(branchId ? { branchId } : {}),
-            },
+            where: { status: "REFUNDED", createdAt: { gte: currentStart, lte: currentEnd }, ...(branchId ? { branchId } : {}) },
             select: { userId: true },
         }),
     ]);
 
-    // Aggregate per user
-    function aggregate(txs: typeof currentTxs) {
+    // Build aggregated maps
+    function buildMap(agg: typeof currentAgg, costData: typeof currentCostData) {
         const map = new Map<string, { revenue: number; cost: number; discount: number; transactions: number; itemsSold: number }>();
-        for (const tx of txs) {
-            if (!map.has(tx.userId)) map.set(tx.userId, { revenue: 0, cost: 0, discount: 0, transactions: 0, itemsSold: 0 });
-            const u = map.get(tx.userId)!;
-            u.revenue += tx.grandTotal;
-            u.discount += tx.discountAmount;
-            u.transactions += 1;
-            for (const item of tx.items) {
-                u.itemsSold += item.quantity;
-                u.cost += item.product.purchasePrice * item.quantity;
-            }
+        const costMap = new Map(costData.map(c => [c.userId, { cost: Number(c.cost), itemsSold: Number(c.itemsSold) }]));
+        for (const row of agg) {
+            const cd = costMap.get(row.userId) || { cost: 0, itemsSold: 0 };
+            map.set(row.userId, {
+                revenue: row._sum.grandTotal || 0,
+                discount: row._sum.discountAmount || 0,
+                transactions: row._count,
+                cost: cd.cost,
+                itemsSold: cd.itemsSold,
+            });
         }
         return map;
     }
 
-    const currentMap = aggregate(currentTxs);
-    const prevMap = aggregate(prevTxs);
+    const currentMap = buildMap(currentAgg, currentCostData);
+    const prevMap = buildMap(prevAgg, prevCostData);
 
     // Build shift stats per user
     const shiftStatsMap = new Map<string, { count: number; totalDurationHours: number }>();
@@ -432,24 +431,23 @@ export async function getCashierDetailStats(userId: string, branchId?: string) {
             select: { createdAt: true },
         }),
 
-        // Top products: aggregate transaction items for this cashier
-        prisma.transactionItem.findMany({
+        // Top products: use groupBy instead of loading all items
+        prisma.transactionItem.groupBy({
+            by: ["productId", "productName", "productCode"],
             where: {
                 transaction: { userId, status: "COMPLETED", ...branchFilter },
             },
-            select: {
-                productId: true,
-                productName: true,
-                productCode: true,
-                quantity: true,
-                subtotal: true,
-            },
+            _sum: { quantity: true, subtotal: true },
+            orderBy: { _sum: { quantity: "desc" } },
+            take: 10,
         }),
 
-        // Payment method breakdown
-        prisma.transaction.findMany({
+        // Payment method breakdown: use groupBy instead of loading all transactions
+        prisma.transaction.groupBy({
+            by: ["paymentMethod"],
             where: { userId, status: "COMPLETED", ...branchFilter },
-            select: { paymentMethod: true, grandTotal: true },
+            _sum: { grandTotal: true },
+            _count: true,
         }),
 
         // Recent shifts (last 10 closed)
@@ -526,43 +524,23 @@ export async function getCashierDetailStats(userId: string, branchId?: string) {
         };
     });
 
-    // --- Top 10 products ---
-    const productAggMap = new Map<string, { productId: string; productName: string; productCode: string; totalQty: number; totalRevenue: number }>();
-    for (const item of topProductItems) {
-        if (!productAggMap.has(item.productId)) {
-            productAggMap.set(item.productId, {
-                productId: item.productId,
-                productName: item.productName,
-                productCode: item.productCode,
-                totalQty: 0,
-                totalRevenue: 0,
-            });
-        }
-        const p = productAggMap.get(item.productId)!;
-        p.totalQty += item.quantity;
-        p.totalRevenue += item.subtotal;
-    }
-    const topProducts = Array.from(productAggMap.values())
-        .sort((a, b) => b.totalQty - a.totalQty)
-        .slice(0, 10);
+    // --- Top 10 products (already grouped by DB) ---
+    const topProducts = topProductItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode,
+        totalQty: item._sum.quantity || 0,
+        totalRevenue: item._sum.subtotal || 0,
+    }));
 
-    // --- Payment method breakdown ---
-    const paymentMap = new Map<string, { count: number; total: number }>();
-    for (const tx of paymentBreakdownTxs) {
-        if (!paymentMap.has(tx.paymentMethod)) {
-            paymentMap.set(tx.paymentMethod, { count: 0, total: 0 });
-        }
-        const p = paymentMap.get(tx.paymentMethod)!;
-        p.count += 1;
-        p.total += tx.grandTotal;
-    }
-    const totalPaymentCount = paymentBreakdownTxs.length;
-    const paymentBreakdown = Array.from(paymentMap.entries())
-        .map(([method, data]) => ({
-            method,
-            count: data.count,
-            total: data.total,
-            percentage: totalPaymentCount > 0 ? Math.round((data.count / totalPaymentCount) * 10000) / 100 : 0,
+    // --- Payment method breakdown (already grouped by DB) ---
+    const totalPaymentCount = paymentBreakdownTxs.reduce((s, r) => s + r._count, 0);
+    const paymentBreakdown = paymentBreakdownTxs
+        .map(r => ({
+            method: r.paymentMethod,
+            count: r._count,
+            total: r._sum.grandTotal || 0,
+            percentage: totalPaymentCount > 0 ? Math.round((r._count / totalPaymentCount) * 10000) / 100 : 0,
         }))
         .sort((a, b) => b.total - a.total);
 

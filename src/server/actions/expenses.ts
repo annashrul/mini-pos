@@ -63,10 +63,20 @@ export async function createExpense(data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
-    await prisma.expense.create({ data: parsed.data });
+    const expense = await prisma.expense.create({ data: parsed.data });
     const branchId = data.get("branchId") as string | null;
     createAuditLog({ action: "CREATE", entity: "Expense", details: { data: { description: parsed.data.description, amount: parsed.data.amount, category: parsed.data.category, date: parsed.data.date } }, ...(branchId ? { branchId } : {}) }).catch(() => {});
     revalidatePath("/expenses");
+
+    // Auto-create accounting journal
+    import("@/server/actions/accounting").then(({ createAutoJournal }) => {
+      createAutoJournal({
+        referenceType: "EXPENSE",
+        referenceId: expense.id,
+        ...(branchId ? { branchId: branchId as string } : {}),
+      });
+    }).catch(() => {});
+
     return { success: true };
   } catch {
     return { error: "Gagal menambahkan pengeluaran" };

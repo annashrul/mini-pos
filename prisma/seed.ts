@@ -59,11 +59,19 @@ const MENU_SEED = [
     actions: ["view", "create", "update", "delete", "export"],
   },
   {
+    key: "bundles",
+    name: "Paket Produk",
+    path: "/bundles",
+    group: "Master Data",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
     key: "categories",
     name: "Kategori",
     path: "/categories",
     group: "Master Data",
-    sortOrder: 2,
+    sortOrder: 3,
     actions: ["view", "create", "update", "delete"],
   },
   {
@@ -139,6 +147,14 @@ const MENU_SEED = [
     actions: ["view", "create", "update", "delete"],
   },
   {
+    key: "debts",
+    name: "Hutang Piutang",
+    path: "/debts",
+    group: "Keuangan",
+    sortOrder: 3,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
     key: "reports",
     name: "Laporan",
     path: "/reports",
@@ -210,6 +226,54 @@ const MENU_SEED = [
     sortOrder: 6,
     actions: ["view", "manage"],
   },
+  {
+    key: "accounting",
+    name: "Dashboard Akuntansi",
+    path: "/accounting",
+    group: "Akuntansi",
+    sortOrder: 1,
+    actions: ["view"],
+  },
+  {
+    key: "accounting-coa",
+    name: "Chart of Accounts",
+    path: "/accounting/coa",
+    group: "Akuntansi",
+    sortOrder: 2,
+    actions: ["view", "create", "update", "delete"],
+  },
+  {
+    key: "accounting-journals",
+    name: "Jurnal Umum",
+    path: "/accounting/journals",
+    group: "Akuntansi",
+    sortOrder: 3,
+    actions: ["view", "create", "update", "void"],
+  },
+  {
+    key: "accounting-ledger",
+    name: "Buku Besar",
+    path: "/accounting/ledger",
+    group: "Akuntansi",
+    sortOrder: 4,
+    actions: ["view", "export"],
+  },
+  {
+    key: "accounting-reports",
+    name: "Laporan Keuangan",
+    path: "/accounting/reports",
+    group: "Akuntansi",
+    sortOrder: 5,
+    actions: ["view", "export"],
+  },
+  {
+    key: "accounting-periods",
+    name: "Tutup Buku",
+    path: "/accounting/periods",
+    group: "Akuntansi",
+    sortOrder: 6,
+    actions: ["view", "create", "update"],
+  },
 ] as const;
 
 const MENU_ACCESS_BY_ROLE: Record<Role, string[]> = {
@@ -223,6 +287,7 @@ const MENU_ACCESS_BY_ROLE: Record<Role, string[]> = {
     "transactions",
     "shifts",
     "products",
+    "bundles",
     "categories",
     "brands",
     "suppliers",
@@ -233,9 +298,16 @@ const MENU_ACCESS_BY_ROLE: Record<Role, string[]> = {
     "stock-transfers",
     "expenses",
     "promotions",
+    "debts",
     "reports",
     "analytics",
     "customer-intelligence",
+    "accounting",
+    "accounting-coa",
+    "accounting-journals",
+    "accounting-ledger",
+    "accounting-reports",
+    "accounting-periods",
   ],
   CASHIER: ["dashboard", "pos", "transactions", "shifts"],
 };
@@ -245,6 +317,11 @@ async function main() {
 
   // Clean existing data
   await prisma.activityLog.deleteMany();
+  await prisma.journalEntryLine.deleteMany();
+  await prisma.journalEntry.deleteMany();
+  await prisma.accountingPeriod.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.accountCategory.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.roleActionPermission.deleteMany();
   await prisma.roleMenuPermission.deleteMany();
@@ -1488,6 +1565,459 @@ async function main() {
     if (!existing) await prisma.setting.create({ data: s });
   }
 
+  // Seed kitchen display settings
+  const kitchenSettings = [
+    { key: "kitchen.enabled", value: "false", label: "Kirim order ke Kitchen Display", group: "kitchen" },
+    { key: "kitchen.autoAdvance", value: "false", label: "Auto-advance status", group: "kitchen" },
+    { key: "kitchen.notificationSound", value: "true", label: "Suara notifikasi order baru", group: "kitchen" },
+  ];
+  for (const s of kitchenSettings) {
+    const existing = await prisma.setting.findFirst({ where: { key: s.key, branchId: null } });
+    if (!existing) await prisma.setting.create({ data: s });
+  }
+
+  // ===========================
+  // Seed Accounting Data
+  // ===========================
+
+  // Create Account Categories
+  const accountCategories = await Promise.all([
+    prisma.accountCategory.create({ data: { name: "Aset", type: "ASSET", normalSide: "DEBIT", sortOrder: 1 } }),
+    prisma.accountCategory.create({ data: { name: "Kewajiban", type: "LIABILITY", normalSide: "CREDIT", sortOrder: 2 } }),
+    prisma.accountCategory.create({ data: { name: "Modal", type: "EQUITY", normalSide: "CREDIT", sortOrder: 3 } }),
+    prisma.accountCategory.create({ data: { name: "Pendapatan", type: "REVENUE", normalSide: "CREDIT", sortOrder: 4 } }),
+    prisma.accountCategory.create({ data: { name: "Beban", type: "EXPENSE", normalSide: "DEBIT", sortOrder: 5 } }),
+  ]);
+
+  const catAsset = accountCategories[0].id;
+  const catLiability = accountCategories[1].id;
+  const catEquity = accountCategories[2].id;
+  const catRevenue = accountCategories[3].id;
+  const catExpense = accountCategories[4].id;
+
+  // Create Chart of Accounts — system + tambahan
+  const accountsData = [
+    // ASET (1-xxxx)
+    { code: "1-1001", name: "Kas", catId: catAsset, desc: "Kas tunai", isSystem: true, opening: 50000000 },
+    { code: "1-1002", name: "Bank", catId: catAsset, desc: "Rekening bank", isSystem: true, opening: 150000000 },
+    { code: "1-1003", name: "Piutang Dagang", catId: catAsset, desc: "Piutang dari pelanggan", isSystem: true, opening: 12500000 },
+    { code: "1-1004", name: "Persediaan Barang", catId: catAsset, desc: "Persediaan barang dagangan", isSystem: true, opening: 85000000 },
+    { code: "1-1005", name: "Perlengkapan Toko", catId: catAsset, desc: "Plastik, kertas struk, dll", isSystem: false, opening: 3000000 },
+    { code: "1-2001", name: "Peralatan Toko", catId: catAsset, desc: "Rak, etalase, mesin kasir", isSystem: false, opening: 25000000 },
+    { code: "1-2002", name: "Akumulasi Penyusutan Peralatan", catId: catAsset, desc: "Contra asset — penyusutan", isSystem: false, opening: -5000000 },
+    // KEWAJIBAN (2-xxxx)
+    { code: "2-1001", name: "Hutang Dagang", catId: catLiability, desc: "Hutang ke supplier", isSystem: true, opening: 35000000 },
+    { code: "2-1002", name: "Hutang Pajak", catId: catLiability, desc: "PPN & pajak lainnya", isSystem: false, opening: 8500000 },
+    { code: "2-1003", name: "Hutang Gaji", catId: catLiability, desc: "Gaji karyawan yang belum dibayar", isSystem: false, opening: 0 },
+    // MODAL (3-xxxx)
+    { code: "3-1001", name: "Modal Pemilik", catId: catEquity, desc: "Modal pemilik usaha", isSystem: true, opening: 250000000 },
+    { code: "3-1002", name: "Laba Ditahan", catId: catEquity, desc: "Akumulasi laba periode sebelumnya", isSystem: false, opening: 27000000 },
+    // PENDAPATAN (4-xxxx)
+    { code: "4-1001", name: "Pendapatan Penjualan", catId: catRevenue, desc: "Pendapatan dari penjualan barang", isSystem: true, opening: 0 },
+    { code: "4-1002", name: "Retur Penjualan", catId: catRevenue, desc: "Contra revenue — retur penjualan", isSystem: true, opening: 0 },
+    { code: "4-2001", name: "Pendapatan Lain-lain", catId: catRevenue, desc: "Pendapatan non-operasional", isSystem: false, opening: 0 },
+    // BEBAN (5-xxxx)
+    { code: "5-1001", name: "Harga Pokok Penjualan", catId: catExpense, desc: "HPP / COGS", isSystem: true, opening: 0 },
+    { code: "5-1002", name: "Beban Operasional", catId: catExpense, desc: "Beban operasional umum", isSystem: true, opening: 0 },
+    { code: "5-1003", name: "Beban Gaji", catId: catExpense, desc: "Beban gaji karyawan", isSystem: true, opening: 0 },
+    { code: "5-1004", name: "Beban Listrik & Air", catId: catExpense, desc: "Tagihan listrik dan air", isSystem: false, opening: 0 },
+    { code: "5-1005", name: "Beban Sewa", catId: catExpense, desc: "Sewa tempat usaha", isSystem: false, opening: 0 },
+    { code: "5-1006", name: "Beban Perlengkapan", catId: catExpense, desc: "Pemakaian perlengkapan toko", isSystem: false, opening: 0 },
+    { code: "5-1007", name: "Beban Penyusutan", catId: catExpense, desc: "Penyusutan peralatan", isSystem: false, opening: 0 },
+    { code: "5-1008", name: "Beban Transport", catId: catExpense, desc: "Biaya transportasi & pengiriman", isSystem: false, opening: 0 },
+    { code: "5-2001", name: "Beban Lain-lain", catId: catExpense, desc: "Beban non-operasional", isSystem: false, opening: 0 },
+  ];
+
+  const createdAccounts = await Promise.all(
+    accountsData.map((a) =>
+      prisma.account.create({
+        data: {
+          code: a.code,
+          name: a.name,
+          description: a.desc,
+          categoryId: a.catId,
+          isSystem: a.isSystem,
+          isActive: true,
+          openingBalance: a.opening,
+        },
+      })
+    )
+  );
+
+  // Map account code → id for quick lookup
+  const acctMap = new Map(createdAccounts.map((a) => [a.code, a.id]));
+  const acct = (code: string) => acctMap.get(code)!;
+
+  // Create Accounting Periods — 3 bulan terakhir + bulan ini
+  const periods = [];
+  for (let m = 3; m >= 0; m--) {
+    const pStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const pEnd = new Date(now.getFullYear(), now.getMonth() - m + 1, 0);
+    const monthName = pStart.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    const status = m === 0 ? "OPEN" : m === 3 ? "LOCKED" : "CLOSED";
+    const period = await prisma.accountingPeriod.create({
+      data: {
+        name: monthName,
+        startDate: pStart,
+        endDate: pEnd,
+        status,
+        ...(status !== "OPEN" ? { closedBy: admin.id, closedAt: pEnd } : {}),
+      },
+    });
+    periods.push(period);
+  }
+  const currentPeriod = periods[periods.length - 1];
+
+  // Helper: create journal entry
+  let journalSeq = 0;
+  const createJournal = async (opts: {
+    date: Date;
+    description: string;
+    reference?: string;
+    referenceType?: string;
+    lines: { accountCode: string; desc: string; debit: number; credit: number }[];
+    status?: string;
+    periodId?: string;
+  }) => {
+    journalSeq++;
+    const d = opts.date;
+    const yy = d.getFullYear().toString().slice(-2);
+    const mm = (d.getMonth() + 1).toString().padStart(2, "0");
+    const dd = d.getDate().toString().padStart(2, "0");
+    const entryNumber = `JV-${yy}${mm}${dd}-${String(journalSeq).padStart(4, "0")}`;
+    const totalDebit = opts.lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = opts.lines.reduce((s, l) => s + l.credit, 0);
+
+    // Find matching period
+    let periodId = opts.periodId;
+    if (!periodId) {
+      const matching = periods.find((p) => d >= p.startDate && d <= p.endDate);
+      periodId = matching?.id;
+    }
+
+    return prisma.journalEntry.create({
+      data: {
+        entryNumber,
+        date: d,
+        description: opts.description,
+        reference: opts.reference || null,
+        referenceType: opts.referenceType || "MANUAL",
+        status: opts.status || "POSTED",
+        totalDebit,
+        totalCredit,
+        createdBy: admin.id,
+        periodId: periodId || null,
+        lines: {
+          create: opts.lines.map((l, idx) => ({
+            accountId: acct(l.accountCode),
+            description: l.desc,
+            debit: l.debit,
+            credit: l.credit,
+            sortOrder: idx,
+          })),
+        },
+      },
+    });
+  };
+
+  // ======== JOURNAL ENTRIES — 3 bulan data ========
+
+  // --- Saldo Awal (awal 3 bulan lalu) ---
+  const month3Ago = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  await createJournal({
+    date: month3Ago,
+    description: "Saldo awal — Modal pemilik disetor",
+    referenceType: "MANUAL",
+    lines: [
+      { accountCode: "1-1001", desc: "Setoran kas tunai", debit: 50000000, credit: 0 },
+      { accountCode: "1-1002", desc: "Setoran ke rekening bank", debit: 150000000, credit: 0 },
+      { accountCode: "1-1004", desc: "Persediaan awal barang dagangan", debit: 85000000, credit: 0 },
+      { accountCode: "1-2001", desc: "Peralatan toko", debit: 25000000, credit: 0 },
+      { accountCode: "1-1005", desc: "Perlengkapan toko", debit: 3000000, credit: 0 },
+      { accountCode: "2-1001", desc: "Hutang dagang awal", debit: 0, credit: 35000000 },
+      { accountCode: "3-1001", desc: "Modal pemilik", debit: 0, credit: 250000000 },
+      { accountCode: "3-1002", desc: "Laba ditahan periode sebelumnya", debit: 0, credit: 27000000 },
+      { accountCode: "2-1002", desc: "Hutang pajak", debit: 0, credit: 1000000 },
+    ],
+  });
+
+  // --- Loop 3 bulan: buat jurnal penjualan, pembelian, beban ---
+  for (let m = 2; m >= 0; m--) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() - m + 1, 0).getDate();
+    const monthLabel = monthStart.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+
+    // ~20 jurnal penjualan per bulan
+    for (let d = 1; d <= Math.min(daysInMonth, 28); d += 1) {
+      if (d % 2 !== 0 && d > 1) continue; // skip odd days kecuali hari 1
+      const saleDate = new Date(now.getFullYear(), now.getMonth() - m, d, 10 + (d % 4));
+
+      // Revenue bervariasi: 2jt - 8jt per hari
+      const revenue = Math.round((2000000 + Math.random() * 6000000) / 1000) * 1000;
+      const cogs = Math.round(revenue * (0.55 + Math.random() * 0.15)); // 55-70% margin
+      const paymentCash = Math.random() > 0.4;
+      const invoiceNum = `INV-${saleDate.getFullYear().toString().slice(-2)}${(saleDate.getMonth() + 1).toString().padStart(2, "0")}${saleDate.getDate().toString().padStart(2, "0")}`;
+
+      // Jurnal penjualan
+      await createJournal({
+        date: saleDate,
+        description: `Penjualan harian ${invoiceNum}`,
+        reference: invoiceNum,
+        referenceType: "TRANSACTION",
+        lines: [
+          { accountCode: paymentCash ? "1-1001" : "1-1002", desc: `Penerimaan ${paymentCash ? "kas" : "bank"} — ${invoiceNum}`, debit: revenue, credit: 0 },
+          { accountCode: "4-1001", desc: `Pendapatan penjualan — ${invoiceNum}`, debit: 0, credit: revenue },
+          { accountCode: "5-1001", desc: `HPP — ${invoiceNum}`, debit: cogs, credit: 0 },
+          { accountCode: "1-1004", desc: `Pengurangan persediaan — ${invoiceNum}`, debit: 0, credit: cogs },
+        ],
+      });
+    }
+
+    // 3 pembelian barang per bulan
+    for (let p = 0; p < 3; p++) {
+      const purchaseDay = 5 + p * 9; // hari 5, 14, 23
+      const purchaseDate = new Date(now.getFullYear(), now.getMonth() - m, Math.min(purchaseDay, daysInMonth), 9);
+      const poAmount = Math.round((10000000 + Math.random() * 20000000) / 1000) * 1000;
+      const paidCash = Math.round(poAmount * (0.3 + Math.random() * 0.4)); // bayar 30-70%
+      const hutang = poAmount - paidCash;
+      const poNum = `PO-${purchaseDate.getFullYear().toString().slice(-2)}${(purchaseDate.getMonth() + 1).toString().padStart(2, "0")}-${String(p + 1).padStart(3, "0")}`;
+
+      await createJournal({
+        date: purchaseDate,
+        description: `Pembelian barang ${poNum}`,
+        reference: poNum,
+        referenceType: "PURCHASE",
+        lines: [
+          { accountCode: "1-1004", desc: `Persediaan masuk — ${poNum}`, debit: poAmount, credit: 0 },
+          { accountCode: "1-1001", desc: `Pembayaran tunai — ${poNum}`, debit: 0, credit: paidCash },
+          ...(hutang > 0 ? [{ accountCode: "2-1001", desc: `Hutang dagang — ${poNum}`, debit: 0, credit: hutang }] : []),
+        ],
+      });
+    }
+
+    // Pembayaran hutang dagang — 1x per bulan
+    const debtPayDate = new Date(now.getFullYear(), now.getMonth() - m, 20, 11);
+    const debtPayAmount = Math.round((5000000 + Math.random() * 10000000) / 1000) * 1000;
+    await createJournal({
+      date: debtPayDate,
+      description: `Pelunasan hutang supplier ${monthLabel}`,
+      referenceType: "DEBT_PAYMENT",
+      lines: [
+        { accountCode: "2-1001", desc: "Pelunasan hutang dagang", debit: debtPayAmount, credit: 0 },
+        { accountCode: "1-1002", desc: "Transfer bank ke supplier", debit: 0, credit: debtPayAmount },
+      ],
+    });
+
+    // Beban gaji — akhir bulan
+    const gajiDate = new Date(now.getFullYear(), now.getMonth() - m, Math.min(28, daysInMonth), 15);
+    const totalGaji = 15000000 + Math.round(Math.random() * 3000000);
+    await createJournal({
+      date: gajiDate,
+      description: `Pembayaran gaji karyawan ${monthLabel}`,
+      referenceType: "EXPENSE",
+      lines: [
+        { accountCode: "5-1003", desc: "Beban gaji karyawan", debit: totalGaji, credit: 0 },
+        { accountCode: "1-1002", desc: "Transfer gaji via bank", debit: 0, credit: totalGaji },
+      ],
+    });
+
+    // Beban sewa — awal bulan
+    const sewaDate = new Date(now.getFullYear(), now.getMonth() - m, 1, 8);
+    await createJournal({
+      date: sewaDate,
+      description: `Pembayaran sewa toko ${monthLabel}`,
+      referenceType: "EXPENSE",
+      lines: [
+        { accountCode: "5-1005", desc: "Beban sewa bulanan", debit: 8000000, credit: 0 },
+        { accountCode: "1-1002", desc: "Transfer bank sewa", debit: 0, credit: 8000000 },
+      ],
+    });
+
+    // Beban listrik & air — pertengahan bulan
+    const listrikDate = new Date(now.getFullYear(), now.getMonth() - m, 15, 10);
+    const listrikAmount = 2000000 + Math.round(Math.random() * 1000000);
+    await createJournal({
+      date: listrikDate,
+      description: `Pembayaran listrik & air ${monthLabel}`,
+      referenceType: "EXPENSE",
+      lines: [
+        { accountCode: "5-1004", desc: "Tagihan listrik & air", debit: listrikAmount, credit: 0 },
+        { accountCode: "1-1001", desc: "Pembayaran kas", debit: 0, credit: listrikAmount },
+      ],
+    });
+
+    // Beban operasional lainnya — 2x per bulan
+    for (let e = 0; e < 2; e++) {
+      const opDate = new Date(now.getFullYear(), now.getMonth() - m, 8 + e * 12, 14);
+      const opAmount = 500000 + Math.round(Math.random() * 1500000);
+      const opDescs = ["Pembelian kantong plastik & kertas struk", "Biaya kebersihan & maintenance", "Pembelian ATK kantor", "Biaya parkir & transportasi"];
+      const opDesc = opDescs[Math.floor(Math.random() * opDescs.length)];
+      const opAcct = e === 0 ? "5-1006" : "5-1008";
+      await createJournal({
+        date: opDate,
+        description: `${opDesc} ${monthLabel}`,
+        referenceType: "EXPENSE",
+        lines: [
+          { accountCode: opAcct, desc: opDesc!, debit: opAmount, credit: 0 },
+          { accountCode: "1-1001", desc: "Pembayaran kas", debit: 0, credit: opAmount },
+        ],
+      });
+    }
+
+    // Beban penyusutan — akhir bulan (jurnal penyesuaian)
+    const penyusutanDate = new Date(now.getFullYear(), now.getMonth() - m, Math.min(28, daysInMonth), 17);
+    await createJournal({
+      date: penyusutanDate,
+      description: `Penyusutan peralatan toko ${monthLabel}`,
+      referenceType: "MANUAL",
+      lines: [
+        { accountCode: "5-1007", desc: "Beban penyusutan peralatan", debit: 416667, credit: 0 },
+        { accountCode: "1-2002", desc: "Akumulasi penyusutan", debit: 0, credit: 416667 },
+      ],
+    });
+
+    // Penerimaan piutang — 1x per bulan
+    if (m < 2) {
+      const piutangDate = new Date(now.getFullYear(), now.getMonth() - m, 12, 11);
+      const piutangAmount = 3000000 + Math.round(Math.random() * 5000000);
+      await createJournal({
+        date: piutangDate,
+        description: `Penerimaan piutang pelanggan ${monthLabel}`,
+        referenceType: "DEBT_PAYMENT",
+        lines: [
+          { accountCode: "1-1002", desc: "Penerimaan via transfer bank", debit: piutangAmount, credit: 0 },
+          { accountCode: "1-1003", desc: "Pelunasan piutang dagang", debit: 0, credit: piutangAmount },
+        ],
+      });
+    }
+
+    // Retur penjualan — 1x per bulan (kecuali bulan pertama)
+    if (m < 2) {
+      const returDate = new Date(now.getFullYear(), now.getMonth() - m, 18, 13);
+      const returAmount = 500000 + Math.round(Math.random() * 1000000);
+      const returCogs = Math.round(returAmount * 0.6);
+      await createJournal({
+        date: returDate,
+        description: `Retur penjualan ${monthLabel}`,
+        referenceType: "RETURN",
+        lines: [
+          { accountCode: "4-1002", desc: "Retur penjualan", debit: returAmount, credit: 0 },
+          { accountCode: "1-1001", desc: "Pengembalian kas ke pelanggan", debit: 0, credit: returAmount },
+          { accountCode: "1-1004", desc: "Barang kembali ke persediaan", debit: returCogs, credit: 0 },
+          { accountCode: "5-1001", desc: "Reversal HPP", debit: 0, credit: returCogs },
+        ],
+      });
+    }
+  }
+
+  // --- Bulan ini: 1 jurnal DRAFT ---
+  await createJournal({
+    date: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9),
+    description: "Pendapatan lain-lain — pengembalian kelebihan bayar dari vendor",
+    referenceType: "MANUAL",
+    status: "DRAFT",
+    lines: [
+      { accountCode: "1-1002", desc: "Masuk ke rekening bank", debit: 750000, credit: 0 },
+      { accountCode: "4-2001", desc: "Pendapatan lain-lain", debit: 0, credit: 750000 },
+    ],
+  });
+
+  console.log(`Created ${accountCategories.length} account categories`);
+  console.log(`Created ${accountsData.length} accounts (COA)`);
+  console.log(`Created ${periods.length} accounting periods`);
+  console.log(`Created ${journalSeq} journal entries`);
+
+  // ===========================
+  // Seed Restaurant Tables
+  // ===========================
+  const tablesData = [];
+
+  // Indoor: tables 1-8
+  for (let i = 1; i <= 8; i++) {
+    tablesData.push({ number: i, name: `Meja ${i}`, capacity: 4, section: "Indoor", sortOrder: i });
+  }
+  // Outdoor: tables 9-14
+  for (let i = 9; i <= 14; i++) {
+    tablesData.push({ number: i, name: `Outdoor ${i - 8}`, capacity: 2, section: "Outdoor", sortOrder: i });
+  }
+  // VIP: tables 15-17
+  for (let i = 15; i <= 17; i++) {
+    tablesData.push({ number: i, name: `VIP ${i - 14}`, capacity: 6, section: "VIP", sortOrder: i });
+  }
+
+  await prisma.restaurantTable.createMany({ data: tablesData });
+  console.log(`Created ${tablesData.length} restaurant tables`);
+
+  // ===========================
+  // Seed Product Bundles
+  // ===========================
+
+  // Find some products for bundles
+  const indomie = products.find((p) => p.name.includes("Indomie"));
+  const tehBotol = products.find((p) => p.name.includes("Teh Botol"));
+  const aqua = products.find((p) => p.name.includes("Aqua"));
+  const cocaCola = products.find((p) => p.name.includes("Coca"));
+
+  if (indomie && tehBotol) {
+    await prisma.productBundle.create({
+      data: {
+        code: "BDL001",
+        name: "Paket Hemat Indomie",
+        description: "1 Indomie Goreng + 1 Teh Botol Sosro",
+        sellingPrice: 8000,
+        totalBasePrice: (indomie.sellingPrice + tehBotol.sellingPrice),
+        categoryId: categories[0].id,
+        items: {
+          create: [
+            { productId: indomie.id, quantity: 1, sortOrder: 1 },
+            { productId: tehBotol.id, quantity: 1, sortOrder: 2 },
+          ],
+        },
+      },
+    });
+  }
+
+  if (indomie && tehBotol && aqua) {
+    await prisma.productBundle.create({
+      data: {
+        code: "BDL002",
+        name: "Paket Keluarga",
+        description: "3 Indomie Goreng + 2 Teh Botol + 1 Aqua",
+        sellingPrice: 25000,
+        totalBasePrice: (indomie.sellingPrice * 3 + tehBotol.sellingPrice * 2 + (aqua?.sellingPrice ?? 0)),
+        categoryId: categories[0].id,
+        items: {
+          create: [
+            { productId: indomie.id, quantity: 3, sortOrder: 1 },
+            { productId: tehBotol.id, quantity: 2, sortOrder: 2 },
+            ...(aqua ? [{ productId: aqua.id, quantity: 1, sortOrder: 3 }] : []),
+          ],
+        },
+      },
+    });
+  }
+
+  if (cocaCola && aqua) {
+    await prisma.productBundle.create({
+      data: {
+        code: "BDL003",
+        name: "Paket Minuman Segar",
+        description: "2 Coca-Cola + 2 Aqua",
+        sellingPrice: 18000,
+        totalBasePrice: ((cocaCola?.sellingPrice ?? 0) * 2 + (aqua?.sellingPrice ?? 0) * 2),
+        categoryId: categories[1].id,
+        items: {
+          create: [
+            ...(cocaCola ? [{ productId: cocaCola.id, quantity: 2, sortOrder: 1 }] : []),
+            { productId: aqua.id, quantity: 2, sortOrder: 2 },
+          ],
+        },
+      },
+    });
+  }
+
+  console.log("Created product bundles");
+
   console.log("Seeding completed!");
   console.log(`Created ${await prisma.user.count()} users`);
   console.log(`Created ${await prisma.category.count()} categories`);
@@ -1499,6 +2029,9 @@ async function main() {
   console.log(`Created ${await prisma.branch.count()} branches`);
   console.log(`Created ${await prisma.expense.count()} expenses`);
   console.log(`Created ${await prisma.promotion.count()} promotions`);
+  console.log(`Created ${await prisma.accountCategory.count()} account categories`);
+  console.log(`Created ${await prisma.account.count()} accounts`);
+  console.log(`Created ${await prisma.accountingPeriod.count()} accounting periods`);
   console.log("");
   console.log("Login credentials:");
   console.log("  Admin:   admin@pos.com / password123");

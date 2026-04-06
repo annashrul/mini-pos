@@ -6,6 +6,7 @@ import { POINT_DEFAULTS, type PointConfig } from "@/lib/point-config";
 import { RECEIPT_DEFAULTS, type ReceiptConfig } from "@/lib/receipt-config";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
 type PrimitiveSettingValue = string | number | boolean;
 
@@ -266,6 +267,7 @@ export async function saveReceiptConfig(
     group: "receipt",
   }));
   await setSettings(entries, branchId);
+  emitEvent(EVENTS.CONFIG_RECEIPT_UPDATED, { config }, branchId);
   return { success: true };
 }
 
@@ -279,6 +281,9 @@ const POS_DEFAULTS = {
   defaultTaxPercent: 11,
   requireCustomer: false,
   autoOpenCashDrawer: false,
+  businessMode: "retail" as string,
+  showTableNumber: false,
+  autoSendKitchen: false,
 };
 
 export type PosConfig = typeof POS_DEFAULTS;
@@ -298,6 +303,39 @@ export async function savePosConfig(config: PosConfig, branchId?: string) {
     group: "pos",
   }));
   await setSettings(entries, branchId);
+  emitEvent(EVENTS.CONFIG_POS_UPDATED, { config }, branchId);
+  return { success: true };
+}
+
+// ===========================
+// Kitchen Display config from DB
+// ===========================
+
+const KITCHEN_DEFAULTS = {
+  enabled: false,
+  autoAdvance: false,
+  notificationSound: true,
+};
+
+export type KitchenConfig = typeof KITCHEN_DEFAULTS;
+
+export async function getKitchenConfig(branchId?: string): Promise<KitchenConfig> {
+  await ensureSettingsDefaults("kitchen", "kitchen", KITCHEN_DEFAULTS);
+  const settings = await getSettingsByGroup("kitchen", branchId);
+  const map = new Map(settings.map((s) => [s.key, s.value]));
+  return buildConfigFromDefaults("kitchen", KITCHEN_DEFAULTS, map);
+}
+
+export async function saveKitchenConfig(config: KitchenConfig, branchId?: string) {
+  const entries = Object.entries(config).map(([key, value]) => ({
+    key: `kitchen.${key}`,
+    value: String(value),
+    label: key,
+
+    group: "kitchen",
+  }));
+  await setSettings(entries, branchId);
+  emitEvent(EVENTS.CONFIG_KITCHEN_UPDATED, { config }, branchId);
   return { success: true };
 }
 

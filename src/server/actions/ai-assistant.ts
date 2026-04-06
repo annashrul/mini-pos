@@ -140,40 +140,37 @@ async function executeGetSalesSummary(input: { period?: string; branchId?: strin
 async function executeGetLowStock(input: { limit?: number }) {
     const limit = input.limit || 20;
 
-    const products = await prisma.product.findMany({
-        where: { isActive: true },
-        select: {
-            id: true,
-            name: true,
-            code: true,
-            stock: true,
-            minStock: true,
-            unit: true,
-            sellingPrice: true,
-            purchasePrice: true,
-            supplier: { select: { id: true, name: true } },
-            category: { select: { name: true } },
-        },
-        orderBy: { stock: "asc" },
-    });
+    const products = await prisma.$queryRawUnsafe<{
+        id: string; name: string; code: string; stock: number; minStock: number;
+        unit: string; sellingPrice: number; purchasePrice: number;
+        supplierName: string | null; supplierId: string | null; categoryName: string | null;
+    }[]>(`
+        SELECT p.id, p.name, p.code, p.stock, p."minStock", p.unit,
+               p."sellingPrice", p."purchasePrice",
+               s.name as "supplierName", s.id as "supplierId",
+               c.name as "categoryName"
+        FROM products p
+        LEFT JOIN suppliers s ON p."supplierId" = s.id
+        LEFT JOIN categories c ON p."categoryId" = c.id
+        WHERE p."isActive" = true AND p.stock <= p."minStock"
+        ORDER BY p.stock ASC
+        LIMIT $1
+    `, limit);
 
-    return products
-        .filter((p) => p.stock <= p.minStock)
-        .slice(0, limit)
-        .map((p) => ({
-            id: p.id,
-            name: p.name,
-            code: p.code,
-            stock: p.stock,
-            minStock: p.minStock,
-            unit: p.unit,
-            sellingPrice: p.sellingPrice,
-            purchasePrice: p.purchasePrice,
-            supplier: p.supplier?.name || "Tidak ada supplier",
-            supplierId: p.supplier?.id || null,
-            category: p.category?.name || "Tanpa Kategori",
-            deficit: p.minStock - p.stock,
-        }));
+    return products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        stock: p.stock,
+        minStock: p.minStock,
+        unit: p.unit,
+        sellingPrice: p.sellingPrice,
+        purchasePrice: p.purchasePrice,
+        supplier: p.supplierName || "Tidak ada supplier",
+        supplierId: p.supplierId,
+        category: p.categoryName || "Tanpa Kategori",
+        deficit: p.minStock - p.stock,
+    }));
 }
 
 async function executeGetCashierPerformance(input: { period?: string }) {
@@ -322,35 +319,26 @@ async function executeGetCategorySales(input: { days?: number }) {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const items = await prisma.transactionItem.findMany({
-        where: {
-            transaction: { status: "COMPLETED", createdAt: { gte: since } },
-        },
-        select: {
-            quantity: true,
-            subtotal: true,
-            product: { select: { category: { select: { name: true } } } },
-        },
-    });
+    const rows = await prisma.$queryRawUnsafe<{ name: string; qty: bigint; revenue: bigint; items: bigint }[]>(`
+        SELECT COALESCE(c.name, 'Tanpa Kategori') as name,
+               SUM(ti.quantity)::bigint as qty,
+               SUM(ti.subtotal)::bigint as revenue,
+               COUNT(*)::bigint as items
+        FROM transaction_items ti
+        JOIN transactions t ON t.id = ti."transactionId"
+        JOIN products p ON p.id = ti."productId"
+        LEFT JOIN categories c ON c.id = p."categoryId"
+        WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1
+        GROUP BY c.name
+        ORDER BY revenue DESC
+    `, since);
 
-    const catMap = new Map<string, { qty: number; revenue: number; transactions: number }>();
-    for (const item of items) {
-        const cat = item.product.category?.name || "Tanpa Kategori";
-        const c = catMap.get(cat) || { qty: 0, revenue: 0, transactions: 0 };
-        c.qty += item.quantity;
-        c.revenue += item.subtotal;
-        c.transactions += 1;
-        catMap.set(cat, c);
-    }
-
-    return Array.from(catMap.entries())
-        .map(([name, data]) => ({
-            category: name,
-            totalQuantity: data.qty,
-            totalRevenue: data.revenue,
-            totalItems: data.transactions,
-        }))
-        .sort((a, b) => b.totalRevenue - a.totalRevenue);
+    return rows.map(r => ({
+        category: r.name,
+        totalQuantity: Number(r.qty),
+        totalRevenue: Number(r.revenue),
+        totalItems: Number(r.items),
+    }));
 }
 
 // Main tool executor

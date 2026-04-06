@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, formatCurrency } from "@/lib/utils";
-import { AlertTriangle, ArrowLeft, CloudOff, History, Keyboard, Loader2, LogOut, Minus, Package, Pause, Plus, RefreshCw, ScanBarcode, ShoppingCart, Tag, Trash2, Wallet, CreditCard } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CloudOff, History, Keyboard, Loader2, LogOut, Minus, Package, Pause, Plus, RefreshCw, ScanBarcode, ShoppingCart, Tag, Trash2, Users, Wallet, CreditCard } from "lucide-react";
 import { usePosPanelsContext } from "../hooks";
 
 export function POSPagePanels() {
@@ -14,7 +14,7 @@ export function POSPagePanels() {
     return (
         <>
             <div ref={ctx.panelsContainerRef} className="flex flex-1 min-h-0 relative">
-                <div className={cn("bg-white border-r border-border/40 flex flex-col shrink-0", "w-full md:w-[280px] lg:w-auto", "absolute inset-0 md:relative md:inset-auto", "pb-16 md:pb-0", ctx.mobileView === "products" ? "z-10 flex" : "z-0 hidden md:flex")} style={ctx.isDesktop ? { width: ctx.leftPanelWidth } : undefined}>
+                <div className={cn("bg-white border-r border-border/40 flex flex-col shrink-0", "w-full md:w-[45%] lg:w-auto", "absolute inset-0 md:relative md:inset-auto", "pb-16 lg:pb-0", ctx.mobileView === "products" ? "z-10 flex" : "z-0 hidden md:flex")} style={ctx.isDesktop ? { width: ctx.leftPanelWidth } : undefined}>
                     <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={ctx.goDashboard}><ArrowLeft className="w-4 h-4" /></Button>
                         <div className="text-center">
@@ -30,103 +30,192 @@ export function POSPagePanels() {
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => ctx.setShowShortcutsDialog(true)}><Keyboard className="w-4 h-4" /></Button>
                         </div>
                     </div>
-                    <div className="px-3 py-2 shrink-0 border-b border-border/20">
-                        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                            <button onClick={() => {
-                                ctx.saveCategoryCache();
-                                ctx.setSelectedCategory("");
-                                if (!ctx.restoreCategoryCache()) void ctx.loadProducts("all", undefined, 1, true);
-                            }}
-                                className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${!ctx.selectedCategory ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>
-                                Semua
+                    {(ctx.bundles.length > 0 || ctx.showTableNumber) && (
+                        <div className="px-3 py-2 border-b border-border/20 flex gap-1">
+                            <button onClick={() => ctx.setLeftPanelTab("products")}
+                                className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all ${ctx.leftPanelTab === "products" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                                Produk
                             </button>
-                            {ctx.categories.map((c) => (
-                                <button key={c.id} onClick={() => ctx.handleCategoryClick(c.id)} className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${ctx.selectedCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>{c.name}</button>
-                            ))
-                            }
-                        </div>
-                    </div>
-                    <div ref={ctx.productScrollRef} className="flex-1 overflow-y-auto px-3 pb-3">
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-2 gap-2 pt-2" style={ctx.isDesktop ? { gridTemplateColumns: `repeat(${ctx.productGridCols}, minmax(0, 1fr))` } : undefined}>
-                            {ctx.browseItems.map((p) => (
-                                <button key={p.id} onClick={() => ctx.addToCart(p)} className="text-left rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white active:scale-[0.97] overflow-hidden">
-                                    {
-                                        p.imageUrl ? <div className="relative aspect-square w-full bg-muted/10">
-                                            <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="(max-width: 1024px) 33vw, 20vw" />
-                                        </div> : <div className="aspect-square w-full bg-muted/20 flex items-center justify-center">
-                                            <span className="text-2xl font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
-                                        </div>
-                                    }
-                                    <div className="p-2.5">
-                                        <p className="text-xs font-medium truncate group-hover:text-primary transition-colors leading-tight">{p.name}</p>
-                                        <p className="text-[10px] text-muted-foreground mt-0.5">Stok: {p.stock}{p.units && p.units.length > 0 ? ` · ${p.units.length + 1} satuan` : ""}</p>
-                                        <p className="text-sm text-primary font-bold mt-0.5 tabular-nums">{formatCurrency(p.sellingPrice)}</p>
-                                    </div>
+                            {ctx.bundles.length > 0 && (
+                                <button onClick={() => ctx.setLeftPanelTab("bundles")}
+                                    className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all ${ctx.leftPanelTab === "bundles" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                                    Paket
                                 </button>
-                            ))
-                            }
+                            )}
+                            {ctx.showTableNumber && (
+                                <button onClick={() => ctx.setLeftPanelTab("tables")}
+                                    className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all relative ${ctx.leftPanelTab === "tables" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                                    Meja {ctx.selectedTables.length > 0 && `(${ctx.selectedTables.map((t) => t.number).join("+")})`}
+                                    {ctx.selectedTables.length > 0 && (
+                                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{ctx.selectedTables.length}</span>
+                                    )}
+                                </button>
+                            )}
                         </div>
-                        {ctx.browseHasMore && (<div ref={ctx.productSentinelRef} className="flex justify-center py-4">{ctx.browseLoading && <Loader2 className="w-5 h-5 animate-spin text-primary/40" />}</div>)}{ctx.browseItems.length === 0 && !ctx.browseLoading && (<div className="py-10 text-center text-xs text-muted-foreground">Tidak ada produk ditemukan</div>)}{!ctx.browseHasMore && ctx.browseItems.length > 0 && (<p className="text-center text-[10px] text-muted-foreground/50 py-3">Semua produk ditampilkan</p>)}</div>
-                    <div className="px-3 py-2 border-t border-border/30 hidden md:flex gap-1">{[{ key: "F1", label: "Cari", action: () => ctx.setShowSearchDialog(true) }, { key: "F2", label: ctx.heldTransactions.length > 0 ? `Hold (${ctx.heldTransactions.length})` : "Hold", action: () => ctx.heldTransactions.length > 0 ? ctx.setShowHeldDialog(true) : ctx.holdTransaction() }, { key: "F5", label: "Diskon", action: () => { if (!ctx.canPosAction("discount")) return; ctx.setShowDiscountDialog(true); } }, { key: "F6", label: "Riwayat", action: () => { void ctx.loadHistory(); } }].map((s) => (<button key={s.key} onClick={s.action} className="flex-1 text-[10px] font-medium text-muted-foreground hover:text-primary py-1.5 rounded-md hover:bg-accent transition-all"><span className="font-mono text-[9px] bg-muted/80 px-1 py-0.5 rounded mr-1">{s.key}</span>{s.label}</button>))}</div>
+                    )}
+                    {ctx.leftPanelTab === "products" && (
+                        <div className="px-3 py-2 shrink-0 border-b border-border/20">
+                            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                                <button onClick={() => {
+                                    ctx.saveCategoryCache();
+                                    ctx.setSelectedCategory("");
+                                    if (!ctx.restoreCategoryCache()) void ctx.loadProducts("all", undefined, 1, true);
+                                }}
+                                    className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${!ctx.selectedCategory ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>
+                                    Semua
+                                </button>
+                                {ctx.categories.map((c) => (
+                                    <button key={c.id} onClick={() => ctx.handleCategoryClick(c.id)} className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${ctx.selectedCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>{c.name}</button>
+                                ))
+                                }
+                            </div>
+                        </div>
+                    )}
+                    {ctx.leftPanelTab === "bundles" ? (
+                        <div className="flex-1 overflow-y-auto px-3 pb-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
+                                {ctx.bundles.map((bundle: any) => (
+                                    <button key={bundle.id} onClick={() => ctx.addBundleToCart(bundle)}
+                                        className="text-left rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white active:scale-[0.97] overflow-hidden p-3">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shrink-0">
+                                                <Package className="w-4 h-4 text-white" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-bold truncate group-hover:text-primary">{bundle.name}</p>
+                                                <p className="text-[10px] text-muted-foreground">{bundle.code}</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-0.5 mb-2">
+                                            {bundle.items.map((item: any) => (
+                                                <p key={item.id} className="text-[10px] text-muted-foreground truncate">
+                                                    {item.quantity}x {item.product.name}
+                                                </p>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm text-primary font-bold tabular-nums">{formatCurrency(bundle.sellingPrice)}</p>
+                                            {bundle.totalBasePrice > bundle.sellingPrice && (
+                                                <p className="text-[10px] text-muted-foreground line-through tabular-nums">{formatCurrency(bundle.totalBasePrice)}</p>
+                                            )}
+                                        </div>
+                                        {bundle.totalBasePrice > bundle.sellingPrice && (
+                                            <div className="mt-1.5">
+                                                <span className="text-[9px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-md">
+                                                    Hemat {formatCurrency(bundle.totalBasePrice - bundle.sellingPrice)}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                            {ctx.bundles.length === 0 && (
+                                <div className="py-10 text-center text-xs text-muted-foreground">Tidak ada paket tersedia</div>
+                            )}
+                        </div>
+                    ) : ctx.leftPanelTab === "tables" ? (
+                        <div className="flex-1 overflow-y-auto">
+                            <TableGrid
+                                tables={ctx.tables}
+                                selectedTables={ctx.selectedTables}
+                                totalCapacity={ctx.totalTableCapacity}
+                                onToggle={(table) => ctx.toggleTable(table)}
+                                onClear={ctx.clearTables}
+                                onConfirm={() => {
+                                    if (ctx.selectedTables.length > 0 && !ctx.customerName.trim()) {
+                                        const label = ctx.selectedTables.length === 1
+                                            ? (ctx.selectedTables[0]!.name || `Meja ${ctx.selectedTables[0]!.number}`)
+                                            : `Meja ${ctx.selectedTables.map((t) => t.number).join("+")}`;
+                                        ctx.setCustomerName(label);
+                                    }
+                                    ctx.setLeftPanelTab("products");
+                                }}
+                                onRelease={ctx.handleReleaseTable}
+                            />
+                        </div>
+                    ) : (
+                        <div ref={ctx.productScrollRef} className="flex-1 overflow-y-auto px-3 pb-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-2 gap-2 pt-2" style={ctx.isDesktop ? { gridTemplateColumns: `repeat(${ctx.productGridCols}, minmax(0, 1fr))` } : undefined}>
+                                {ctx.browseItems.map((p) => (
+                                    <button key={p.id} onClick={() => ctx.addToCart(p)} className="text-left rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white active:scale-[0.97] overflow-hidden">
+                                        {
+                                            p.imageUrl ? <div className="relative aspect-square w-full bg-muted/10">
+                                                <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="(max-width: 1024px) 33vw, 20vw" />
+                                            </div> : <div className="aspect-square w-full bg-muted/20 flex items-center justify-center">
+                                                <span className="text-2xl font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
+                                            </div>
+                                        }
+                                        <div className="p-2.5">
+                                            <p className="text-xs font-medium truncate group-hover:text-primary transition-colors leading-tight">{p.name}</p>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5">Stok: {p.stock}{p.units && p.units.length > 0 ? ` · ${p.units.length + 1} satuan` : ""}</p>
+                                            <p className="text-sm text-primary font-bold mt-0.5 tabular-nums">{formatCurrency(p.sellingPrice)}</p>
+                                        </div>
+                                    </button>
+                                ))
+                                }
+                            </div>
+                            {ctx.browseHasMore && (<div ref={ctx.productSentinelRef} className="flex justify-center py-4">{ctx.browseLoading && <Loader2 className="w-5 h-5 animate-spin text-primary/40" />}</div>)}{ctx.browseItems.length === 0 && !ctx.browseLoading && (<div className="py-10 text-center text-xs text-muted-foreground">Tidak ada produk ditemukan</div>)}{!ctx.browseHasMore && ctx.browseItems.length > 0 && (<p className="text-center text-[10px] text-muted-foreground/50 py-3">Semua produk ditampilkan</p>)}</div>
+                    )}
+                    <div className="px-3 py-2 border-t border-border/30 hidden lg:flex gap-1">{[{ key: "F1", label: "Cari", action: () => ctx.setShowSearchDialog(true) }, { key: "F2", label: ctx.heldTransactions.length > 0 ? `Hold (${ctx.heldTransactions.length})` : "Hold", action: () => ctx.heldTransactions.length > 0 ? ctx.setShowHeldDialog(true) : ctx.holdTransaction() }, { key: "F5", label: "Diskon", action: () => { if (!ctx.canPosAction("discount")) return; ctx.setShowDiscountDialog(true); } }, { key: "F6", label: "Riwayat", action: () => { void ctx.loadHistory(); } }].map((s) => (<button key={s.key} onClick={s.action} className="flex-1 text-[10px] font-medium text-muted-foreground hover:text-primary py-1.5 rounded-md hover:bg-accent transition-all"><span className="font-mono text-[9px] bg-muted/80 px-1 py-0.5 rounded mr-1">{s.key}</span>{s.label}</button>))}</div>
                 </div>
                 {ctx.isDesktop && (<div role="separator" aria-orientation="vertical" onMouseDown={ctx.startResizeLeftPanel} className={cn("hidden lg:flex w-1.5 cursor-col-resize shrink-0 items-center justify-center bg-border/20 hover:bg-primary/20 transition-colors", ctx.isResizingLeftPanel && "bg-primary/30")}><div className="h-14 w-[2px] rounded-full bg-muted-foreground/40" /></div>)}
-                <div ref={ctx.centerPanelRef} className={cn("flex-1 flex flex-col min-w-0 bg-[#F1F5F9]", "md:min-w-[320px] lg:min-w-[420px]", "w-full lg:w-auto", "absolute inset-0 md:relative md:inset-auto", "pb-16 md:pb-0", ctx.mobileView === "cart" ? "z-10 flex" : "z-0 hidden md:flex")}>
-                    <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-border/40 md:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => ctx.setMobileView("products")}><ArrowLeft className="w-4 h-4" /></Button><h2 className="font-bold text-sm">Keranjang</h2><div className="flex gap-1"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { if (!ctx.canPosAction("discount")) return; ctx.setShowDiscountDialog(true); }}><Tag className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { void ctx.loadHistory(); }}><History className="w-4 h-4" /></Button></div></div>
+                <div ref={ctx.centerPanelRef} className={cn("flex-1 flex flex-col min-w-0 bg-[#F1F5F9]", "md:min-w-[300px] lg:min-w-[380px]", "w-full lg:w-auto", "absolute inset-0 md:relative md:inset-auto", "pb-16 lg:pb-0", ctx.mobileView === "cart" ? "z-10 flex" : "z-0 hidden md:flex")}>
+                    <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-border/40 lg:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => ctx.setMobileView("products")}><ArrowLeft className="w-4 h-4" /></Button><h2 className="font-bold text-sm">Keranjang</h2><div className="flex gap-1"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { if (!ctx.canPosAction("discount")) return; ctx.setShowDiscountDialog(true); }}><Tag className="w-4 h-4" /></Button><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => { void ctx.loadHistory(); }}><History className="w-4 h-4" /></Button></div></div>
                     <div className="px-5 py-3 bg-white border-b border-border/40"><div className="relative"><ScanBarcode className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/50" /><Input ref={ctx.barcodeInputRef} placeholder="Scan barcode atau ketik nama produk..." value={ctx.searchQuery} onChange={(e) => ctx.handleBarcodeInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && ctx.searchResults.length > 0) { const first = ctx.searchResults[0]; if (first) ctx.addToCart(first); } }} className="pl-12 h-11 lg:h-12 rounded-xl text-base border-2 border-border/50 focus:border-primary/50 bg-muted/20" autoFocus />{ctx.searching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-primary/40" />}</div>{ctx.searchResults.length > 0 && (<div className="mt-2 border border-border/50 rounded-xl overflow-hidden max-h-[240px] overflow-y-auto bg-white divide-y divide-border/20">{ctx.searchResults.map((p) => (<button key={p.id} onClick={() => ctx.addToCart(p)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/40 transition-colors text-left"><div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; {p.category.name} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary tabular-nums">{formatCurrency(p.sellingPrice)}</p></button>))}</div>)}</div>
                     {(ctx.negativeMarginItems.length > 0 || ctx.lowStockItems.length > 0) && (<div className="px-5 py-1.5 flex gap-2">{ctx.negativeMarginItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-md text-[11px] text-red-500"><AlertTriangle className="w-3 h-3" />Margin negatif: {ctx.negativeMarginItems.map((i) => i.productName).join(", ")}</div>}{ctx.lowStockItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-md text-[11px] text-orange-500"><AlertTriangle className="w-3 h-3" />Stok menipis</div>}</div>)}
                     <div className="flex-1 flex flex-col min-h-0 px-5 py-3"><div className="bg-white rounded-2xl border border-border/40 flex-1 flex flex-col overflow-hidden shadow-sm"><div className="px-5 py-3 border-b border-border/30 flex items-center justify-between shrink-0"><div className="flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Keranjang</span>{ctx.totalItems > 0 && <Badge className="bg-primary/10 text-primary rounded-full text-xs px-2 h-5">{ctx.totalItems} item</Badge>}</div>{(ctx.cart.length > 0 || ctx.heldTransactions.length > 0) && (<div className="flex gap-1.5">{ctx.heldTransactions.length > 0 && (<Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:bg-primary/10 rounded-lg" onClick={() => ctx.setShowHeldDialog(true)}>Lihat Hold ({ctx.heldTransactions.length})</Button>)}{ctx.cart.length > 0 && (<><Button variant="ghost" size="sm" className="h-7 text-xs text-orange-500 hover:bg-orange-50 rounded-lg" onClick={ctx.holdTransaction} disabled={!ctx.canPosAction("hold")}><Pause className="w-3 h-3 mr-1" />Hold</Button><Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={ctx.resetPOS}>Clear</Button></>)}</div>)}</div><div className="flex-1 overflow-y-auto min-h-0">{ctx.cart.length === 0 ? (<div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground/40"><ShoppingCart className="w-14 h-14 mb-3" /><p className="font-medium">Keranjang kosong</p><p className="text-xs mt-1">Scan barcode atau pilih produk</p>{ctx.heldTransactions.length > 0 && (<Button variant="outline" size="sm" className="mt-4 rounded-lg" onClick={() => ctx.setShowHeldDialog(true)}>Lihat Transaksi Hold ({ctx.heldTransactions.length})</Button>)}</div>) : (<div className="p-3 space-y-1">{ctx.cart.map((item, idx) => {
-    const itemPromo = ctx.promoMeta.byItem[item.productId];
-    const freeQty = ctx.promoMeta.freeQtyByItem[item.productId] ?? 0;
-    const displayQty = item.quantity + freeQty;
-    const lineKey = item.lineId ?? item.productId;
-    const hasUnit = item.unitName && item.conversionQty && item.conversionQty > 1;
-    return (
-        <div key={lineKey} className={cn("rounded-xl hover:bg-muted/30 transition-colors group", ctx.isCompactCart ? "px-3 py-2" : "px-4 py-3")}>
-            {/* Row 1: Product info + subtotal + delete */}
-            <div className="flex items-start gap-2">
-                {!ctx.isCompactCart && <span className="text-[10px] text-muted-foreground/40 w-4 text-center tabular-nums mt-1">{idx + 1}</span>}
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                            <p className="font-medium text-sm truncate leading-tight">{item.productName}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.unitPrice)}</span>
-                                {hasUnit && (
-                                    <Badge className="h-4 px-1.5 text-[9px] font-semibold bg-indigo-50 text-indigo-600 border-0 rounded-md">
-                                        {item.unitName}
-                                    </Badge>
-                                )}
+                        const itemPromo = ctx.promoMeta.byItem[item.productId];
+                        const freeQty = ctx.promoMeta.freeQtyByItem[item.productId] ?? 0;
+                        const displayQty = item.quantity + freeQty;
+                        const lineKey = item.lineId ?? item.productId;
+                        const hasUnit = item.unitName && item.conversionQty && item.conversionQty > 1;
+                        return (
+                            <div key={lineKey} className={cn("rounded-xl hover:bg-muted/30 transition-colors group", ctx.isCompactCart ? "px-3 py-2" : "px-4 py-3")}>
+                                {/* Row 1: Product info + subtotal + delete */}
+                                <div className="flex items-start gap-2">
+                                    {!ctx.isCompactCart && <span className="text-[10px] text-muted-foreground/40 w-4 text-center tabular-nums mt-1">{idx + 1}</span>}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium text-sm truncate leading-tight">{item.productName}</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <span className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.unitPrice)}</span>
+                                                    {hasUnit && (
+                                                        <Badge className="h-4 px-1.5 text-[9px] font-semibold bg-indigo-50 text-indigo-600 border-0 rounded-md">
+                                                            {item.unitName}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                {itemPromo && (<p className="text-[10px] text-green-600 truncate mt-0.5">{itemPromo.names.join(", ")} · -{formatCurrency(itemPromo.discount)}</p>)}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <p className={cn("text-right font-bold text-sm tabular-nums", ctx.isCompactCart ? "min-w-[70px]" : "min-w-[90px]")}>{formatCurrency(item.subtotal)}</p>
+                                                <button onClick={() => ctx.removeItem(lineKey)} className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 p-0.5 -mr-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                        </div>
+                                        {/* Row 2: Qty controls */}
+                                        <div className="flex items-center justify-between mt-1.5">
+                                            <div className="flex items-center gap-1">
+                                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => ctx.updateQuantity(lineKey, -1)} disabled={item.quantity <= 1}><Minus className="w-3 h-3" /></Button>
+                                                <span className="text-center font-bold text-sm tabular-nums min-w-[32px]">{displayQty}</span>
+                                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => ctx.updateQuantity(lineKey, 1)}><Plus className="w-3 h-3" /></Button>
+                                                {hasUnit && (
+                                                    <span className="text-[10px] text-muted-foreground ml-1">
+                                                        × {item.conversionQty} = {displayQty * (item.conversionQty ?? 1)} {item.unitName === item.productName ? "pcs" : "pcs"}
+                                                    </span>
+                                                )}
+                                                {freeQty > 0 && (<span className="text-[10px] text-green-600 ml-1.5">+{freeQty} gratis</span>)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            {itemPromo && (<p className="text-[10px] text-green-600 truncate mt-0.5">{itemPromo.names.join(", ")} · -{formatCurrency(itemPromo.discount)}</p>)}
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <p className={cn("text-right font-bold text-sm tabular-nums", ctx.isCompactCart ? "min-w-[70px]" : "min-w-[90px]")}>{formatCurrency(item.subtotal)}</p>
-                            <button onClick={() => ctx.removeItem(lineKey)} className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 p-0.5 -mr-1"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                    </div>
-                    {/* Row 2: Qty controls */}
-                    <div className="flex items-center justify-between mt-1.5">
-                        <div className="flex items-center gap-1">
-                            <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => ctx.updateQuantity(lineKey, -1)} disabled={item.quantity <= 1}><Minus className="w-3 h-3" /></Button>
-                            <span className="text-center font-bold text-sm tabular-nums min-w-[32px]">{displayQty}</span>
-                            <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => ctx.updateQuantity(lineKey, 1)}><Plus className="w-3 h-3" /></Button>
-                            {hasUnit && (
-                                <span className="text-[10px] text-muted-foreground ml-1">
-                                    × {item.conversionQty} = {displayQty * (item.conversionQty ?? 1)} {item.unitName === item.productName ? "pcs" : "pcs"}
-                                </span>
-                            )}
-                            {freeQty > 0 && (<span className="text-[10px] text-green-600 ml-1.5">+{freeQty} gratis</span>)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-})}</div>)}</div></div></div>
+                        );
+                    })}</div>)}</div></div></div>
                 </div>
                 <div className={cn("bg-white border-l border-border/40 flex flex-col shrink-0", "w-full lg:w-[340px]", "absolute inset-0 lg:relative lg:inset-auto", "pb-16 lg:pb-0", ctx.mobileView === "payment" ? "z-10 flex" : "z-0 hidden lg:flex")}>
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 lg:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => ctx.setMobileView("cart")}><ArrowLeft className="w-4 h-4" /></Button><h2 className="font-bold text-sm">Pembayaran</h2><div className="w-8" /></div>
-                    <div className="flex-1 overflow-y-auto min-h-0"><div className="p-5 space-y-4"><div className="space-y-2.5"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums font-medium">{formatCurrency(ctx.subtotal)}</span></div><div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Diskon</span><Input type="number" value={ctx.discountPercent} onChange={(e) => ctx.setDiscountPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>{ctx.discountAmount > 0 && <div className="flex justify-between text-sm text-red-500"><span>Diskon</span><span className="tabular-nums">-{formatCurrency(ctx.discountAmount)}</span></div>}<div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Pajak</span><Input type="number" value={ctx.taxPercent} onChange={(e) => ctx.setTaxPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>{ctx.taxAmount > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Pajak</span><span className="tabular-nums">{formatCurrency(ctx.taxAmount)}</span></div>}</div><div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-4 border border-primary/10"><p className="text-xs font-medium text-primary/60 uppercase tracking-wider">Total Bayar</p><p className="text-3xl font-bold text-primary tabular-nums tracking-tight mt-1">{formatCurrency(ctx.grandTotal)}</p></div>{ctx.appliedPromos.length > 0 && (<div className="space-y-1"><p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">Promo Aktif</p>{Object.values(ctx.promoMeta.byItem).length > 0 && (<div className="text-[11px] text-green-700 bg-green-50/60 rounded-lg px-3 py-1.5">Promo item aktif di {Object.keys(ctx.promoMeta.byItem).length} produk (lihat di baris produk)</div>)}</div>)}{ctx.tebusMurahOptions.length > 0 && (<div className="space-y-1.5"><p className="text-[10px] font-semibold text-pink-600 uppercase tracking-wider">Promo Tebus Murah</p>{ctx.tebusMurahOptions.map((option) => (<div key={option.promoId} className="rounded-lg border border-pink-100 bg-pink-50/40 px-3 py-2 space-y-1.5"><p className="text-xs font-semibold text-pink-700">{option.promoName}</p><p className="text-[11px] text-pink-700/90">{option.triggerLabel}</p><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-xs font-medium truncate">{option.product.name}</p><p className="text-[11px] text-pink-700/90">Tebus {formatCurrency(option.tebusPrice)} · Sisa {option.remainingQty}</p></div><Button size="sm" variant="outline" className="h-7 rounded-md border-pink-200 text-pink-700 hover:bg-pink-100" onClick={() => ctx.handleAddTebusMurah(option)} disabled={option.remainingQty <= 0}>Tebus</Button></div></div>))}</div>)}<div className="space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Member</label><Input placeholder="No. HP member..." value={ctx.customerPhone} onChange={(e) => { void ctx.handleCustomerPhoneChange(e.target.value); }} className="rounded-lg h-8 text-sm" />{ctx.detectedCustomer && (<div className="bg-purple-50/60 rounded-lg px-3 py-2 space-y-1.5"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-purple-700">{ctx.detectedCustomer.name}</p><Badge className="bg-purple-100 text-purple-700 text-[10px]">{ctx.detectedCustomer.memberLevel}</Badge></div><p className="text-[11px] text-purple-500">{ctx.detectedCustomer.points} poin tersedia</p>{ctx.detectedCustomer.points >= 10 && (<div className="flex gap-1.5 items-center pt-0.5"><Input type="number" min={10} max={ctx.detectedCustomer.points} value={ctx.redeemPointsInput || ""} onChange={(e) => ctx.setRedeemPointsInput(Number(e.target.value))} placeholder="Jumlah poin" className="h-7 text-xs flex-1 rounded-md" /><Button size="sm" variant="outline" className="h-7 text-[10px] px-2 rounded-md border-purple-300 text-purple-600 hover:bg-purple-50" onClick={ctx.handleRedeemPoints} disabled={ctx.redeemPointsInput < 10 || ctx.redeemPointsInput > ctx.detectedCustomer.points || !ctx.canPosAction("redeem_points")}>Tukar</Button></div>)}{ctx.redeemDiscount > 0 && (<div className="flex justify-between text-xs bg-purple-100/60 rounded-md px-2 py-1"><span className="text-purple-700">Redeem {ctx.redeemPointsInput} poin</span><span className="text-purple-600 font-medium">-{formatCurrency(ctx.redeemDiscount)}</span></div>)}</div>)}</div><div className="space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Voucher</label><div className="flex gap-1.5"><Input placeholder="Kode" value={ctx.voucherCode} onChange={(e) => ctx.setVoucherCode(e.target.value.toUpperCase())} className="rounded-lg h-8 text-sm flex-1" /><Button size="sm" variant="outline" className="rounded-lg h-8 text-xs px-3" onClick={() => { void ctx.handleApplyVoucher(); }} disabled={!ctx.voucherCode || !ctx.canPosAction("voucher")}>Apply</Button></div>{ctx.voucherApplied && <div className="flex justify-between text-xs bg-green-50/60 rounded-lg px-3 py-1.5"><span className="text-green-700">{ctx.voucherApplied}</span><span className="text-green-600 font-medium">-{formatCurrency(ctx.voucherDiscount)}</span></div>}</div><div className="rounded-xl border border-dashed border-border/60 p-3 text-xs text-muted-foreground">Atur metode pembayaran dan nominal saat klik tombol bayar.</div></div></div>
+                    <div className="flex-1 overflow-y-auto min-h-0"><div className="p-5 space-y-4"><div className="space-y-2.5"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums font-medium">{formatCurrency(ctx.subtotal)}</span></div><div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Diskon</span><Input type="number" value={ctx.discountPercent} onChange={(e) => ctx.setDiscountPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>{ctx.discountAmount > 0 && <div className="flex justify-between text-sm text-red-500"><span>Diskon</span><span className="tabular-nums">-{formatCurrency(ctx.discountAmount)}</span></div>}<div className="flex items-center gap-2"><span className="text-sm text-muted-foreground flex-1">Pajak</span><Input type="number" value={ctx.taxPercent} onChange={(e) => ctx.setTaxPercent(Number(e.target.value))} className="w-14 h-7 text-right rounded-md text-xs" min={0} max={100} /><span className="text-xs text-muted-foreground">%</span></div>{ctx.taxAmount > 0 && <div className="flex justify-between text-sm"><span className="text-muted-foreground">Pajak</span><span className="tabular-nums">{formatCurrency(ctx.taxAmount)}</span></div>}</div><div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-4 border border-primary/10"><p className="text-xs font-medium text-primary/60 uppercase tracking-wider">Total Bayar</p><p className="text-3xl font-bold text-primary tabular-nums tracking-tight mt-1">{formatCurrency(ctx.grandTotal)}</p></div>{ctx.appliedPromos.length > 0 && (<div className="space-y-1"><p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">Promo Aktif</p>{Object.values(ctx.promoMeta.byItem).length > 0 && (<div className="text-[11px] text-green-700 bg-green-50/60 rounded-lg px-3 py-1.5">Promo item aktif di {Object.keys(ctx.promoMeta.byItem).length} produk (lihat di baris produk)</div>)}</div>)}{ctx.tebusMurahOptions.length > 0 && (<div className="space-y-1.5"><p className="text-[10px] font-semibold text-pink-600 uppercase tracking-wider">Promo Tebus Murah</p>{ctx.tebusMurahOptions.map((option) => (<div key={option.promoId} className="rounded-lg border border-pink-100 bg-pink-50/40 px-3 py-2 space-y-1.5"><p className="text-xs font-semibold text-pink-700">{option.promoName}</p><p className="text-[11px] text-pink-700/90">{option.triggerLabel}</p><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="text-xs font-medium truncate">{option.product.name}</p><p className="text-[11px] text-pink-700/90">Tebus {formatCurrency(option.tebusPrice)} · Sisa {option.remainingQty}</p></div><Button size="sm" variant="outline" className="h-7 rounded-md border-pink-200 text-pink-700 hover:bg-pink-100" onClick={() => ctx.handleAddTebusMurah(option)} disabled={option.remainingQty <= 0}>Tebus</Button></div></div>))}</div>)}<div className="space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{ctx.businessMode === "restaurant" ? "Atas Nama / No. Meja" : "Atas Nama"} {ctx.requireCustomer && <span className="text-red-500">*</span>}</label>{ctx.requireCustomer && !ctx.customerName.trim() && !ctx.detectedCustomer && (<div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 rounded-lg text-[11px] text-red-600 font-medium"><AlertTriangle className="w-3 h-3 shrink-0" />Nama customer wajib diisi</div>)}<Input placeholder="Nama customer..." value={ctx.customerName} onChange={(e) => ctx.setCustomerName(e.target.value)} className={cn("rounded-lg h-8 text-sm", ctx.requireCustomer && !ctx.customerName.trim() && !ctx.detectedCustomer && "border-red-300 focus:border-red-400")} /></div><div className="space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Member</label><Input placeholder="No. HP member (opsional)..." value={ctx.customerPhone} onChange={(e) => { void ctx.handleCustomerPhoneChange(e.target.value); }} className="rounded-lg h-8 text-sm" />{ctx.detectedCustomer && (<div className="bg-purple-50/60 rounded-lg px-3 py-2 space-y-1.5"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-purple-700">{ctx.detectedCustomer.name}</p><Badge className="bg-purple-100 text-purple-700 text-[10px]">{ctx.detectedCustomer.memberLevel}</Badge></div><p className="text-[11px] text-purple-500">{ctx.detectedCustomer.points} poin tersedia</p>{ctx.detectedCustomer.points >= 10 && (<div className="flex gap-1.5 items-center pt-0.5"><Input type="number" min={10} max={ctx.detectedCustomer.points} value={ctx.redeemPointsInput || ""} onChange={(e) => ctx.setRedeemPointsInput(Number(e.target.value))} placeholder="Jumlah poin" className="h-7 text-xs flex-1 rounded-md" /><Button size="sm" variant="outline" className="h-7 text-[10px] px-2 rounded-md border-purple-300 text-purple-600 hover:bg-purple-50" onClick={ctx.handleRedeemPoints} disabled={ctx.redeemPointsInput < 10 || ctx.redeemPointsInput > ctx.detectedCustomer.points || !ctx.canPosAction("redeem_points")}>Tukar</Button></div>)}{ctx.redeemDiscount > 0 && (<div className="flex justify-between text-xs bg-purple-100/60 rounded-md px-2 py-1"><span className="text-purple-700">Redeem {ctx.redeemPointsInput} poin</span><span className="text-purple-600 font-medium">-{formatCurrency(ctx.redeemDiscount)}</span></div>)}</div>)}</div><div className="space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Voucher</label><div className="flex gap-1.5"><Input placeholder="Kode" value={ctx.voucherCode} onChange={(e) => ctx.setVoucherCode(e.target.value.toUpperCase())} className="rounded-lg h-8 text-sm flex-1" /><Button size="sm" variant="outline" className="rounded-lg h-8 text-xs px-3" onClick={() => { void ctx.handleApplyVoucher(); }} disabled={!ctx.voucherCode || !ctx.canPosAction("voucher")}>Apply</Button></div>{ctx.voucherApplied && <div className="flex justify-between text-xs bg-green-50/60 rounded-lg px-3 py-1.5"><span className="text-green-700">{ctx.voucherApplied}</span><span className="text-green-600 font-medium">-{formatCurrency(ctx.voucherDiscount)}</span></div>}</div><div className="rounded-xl border border-dashed border-border/60 p-3 text-xs text-muted-foreground">Atur metode pembayaran dan nominal saat klik tombol bayar.</div></div></div>
                     <div className="p-4 border-t border-border/30 bg-white shrink-0"><Button className="w-full h-14 rounded-xl text-lg font-bold shadow-lg hover:shadow-xl transition-all" onClick={ctx.openPaymentDialog} disabled={ctx.loading || ctx.cart.length === 0}><><CreditCard className="mr-2 h-5 w-5" />Bayar {formatCurrency(ctx.grandTotal)}</></Button></div>
                 </div>
             </div>
@@ -179,5 +268,172 @@ export function POSPagePanels() {
                 </DialogContent>
             </Dialog>
         </>
+    );
+}
+
+type TableItem = { id: string; number: number; name: string | null; capacity: number; status: string; section: string | null };
+
+const TABLE_STATUS_CONFIG: Record<string, { label: string; dotColor: string; borderColor: string; bgColor: string; textColor: string; selectable: boolean }> = {
+    AVAILABLE: { label: "Kosong", dotColor: "bg-emerald-500", borderColor: "border-emerald-300", bgColor: "bg-emerald-50/50", textColor: "text-emerald-700", selectable: true },
+    OCCUPIED: { label: "Terisi", dotColor: "bg-red-500 animate-pulse", borderColor: "border-red-300", bgColor: "bg-red-50/50", textColor: "text-red-600", selectable: false },
+    RESERVED: { label: "Dipesan", dotColor: "bg-amber-500", borderColor: "border-amber-300", bgColor: "bg-amber-50/50", textColor: "text-amber-600", selectable: false },
+    CLEANING: { label: "Dibersihkan", dotColor: "bg-gray-400", borderColor: "border-gray-300", bgColor: "bg-gray-50", textColor: "text-gray-500", selectable: false },
+};
+
+type SelectedTable = { id: string; number: number; name: string | null; capacity: number };
+
+function TableGrid({ tables, selectedTables, totalCapacity, onToggle, onClear, onConfirm, onRelease }: {
+    tables: TableItem[];
+    selectedTables: SelectedTable[];
+    totalCapacity: number;
+    onToggle: (table: SelectedTable) => void;
+    onClear: () => void;
+    onConfirm: () => void;
+    onRelease: (tableId: string) => void;
+}) {
+    const selectedIds = new Set(selectedTables.map((t) => t.id));
+
+    const sections = new Map<string, TableItem[]>();
+    for (const t of tables) {
+        const key = t.section || "Lainnya";
+        if (!sections.has(key)) sections.set(key, []);
+        sections.get(key)!.push(t);
+    }
+
+    const available = tables.filter((t) => t.status === "AVAILABLE").length;
+    const occupied = tables.filter((t) => t.status === "OCCUPIED").length;
+
+    return (
+        <div className="p-3 space-y-3 flex flex-col h-full">
+            {/* Selected tables summary */}
+            {selectedTables.length > 0 && (
+                <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 space-y-2 shrink-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-primary">
+                                {selectedTables.length > 1 ? "Gabung Meja" : "Meja Dipilih"}
+                            </span>
+                            <Badge className="bg-primary/10 text-primary text-[10px] px-1.5 h-4 rounded-md">
+                                {selectedTables.map((t) => `#${t.number}`).join(" + ")}
+                            </Badge>
+                        </div>
+                        <button onClick={onClear} className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors">Reset</button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Kapasitas total: <span className="font-bold text-foreground">{totalCapacity} orang</span></span>
+                        </div>
+                        <Button size="sm" className="h-7 rounded-lg text-[11px] px-3 gap-1" onClick={onConfirm}>
+                            Konfirmasi
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Stats bar */}
+            <div className="flex items-center gap-3 px-1 shrink-0">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] text-muted-foreground">{available} Kosong</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    <span className="text-[10px] text-muted-foreground">{occupied} Terisi</span>
+                </div>
+                {tables.length - available - occupied > 0 && (
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span className="text-[10px] text-muted-foreground">{tables.length - available - occupied} Lainnya</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Section grids */}
+            <div className="flex-1 overflow-y-auto space-y-3">
+                {Array.from(sections.entries()).map(([section, sectionTables]) => (
+                    <div key={section}>
+                        <div className="flex items-center gap-2 mb-2 px-1">
+                            <div className="w-1 h-3.5 bg-primary rounded-full" />
+                            <p className="text-[10px] font-bold text-foreground uppercase tracking-widest">{section}</p>
+                            <span className="text-[10px] text-muted-foreground">({sectionTables.length})</span>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {sectionTables.map((table) => {
+                                const isSelected = selectedIds.has(table.id);
+                                const cfg = (TABLE_STATUS_CONFIG[table.status] ?? TABLE_STATUS_CONFIG["AVAILABLE"])!;
+
+                                return (
+                                    <div key={table.id} className="relative group">
+                                        <button
+                                            onClick={() => cfg.selectable && onToggle({ id: table.id, number: table.number, name: table.name, capacity: table.capacity })}
+                                            disabled={!cfg.selectable}
+                                            className={cn(
+                                                "w-full rounded-xl border-2 p-2.5 text-center transition-all relative overflow-hidden",
+                                                isSelected
+                                                    ? "border-primary bg-primary/10 ring-2 ring-primary/30 shadow-sm"
+                                                    : `${cfg.borderColor} ${cfg.bgColor}`,
+                                                cfg.selectable ? "hover:shadow-md active:scale-[0.97]" : "cursor-not-allowed"
+                                            )}
+                                        >
+                                            {/* Status dot */}
+                                            <div className="absolute top-2 right-2">
+                                                <div className={cn("w-2.5 h-2.5 rounded-full", cfg.dotColor)} />
+                                            </div>
+
+                                            {/* Selected checkmark */}
+                                            {isSelected && (
+                                                <div className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                                </div>
+                                            )}
+
+                                            <p className={cn(
+                                                "text-2xl font-black tabular-nums leading-tight",
+                                                isSelected ? "text-primary" : cfg.selectable ? "text-foreground" : "text-muted-foreground/60"
+                                            )}>
+                                                {table.number}
+                                            </p>
+                                            <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                                {table.name || `Meja ${table.number}`}
+                                            </p>
+                                            <div className="flex items-center justify-center gap-1.5 mt-1.5">
+                                                <div className="flex items-center gap-0.5">
+                                                    <Users className="w-3 h-3 text-muted-foreground/60" />
+                                                    <span className="text-[10px] text-muted-foreground/60">{table.capacity}</span>
+                                                </div>
+                                                <span className="text-muted-foreground/30">·</span>
+                                                <span className={cn("text-[9px] font-semibold", cfg.textColor)}>{cfg.label}</span>
+                                            </div>
+                                        </button>
+
+                                        {/* Release button — visible on hover for OCCUPIED tables */}
+                                        {table.status === "OCCUPIED" && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onRelease(table.id); }}
+                                                className="absolute inset-0 rounded-xl bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                                                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                                </div>
+                                                <span className="text-[10px] font-bold text-white">Kosongkan</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {tables.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
+                    <Users className="w-10 h-10 mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground">Belum ada meja</p>
+                    <p className="text-xs text-muted-foreground/60 mt-0.5">Tambahkan meja di pengaturan</p>
+                </div>
+            )}
+        </div>
     );
 }

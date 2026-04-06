@@ -136,28 +136,26 @@ export async function getPeakHours(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const transactions = await prisma.transaction.findMany({
-    where: { status: "COMPLETED", createdAt: { gte: thirtyDaysAgo } },
-    select: { createdAt: true, grandTotal: true },
+  const rows = await prisma.$queryRawUnsafe<{ h: number; count: bigint; revenue: bigint }[]>(`
+    SELECT EXTRACT(HOUR FROM "createdAt")::int as h,
+           COUNT(*)::bigint as count,
+           COALESCE(SUM("grandTotal"), 0) as revenue
+    FROM transactions
+    WHERE status = 'COMPLETED' AND "createdAt" >= $1
+    GROUP BY EXTRACT(HOUR FROM "createdAt")
+    ORDER BY h
+  `, thirtyDaysAgo);
+
+  const hourMap = new Map(rows.map(r => [r.h, { count: Number(r.count), revenue: Number(r.revenue) }]));
+
+  return Array.from({ length: 24 }, (_, h) => {
+    const data = hourMap.get(h) || { count: 0, revenue: 0 };
+    return {
+      hour: `${String(h).padStart(2, "0")}:00`,
+      transactions: data.count,
+      revenue: data.revenue,
+    };
   });
-
-  const hourMap: Record<number, { count: number; revenue: number }> = {};
-  for (let h = 0; h < 24; h++) hourMap[h] = { count: 0, revenue: 0 };
-
-  transactions.forEach((tx) => {
-    const hour = new Date(tx.createdAt).getHours();
-    const entry = hourMap[hour];
-    if (entry) {
-      entry.count++;
-      entry.revenue += tx.grandTotal;
-    }
-  });
-
-  return Object.entries(hourMap).map(([hour, data]) => ({
-    hour: `${hour.padStart(2, "0")}:00`,
-    transactions: data.count,
-    revenue: data.revenue,
-  }));
 }
 
 // Smart reorder alerts
@@ -217,40 +215,24 @@ export async function getDailyProfit(_branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const transactions = await prisma.transaction.findMany({
-    where: { status: "COMPLETED", createdAt: { gte: thirtyDaysAgo } },
-    select: {
-      grandTotal: true,
-      createdAt: true,
-      items: {
-        select: {
-          quantity: true,
-          product: { select: { purchasePrice: true } },
-        },
-      },
-    },
-  });
+  const rows = await prisma.$queryRawUnsafe<{ d: Date; revenue: bigint; cost: bigint }[]>(`
+    SELECT DATE_TRUNC('day', t."createdAt") as d,
+           COALESCE(SUM(t."grandTotal"), 0) as revenue,
+           COALESCE(SUM(ti.quantity * p."purchasePrice"), 0) as cost
+    FROM transactions t
+    JOIN transaction_items ti ON ti."transactionId" = t.id
+    JOIN products p ON p.id = ti."productId"
+    WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1
+    GROUP BY DATE_TRUNC('day', t."createdAt")
+    ORDER BY d ASC
+  `, thirtyDaysAgo);
 
-  const dayMap: Record<string, { revenue: number; cost: number }> = {};
-
-  transactions.forEach((tx) => {
-    const dateKey = new Date(tx.createdAt).toISOString().split("T")[0] ?? "";
-    if (!dayMap[dateKey]) dayMap[dateKey] = { revenue: 0, cost: 0 };
-    const entry = dayMap[dateKey]!;
-    entry.revenue += tx.grandTotal;
-    tx.items.forEach((item) => {
-      entry.cost += item.product.purchasePrice * item.quantity;
-    });
-  });
-
-  return Object.entries(dayMap)
-    .map(([date, data]) => ({
-      date,
-      revenue: data.revenue,
-      cost: data.cost,
-      profit: data.revenue - data.cost,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  return rows.map(r => ({
+    date: new Date(r.d).toISOString().split("T")[0] ?? "",
+    revenue: Number(r.revenue),
+    cost: Number(r.cost),
+    profit: Number(r.revenue) - Number(r.cost),
+  }));
 }
 
 // Profit per shift
@@ -314,37 +296,23 @@ export async function getSupplierRanking(_branchId?: string) {
 
 // Supplier debt tracking
 export async function getSupplierDebt(_branchId?: string) {
-  const suppliers = await prisma.supplier.findMany({
-    where: { isActive: true },
-    include: {
-      purchaseOrders: {
-        where: { status: "RECEIVED" },
-        select: { totalAmount: true },
-      },
-      supplierPayments: {
-        select: { amount: true },
-      },
-    },
-  });
+  const rows = await prisma.$queryRawUnsafe<{ name: string; totalPO: bigint; totalPaid: bigint }[]>(`
+    SELECT s.name,
+           COALESCE((SELECT SUM(po."totalAmount") FROM purchase_orders po WHERE po."supplierId" = s.id AND po.status = 'RECEIVED'), 0) as "totalPO",
+           COALESCE((SELECT SUM(sp.amount) FROM supplier_payments sp WHERE sp."supplierId" = s.id), 0) as "totalPaid"
+    FROM suppliers s
+    WHERE s."isActive" = true
+    ORDER BY s.name
+  `);
 
-  return suppliers
-    .map((s) => {
-      const totalPO = s.purchaseOrders.reduce(
-        (sum, po) => sum + po.totalAmount,
-        0,
-      );
-      const totalPaid = s.supplierPayments.reduce(
-        (sum, p) => sum + p.amount,
-        0,
-      );
-      return {
-        supplierName: s.name,
-        totalPO,
-        totalPaid,
-        debt: totalPO - totalPaid,
-      };
-    })
-    .filter((s) => s.totalPO > 0)
+  return rows
+    .map(r => ({
+      supplierName: r.name,
+      totalPO: Number(r.totalPO),
+      totalPaid: Number(r.totalPaid),
+      debt: Number(r.totalPO) - Number(r.totalPaid),
+    }))
+    .filter(s => s.totalPO > 0)
     .sort((a, b) => b.debt - a.debt);
 }
 
@@ -388,43 +356,32 @@ export async function getPromoEffectiveness(_branchId?: string) {
     take: 50,
   });
 
-  // Count transactions that reference each promo
-  const results = await Promise.all(
-    promotions.map(async (promo) => {
-      const usageCount = await prisma.transaction.count({
-        where: {
-          status: "COMPLETED",
-          OR: [
-            { promoApplied: { contains: promo.name } },
-            ...(promo.voucherCode
-              ? [{ promoApplied: { contains: promo.voucherCode } }]
-              : []),
-          ],
-        },
-      });
+  // Single query: get all COMPLETED transactions that have promoApplied set
+  const promoTransactions = await prisma.transaction.findMany({
+    where: {
+      status: "COMPLETED",
+      promoApplied: { not: null },
+    },
+    select: { promoApplied: true, discountAmount: true },
+  });
 
-      const discountSum = await prisma.transaction.aggregate({
-        where: {
-          status: "COMPLETED",
-          OR: [
-            { promoApplied: { contains: promo.name } },
-            ...(promo.voucherCode
-              ? [{ promoApplied: { contains: promo.voucherCode } }]
-              : []),
-          ],
-        },
-        _sum: { discountAmount: true },
-      });
-
-      return {
-        promoName: promo.name,
-        type: promo.type,
-        usageCount: Math.max(usageCount, promo.usageCount),
-        totalDiscount: discountSum._sum?.discountAmount || 0,
-        isActive: promo.isActive && new Date(promo.endDate) >= new Date(),
-      };
-    }),
-  );
+  const results = promotions.map((promo) => {
+    let usageCount = 0;
+    let totalDiscount = 0;
+    for (const tx of promoTransactions) {
+      if (tx.promoApplied?.includes(promo.name) || (promo.voucherCode && tx.promoApplied?.includes(promo.voucherCode))) {
+        usageCount++;
+        totalDiscount += tx.discountAmount;
+      }
+    }
+    return {
+      promoName: promo.name,
+      type: promo.type,
+      usageCount: Math.max(usageCount, promo.usageCount),
+      totalDiscount,
+      isActive: promo.isActive && new Date(promo.endDate) >= new Date(),
+    };
+  });
 
   return results.sort((a, b) => b.usageCount - a.usageCount);
 }
@@ -453,40 +410,37 @@ export async function getReorderRecommendations(_branchId?: string) {
     ORDER BY (p.stock::float / NULLIF(p."minStock", 0)) ASC
   `;
 
-  // Get avg daily sales for each product
-  const results = await Promise.all(
-    lowStockProducts.map(async (p: (typeof lowStockProducts)[number]) => {
-      const salesAgg = await prisma.transactionItem.aggregate({
-        where: {
-          productId: p.id,
-          createdAt: { gte: thirtyDaysAgo },
-          transaction: { status: "COMPLETED" },
-        },
-        _sum: { quantity: true },
-      });
+  // Get avg daily sales for ALL low stock products in a single query
+  const productIds = lowStockProducts.map(p => p.id);
+  const salesAgg = productIds.length > 0 ? await prisma.transactionItem.groupBy({
+    by: ["productId"],
+    where: {
+      productId: { in: productIds },
+      createdAt: { gte: thirtyDaysAgo },
+      transaction: { status: "COMPLETED" },
+    },
+    _sum: { quantity: true },
+  }) : [];
 
-      const totalSold = salesAgg._sum.quantity || 0;
-      const avgDailySales = totalSold / 30;
-      const daysUntilOut =
-        avgDailySales > 0
-          ? Math.round(p.stock / avgDailySales)
-          : p.stock > 0
-            ? 999
-            : 0;
-      const recommendedQty = Math.max(p.minStock * 2 - p.stock, 0);
+  const salesMap = new Map(salesAgg.map(s => [s.productId, s._sum.quantity || 0]));
 
-      return {
-        product: p.name,
-        code: p.code,
-        currentStock: p.stock,
-        minStock: p.minStock,
-        avgDailySales: Math.round(avgDailySales * 100) / 100,
-        daysUntilOut,
-        recommendedQty,
-        supplier: p.supplierName || "-",
-      };
-    }),
-  );
+  const results = lowStockProducts.map((p) => {
+    const totalSold = salesMap.get(p.id) || 0;
+    const avgDailySales = totalSold / 30;
+    const daysUntilOut = avgDailySales > 0 ? Math.round(p.stock / avgDailySales) : p.stock > 0 ? 999 : 0;
+    const recommendedQty = Math.max(p.minStock * 2 - p.stock, 0);
+
+    return {
+      product: p.name,
+      code: p.code,
+      currentStock: p.stock,
+      minStock: p.minStock,
+      avgDailySales: Math.round(avgDailySales * 100) / 100,
+      daysUntilOut,
+      recommendedQty,
+      supplier: p.supplierName || "-",
+    };
+  });
 
   return results.sort((a, b) => a.daysUntilOut - b.daysUntilOut);
 }

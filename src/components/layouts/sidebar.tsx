@@ -4,7 +4,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSidebarMenuAccess } from "@/features/access-control";
 import { getAllBranches } from "@/server/actions/branches";
 import { useBranch } from "@/components/providers/branch-provider";
@@ -18,6 +18,8 @@ import {
     Wallet, Clock, ScrollText, Percent, Building2, ClipboardList,
     BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
     ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
+    RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays,
+    Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine,
 } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -33,11 +35,11 @@ type MenuItem = {
 };
 
 const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>> = {
-    dashboard: LayoutDashboard, pos: ShoppingCart, transactions: History,
+    dashboard: LayoutDashboard, pos: ShoppingCart, bundles: Combine, transactions: History,
     shifts: Clock, products: Package, categories: FolderTree, brands: Tag,
     suppliers: Truck, customers: UserCheck, stock: BoxesIcon,
     purchases: ClipboardList, "stock-opname": ClipboardCheck,
-    "stock-transfers": ArrowLeftRight, expenses: Wallet, promotions: Percent,
+    "stock-transfers": ArrowLeftRight, expenses: Wallet, promotions: Percent, "price-schedules": CalendarClock,
     reports: BarChart3, analytics: BrainCircuit, "customer-intelligence": HeartHandshake,
     branches: Building2, "branch-prices": DollarSign, "audit-logs": ScrollText,
     "closing-reports": FileText, users: Users, settings: Settings,
@@ -45,6 +47,19 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     debts: Landmark,
     "cashier-performance": Users,
     "ai-assistant": BrainCircuit,
+    returns: RotateCcw,
+    "gift-cards": CreditCard,
+    "kitchen-display": ChefHat,
+    "employee-schedules": CalendarDays,
+    "sales-targets": Target,
+    "inventory-forecast": TrendingUp,
+    "profit-dashboard": PieChart,
+    "accounting": Calculator,
+    "accounting-coa": BookOpen,
+    "accounting-journals": FileSpreadsheet,
+    "accounting-ledger": BookMarked,
+    "accounting-reports": Layers,
+    "accounting-periods": LockKeyhole,
 };
 
 interface SidebarProps {
@@ -83,54 +98,77 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
         }
     }, [session?.user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const buildGroups = useCallback((menus: AccessMenu[], role: string) => {
+        const grouped = new Map<string, MenuItem[]>();
+        for (const menu of menus) {
+            if (!menu.permissions[role]) continue;
+            const icon = iconByMenuKey[menu.key] ?? LayoutDashboard;
+            const list = grouped.get(menu.group) ?? [];
+            list.push({ key: menu.key, href: menu.path, label: menu.name, icon });
+            grouped.set(menu.group, list);
+        }
+        return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
+    }, []);
+
+    // Load menus: always fetch from server, use cache only as instant preview
     useEffect(() => {
         if (!currentRole) return;
         let active = true;
-        const CACHE_KEY = "sidebar-menus";
+        const CACHE_KEY = "sidebar-menus-v4";
 
-        const buildGroups = (menus: AccessMenu[], role: string) => {
-            const grouped = new Map<string, MenuItem[]>();
-            for (const menu of menus) {
-                if (!menu.permissions[role]) continue;
-                const icon = iconByMenuKey[menu.key] ?? LayoutDashboard;
-                const list = grouped.get(menu.group) ?? [];
-                list.push({ key: menu.key, href: menu.path, label: menu.name, icon });
-                grouped.set(menu.group, list);
-            }
-            return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
-        };
-        const applyMenus = (menus: AccessMenu[], role: string, nextRoleColor?: string | null) => {
-            if (!active) return;
-            setDynamicMenuGroups(buildGroups(menus, role));
-            if (nextRoleColor) setRoleColor(nextRoleColor);
-        };
-
+        // Show cached menus immediately as preview (non-blocking)
         try {
             const cached = sessionStorage.getItem(CACHE_KEY);
             if (cached) {
                 const parsed = JSON.parse(cached) as { role: string; menus: AccessMenu[]; roleColor?: string };
                 if (parsed.role === currentRole) {
-                    applyMenus(parsed.menus, parsed.role, parsed.roleColor);
-                    return;
+                    console.log("[Sidebar] Using cached menus, count:", parsed.menus.length);
+                    setDynamicMenuGroups(buildGroups(parsed.menus, parsed.role));
+                    if (parsed.roleColor) setRoleColor(parsed.roleColor);
                 }
             }
         } catch { /* ignore */ }
 
+        // Always fetch fresh data from server (will override cache preview)
         const loadMenus = async () => {
-            const result = await getSidebarMenuAccess();
-            if (!active) return;
-            try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(result)); } catch { /* */ }
-            applyMenus(result.menus as AccessMenu[], result.role, result.roleColor);
+            try {
+                const result = await getSidebarMenuAccess();
+                if (!active) return;
+                setDynamicMenuGroups(buildGroups(result.menus as AccessMenu[], result.role));
+                if (result.roleColor) setRoleColor(result.roleColor);
+                try {
+                    sessionStorage.removeItem("sidebar-menus");
+                    sessionStorage.removeItem("sidebar-menus-v2");
+                    sessionStorage.removeItem("sidebar-menus-v3");
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify(result));
+                } catch { /* storage full or unavailable */ }
+            } catch (err) {
+                console.error("[Sidebar] Failed to load menus:", err);
+            }
         };
         loadMenus();
         return () => { active = false; };
-    }, [currentRole]);
+    }, [currentRole, buildGroups]);
 
     const visibleMenuGroups = dynamicMenuGroups.filter((group) => group.items.length > 0);
     const visibleMenuItems = useMemo(
         () => visibleMenuGroups.flatMap((group) => group.items),
         [visibleMenuGroups]
     );
+    // Detect parent hrefs that have child menu items (e.g. /accounting has /accounting/coa)
+    const menuDefinedChildren = useMemo(() => {
+        const allHrefs = visibleMenuItems.map((i) => i.href);
+        const parents = new Set<string>();
+        for (const href of allHrefs) {
+            for (const other of allHrefs) {
+                if (other !== href && other.startsWith(href + "/")) {
+                    parents.add(href);
+                    break;
+                }
+            }
+        }
+        return parents;
+    }, [visibleMenuItems]);
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
     const defaultOpenGroups = useMemo(
         () => Object.fromEntries(
@@ -152,7 +190,8 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
     };
 
     const renderNavItem = (item: MenuItem, showLabel: boolean) => {
-        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        const isExactParent = item.href !== "/" && menuDefinedChildren.has(item.href);
+        const isActive = isExactParent ? pathname === item.href : (pathname === item.href || pathname.startsWith(item.href + "/"));
         const isPosBlocked = item.href === "/pos" && !selectedBranchId;
         const cls = cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150",

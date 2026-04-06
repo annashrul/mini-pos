@@ -12,6 +12,7 @@ import { addOfflineTransaction } from "@/lib/offline-queue";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useConfigRealtime } from "@/hooks/use-config-socket";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -155,6 +156,7 @@ function POSPageContent() {
         browsePage, setBrowsePage,
         browseHasMore, setBrowseHasMore,
         browseLoading, setBrowseLoading,
+        customerName, setCustomerName,
         customerPhone, setCustomerPhone,
         detectedCustomer, setDetectedCustomer,
         appliedPromos, setAppliedPromos,
@@ -172,6 +174,10 @@ function POSPageContent() {
         productTab,
         mobileView, setMobileView,
         productSyncing, setProductSyncing,
+        selectedTables, setSelectedTables,
+        tables, setTables,
+        leftPanelTab, setLeftPanelTab,
+        bundles, setBundles,
     } = usePosPageStates(initCache);
     const initialScrollRestored = useRef(false);
     const activeBranchId = selectedBranchId || userBranchId || "";
@@ -329,7 +335,7 @@ function POSPageContent() {
     useEffect(() => { if (cart.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(cart)); else localStorage.removeItem(STORAGE_KEY); }, [cart]);
 
     // Handlers
-    const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); toast.success(`Member: ${c.name}`); } else setDetectedCustomer(null); } else setDetectedCustomer(null); };
+    const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); if (!customerName.trim()) setCustomerName(c.name); toast.success(`Member: ${c.name}`); } else if (phone.length >= 10 && customerName.trim()) { try { const { quickRegisterCustomer } = await import("@/server/actions/customers"); const newCustomer = await quickRegisterCustomer(customerName.trim(), phone); if (newCustomer) { setDetectedCustomer(newCustomer); toast.success(`Member baru terdaftar: ${newCustomer.name}`); } } catch { /* silent */ } } else { setDetectedCustomer(null); } } else { setDetectedCustomer(null); } };
     const handleApplyVoucher = async () => {
         if (!canPosAction("voucher")) { toast.error("Tidak punya akses voucher"); return; }
         if (!voucherCode) return;
@@ -461,6 +467,49 @@ function POSPageContent() {
         setUnitSelectorProduct(null);
     }, [unitSelectorProduct, addToCartWithUnit]);
     const removeItem = (id: string) => setCart((prev) => prev.filter((i) => (i.lineId ?? i.productId) !== id));
+    const addBundleToCart = useCallback((bundle: any) => {
+        if (!bundle.items || bundle.items.length === 0) return;
+        // Bundle masuk sebagai 1 item di cart
+        // Komponen disimpan di bundleItems untuk pengurangan stok di backend
+        const bundleMaxStock = shouldValidateStock
+            ? Math.min(
+                ...bundle.items.map((item: any) => {
+                    const productStock = Number(item.product?.stock ?? 0);
+                    const req = Number(item.quantity ?? 1);
+                    if (req <= 0) return 0;
+                    return Math.floor(productStock / req);
+                }),
+            )
+            : 999999;
+        const bundlePurchasePrice = bundle.items.reduce((sum: number, item: any) => {
+            const p = Number(item.product?.purchasePrice ?? 0);
+            const q = Number(item.quantity ?? 0);
+            return sum + p * q;
+        }, 0);
+        const bundleItem = {
+            productId: `bundle:${bundle.id}`,
+            productName: bundle.name,
+            productCode: bundle.code,
+            quantity: 1,
+            unitPrice: bundle.sellingPrice,
+            purchasePrice: bundlePurchasePrice,
+            discount: bundle.totalBasePrice - bundle.sellingPrice,
+            subtotal: bundle.sellingPrice,
+            maxStock: bundleMaxStock,
+            // Data komponen untuk backend
+            bundleId: bundle.id,
+            bundleItems: bundle.items.map((item: any) => ({
+                productId: item.product.id,
+                productName: item.product.name,
+                productCode: item.product.code,
+                quantity: item.quantity,
+                unitPrice: item.product.sellingPrice,
+                purchasePrice: item.product.purchasePrice,
+            })),
+        };
+        setCart((prev) => [...prev, bundleItem]);
+        toast.success(`Paket "${bundle.name}" ditambahkan`);
+    }, [setCart, shouldValidateStock]);
     const holdTransaction = useCallback(() => {
         if (!canPosAction("hold")) { toast.error("Tidak punya akses hold transaksi"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
@@ -473,10 +522,15 @@ function POSPageContent() {
     const openPaymentDialog = useCallback(() => {
         if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
+        // Check if customer is required — name OR registered member
+        if (posConfig?.requireCustomer && !customerName.trim() && !detectedCustomer) {
+            toast.error("Nama customer wajib diisi sebelum pembayaran");
+            return;
+        }
         if (paymentMethod === "CASH" && !paymentAmount) setPaymentAmount(String(grandTotal));
         if (paymentMethod !== "CASH") setPaymentAmount(String(grandTotal));
         setShowPaymentDialog(true);
-    }, [canPosAction, cart.length, grandTotal, paymentAmount, paymentMethod]);
+    }, [canPosAction, cart.length, grandTotal, paymentAmount, paymentMethod, posConfig?.requireCustomer, detectedCustomer, customerName]);
     const handleCalculatorInput = (key: string) => {
         if (key === "CLEAR") { setPaymentAmount(""); return; }
         if (key === "BACKSPACE") { setPaymentAmount((prev) => prev.slice(0, -1)); return; }
@@ -489,6 +543,7 @@ function POSPageContent() {
     const handlePayment = async () => {
         if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
+        if (posConfig?.requireCustomer && !customerName.trim() && !detectedCustomer) { toast.error("Nama customer wajib diisi"); return; }
         // Build final payments list (merge same methods)
         const mergedMap = new Map<PaymentMethodType, number>();
         for (const e of paymentEntries) mergedMap.set(e.method, (mergedMap.get(e.method) ?? 0) + e.amount);
@@ -518,6 +573,8 @@ function POSPageContent() {
                 subtotal: item.subtotal,
                 ...(item.unitName ? { unitName: item.unitName } : {}),
                 ...(item.conversionQty && item.conversionQty > 1 ? { conversionQty: item.conversionQty, baseQty: item.quantity * item.conversionQty } : {}),
+                ...(item.bundleId ? { bundleId: item.bundleId } : {}),
+                ...(item.bundleItems ? { bundleItems: item.bundleItems } : {}),
             })),
             subtotal,
             discountAmount,
@@ -529,6 +586,9 @@ function POSPageContent() {
             payments: finalPayments,
             ...(detectedCustomer?.id ? { customerId: detectedCustomer.id } : {}),
             ...(activeBranchId ? { branchId: activeBranchId } : {}),
+            ...(selectedTables.length > 0
+                ? { notes: `Meja: ${selectedTables.map((t) => t.number).join("+")}${customerName.trim() ? ` - Atas nama: ${customerName.trim()}` : ""}` }
+                : customerName.trim() ? { notes: `Atas nama: ${customerName.trim()}` } : {}),
             ...(pn.length > 0 ? { promoApplied: Array.from(new Set(pn)).join(", ") } : {}),
             ...(appliedPromos.length > 0 || voucherPromoId || tebusPromoIds.length > 0 ? { promoIds: Array.from(new Set([...appliedPromos.map((p) => p.promoId), ...(voucherPromoId ? [voucherPromoId] : []), ...tebusPromoIds])) } : {}),
             ...(redeemDiscount > 0 ? { redeemPoints: redeemPointsInput } : {}),
@@ -553,10 +613,29 @@ function POSPageContent() {
         }
 
         const r = await createTransaction(payload);
-        setLoading(false); if (r.error) toast.error(r.error); else { setShowPaymentDialog(false); setSuccess(r.invoiceNumber!); setPointsEarnedResult(r.pointsEarned || 0); localStorage.removeItem(STORAGE_KEY); }
+        setLoading(false);
+        if (r.error) {
+            toast.error(r.error);
+        } else {
+            setShowPaymentDialog(false);
+            setSuccess(r.invoiceNumber!);
+            setPointsEarnedResult(r.pointsEarned || 0);
+            localStorage.removeItem(STORAGE_KEY);
+            // Mark selected tables as OCCUPIED
+            if (selectedTables.length > 0) {
+                import("@/server/actions/tables").then(({ occupyTable }) => {
+                    Promise.all(selectedTables.map((t) => occupyTable(t.id))).then(() => {
+                        // Reload tables to reflect new status
+                        import("@/server/actions/tables").then(({ getTables }) => {
+                            getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
+                        });
+                    });
+                }).catch(() => { });
+            }
+        }
     };
 
-    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setDiscountFixed(0); setDiscountType("percent"); setPaymentAmount(""); setPaymentEntries([]); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setTebusMurahOptions([]); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
+    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setDiscountFixed(0); setDiscountType("percent"); setPaymentAmount(""); setPaymentEntries([]); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerName(""); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setTebusMurahOptions([]); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); setSelectedTables([]); setLeftPanelTab("products"); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
 
     // Transaction history for current cashier only
     const loadHistory = useCallback(async () => {
@@ -744,6 +823,15 @@ function POSPageContent() {
             setReceiptConfig(receiptCfg);
             setPosConfig(posCfg);
             if (posCfg.defaultTaxPercent !== undefined) setTaxPercent(posCfg.defaultTaxPercent);
+            if (posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") {
+                import("@/server/actions/tables").then(({ getTables }) => {
+                    getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
+                }).catch(() => { });
+            }
+            // Load bundles
+            import("@/server/actions/bundles").then(({ getActiveBundles }) => {
+                getActiveBundles(activeBranchId || undefined).then((b) => setBundles(b as any)).catch(() => { });
+            }).catch(() => { });
             if (shiftData) {
                 setActiveShift({ id: shiftData.id, openingCash: shiftData.openingCash, openedAt: shiftData.openedAt });
             }
@@ -805,6 +893,38 @@ function POSPageContent() {
         return () => observer.disconnect();
     }, []);
 
+    // Realtime config sync — reload POS/Receipt config when changed from settings page
+    const reloadConfig = useCallback(async () => {
+        try {
+            const [posCfg, receiptCfg] = await Promise.all([
+                getPosConfig(),
+                getReceiptConfig(),
+            ]);
+            setPosConfig(posCfg);
+            setReceiptConfig(receiptCfg);
+            if (posCfg.defaultTaxPercent !== undefined) setTaxPercent(posCfg.defaultTaxPercent);
+            // Load tables when restaurant/cafe mode
+            if (posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") {
+                import("@/server/actions/tables").then(({ getTables }) => {
+                    getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
+                }).catch(() => { });
+            } else {
+                setTables([]);
+            }
+            toast.info("Konfigurasi POS diperbarui", { duration: 2000 });
+        } catch { /* silent */ }
+    }, [activeBranchId, tables]);
+    useConfigRealtime(reloadConfig, activeBranchId || undefined);
+
+    // Load tables when posConfig changes to restaurant/cafe mode
+    useEffect(() => {
+        if (posConfig?.showTableNumber && tables.length === 0) {
+            import("@/server/actions/tables").then(({ getTables }) => {
+                getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
+            }).catch(() => { });
+        }
+    }, [posConfig?.showTableNumber, activeBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Infinite scroll observer
     useEffect(() => {
         const sentinel = productSentinelRef.current;
@@ -827,7 +947,8 @@ function POSPageContent() {
         const handler = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
                 if (e.key === "Escape") { (e.target as HTMLElement).blur(); barcodeInputRef.current?.focus(); return; }
-                if (!e.key.startsWith("F")) return;
+                if (!e.key?.startsWith("F")) return;
+
             }
             switch (e.key) {
                 case "F1": e.preventDefault(); setShowSearchDialog(true); break;
@@ -1106,6 +1227,8 @@ function POSPageContent() {
                 appliedPromos,
                 tebusMurahOptions,
                 handleAddTebusMurah,
+                customerName,
+                setCustomerName,
                 customerPhone,
                 handleCustomerPhoneChange,
                 detectedCustomer,
@@ -1120,6 +1243,34 @@ function POSPageContent() {
                 voucherDiscount,
                 loading,
                 openPaymentDialog,
+                requireCustomer: posConfig?.requireCustomer ?? false,
+                businessMode: posConfig?.businessMode ?? "retail",
+                selectedTables,
+                toggleTable: (table: { id: string; number: number; name: string | null; capacity: number }) => {
+                    setSelectedTables((prev) => {
+                        const exists = prev.find((t) => t.id === table.id);
+                        if (exists) return prev.filter((t) => t.id !== table.id);
+                        return [...prev, table];
+                    });
+                },
+                clearTables: () => setSelectedTables([]),
+                totalTableCapacity: selectedTables.reduce((s, t) => s + t.capacity, 0),
+                tables,
+                handleReleaseTable: (tableId: string) => {
+                    import("@/server/actions/tables").then(({ releaseTable }) => {
+                        releaseTable(tableId).then(() => {
+                            import("@/server/actions/tables").then(({ getTables }) => {
+                                getTables(activeBranchId || undefined).then((t) => setTables(t as typeof tables)).catch(() => { });
+                            });
+                            toast.success("Meja dikosongkan");
+                        });
+                    }).catch(() => toast.error("Gagal mengosongkan meja"));
+                },
+                showTableNumber: posConfig?.showTableNumber ?? false,
+                leftPanelTab,
+                setLeftPanelTab,
+                bundles,
+                addBundleToCart,
             }}>
                 <POSPagePanels />
             </PosPanelsProvider>

@@ -400,6 +400,16 @@ export async function addDebtPayment(params: {
     }).catch(() => {});
 
     revalidatePath("/debts");
+
+    // Auto-create accounting journal for debt payment
+    import("@/server/actions/accounting").then(({ createAutoJournal }) => {
+      createAutoJournal({
+        referenceType: "DEBT_PAYMENT",
+        referenceId: payment.id,
+        ...(debt.branchId ? { branchId: debt.branchId } : {}),
+      });
+    }).catch(() => {});
+
     return { success: true, payment };
   } catch (err) {
     console.error("[addDebtPayment]", err);

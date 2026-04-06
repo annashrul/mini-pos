@@ -174,9 +174,11 @@ export async function receivePurchaseOrder(
       }
 
       let allReceived = true;
-      for (const receiveItem of items) {
+
+      // Batch all item operations
+      await Promise.all(items.map(async (receiveItem) => {
         const poItem = po.items.find((i) => i.id === receiveItem.itemId);
-        if (!poItem) continue;
+        if (!poItem) return;
 
         const newReceivedQty = poItem.receivedQty + receiveItem.receivedQty;
         if (newReceivedQty > poItem.quantity) {
@@ -190,26 +192,26 @@ export async function receivePurchaseOrder(
           data: { receivedQty: newReceivedQty },
         });
 
-        // Update product stock
         if (receiveItem.receivedQty > 0) {
-          await tx.product.update({
-            where: { id: poItem.productId },
-            data: { stock: { increment: receiveItem.receivedQty } },
-          });
-
-          await tx.stockMovement.create({
-            data: {
-              productId: poItem.productId,
-              type: "IN",
-              quantity: receiveItem.receivedQty,
-              note: `Penerimaan PO ${po.orderNumber}`,
-              reference: po.orderNumber,
-            },
-          });
+          await Promise.all([
+            tx.product.update({
+              where: { id: poItem.productId },
+              data: { stock: { increment: receiveItem.receivedQty } },
+            }),
+            tx.stockMovement.create({
+              data: {
+                productId: poItem.productId,
+                type: "IN",
+                quantity: receiveItem.receivedQty,
+                note: `Penerimaan PO ${po.orderNumber}`,
+                reference: po.orderNumber,
+              },
+            }),
+          ]);
         }
 
         if (newReceivedQty < poItem.quantity) allReceived = false;
-      }
+      }));
 
       // Check items not in the receive list
       for (const poItem of po.items) {
@@ -262,6 +264,16 @@ export async function receivePurchaseOrder(
     revalidatePath("/stock");
     revalidatePath("/debts");
     createAuditLog({ action: "RECEIVE", entity: "PurchaseOrder", entityId: id, details: { data: { orderId: id, paidAmount: paid, unpaidAmount: unpaidAmount > 0 ? unpaidAmount : 0 } } }).catch(() => {});
+
+    // Auto-create accounting journal for purchase
+    import("@/server/actions/accounting").then(({ createAutoJournal }) => {
+      createAutoJournal({
+        referenceType: "PURCHASE",
+        referenceId: id,
+        ...(result.po.branchId ? { branchId: result.po.branchId } : {}),
+      });
+    }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     return {
