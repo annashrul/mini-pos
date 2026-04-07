@@ -170,24 +170,6 @@ export function PriceSchedulesContent() {
     getAllBranches().then((b) => setBranches(b as Branch[]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-    fetchData({ search: value, page: 1 });
-  };
-
-  const handleStatusFilter = (value: string) => {
-    setStatusFilter(value);
-    setPage(1);
-    fetchData({ status: value, page: 1 });
-  };
-
-  const handleBranchFilter = (value: string) => {
-    setBranchFilter(value);
-    setPage(1);
-    fetchData({ branch: value, page: 1 });
-  };
-
   const handleDelete = async (id: string) => {
     if (!canDelete) {
       toast.error(cannotMessage("delete"));
