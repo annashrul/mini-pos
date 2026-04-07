@@ -40,7 +40,7 @@ export async function saveProductUnits(productId: string, units: ProductUnitInpu
         })),
       });
     }
-  });
+  }, { timeout: 15000 });
   revalidatePath("/products");
 
   if (units.length > 0) {

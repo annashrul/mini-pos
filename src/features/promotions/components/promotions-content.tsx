@@ -202,30 +202,34 @@ export function PromotionsContent() {
             </div>
 
             {/* Search + Filter Bar */}
-            <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Cari promo..."
-                            value={search}
-                            onChange={(e) => handleSearch(e.target.value)}
-                            className="pl-9 rounded-xl h-10"
-                        />
-                    </div>
-                    {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+            {/* Mobile: stacked search + scroll pills */}
+            <div className="sm:hidden space-y-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
+                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap -mx-1 px-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                     {typeFilterOptions.map((opt) => (
-                        <button
-                            key={opt.value}
-                            onClick={() => handleFilterType(opt.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                                activeFilters.type === opt.value
-                                    ? "bg-foreground text-background shadow-sm"
-                                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                            }`}
-                        >
+                        <button key={opt.value} onClick={() => handleFilterType(opt.value)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${activeFilters.type === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Desktop: search left + pills right, 1 row */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-10" />
+                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {typeFilterOptions.map((opt) => (
+                        <button key={opt.value} onClick={() => handleFilterType(opt.value)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${activeFilters.type === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                             {opt.label}
                         </button>
                     ))}

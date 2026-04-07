@@ -310,7 +310,7 @@ export async function createReturn(input: CreateReturnInput) {
       });
 
       return returnRecord;
-    });
+    }, { timeout: 15000 });
 
     revalidatePath("/returns");
     revalidatePath("/transactions");
@@ -467,7 +467,7 @@ export async function approveReturn(id: string) {
       });
 
       return updated;
-    });
+    }, { timeout: 15000 });
 
     revalidatePath("/returns");
     revalidatePath("/stock");

@@ -12,21 +12,11 @@ import { useMenuActionAccess } from "@/features/access-control";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { PaginationControl } from "@/components/ui/pagination-control";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SmartTable, type SmartColumn } from "@/components/ui/smart-table";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import {
   Plus,
   Trash2,
-  Search,
   Loader2,
   CalendarClock,
   Clock,
@@ -36,9 +26,7 @@ import {
   TrendingDown,
   Package,
   Timer,
-  SlidersHorizontal,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { NewScheduleDialog } from "./new-schedule-dialog";
@@ -140,7 +128,6 @@ export function PriceSchedulesContent() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [branchFilter, setBranchFilter] = useState("ALL");
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, startTransition] = useTransition();
   const [applying, startApplying] = useTransition();
@@ -347,275 +334,155 @@ export function PriceSchedulesContent() {
         })}
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <div className="relative flex-1 sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cari produk..."
-            value={search}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 h-9 sm:h-10 text-sm rounded-xl"
-          />
-        </div>
-        {/* Mobile: filter button → dialog */}
-        <Button variant="outline" size="icon" className="sm:hidden h-9 w-9 rounded-xl shrink-0" onClick={() => setFilterDialogOpen(true)}>
-          <SlidersHorizontal className="w-4 h-4" />
-          {(statusFilter !== "ALL" || branchFilter !== "ALL") && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
-              {(statusFilter !== "ALL" ? 1 : 0) + (branchFilter !== "ALL" ? 1 : 0)}
-            </span>
-          )}
-        </Button>
-        {/* Desktop: inline selects */}
-        <div className="hidden sm:flex items-center gap-3">
-          <Select value={statusFilter} onValueChange={handleStatusFilter}>
-            <SelectTrigger className="w-[180px] h-10 rounded-xl">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Status</SelectItem>
-              <SelectItem value="upcoming">Akan Datang</SelectItem>
-              <SelectItem value="active">Aktif</SelectItem>
-              <SelectItem value="expired">Kedaluwarsa</SelectItem>
-              <SelectItem value="reverted">Dikembalikan</SelectItem>
-            </SelectContent>
-          </Select>
-          {branches.length > 0 && (
-            <Select value={branchFilter} onValueChange={handleBranchFilter}>
-              <SelectTrigger className="w-[180px] h-10 rounded-xl">
-                <SelectValue placeholder="Cabang" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Semua Cabang</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-      </div>
+      {/* Filters handled by SmartTable */}
 
-      {/* Mobile filter dialog */}
-      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl p-0 gap-0">
-          <DialogHeader className="px-4 pt-4 pb-3">
-            <DialogTitle className="text-base">Filter</DialogTitle>
-          </DialogHeader>
-          <div className="px-4 pb-4 space-y-4">
+      {/* SmartTable */}
+      <SmartTable<PriceScheduleItem>
+        data={data.schedules}
+        columns={(() => {
+          const cols: SmartColumn<PriceScheduleItem>[] = [
+            {
+              key: "product",
+              header: "Produk",
+              render: (item) => (
+                <div>
+                  <p className="font-medium text-sm truncate">{item.product.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.product.code}
+                    {item.branch && <span className="ml-2 text-blue-600">{item.branch.name}</span>}
+                  </p>
+                </div>
+              ),
+              exportValue: (item) => item.product.name,
+            },
+            {
+              key: "originalPrice",
+              header: "Harga Asli",
+              align: "right",
+              render: (item) => <span className="font-mono text-muted-foreground text-sm">{formatCurrency(item.originalPrice)}</span>,
+              exportValue: (item) => item.originalPrice,
+            },
+            {
+              key: "newPrice",
+              header: "Harga Baru",
+              align: "right",
+              render: (item) => <span className="font-mono font-semibold text-sm">{formatCurrency(item.newPrice)}</span>,
+              exportValue: (item) => item.newPrice,
+            },
+            {
+              key: "discount",
+              header: "Diskon",
+              align: "center",
+              render: (item) => {
+                const disc = discountPercent(item.originalPrice, item.newPrice);
+                const isIncrease = item.newPrice > item.originalPrice;
+                if (isIncrease) return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">+{Math.abs(disc)}%</Badge>;
+                if (disc > 0) return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200"><TrendingDown className="h-3 w-3 mr-1" />{disc}%</Badge>;
+                return <span className="text-muted-foreground">-</span>;
+              },
+              exportValue: (item) => discountPercent(item.originalPrice, item.newPrice),
+            },
+            {
+              key: "startDate",
+              header: "Mulai",
+              render: (item) => <span className="text-sm">{format(new Date(item.startDate), "dd MMM yyyy")}</span>,
+              exportValue: (item) => item.startDate,
+            },
+            {
+              key: "endDate",
+              header: "Selesai",
+              render: (item) => <span className="text-sm">{format(new Date(item.endDate), "dd MMM yyyy")}</span>,
+              exportValue: (item) => item.endDate,
+            },
+            {
+              key: "status",
+              header: "Status",
+              align: "center",
+              render: (item) => {
+                const st = getScheduleStatus(item);
+                const cfg = statusConfig[st];
+                const Icon = cfg?.icon ?? Clock;
+                return <Badge variant="outline" className={`gap-1 text-xs ${cfg?.className ?? ""}`}><Icon className="h-3 w-3" />{cfg?.label ?? st}</Badge>;
+              },
+              exportValue: (item) => getScheduleStatus(item),
+            },
+            {
+              key: "actions",
+              header: "Aksi",
+              align: "center",
+              sticky: true,
+              render: (item) => !item.appliedAt ? (
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(item.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null,
+            },
+          ];
+          return cols;
+        })()}
+        totalItems={data.total}
+        totalPages={data.totalPages}
+        currentPage={page}
+        pageSize={pageSize}
+        loading={loading}
+        title="Jadwal Harga"
+        titleIcon={<CalendarClock className="w-4 h-4 text-violet-600" />}
+        searchPlaceholder="Cari produk..."
+        onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
+        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
+        onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); fetchData({ page: 1, pageSize: ps }); }}
+        filters={[
+          { key: "status", label: "Status", type: "select", options: [
+            { value: "ALL", label: "Semua Status" },
+            { value: "upcoming", label: "Akan Datang" },
+            { value: "active", label: "Aktif" },
+            { value: "expired", label: "Kedaluwarsa" },
+            { value: "reverted", label: "Dikembalikan" },
+          ]},
+          ...(branches.length > 0 ? [{ key: "branch", label: "Cabang", type: "select" as const, options: [
+            { value: "ALL", label: "Semua Cabang" },
+            ...branches.map((b) => ({ value: b.id, label: b.name })),
+          ]}] : []),
+        ]}
+        activeFilters={{ status: statusFilter, branch: branchFilter }}
+        onFilterChange={(f) => {
+          const s = f.status ?? "ALL";
+          const b = f.branch ?? "ALL";
+          setStatusFilter(s);
+          setBranchFilter(b);
+          setPage(1);
+          fetchData({ status: s, branch: b, page: 1 });
+        }}
+        exportFilename="jadwal-harga"
+        emptyIcon={<CalendarClock className="w-10 h-10 text-muted-foreground/30" />}
+        emptyTitle="Belum ada jadwal harga"
+        emptyDescription="Buat jadwal harga baru untuk mengubah harga produk secara otomatis"
+        mobileRender={(item) => {
+          const st = getScheduleStatus(item);
+          const cfg = statusConfig[st];
+          const Icon = cfg?.icon ?? Clock;
+          const disc = discountPercent(item.originalPrice, item.newPrice);
+          return (
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Status</label>
-              <Select value={statusFilter} onValueChange={(v) => { handleStatusFilter(v); setFilterDialogOpen(false); }}>
-                <SelectTrigger className="w-full h-10 rounded-xl">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Status</SelectItem>
-                  <SelectItem value="upcoming">Akan Datang</SelectItem>
-                  <SelectItem value="active">Aktif</SelectItem>
-                  <SelectItem value="expired">Kedaluwarsa</SelectItem>
-                  <SelectItem value="reverted">Dikembalikan</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {branches.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Cabang</label>
-                <Select value={branchFilter} onValueChange={(v) => { handleBranchFilter(v); setFilterDialogOpen(false); }}>
-                  <SelectTrigger className="w-full h-10 rounded-xl">
-                    <SelectValue placeholder="Cabang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua Cabang</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold truncate">{item.product.name}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">{item.product.code}</p>
+                </div>
+                <Badge variant="outline" className={`shrink-0 gap-1 text-[10px] ${cfg?.className ?? ""}`}>
+                  <Icon className="h-2.5 w-2.5" />{cfg?.label ?? st}
+                </Badge>
               </div>
-            )}
-            {(statusFilter !== "ALL" || branchFilter !== "ALL") && (
-              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { handleStatusFilter("ALL"); handleBranchFilter("ALL"); setFilterDialogOpen(false); }}>
-                Reset Filter
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Table */}
-      <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-gray-50/80">
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-muted-foreground">
-                  Produk
-                </th>
-                <th className="hidden sm:table-cell px-4 py-3 text-right font-medium text-muted-foreground">
-                  Harga Asli
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-right font-medium text-muted-foreground">
-                  Harga Baru
-                </th>
-                <th className="hidden md:table-cell px-4 py-3 text-center font-medium text-muted-foreground">
-                  Diskon
-                </th>
-                <th className="hidden lg:table-cell px-4 py-3 text-left font-medium text-muted-foreground">
-                  Mulai
-                </th>
-                <th className="hidden lg:table-cell px-4 py-3 text-left font-medium text-muted-foreground">
-                  Selesai
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-center font-medium text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-center font-medium text-muted-foreground">
-                  Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b">
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <Skeleton className="h-5 w-full" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : data.schedules.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                      <CalendarClock className="h-12 w-12 opacity-30" />
-                      <div>
-                        <p className="font-medium">
-                          Belum ada jadwal harga
-                        </p>
-                        <p className="text-sm">
-                          Buat jadwal harga baru untuk mengubah harga produk
-                          secara otomatis
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                data.schedules.map((item) => {
-                  const status = getScheduleStatus(item);
-                  const config = statusConfig[status];
-                  const StatusIcon = config?.icon ?? Clock;
-                  const disc = discountPercent(item.originalPrice, item.newPrice);
-                  const isIncrease = item.newPrice > item.originalPrice;
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className="border-b last:border-0 hover:bg-gray-50/50 transition-colors"
-                    >
-                      <td className="px-3 sm:px-4 py-3">
-                        <div>
-                          <p className="font-medium text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{item.product.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.product.code}
-                            {item.branch && (
-                              <span className="ml-2 text-blue-600">
-                                {item.branch.name}
-                              </span>
-                            )}
-                          </p>
-                          {item.reason && (
-                            <p className="text-xs text-muted-foreground mt-0.5 italic hidden sm:block">
-                              {item.reason}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="hidden sm:table-cell px-4 py-3 text-right font-mono text-muted-foreground">
-                        {formatCurrency(item.originalPrice)}
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 text-right font-mono font-semibold text-xs sm:text-sm">
-                        {formatCurrency(item.newPrice)}
-                      </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-center">
-                        {isIncrease ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-red-50 text-red-600 border-red-200"
-                          >
-                            +{Math.abs(disc)}%
-                          </Badge>
-                        ) : disc > 0 ? (
-                          <Badge
-                            variant="outline"
-                            className="bg-emerald-50 text-emerald-600 border-emerald-200"
-                          >
-                            <TrendingDown className="h-3 w-3 mr-1" />
-                            {disc}%
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="hidden lg:table-cell px-4 py-3 text-sm">
-                        {format(new Date(item.startDate), "dd MMM yyyy")}
-                      </td>
-                      <td className="hidden lg:table-cell px-4 py-3 text-sm">
-                        {format(new Date(item.endDate), "dd MMM yyyy")}
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 text-center">
-                        <Badge
-                          variant="outline"
-                          className={`gap-1 text-[10px] sm:text-xs ${config?.className ?? ""}`}
-                        >
-                          <StatusIcon className="h-3 w-3" />
-                          <span className="hidden sm:inline">{config?.label ?? status}</span>
-                        </Badge>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 text-center">
-                        {!item.appliedAt && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDelete(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {data.totalPages > 1 && (
-          <div className="border-t px-4 py-3">
-            <PaginationControl
-              currentPage={page}
-              totalPages={data.totalPages}
-              pageSize={pageSize}
-              totalItems={data.total}
-              onPageChange={(p) => {
-                setPage(p);
-                fetchData({ page: p });
-              }}
-              onPageSizeChange={(ps) => {
-                setPageSize(ps);
-                setPage(1);
-                fetchData({ page: 1, pageSize: ps });
-              }}
-            />
-          </div>
-        )}
-      </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground line-through tabular-nums">{formatCurrency(item.originalPrice)}</span>
+                <span className="font-semibold tabular-nums">{formatCurrency(item.newPrice)}</span>
+                {disc > 0 && <span className="text-emerald-600 font-medium">-{disc}%</span>}
+              </div>
+              <p className="text-[10px] text-muted-foreground">{format(new Date(item.startDate), "dd MMM")} — {format(new Date(item.endDate), "dd MMM yyyy")}</p>
+            </div>
+          );
+        }}
+      />
 
       {/* New Schedule Dialog */}
       <NewScheduleDialog

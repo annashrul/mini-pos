@@ -195,7 +195,7 @@ export async function updateOpnameItems(
           });
         }
       }
-    });
+    }, { timeout: 15000 });
 
     createAuditLog({
       action: "UPDATE",
@@ -249,7 +249,7 @@ export async function completeStockOpname(id: string) {
         where: { id },
         data: { status: "COMPLETED", completedAt: new Date() },
       });
-    });
+    }, { timeout: 15000 });
 
     createAuditLog({
       action: "UPDATE",

@@ -438,52 +438,51 @@ export function DebtsContent() {
                 )}
             </div>
 
-            {/* Filter Tabs */}
-            <div className="space-y-3">
-                <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap">
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {typeFilterOptions.map((opt) => (
-                            <button
-                                key={opt.value}
-                                onClick={() => handleTypeFilter(opt.value)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${typeFilter === opt.value
-                                    ? "bg-foreground text-background shadow-sm"
-                                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    }`}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="h-4 w-px bg-border/40 shrink-0" />
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {statusFilterOptions.map((opt) => (
-                            <button
-                                key={opt.value}
-                                onClick={() => handleStatusFilter(opt.value)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${statusFilter === opt.value
-                                    ? "bg-foreground text-background shadow-sm"
-                                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    }`}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
+            {/* Mobile: stacked search + scroll pills */}
+            <div className="sm:hidden space-y-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+                    <Input placeholder="Cari nama, deskripsi..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-9 text-sm" />
                 </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                    {typeFilterOptions.map((opt) => (
+                        <button key={opt.value} onClick={() => handleTypeFilter(opt.value)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${typeFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                            {opt.label}
+                        </button>
+                    ))}
+                    <div className="h-4 w-px bg-border/40 shrink-0" />
+                    {statusFilterOptions.map((opt) => (
+                        <button key={opt.value} onClick={() => handleStatusFilter(opt.value)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${statusFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
-                {/* Search Bar */}
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-                        <Input
-                            placeholder="Cari nama pihak, deskripsi..."
-                            value={search}
-                            onChange={(e) => handleSearch(e.target.value)}
-                            className="pl-9 pr-9 rounded-xl h-10"
-                        />
-                    </div>
+            {/* Desktop: search left + pills right, 1 row */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+                    <Input placeholder="Cari nama pihak, deskripsi..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-10" />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {typeFilterOptions.map((opt) => (
+                        <button key={opt.value} onClick={() => handleTypeFilter(opt.value)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${typeFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                            {opt.label}
+                        </button>
+                    ))}
+                    <div className="h-4 w-px bg-border/40" />
+                    {statusFilterOptions.map((opt) => (
+                        <button key={opt.value} onClick={() => handleStatusFilter(opt.value)}
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${statusFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                            {opt.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 

@@ -426,7 +426,7 @@ export async function createTransaction(input: CreateTransactionInput) {
 
         return newTx;
       },
-      { maxWait: 5000, timeout: 20000 },
+      { maxWait: 10000, timeout: 15000 },
     );
 
     // Auto-create receivable debt for TERMIN payment

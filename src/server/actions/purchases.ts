@@ -229,7 +229,7 @@ export async function receivePurchaseOrder(
       });
 
       return { po, allReceived };
-    });
+    }, { timeout: 15000 });
 
     // Create payable debt for unpaid portion of PO
     const paid = paidAmount ?? 0;

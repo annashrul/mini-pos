@@ -247,7 +247,7 @@ export async function receiveStockTransfer(id: string) {
         where: { id },
         data: { status: "RECEIVED", receivedAt: new Date() },
       });
-    });
+    }, { timeout: 15000 });
 
     createAuditLog({
       action: "UPDATE",

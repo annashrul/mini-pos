@@ -170,7 +170,7 @@ export async function updateBundle(id: string, data: {
         items: { include: { product: { select: { id: true, code: true, name: true, sellingPrice: true } } }, orderBy: { sortOrder: "asc" } },
       },
     });
-  });
+  }, { timeout: 15000 });
 
   createAuditLog({ action: "UPDATE", entity: "ProductBundle", entityId: id, details: { name: data.name } }).catch(() => {});
   revalidatePath("/products");

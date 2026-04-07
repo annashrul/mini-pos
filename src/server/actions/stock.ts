@@ -143,7 +143,7 @@ export async function createStockMovement(formData: FormData) {
       } else {
         await tx.product.update({ where: { id: parsed.data.productId }, data: { stock: { increment: stockChange } } });
       }
-    });
+    }, { timeout: 15000 });
 
     revalidatePath("/stock");
     revalidatePath("/products");

@@ -54,7 +54,7 @@ export async function earnPoints(customerId: string, grandTotal: number, invoice
         },
       });
     }
-  });
+  }, { timeout: 15000 });
 
   createAuditLog({
     action: "CREATE",
@@ -102,7 +102,7 @@ export async function confirmRedeem(customerId: string, points: number, invoiceN
       where: { id: customerId },
       data: { points: { decrement: points } },
     });
-  });
+  }, { timeout: 15000 });
 
   createAuditLog({
     action: "REDEEM",
@@ -154,7 +154,7 @@ export async function adjustPoints(customerId: string, points: number, reason: s
       where: { id: customerId },
       data: { points: newPoints },
     });
-  });
+  }, { timeout: 15000 });
 
   revalidatePath("/customers");
   return { success: true };
