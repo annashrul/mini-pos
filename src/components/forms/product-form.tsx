@@ -353,34 +353,42 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
         <form onSubmit={onSubmit} className="flex h-full min-h-0 flex-col overflow-hidden">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                 {/* Tab Navigation */}
-                <div className="px-6 pt-1 pb-2 shrink-0">
-                    <TabsList className="w-full grid grid-cols-4 rounded-xl bg-muted/50 p-1.5">
-                        <TabsTrigger value="info" className={cn(
-                            "relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all",
-                            "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary"
-                        )}>
+                <div className="px-3 sm:px-6 pt-1 pb-2 shrink-0">
+                    {/* Mobile: icon-only tabs */}
+                    <TabsList className="sm:hidden w-full grid grid-cols-4 rounded-xl bg-muted/50 p-1">
+                        <TabsTrigger value="info" className={cn("relative rounded-lg py-2 flex flex-col items-center gap-0.5 text-[10px] font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
+                            <Tag className="w-4 h-4" /> Info
+                            {infoTabHasError && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />}
+                        </TabsTrigger>
+                        <TabsTrigger value="pricing" className={cn("relative rounded-lg py-2 flex flex-col items-center gap-0.5 text-[10px] font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
+                            <DollarSign className="w-4 h-4" /> Harga
+                            {pricingTabHasError && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />}
+                        </TabsTrigger>
+                        <TabsTrigger value="units" className={cn("relative rounded-lg py-2 flex flex-col items-center gap-0.5 text-[10px] font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
+                            <Layers className="w-4 h-4" /> Satuan
+                            {unitsTabHasError && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />}
+                        </TabsTrigger>
+                        <TabsTrigger value="branches" className={cn("relative rounded-lg py-2 flex flex-col items-center gap-0.5 text-[10px] font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
+                            <Building2 className="w-4 h-4" /> Cabang
+                            {branchesTabHasError && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-red-500" />}
+                        </TabsTrigger>
+                    </TabsList>
+                    {/* Desktop: full tabs */}
+                    <TabsList className="hidden sm:grid w-full grid-cols-4 rounded-xl bg-muted/50 p-1.5">
+                        <TabsTrigger value="info" className={cn("relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
                             <Tag className="w-3.5 h-3.5" /> Info
                             {infoTabHasError && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />}
                         </TabsTrigger>
-                        <TabsTrigger value="pricing" className={cn(
-                            "relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all",
-                            "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary"
-                        )}>
+                        <TabsTrigger value="pricing" className={cn("relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
                             <DollarSign className="w-3.5 h-3.5" /> Harga
                             {pricingTabHasError && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />}
                         </TabsTrigger>
-                        <TabsTrigger value="units" className={cn(
-                            "relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all",
-                            "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary"
-                        )}>
+                        <TabsTrigger value="units" className={cn("relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
                             <Layers className="w-3.5 h-3.5" /> Satuan
                             {productUnits.length > 0 && <Badge className="h-4 px-1.5 text-[10px] bg-primary/10 text-primary border-0">{productUnits.length}</Badge>}
                             {unitsTabHasError && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />}
                         </TabsTrigger>
-                        <TabsTrigger value="branches" className={cn(
-                            "relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all",
-                            "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary"
-                        )}>
+                        <TabsTrigger value="branches" className={cn("relative rounded-xl h-full text-xs gap-1.5 font-medium transition-all", "data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary")}>
                             <Building2 className="w-3.5 h-3.5" /> Cabang
                             {branchPrices.length > 0 && <Badge className="h-4 px-1.5 text-[10px] bg-primary/10 text-primary border-0">{branchPrices.length}</Badge>}
                             {branchesTabHasError && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />}
@@ -389,7 +397,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </div>
 
                 {/* ==================== INFO TAB ==================== */}
-                <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-5 px-6 py-4">
+                <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 sm:space-y-5 px-3 sm:px-6 py-3 sm:py-4">
                     {/* Image upload - gradient bordered card */}
                     <div className="rounded-[11px] bg-white ">
                         <Label className="text-sm font-semibold mb-3 block text-foreground/80">Foto Produk</Label>
@@ -489,7 +497,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     <FormInput control={control} name="name" label="Nama Produk" required placeholder="Nama produk" />
 
                     {/* Category + Brand in subtle card backgrounds */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                         <div className="rounded-xl bg-muted/20  space-y-0">
                             <FormAsyncSelect
                                 control={control}
@@ -539,7 +547,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     </div>
 
                     {/* Unit + Barcode */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <FormInput control={control} name="unit" label="Satuan" required placeholder="pcs, botol, kg" />
                         <div className="space-y-1.5">
                             <Label className="text-sm font-medium flex items-center gap-1.5">
@@ -554,13 +562,13 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 {/* ==================== PRICING TAB ==================== */}
-                <TabsContent value="pricing" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-5 px-6 py-4">
+                <TabsContent value="pricing" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 sm:space-y-5 px-3 sm:px-6 py-3 sm:py-4">
                     {/* Default price - gradient card */}
                     <div className="rounded-xl bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-violet-50/30 border border-blue-100/60 p-5 space-y-4">
                         <p className="text-xs font-semibold text-indigo-600/70 uppercase tracking-wider flex items-center gap-1.5">
                             <DollarSign className="w-3.5 h-3.5" /> Harga Default (Semua Cabang)
                         </p>
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                             <FormCurrency control={control} name="purchasePrice" label="Harga Beli" required onChange={handlePurchasePriceChange} />
                             <FormNumber control={control} name="marginPercent" label="Margin (%)" onChange={handleMarginChange} />
                             <FormCurrency control={control} name="sellingPrice" label="Harga Jual" required onChange={handleSellingPriceChange} />
@@ -608,7 +616,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                             "relative group rounded-xl border p-3",
                                             tierError ? "border-red-300 bg-red-50/30" : "border-border/50"
                                         )}>
-                                            <div className="grid grid-cols-2 gap-3">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                                 <div className="space-y-1">
                                                     <Label className="text-xs text-muted-foreground">Qty Minimal *</Label>
                                                     <Input type="number" min={1} value={tier.minQty} onChange={(e) => updateTierPrice(idx, "minQty", Number(e.target.value))} className={cn("h-11 rounded-xl", tierError?.minQty ? "border-red-400" : "")} />
@@ -642,7 +650,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                             <Box className="w-3.5 h-3.5" /> Stok
                         </p>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <FormNumber control={control} name="stock" label={isEditing ? "Stok Saat Ini" : "Stok Awal"} required min={0} />
                             <FormNumber control={control} name="minStock" label="Stok Minimum" required min={0} helperText="Notifikasi jika di bawah angka ini" />
                         </div>
@@ -650,7 +658,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 {/* ==================== UNITS TAB ==================== */}
-                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-4">
+                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-3 sm:space-y-4 px-3 sm:px-6 py-3 sm:py-4">
                     <p className="text-sm text-muted-foreground">
                         Tambahkan satuan jual selain <strong>{baseUnitName || "pcs"}</strong>. Stok dihitung dalam satuan dasar.
                     </p>
@@ -686,7 +694,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                     <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{idx + 1}</span>
                                     <span className="text-xs font-semibold text-muted-foreground">Satuan</span>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                     <div className="space-y-1">
                                         <Label className="text-xs text-muted-foreground">Nama Satuan *</Label>
                                         <Input value={unit.name} onChange={(e) => updateUnit(idx, "name", e.target.value)} className={cn("h-11 rounded-xl", unitError?.name ? "border-red-400" : "")} placeholder="cth: Bungkus" />
@@ -701,7 +709,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                         {getErrorText(unitError?.conversionQty?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.conversionQty?.message)}</p>}
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                     <div className="space-y-1">
                                         <Label className="text-xs text-muted-foreground">Harga Beli</Label>
                                         <Input type="number" value={unit.purchasePrice} onChange={(e) => updateUnit(idx, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", unitError?.purchasePrice ? "border-red-400" : "")} min={0} />
@@ -741,7 +749,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 {/* ==================== BRANCHES TAB ==================== */}
-                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-4">
+                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-3 sm:space-y-4 px-3 sm:px-6 py-3 sm:py-4">
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm text-muted-foreground">
                             Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
@@ -794,7 +802,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                 {getErrorText(currentBranchError?.branchId?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.branchId?.message)}</p>}
 
                                 {/* Price fields */}
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                                     <div className="space-y-1">
                                         <Label className="text-xs text-muted-foreground">Harga Beli</Label>
                                         <Input type="number" value={bp.purchasePrice} onChange={(e) => updateBranchPrice(bp.branchId, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", currentBranchError?.purchasePrice ? "border-red-400" : "")} min={0} />
@@ -813,7 +821,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
 
                                 {/* Stock fields in a styled sub-card */}
                                 <div className="rounded-xl bg-muted/20 p-3">
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                         <div className="space-y-1">
                                             <Label className="text-xs text-muted-foreground flex items-center gap-1"><Box className="w-3 h-3" /> Stok</Label>
                                             <Input type="number" value={bp.stock ?? 0} onChange={(e) => updateBranchPrice(bp.branchId, "stock", Number(e.target.value))} className="h-11 rounded-xl" min={0} />
@@ -858,7 +866,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
             </Tabs>
 
             {/* Footer */}
-            <div className="sticky bottom-0 z-20 shrink-0 border-t border-border/40 bg-white/95 backdrop-blur-sm px-6 py-4 shadow-[0_-6px_16px_-8px_rgba(15,23,42,0.15)]">
+            <div className="sticky bottom-0 z-20 shrink-0 border-t border-border/40 bg-white/95 backdrop-blur-sm px-3 sm:px-6 py-3 sm:py-4 shadow-[0_-6px_16px_-8px_rgba(15,23,42,0.15)]">
                 <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
                         {isDirty && (

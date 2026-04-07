@@ -410,17 +410,17 @@ export function PurchasesContent() {
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); setSelectedProductId(""); setNewQty(1); setNewPrice(0); } }}>
-                    <DialogContent className="rounded-xl sm:rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                        <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-2xl -mt-6 mb-2" />
-                        <DialogHeader>
-                            <DialogTitle className="text-lg font-bold">Buat Purchase Order</DialogTitle>
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+                        <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
+                        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
+                            <DialogTitle className="text-base sm:text-lg font-bold">Buat Purchase Order</DialogTitle>
                         </DialogHeader>
 
-                        <DialogBody className={`space-y-5 overflow-x-hidden ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
+                        <DialogBody className={`space-y-3 sm:space-y-5 overflow-x-hidden px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
                             {/* Supplier, Location, Date — inline */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Supplier</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Supplier</Label>
                                     <Controller name="supplierId" control={poForm.control} render={({ field }) => (
                                         <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih supplier"
                                             onSearch={async (query) => suppliers.filter((s) => s.isActive && s.name.toLowerCase().includes(query.toLowerCase())).map((s) => ({ value: s.id, label: s.name }))} />
@@ -428,14 +428,14 @@ export function PurchasesContent() {
                                     {poForm.formState.errors.supplierId && <p className="text-xs text-red-500">{poForm.formState.errors.supplierId.message}</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Lokasi</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Lokasi</Label>
                                     <Controller name="branchIds" control={poForm.control} render={({ field }) => (
                                         <BranchMultiSelect branches={branches.filter((b) => b.isActive)} value={field.value} onChange={field.onChange} placeholder="Pilih lokasi" />
                                     )} />
                                     {poForm.formState.errors.branchIds && <p className="text-xs text-red-500">{poForm.formState.errors.branchIds.message}</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Tgl Diharapkan</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Tgl Diharapkan</Label>
                                     <Controller name="expectedDate" control={poForm.control} render={({ field }) => (
                                         <DatePicker value={field.value ?? ""} onChange={field.onChange} className="rounded-xl" />
                                     )} />
@@ -444,17 +444,17 @@ export function PurchasesContent() {
 
                             {/* Notes */}
                             <div className="space-y-2">
-                                <Label className="text-sm font-medium">Catatan (opsional)</Label>
-                                <Input {...poForm.register("notes")} className="rounded-xl" placeholder="Catatan tambahan..." />
+                                <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
+                                <Input {...poForm.register("notes")} className="rounded-xl h-9 sm:h-10" placeholder="Catatan tambahan..." />
                             </div>
 
                             {/* Sticky add item form */}
                             <div className="sticky top-0 z-10 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200/60">
-                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-3 space-y-2">
+                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-2 sm:p-3 space-y-2">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             <Package className="w-4 h-4 text-emerald-600" />
-                                            <Label className="font-semibold text-sm">Tambah Produk</Label>
+                                            <Label className="font-semibold text-xs sm:text-sm">Tambah Produk</Label>
                                         </div>
                                         <DisabledActionTooltip disabled={!canCreateProduct} message={cannotProductMessage("create")}>
                                             <Button disabled={!canCreateProduct} variant="outline" size="sm" className="rounded-xl text-xs h-7" onClick={openProductModal}>
@@ -462,18 +462,20 @@ export function PurchasesContent() {
                                             </Button>
                                         </DisabledActionTooltip>
                                     </div>
-                                    <div className="grid grid-cols-12 gap-2 items-end">
-                                        <div className="col-span-5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                        <div className="sm:col-span-5">
                                             <SmartSelect value={selectedProductId} onChange={(value) => { setSelectedProductId(value); const selected = productOptions.find((item) => item.id === value); if (selected) setNewPrice(selected.purchasePrice); }} placeholder="Pilih produk"
                                                 onSearch={async (query) => productOptions.filter((item) => { if (!query) return true; const q = query.toLowerCase(); return item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q); }).map((item) => ({ value: item.id, label: item.name, description: `${item.code} • Stok ${item.stock} • ${item.unit}` }))} />
                                         </div>
-                                        <div className="col-span-2">
-                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl" min={1} placeholder="Qty" />
+                                        <div className="grid grid-cols-2 gap-2 sm:contents">
+                                        <div className="sm:col-span-2">
+                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
                                         </div>
-                                        <div className="col-span-3">
-                                            <Input type="number" value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="rounded-xl" min={0} placeholder="Harga beli" />
+                                        <div className="sm:col-span-3">
+                                            <Input type="number" value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={0} placeholder="Harga beli" />
                                         </div>
-                                        <div className="col-span-2">
+                                        </div>
+                                        <div className="sm:col-span-2">
                                             <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white" size="sm">
                                                 <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
                                             </Button>
@@ -488,7 +490,7 @@ export function PurchasesContent() {
                             {watchedItems.length > 0 ? (
                                 <div className="space-y-2">
                                     {watchedItems.map((item, i) => (
-                                        <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 group hover:shadow-sm transition-shadow">
+                                        <div key={i} className="flex items-center gap-2 sm:gap-3 rounded-xl border border-slate-200 bg-white p-2 sm:p-3 group hover:shadow-sm transition-shadow">
                                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center shrink-0">
                                                 <Package className="w-4 h-4 text-emerald-600" />
                                             </div>
@@ -505,8 +507,8 @@ export function PurchasesContent() {
                                                     <Plus className="w-3 h-3" />
                                                 </Button>
                                             </div>
-                                            <div className="text-right min-w-[100px]">
-                                                <p className="text-sm font-semibold tabular-nums">{formatCurrency(item.quantity * item.unitPrice)}</p>
+                                            <div className="text-right min-w-[70px] sm:min-w-[100px]">
+                                                <p className="text-xs sm:text-sm font-semibold tabular-nums">{formatCurrency(item.quantity * item.unitPrice)}</p>
                                             </div>
                                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg lg:opacity-0 lg:group-hover:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all" onClick={() => removeCartItem(i)}>
                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -525,12 +527,12 @@ export function PurchasesContent() {
                             )}
                         </DialogBody>
 
-                        <DialogFooter>
-                            <div className="flex items-center justify-between w-full">
+                        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
                                 {watchedItems.length > 0 ? (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium text-emerald-700">Total:</span>
-                                        <span className="font-mono text-lg font-bold text-emerald-700 tabular-nums">{formatCurrency(cartTotal)}</span>
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        <span className="text-xs sm:text-sm font-medium text-emerald-700">Total:</span>
+                                        <span className="font-mono text-base sm:text-lg font-bold text-emerald-700 tabular-nums">{formatCurrency(cartTotal)}</span>
                                         <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2">
                                             {watchedItems.length} produk
                                         </Badge>
@@ -663,42 +665,44 @@ export function PurchasesContent() {
                                     className={`group relative rounded-xl border border-slate-200/60 border-l-4 ${borderColor} bg-white hover:shadow-md transition-all duration-200`}
                                 >
                                     {/* Status badge — absolute top right */}
-                                    <Badge className={`${cfg.className} gap-1 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
+                                    <Badge className={`${cfg.className} gap-1 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
                                         {cfg.label}
                                     </Badge>
 
-                                    <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4">
-                                        {/* Left: Icon */}
-                                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${iconBg} flex items-center justify-center shadow-sm shrink-0`}>
+                                    <div className="p-3 sm:p-4 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
+                                        {/* Icon — hidden on mobile */}
+                                        <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${iconBg} items-center justify-center shadow-sm shrink-0`}>
                                             <ClipboardList className="w-4.5 h-4.5" />
                                         </div>
 
-                                        {/* Middle: PO info */}
-                                        <div className="flex-1 min-w-0 space-y-1.5">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-sm font-bold text-foreground">{row.orderNumber}</span>
-                                                <span className="text-xs text-muted-foreground">·</span>
-                                                <span className="text-sm font-medium text-foreground truncate">{supplierName}</span>
+                                        {/* PO info */}
+                                        <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
+                                            {/* Row 1: PO number + supplier */}
+                                            <div className="flex items-baseline gap-1.5 sm:gap-2 pr-16 sm:pr-0">
+                                                <span className="font-mono text-xs sm:text-sm font-bold text-foreground">{row.orderNumber}</span>
+                                                <span className="text-xs sm:text-sm font-medium text-foreground truncate">{supplierName}</span>
                                             </div>
-                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                <span className="inline-flex items-center gap-1">
-                                                    <MapPin className="w-3 h-3" />
-                                                    {branchName}
-                                                </span>
+                                            {/* Row 2: Meta info */}
+                                            <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[11px] sm:text-xs text-muted-foreground">
                                                 <span className="inline-flex items-center gap-1">
                                                     <CalendarDays className="w-3 h-3" />
                                                     {format(d, "dd MMM yy", { locale: idLocale })}
                                                 </span>
-                                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                                    <Package className="w-3 h-3 text-slate-400" />
+                                                <span className="hidden sm:inline-flex items-center gap-1">
+                                                    <MapPin className="w-3 h-3" />
+                                                    {branchName}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1">
+                                                    <Package className="w-3 h-3" />
                                                     {itemCount} item
                                                 </span>
                                             </div>
+                                            {/* Row 3: Total */}
                                             <p className="font-mono text-sm font-bold text-foreground tabular-nums">{formatCurrency(row.totalAmount)}</p>
                                         </div>
 
-                                        {/* Right: Action buttons */}
-                                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                                        {/* Action buttons */}
+                                        <div className="flex items-center gap-1 sm:gap-1 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-slate-100" onClick={() => handleViewDetail(row.id)}>
                                                 <Eye className="w-3.5 h-3.5 text-slate-500" />
                                             </Button>
@@ -744,13 +748,13 @@ export function PurchasesContent() {
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
-                    <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-                    <DialogHeader className="px-6 pt-5 pb-3">
-                        <DialogTitle className="text-lg font-bold">Detail Purchase Order</DialogTitle>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
+                    <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold">Detail Purchase Order</DialogTitle>
                     </DialogHeader>
                     {selectedPO && (
-                        <div className="px-6 pb-6 space-y-4">
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
                             {/* Info cards grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3">
@@ -851,10 +855,10 @@ export function PurchasesContent() {
 
             {/* Receive Dialog */}
             <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 gap-0 overflow-hidden">
-                    <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500" />
-                    <DialogHeader className="px-6 pt-5 pb-3">
-                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
+                    <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500 shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
                             <PackageCheck className="w-5 h-5 text-emerald-500" />
                             Terima Barang
                         </DialogTitle>
@@ -863,8 +867,8 @@ export function PurchasesContent() {
                         )}
                     </DialogHeader>
                     {selectedPO && (
-                        <div className="px-6 pb-6 space-y-4">
-                            <p className="text-sm text-muted-foreground">Masukkan jumlah barang yang diterima untuk setiap item.</p>
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
+                            <p className="text-xs sm:text-sm text-muted-foreground">Masukkan jumlah barang yang diterima untuk setiap item.</p>
                             <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
                                 <Table>
                                     <TableHeader>
@@ -920,12 +924,13 @@ export function PurchasesContent() {
 
             {/* Confirm Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold">Konfirmasi</DialogTitle>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl p-0 gap-0">
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+                        <DialogTitle className="text-base sm:text-lg font-bold">Konfirmasi</DialogTitle>
                     </DialogHeader>
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                     <p className="text-sm text-muted-foreground">{confirmText}</p>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
                         <DisabledActionTooltip
                             disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
@@ -940,6 +945,7 @@ export function PurchasesContent() {
                                 Ya, Lanjutkan
                             </Button>
                         </DisabledActionTooltip>
+                    </div>
                     </div>
                 </DialogContent>
             </Dialog>

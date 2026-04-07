@@ -89,7 +89,7 @@ export function ExpensesContent() {
         } else {
             fetchData({});
         }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selectedBranchId, branchReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (formData: FormData) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
@@ -190,64 +190,69 @@ export function ExpensesContent() {
     };
 
     return (
-        <div className="space-y-5">
-            <div className="rounded-2xl border border-border/30 bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Pengeluaran</h1>
-                        <p className="text-slate-500 text-sm mt-1">Kelola pengeluaran operasional dengan gaya visual dashboard</p>
+        <div className="space-y-4 sm:space-y-5">
+            <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white p-3 sm:p-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200/50 shrink-0">
+                            <Wallet className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg sm:text-2xl font-bold text-slate-800">Pengeluaran</h1>
+                            <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Kelola pengeluaran operasional</p>
+                        </div>
                     </div>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                        <Button disabled={!canCreate} className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-md shadow-blue-200 hover:shadow-lg hover:shadow-blue-300" onClick={openCreateDialog}>
+                        <Button disabled={!canCreate} className="w-full sm:w-auto rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-md shadow-blue-200 hover:shadow-lg hover:shadow-blue-300 text-xs sm:text-sm" onClick={openCreateDialog}>
                             <Plus className="w-4 h-4 mr-2" /> Tambah Pengeluaran
                         </Button>
                     </DisabledActionTooltip>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-500 flex items-center justify-center shadow-md shadow-rose-200">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
+                <Card className="rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-2.5 sm:p-5">
+                        <div className="flex items-center justify-between mb-2 sm:mb-3">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-500 items-center justify-center shadow-md shadow-rose-200">
                                 <Wallet className="w-5 h-5 text-white" />
                             </div>
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">Total</span>
+                            <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">Total</span>
                         </div>
-                        <p className="text-2xl font-bold tabular-nums text-slate-800">{formatCurrency(totalExpense)}</p>
-                        <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Halaman Aktif</p>
+                        <p className="text-sm sm:text-xl font-bold tabular-nums text-slate-800">{formatCurrency(totalExpense)}</p>
+                        <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Halaman Aktif</p>
                     </CardContent>
                 </Card>
-                <Card className="rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shadow-md shadow-violet-200">
+                <Card className="rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-2.5 sm:p-5">
+                        <div className="flex items-center justify-between mb-2 sm:mb-3">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 items-center justify-center shadow-md shadow-violet-200">
                                 <CalendarDays className="w-5 h-5 text-white" />
                             </div>
                             <TrendingDown className="w-4 h-4 text-slate-300" />
                         </div>
-                        <p className="text-2xl font-bold tabular-nums text-slate-800">{formatCurrency(thisMonthExpense)}</p>
-                        <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Bulan Ini</p>
+                        <p className="text-sm sm:text-xl font-bold tabular-nums text-slate-800">{formatCurrency(thisMonthExpense)}</p>
+                        <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Bulan Ini</p>
                     </CardContent>
                 </Card>
-                <Card className="rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
-                    <CardContent className="p-5">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md shadow-amber-200">
+                <Card className="col-span-2 lg:col-span-1 rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
+                    <CardContent className="p-2.5 sm:p-5">
+                        <div className="flex items-center justify-between mb-2 sm:mb-3">
+                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 items-center justify-center shadow-md shadow-amber-200">
                                 <ReceiptText className="w-5 h-5 text-white" />
                             </div>
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">{data.total} data</span>
+                            <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">{data.total} data</span>
                         </div>
-                        <p className="text-2xl font-bold tabular-nums text-slate-800">{categoriesCount}</p>
-                        <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Kategori Tercatat</p>
+                        <p className="text-sm sm:text-xl font-bold tabular-nums text-slate-800">{categoriesCount}</p>
+                        <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Kategori Tercatat</p>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Expense List */}
-            <div className="rounded-2xl border border-border/30 bg-white shadow-sm">
+            <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
                 {/* Search bar & bulk actions */}
-                <div className="flex items-center justify-between gap-3 p-4 border-b border-border/20">
+                <div className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border/20">
                     <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
@@ -277,7 +282,7 @@ export function ExpensesContent() {
                 </div>
 
                 {/* Grouped expense list */}
-                <div className="p-4 space-y-6">
+                <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
                     {loading && data.expenses.length === 0 ? (
                         <div className="space-y-6">
                             {Array.from({ length: 2 }).map((_, gi) => (
@@ -315,10 +320,10 @@ export function ExpensesContent() {
                         </div>
                     ) : (
                         <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : ""}>
-                        {groupedExpenses.map((group) => (
-                            <div key={group.date}>
+                        {groupedExpenses.map((group, groupIdx) => (
+                            <div key={group.date} className={groupIdx > 0 ? "mt-5 sm:mt-6" : ""}>
                                 {/* Date header */}
-                                <div className="flex items-center gap-2 mb-3">
+                                <div className="flex items-center gap-2 mb-2 sm:mb-3">
                                     <CalendarDays className="w-4 h-4 text-slate-400" />
                                     <span className="text-sm font-semibold text-slate-700">
                                         {format(new Date(group.date), "EEEE, dd MMMM yyyy", { locale: idLocale })}
@@ -336,13 +341,13 @@ export function ExpensesContent() {
                                         return (
                                             <div
                                                 key={expense.id}
-                                                className="rounded-xl border border-border/30 bg-white hover:shadow-sm transition-all group px-4 py-3 flex items-center gap-4"
+                                                className="rounded-xl border border-border/30 bg-white hover:shadow-sm transition-all group p-3 sm:px-4 sm:py-3 flex items-start sm:items-center gap-2 sm:gap-4"
                                             >
                                                 {/* Checkbox */}
                                                 <Checkbox
                                                     checked={selectedRows.has(expense.id)}
                                                     onCheckedChange={() => toggleRow(expense.id)}
-                                                    className="shrink-0"
+                                                    className="shrink-0 mt-1 sm:mt-0"
                                                 />
 
                                                 {/* Category color circle */}
@@ -352,8 +357,13 @@ export function ExpensesContent() {
 
                                                 {/* Middle: description, category, branch */}
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-slate-800 truncate">{expense.description}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
+                                                    <div className="flex items-start sm:items-center justify-between gap-2">
+                                                        <p className="text-sm font-semibold text-slate-800 truncate">{expense.description}</p>
+                                                        <span className="text-xs sm:text-sm font-bold font-mono tabular-nums text-rose-600 shrink-0 sm:hidden">
+                                                            {formatCurrency(expense.amount)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                         <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-600 text-[11px] px-2 py-0 border-0 font-medium">
                                                             {expense.category}
                                                         </Badge>
@@ -367,11 +377,11 @@ export function ExpensesContent() {
                                                 </div>
 
                                                 {/* Right: amount & actions */}
-                                                <div className="flex items-center gap-3 shrink-0">
+                                                <div className="hidden sm:flex items-center gap-3 shrink-0">
                                                     <span className="text-sm font-bold font-mono tabular-nums text-rose-600">
                                                         {formatCurrency(expense.amount)}
                                                     </span>
-                                                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                                         <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
                                                             <Button
                                                                 disabled={!canUpdate}
@@ -395,6 +405,15 @@ export function ExpensesContent() {
                                                             </Button>
                                                         </DisabledActionTooltip>
                                                     </div>
+                                                </div>
+                                                {/* Mobile actions */}
+                                                <div className="flex sm:hidden items-center gap-0.5 shrink-0">
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(expense)}>
+                                                        <Pencil className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(expense.id)}>
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
                                                 </div>
                                             </div>
                                         );
@@ -420,32 +439,33 @@ export function ExpensesContent() {
             </div>
 
             <Dialog open={open} onOpenChange={(v) => { if (v) setOpen(true); else closeDialog(); }}>
-                <DialogContent className="rounded-2xl max-w-md">
-                    <div className="h-1 bg-gradient-to-r from-rose-400 to-orange-400 -mt-6 mb-2 rounded-t-2xl" />
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-800">{editing ? "Edit Pengeluaran" : "Tambah Pengeluaran"}</DialogTitle>
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-md p-0 gap-0 max-h-[90vh] flex flex-col">
+                    <div className="h-1 bg-gradient-to-r from-rose-400 to-orange-400 rounded-t-2xl shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">{editing ? "Edit Pengeluaran" : "Tambah Pengeluaran"}</DialogTitle>
                     </DialogHeader>
-                    <form action={handleSubmit} className={`space-y-4 mt-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                    <form action={handleSubmit} className={`flex-1 overflow-y-auto px-4 sm:px-6 space-y-3 sm:space-y-4 mt-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                        {selectedBranchId && <input type="hidden" name="branchId" value={selectedBranchId} />}
                         <div className="space-y-2">
-                            <Label htmlFor="category">Kategori</Label>
+                            <Label htmlFor="category" className="text-xs sm:text-sm">Kategori</Label>
                             <Input id="category" name="category" defaultValue={editing?.category || ""} required className="rounded-xl h-10" placeholder="Listrik, Air, dll" />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="description">Deskripsi</Label>
+                            <Label htmlFor="description" className="text-xs sm:text-sm">Deskripsi</Label>
                             <Input id="description" name="description" defaultValue={editing?.description || ""} required className="rounded-xl h-10" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="amount">Jumlah (Rp)</Label>
+                                <Label htmlFor="amount" className="text-xs sm:text-sm">Jumlah (Rp)</Label>
                                 <Input id="amount" name="amount" type="number" defaultValue={editing?.amount || ""} required className="rounded-xl h-10" />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="date">Tanggal</Label>
+                                <Label htmlFor="date" className="text-xs sm:text-sm">Tanggal</Label>
                                 <DatePicker value={formDate} onChange={setFormDate} className="rounded-xl h-10" />
                                 <input id="date" name="date" value={formDate} readOnly className="hidden" />
                             </div>
                         </div>
-                        <div className="flex justify-end gap-2 pt-1">
+                        <div className="flex justify-end gap-2 pt-1 pb-4 sm:pb-6">
                             <Button type="button" variant="outline" onClick={closeDialog} className="rounded-full">Batal</Button>
                             <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
                                 <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white">{editing ? "Update" : "Simpan"}</Button>
@@ -456,13 +476,15 @@ export function ExpensesContent() {
             </Dialog>
 
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
-                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 -mt-6 mb-2 rounded-t-2xl" />
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-800">Konfirmasi</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
-                    <div className="flex justify-end gap-2 mt-4">
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-0 gap-0">
+                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 rounded-t-2xl" />
+                    <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">Konfirmasi</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
+                    </div>
+                    <div className="flex justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
                         <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-full">Batal</Button>
                         <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
                             <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-full">Ya, Lanjutkan</Button>

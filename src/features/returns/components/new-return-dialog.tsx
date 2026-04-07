@@ -305,8 +305,8 @@ export function NewReturnDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="sm:max-w-[720px] p-0 rounded-2xl overflow-hidden gap-0 flex flex-col max-h-[85vh]">
-                <DialogHeader className="px-6 pt-6 pb-4 shrink-0 border-b">
+            <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[720px] p-0 rounded-2xl overflow-hidden gap-0 flex flex-col max-h-[90vh]">
+                <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 shrink-0 border-b">
                     <DialogTitle className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white">
                             <RotateCcw className="h-4 w-4" />
@@ -356,7 +356,7 @@ export function NewReturnDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 sm:py-4 space-y-4">
                     {/* Step 1: Search Invoice */}
                     {step === 1 && (
                         <div className="space-y-4">
@@ -926,7 +926,7 @@ export function NewReturnDialog({
                     )}
                 </div>
 
-                <DialogFooter className="px-6 py-4 border-t shrink-0 gap-2">
+                <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 border-t shrink-0 gap-2">
                     {step > 1 && (
                         <Button
                             type="button"

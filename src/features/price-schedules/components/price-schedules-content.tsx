@@ -36,7 +36,9 @@ import {
   TrendingDown,
   Package,
   Timer,
+  SlidersHorizontal,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { NewScheduleDialog } from "./new-schedule-dialog";
@@ -138,6 +140,7 @@ export function PriceSchedulesContent() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [branchFilter, setBranchFilter] = useState("ALL");
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, startTransition] = useTransition();
   const [applying, startApplying] = useTransition();
@@ -281,23 +284,28 @@ export function PriceSchedulesContent() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Jadwal Harga
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Atur perubahan harga produk terjadwal secara otomatis
-          </p>
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200/50 shrink-0">
+            <CalendarClock className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">
+              Jadwal Harga
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Atur perubahan harga produk terjadwal
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
             onClick={handleApplyDue}
             disabled={applying}
-            className="gap-2"
+            className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
           >
             {applying ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -307,7 +315,7 @@ export function PriceSchedulesContent() {
             Proses Jadwal
           </Button>
           <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-            <Button onClick={() => setDialogOpen(true)} disabled={!canCreate} className="gap-2">
+            <Button onClick={() => setDialogOpen(true)} disabled={!canCreate} className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm">
               <Plus className="h-4 w-4" /> Jadwal Baru
             </Button>
           </DisabledActionTooltip>
@@ -315,21 +323,21 @@ export function PriceSchedulesContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {statsCards.map((card) => {
           const Icon = card.icon;
           return (
             <div
               key={card.label}
-              className={`rounded-xl border ${card.border} ${card.bg} p-4 transition-all`}
+              className={`rounded-xl border ${card.border} ${card.bg} p-2.5 sm:p-4 transition-all`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`rounded-lg ${card.bg} p-2`}>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`hidden sm:flex rounded-lg ${card.bg} p-2`}>
                   <Icon className={`h-5 w-5 ${card.color}`} />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{card.label}</p>
-                  <p className={`text-2xl font-bold ${card.color}`}>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">{card.label}</p>
+                  <p className={`text-sm sm:text-xl font-bold ${card.color}`}>
                     {card.value}
                   </p>
                 </div>
@@ -340,44 +348,101 @@ export function PriceSchedulesContent() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Cari produk..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 h-9 sm:h-10 text-sm rounded-xl"
           />
         </div>
-        <Select value={statusFilter} onValueChange={handleStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">Semua Status</SelectItem>
-            <SelectItem value="upcoming">Akan Datang</SelectItem>
-            <SelectItem value="active">Aktif</SelectItem>
-            <SelectItem value="expired">Kedaluwarsa</SelectItem>
-            <SelectItem value="reverted">Dikembalikan</SelectItem>
-          </SelectContent>
-        </Select>
-        {branches.length > 0 && (
-          <Select value={branchFilter} onValueChange={handleBranchFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Cabang" />
+        {/* Mobile: filter button → dialog */}
+        <Button variant="outline" size="icon" className="sm:hidden h-9 w-9 rounded-xl shrink-0" onClick={() => setFilterDialogOpen(true)}>
+          <SlidersHorizontal className="w-4 h-4" />
+          {(statusFilter !== "ALL" || branchFilter !== "ALL") && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[9px] font-bold rounded-full flex items-center justify-center">
+              {(statusFilter !== "ALL" ? 1 : 0) + (branchFilter !== "ALL" ? 1 : 0)}
+            </span>
+          )}
+        </Button>
+        {/* Desktop: inline selects */}
+        <div className="hidden sm:flex items-center gap-3">
+          <Select value={statusFilter} onValueChange={handleStatusFilter}>
+            <SelectTrigger className="w-[180px] h-10 rounded-xl">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">Semua Cabang</SelectItem>
-              {branches.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="ALL">Semua Status</SelectItem>
+              <SelectItem value="upcoming">Akan Datang</SelectItem>
+              <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="expired">Kedaluwarsa</SelectItem>
+              <SelectItem value="reverted">Dikembalikan</SelectItem>
             </SelectContent>
           </Select>
-        )}
+          {branches.length > 0 && (
+            <Select value={branchFilter} onValueChange={handleBranchFilter}>
+              <SelectTrigger className="w-[180px] h-10 rounded-xl">
+                <SelectValue placeholder="Cabang" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Cabang</SelectItem>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
+
+      {/* Mobile filter dialog */}
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl p-0 gap-0">
+          <DialogHeader className="px-4 pt-4 pb-3">
+            <DialogTitle className="text-base">Filter</DialogTitle>
+          </DialogHeader>
+          <div className="px-4 pb-4 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select value={statusFilter} onValueChange={(v) => { handleStatusFilter(v); setFilterDialogOpen(false); }}>
+                <SelectTrigger className="w-full h-10 rounded-xl">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua Status</SelectItem>
+                  <SelectItem value="upcoming">Akan Datang</SelectItem>
+                  <SelectItem value="active">Aktif</SelectItem>
+                  <SelectItem value="expired">Kedaluwarsa</SelectItem>
+                  <SelectItem value="reverted">Dikembalikan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {branches.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Cabang</label>
+                <Select value={branchFilter} onValueChange={(v) => { handleBranchFilter(v); setFilterDialogOpen(false); }}>
+                  <SelectTrigger className="w-full h-10 rounded-xl">
+                    <SelectValue placeholder="Cabang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua Cabang</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {(statusFilter !== "ALL" || branchFilter !== "ALL") && (
+              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { handleStatusFilter("ALL"); handleBranchFilter("ALL"); setFilterDialogOpen(false); }}>
+                Reset Filter
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
@@ -385,28 +450,28 @@ export function PriceSchedulesContent() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-gray-50/80">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-muted-foreground">
                   Produk
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                <th className="hidden sm:table-cell px-4 py-3 text-right font-medium text-muted-foreground">
                   Harga Asli
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+                <th className="px-3 sm:px-4 py-3 text-right font-medium text-muted-foreground">
                   Harga Baru
                 </th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                <th className="hidden md:table-cell px-4 py-3 text-center font-medium text-muted-foreground">
                   Diskon
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                <th className="hidden lg:table-cell px-4 py-3 text-left font-medium text-muted-foreground">
                   Mulai
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                <th className="hidden lg:table-cell px-4 py-3 text-left font-medium text-muted-foreground">
                   Selesai
                 </th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                <th className="px-3 sm:px-4 py-3 text-center font-medium text-muted-foreground">
                   Status
                 </th>
-                <th className="px-4 py-3 text-center font-medium text-muted-foreground">
+                <th className="px-3 sm:px-4 py-3 text-center font-medium text-muted-foreground">
                   Aksi
                 </th>
               </tr>
@@ -452,9 +517,9 @@ export function PriceSchedulesContent() {
                       key={item.id}
                       className="border-b last:border-0 hover:bg-gray-50/50 transition-colors"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-3 sm:px-4 py-3">
                         <div>
-                          <p className="font-medium">{item.product.name}</p>
+                          <p className="font-medium text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{item.product.name}</p>
                           <p className="text-xs text-muted-foreground">
                             {item.product.code}
                             {item.branch && (
@@ -464,19 +529,19 @@ export function PriceSchedulesContent() {
                             )}
                           </p>
                           {item.reason && (
-                            <p className="text-xs text-muted-foreground mt-0.5 italic">
+                            <p className="text-xs text-muted-foreground mt-0.5 italic hidden sm:block">
                               {item.reason}
                             </p>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                      <td className="hidden sm:table-cell px-4 py-3 text-right font-mono text-muted-foreground">
                         {formatCurrency(item.originalPrice)}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold">
+                      <td className="px-3 sm:px-4 py-3 text-right font-mono font-semibold text-xs sm:text-sm">
                         {formatCurrency(item.newPrice)}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="hidden md:table-cell px-4 py-3 text-center">
                         {isIncrease ? (
                           <Badge
                             variant="outline"
@@ -496,22 +561,22 @@ export function PriceSchedulesContent() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="hidden lg:table-cell px-4 py-3 text-sm">
                         {format(new Date(item.startDate), "dd MMM yyyy")}
                       </td>
-                      <td className="px-4 py-3 text-sm">
+                      <td className="hidden lg:table-cell px-4 py-3 text-sm">
                         {format(new Date(item.endDate), "dd MMM yyyy")}
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 sm:px-4 py-3 text-center">
                         <Badge
                           variant="outline"
-                          className={`gap-1 ${config?.className ?? ""}`}
+                          className={`gap-1 text-[10px] sm:text-xs ${config?.className ?? ""}`}
                         >
                           <StatusIcon className="h-3 w-3" />
-                          {config?.label ?? status}
+                          <span className="hidden sm:inline">{config?.label ?? status}</span>
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 sm:px-4 py-3 text-center">
                         {!item.appliedAt && (
                           <Button
                             variant="ghost"

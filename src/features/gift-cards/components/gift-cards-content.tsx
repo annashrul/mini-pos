@@ -415,24 +415,24 @@ export function GiftCardsContent() {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
-            <CreditCard className="w-6 h-6 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25 shrink-0">
+            <CreditCard className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
               Gift Card
             </h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              Kelola voucher digital dan gift card toko Anda
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
+              Kelola voucher digital dan gift card
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button
             variant="outline"
-            className="rounded-xl shadow-sm"
+            className="rounded-xl shadow-sm flex-1 sm:flex-initial text-xs sm:text-sm"
             onClick={() => setCheckBalanceOpen(true)}
           >
             <Search className="w-4 h-4 mr-2" /> Cek Saldo
@@ -443,72 +443,72 @@ export function GiftCardsContent() {
           >
             <Button
               disabled={!canCreate}
-              className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+              className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all flex-1 sm:flex-initial text-xs sm:text-sm"
               onClick={() => setIssueOpen(true)}
             >
-              <Plus className="w-4 h-4 mr-2" /> Terbitkan Gift Card
+              <Plus className="w-4 h-4 mr-2" /> Terbitkan
             </Button>
           </DisabledActionTooltip>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-emerald-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-emerald-100 p-2.5 sm:p-4 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center">
               <CreditCard className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
                 Kartu Aktif
               </p>
-              <p className="text-2xl font-bold text-foreground">
+              <p className="text-sm sm:text-xl font-bold text-foreground">
                 {stats.totalActiveCards}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-violet-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-violet-100 p-2.5 sm:p-4 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-violet-50 items-center justify-center">
               <Wallet className="w-5 h-5 text-violet-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
                 Total Saldo
               </p>
-              <p className="text-xl font-bold text-foreground">
+              <p className="text-sm sm:text-xl font-bold text-foreground">
                 {formatCurrency(stats.totalBalanceOutstanding)}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-blue-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-blue-100 p-2.5 sm:p-4 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-blue-50 items-center justify-center">
               <TrendingUp className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
                 Total Redeem
               </p>
-              <p className="text-xl font-bold text-foreground">
+              <p className="text-sm sm:text-xl font-bold text-foreground">
                 {formatCurrency(stats.totalRedeemed)}
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-amber-100 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-4 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-amber-50 items-center justify-center">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">
+              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
                 Segera Expired
               </p>
-              <p className="text-2xl font-bold text-foreground">
+              <p className="text-sm sm:text-xl font-bold text-foreground">
                 {stats.expiringSoon}
               </p>
             </div>
@@ -629,18 +629,20 @@ export function GiftCardsContent() {
 
       {/* Confirm Disable Dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="rounded-2xl max-w-sm overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500 rounded-t-2xl -mt-6 mb-2" />
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-md shadow-red-500/25">
-                <AlertTriangle className="w-4 h-4 text-white" />
-              </div>
-              <span>Konfirmasi</span>
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">{confirmText}</p>
-          <div className="flex justify-end gap-2 pt-2">
+        <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm overflow-hidden p-0 gap-0">
+          <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500 rounded-t-2xl" />
+          <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3 text-base sm:text-lg">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-md shadow-red-500/25">
+                  <AlertTriangle className="w-4 h-4 text-white" />
+                </div>
+                <span>Konfirmasi</span>
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground py-2">{confirmText}</p>
+          </div>
+          <div className="flex justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 pt-2">
             <Button
               variant="outline"
               onClick={() => setConfirmOpen(false)}

@@ -365,18 +365,18 @@ export function ReturnsContent() {
     ];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-200">
-                        <RotateCcw className="h-6 w-6" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex h-9 w-9 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-200">
+                        <RotateCcw className="h-4 w-4 sm:h-6 sm:w-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-gray-900">
                             Return & Exchange
                         </h1>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-xs sm:text-sm text-gray-500">
                             Kelola pengembalian dan pertukaran barang
                         </p>
                     </div>
@@ -388,7 +388,7 @@ export function ReturnsContent() {
                     <Button
                         onClick={() => setNewReturnOpen(true)}
                         disabled={!canCreate}
-                        className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white shadow-lg shadow-violet-200 rounded-xl gap-2"
+                        className="w-full sm:w-auto bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white shadow-lg shadow-violet-200 rounded-xl gap-2 text-xs sm:text-sm"
                     >
                         <Plus className="h-4 w-4" />
                         Return Baru
@@ -397,26 +397,26 @@ export function ReturnsContent() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 {statsCards.map((card) => {
                     const Icon = card.icon;
                     return (
                         <Card
                             key={card.label}
-                            className="border-border/30 shadow-sm hover:shadow-md transition-shadow rounded-2xl overflow-hidden"
+                            className="border-border/30 shadow-sm hover:shadow-md transition-shadow rounded-xl sm:rounded-2xl overflow-hidden"
                         >
-                            <CardContent className="p-4">
-                                <div className="flex items-center gap-3">
+                            <CardContent className="p-2.5 sm:p-4">
+                                <div className="flex items-center gap-2 sm:gap-3">
                                     <div
-                                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-sm`}
+                                        className={`hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-sm`}
                                     >
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-medium text-gray-500 truncate">
+                                        <p className="text-[10px] sm:text-xs font-medium text-gray-500 truncate">
                                             {card.label}
                                         </p>
-                                        <p className="text-lg font-bold text-gray-900 truncate">
+                                        <p className="text-sm sm:text-lg font-bold text-gray-900 truncate">
                                             {loading ? (
                                                 <Skeleton className="h-6 w-16" />
                                             ) : (

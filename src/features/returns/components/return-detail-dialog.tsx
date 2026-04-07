@@ -178,9 +178,9 @@ export function ReturnDetailDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
+            <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                    <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white">
                             {data?.type === "EXCHANGE" ? (
                                 <ArrowLeftRight className="h-4 w-4" />
@@ -192,7 +192,7 @@ export function ReturnDetailDialog({
                     </DialogTitle>
                 </DialogHeader>
 
-                <DialogBody className="flex-1 overflow-y-auto space-y-4 py-4">
+                <DialogBody className="flex-1 overflow-y-auto space-y-4 px-4 sm:px-6 py-4">
                     {loadingData || !data ? (
                         <div className="space-y-4">
                             <Skeleton className="h-20 w-full rounded-xl" />
@@ -236,8 +236,8 @@ export function ReturnDetailDialog({
                             </div>
 
                             {/* Return Info */}
-                            <div className="p-4 bg-gray-50 rounded-xl border border-border/30 space-y-3">
-                                <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div className="p-3 sm:p-4 bg-gray-50 rounded-xl border border-border/30 space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
                                     <div>
                                         <p className="text-xs text-gray-500 mb-0.5">
                                             Nomor Return
@@ -432,7 +432,7 @@ export function ReturnDetailDialog({
                     )}
                 </DialogBody>
 
-                <DialogFooter className="gap-2">
+                <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0 gap-2 flex-col-reverse sm:flex-row">
                     <Button
                         type="button"
                         variant="outline"

@@ -322,16 +322,16 @@ export function TransactionsContent() {
     ];
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200/50">
-                        <Receipt className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-200/50">
+                        <Receipt className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Riwayat Transaksi</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola dan pantau semua transaksi penjualan</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Riwayat Transaksi</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola dan pantau semua transaksi penjualan</p>
                     </div>
                 </div>
             </div>
@@ -417,10 +417,10 @@ export function TransactionsContent() {
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl w-[95vw] max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 rounded-t-2xl -mt-6 mb-2" />
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
+                <DialogContent className="rounded-2xl w-[calc(100vw-2rem)] sm:w-[95vw] max-w-[calc(100vw-2rem)] sm:max-w-lg max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+                    <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 rounded-t-2xl" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                        <DialogTitle className="flex items-center gap-3 text-base sm:text-lg font-bold">
                             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md shadow-indigo-200/50">
                                 <Receipt className="w-4 h-4 text-white" />
                             </div>
@@ -429,9 +429,9 @@ export function TransactionsContent() {
                     </DialogHeader>
                     {selectedTx && (
                         <>
-                            <DialogBody className="space-y-4 pr-1">
+                            <DialogBody className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4">
                                 {/* Info Grid */}
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                                     <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
                                         <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                                             <Hash className="w-3 h-3" /> Invoice
@@ -573,10 +573,10 @@ export function TransactionsContent() {
                                     )}
                                 </div>
                             </DialogBody>
-                            <DialogFooter className="pt-3">
+                            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 pt-3 shrink-0">
                                 <Button
                                     variant="outline"
-                                    className="w-full rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
+                                    className="w-full rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all text-xs sm:text-sm"
                                     onClick={() => {
                                         if (!selectedTx) return;
                                         printThermalReceipt({
@@ -616,7 +616,7 @@ export function TransactionsContent() {
 
             {/* Void Dialog */}
             <Dialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm">
                     <div className="h-1 w-full bg-gradient-to-r from-orange-500 via-red-500 to-rose-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3 text-lg font-bold">
@@ -649,7 +649,7 @@ export function TransactionsContent() {
 
             {/* Refund Dialog */}
             <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm">
                     <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3 text-lg font-bold">

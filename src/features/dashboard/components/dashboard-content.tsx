@@ -145,9 +145,9 @@ export function DashboardContent() {
     };
 
     if (!stats) return (
-        <div className="space-y-6 animate-pulse">
+        <div className="space-y-4 sm:space-y-6 animate-pulse">
             {/* Welcome header skeleton */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
                     <div className="h-7 w-48 bg-slate-200 rounded-lg" />
                     <div className="h-4 w-64 bg-slate-100 rounded-lg mt-2" />
@@ -158,9 +158,9 @@ export function DashboardContent() {
                 </div>
             </div>
             {/* Stat cards skeleton - 4 cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                 {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="rounded-2xl border border-border/30 bg-white p-5 space-y-3">
+                    <div key={i} className="rounded-xl sm:rounded-2xl border border-border/30 bg-white p-2.5 sm:p-5 space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="h-3 w-24 bg-slate-100 rounded" />
                             <div className="w-11 h-11 bg-slate-100 rounded-xl" />
@@ -211,11 +211,11 @@ export function DashboardContent() {
     const voidCount = stats.voidCount ?? 0;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* ===== ROW 1: Welcome + Quick Actions ===== */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground tracking-tight">{getGreeting()}</h1>
+                    <h1 className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">{getGreeting()}</h1>
                     <div className="flex items-center gap-2 mt-1">
                         <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
                         <p className="text-sm text-slate-500">{formatDate()}</p>
@@ -240,9 +240,9 @@ export function DashboardContent() {
             </div>
 
             {/* ===== FILTERED SECTION — affected by period ===== */}
-            <div className="rounded-2xl border border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white p-5 space-y-5">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-white p-3 sm:p-5 space-y-4 sm:space-y-5">
                 {/* Period filter header */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
                     <div className="flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-primary" />
                         <h2 className="text-sm font-semibold text-foreground">Ringkasan Penjualan</h2>
@@ -265,36 +265,36 @@ export function DashboardContent() {
                 </div>
 
                 {/* ===== ROW 2: Main KPI Cards (3x2) ===== */}
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
                     {/* 1. Penjualan Hari Ini */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-200 group-hover:shadow-lg group-hover:shadow-blue-200 transition-shadow">
-                                    <DollarSign className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-200 group-hover:shadow-lg group-hover:shadow-blue-200 transition-shadow">
+                                    <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <GrowthBadge value={stats.salesGrowthDay} />
                             </div>
-                            <p className="text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(stats.todaySales)}</p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Penjualan Hari Ini</p>
+                            <p className="text-sm sm:text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(stats.todaySales)}</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Penjualan Hari Ini</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">Kemarin: {formatCurrency(stats.yesterdaySales)}</p>
                         </CardContent>
                     </Card>
 
                     {/* 2. Transaksi Hari Ini */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200 group-hover:shadow-lg group-hover:shadow-emerald-200 transition-shadow">
-                                    <ShoppingCart className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200 group-hover:shadow-lg group-hover:shadow-emerald-200 transition-shadow">
+                                    <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
-                                <div className="text-right">
+                                <div className="text-right hidden sm:block">
                                     <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Avg. Value</p>
                                     <p className="text-xs font-semibold tabular-nums text-slate-600">{formatCurrency(avgTransactionValue)}</p>
                                 </div>
                             </div>
-                            <p className="text-3xl font-bold tabular-nums tracking-tight">{stats.todayTransactionCount}</p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Transaksi Hari Ini</p>
+                            <p className="text-sm sm:text-3xl font-bold tabular-nums tracking-tight">{stats.todayTransactionCount}</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Transaksi Hari Ini</p>
                             <div className="flex items-center gap-3 mt-0.5">
                                 <p className="text-[11px] text-slate-400">Refund: {refundCount}</p>
                                 <p className="text-[11px] text-slate-400">Void: {voidCount}</p>
@@ -303,61 +303,61 @@ export function DashboardContent() {
                     </Card>
 
                     {/* 3. Profit Hari Ini */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-md transition-shadow ${todayProfit >= 0 ? "from-green-500 to-emerald-600 shadow-green-200 group-hover:shadow-lg group-hover:shadow-green-200" : "from-red-500 to-rose-600 shadow-red-200 group-hover:shadow-lg group-hover:shadow-red-200"}`}>
-                                    <TrendingUp className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br flex items-center justify-center shadow-md transition-shadow ${todayProfit >= 0 ? "from-green-500 to-emerald-600 shadow-green-200 group-hover:shadow-lg group-hover:shadow-green-200" : "from-red-500 to-rose-600 shadow-red-200 group-hover:shadow-lg group-hover:shadow-red-200"}`}>
+                                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${todayProfit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"}`}>
                                     {todayProfit >= 0 ? "Profit" : "Rugi"}
                                 </span>
                             </div>
-                            <p className={`text-3xl font-bold tabular-nums tracking-tight ${todayProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                            <p className={`text-sm sm:text-3xl font-bold tabular-nums tracking-tight ${todayProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
                                 {formatCurrency(Math.abs(todayProfit))}
                             </p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Profit Hari Ini</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Profit Hari Ini</p>
                         </CardContent>
                     </Card>
 
                     {/* 4. Pendapatan Bulan Ini */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-200 group-hover:shadow-lg group-hover:shadow-violet-200 transition-shadow">
-                                    <Wallet className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-200 group-hover:shadow-lg group-hover:shadow-violet-200 transition-shadow">
+                                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                                 <GrowthBadge value={stats.salesGrowthMonth} />
                             </div>
-                            <p className="text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(stats.monthRevenue)}</p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Pendapatan Bulan Ini</p>
+                            <p className="text-sm sm:text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(stats.monthRevenue)}</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Pendapatan Bulan Ini</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">{stats.monthTransactionCount} transaksi</p>
                         </CardContent>
                     </Card>
 
                     {/* 5. Penjualan Minggu Ini */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-sky-600 flex items-center justify-center shadow-md shadow-cyan-200 group-hover:shadow-lg group-hover:shadow-cyan-200 transition-shadow">
-                                    <Receipt className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-cyan-500 to-sky-600 flex items-center justify-center shadow-md shadow-cyan-200 group-hover:shadow-lg group-hover:shadow-cyan-200 transition-shadow">
+                                    <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                             </div>
-                            <p className="text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(weekSales)}</p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Penjualan Minggu Ini</p>
+                            <p className="text-sm sm:text-3xl font-bold tabular-nums tracking-tight">{formatCurrency(weekSales)}</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Penjualan Minggu Ini</p>
                         </CardContent>
                     </Card>
 
                     {/* 6. Total Produk + Customer */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
-                        <CardContent className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md shadow-orange-200 group-hover:shadow-lg group-hover:shadow-orange-200 transition-shadow">
-                                    <Package className="w-5 h-5 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 bg-white transition-shadow duration-300 hover:shadow-md group">
+                        <CardContent className="p-2.5 sm:p-5">
+                            <div className="flex items-center justify-between mb-2 sm:mb-4">
+                                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md shadow-orange-200 group-hover:shadow-lg group-hover:shadow-orange-200 transition-shadow">
+                                    <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                                 </div>
                             </div>
-                            <p className="text-3xl font-bold tabular-nums tracking-tight">{stats.totalProducts}</p>
-                            <p className="text-xs uppercase tracking-wider text-slate-500 mt-1.5 font-medium">Total Produk Aktif</p>
+                            <p className="text-sm sm:text-3xl font-bold tabular-nums tracking-tight">{stats.totalProducts}</p>
+                            <p className="text-[10px] sm:text-xs uppercase tracking-wider text-slate-500 mt-1 sm:mt-1.5 font-medium">Total Produk Aktif</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                                 <Users className="w-3 h-3 text-slate-400" />
                                 <p className="text-[11px] text-slate-400">{stats.totalCustomers} customer terdaftar</p>
@@ -393,13 +393,13 @@ export function DashboardContent() {
                                 </div>
                                 <h2 className="text-base font-semibold text-foreground">Pencapaian per Lokasi</h2>
                             </div>
-                            <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1">
+                            <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-2 -mx-1 px-1">
                                 {stats.branchPerformance.map((branch, idx) => {
                                     const pct = totalMonthRevenue > 0 ? Math.round((branch.periodSales / totalMonthRevenue) * 100) : 0;
                                     const prevSales = branch.prevPeriodSales;
                                     const salesGrowth = prevSales > 0 ? Math.round(((branch.periodSales - prevSales) / prevSales) * 100) : 0;
                                     return (
-                                        <Card key={branch.branchId} className={`min-w-[220px] max-w-[260px] rounded-2xl border bg-gradient-to-br ${gradients[idx % gradients.length]} shadow-sm transition-shadow duration-300 hover:shadow-md shrink-0`}>
+                                        <Card key={branch.branchId} className={`min-w-[180px] sm:min-w-[220px] max-w-[260px] rounded-xl sm:rounded-2xl border bg-gradient-to-br ${gradients[idx % gradients.length]} shadow-sm transition-shadow duration-300 hover:shadow-md shrink-0`}>
                                             <CardContent className="p-4">
                                                 <p className="font-semibold text-sm text-slate-800 truncate">{branch.branchName}</p>
                                                 <p className="text-2xl font-bold tabular-nums tracking-tight text-blue-700 mt-2">{formatCurrency(branch.periodSales)}</p>
@@ -431,7 +431,7 @@ export function DashboardContent() {
                 })()}
 
                 {/* ===== ROW 3: Yearly Comparison (2/3) + Payment Methods (1/3) ===== */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
                     {/* Yearly Comparison Chart */}
                     <Card className="lg:col-span-3 rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
                         <CardHeader className="pb-2">
@@ -455,7 +455,7 @@ export function DashboardContent() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={280}>
+                            <ResponsiveContainer width="100%" height={220}>
                                 <BarChart data={stats.yearlyComparison} barGap={4}>
                                     <defs>
                                         <linearGradient id="barThisYear" x1="0" y1="0" x2="0" y2="1">
@@ -558,7 +558,7 @@ export function DashboardContent() {
                 </div>
 
                 {/* ===== ROW 4: Daily Trend (1/2) + Hourly Sales (1/2) ===== */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {/* Daily Sales Trend (30 days) */}
                     <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
                         <CardHeader className="pb-2">
@@ -570,7 +570,7 @@ export function DashboardContent() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={240}>
+                            <ResponsiveContainer width="100%" height={200}>
                                 <AreaChart data={stats.dailySales}>
                                     <defs>
                                         <linearGradient id="dailyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -602,7 +602,7 @@ export function DashboardContent() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ResponsiveContainer width="100%" height={240}>
+                            <ResponsiveContainer width="100%" height={200}>
                                 <BarChart data={stats.hourlySales.filter((h) => h.count > 0 || (Number(h.hour.split(":")[0]) >= 6 && Number(h.hour.split(":")[0]) <= 22))}>
                                     <defs>
                                         <linearGradient id="hourlyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -628,17 +628,17 @@ export function DashboardContent() {
             {/* ===== NON-FILTERED SECTION — always real-time ===== */}
 
             {/* ===== ROW 5: Alerts Row (3 cards) ===== */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
                 {/* Stok Menipis Alert */}
-                <div className="rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-yellow-50 p-5 transition-shadow duration-300 hover:shadow-md">
+                <div className="rounded-xl sm:rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50 to-yellow-50 p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md shadow-amber-200">
-                                <AlertTriangle className="w-5 h-5 text-white" />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md shadow-amber-200">
+                                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <div>
-                                <p className="text-xs uppercase tracking-wider text-amber-600 font-semibold">Stok Menipis</p>
-                                <p className="text-2xl font-bold tabular-nums text-amber-800 mt-0.5">{stats.lowStockProducts.length}</p>
+                                <p className="text-[10px] sm:text-xs uppercase tracking-wider text-amber-600 font-semibold">Stok Menipis</p>
+                                <p className="text-lg sm:text-2xl font-bold tabular-nums text-amber-800 mt-0.5">{stats.lowStockProducts.length}</p>
                             </div>
                         </div>
                         <Link href="/products?filter=low-stock" className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors underline underline-offset-2">
@@ -648,15 +648,15 @@ export function DashboardContent() {
                 </div>
 
                 {/* Promo Aktif */}
-                <div className="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 transition-shadow duration-300 hover:shadow-md">
+                <div className="rounded-xl sm:rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-200">
-                                <Tag className="w-5 h-5 text-white" />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-200">
+                                <Tag className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <div>
-                                <p className="text-xs uppercase tracking-wider text-blue-600 font-semibold">Promo Aktif</p>
-                                <p className="text-2xl font-bold tabular-nums text-blue-800 mt-0.5">{activePromotions}</p>
+                                <p className="text-[10px] sm:text-xs uppercase tracking-wider text-blue-600 font-semibold">Promo Aktif</p>
+                                <p className="text-lg sm:text-2xl font-bold tabular-nums text-blue-800 mt-0.5">{activePromotions}</p>
                             </div>
                         </div>
                         <Link href="/promotions" className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors underline underline-offset-2">
@@ -666,15 +666,15 @@ export function DashboardContent() {
                 </div>
 
                 {/* PO Pending */}
-                <div className="rounded-2xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-rose-50 p-5 transition-shadow duration-300 hover:shadow-md">
+                <div className="rounded-xl sm:rounded-2xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-rose-50 p-3 sm:p-5 transition-shadow duration-300 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center shadow-md shadow-orange-200">
-                                <FileText className="w-5 h-5 text-white" />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center shadow-md shadow-orange-200">
+                                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <div>
-                                <p className="text-xs uppercase tracking-wider text-orange-600 font-semibold">PO Pending</p>
-                                <p className="text-2xl font-bold tabular-nums text-orange-800 mt-0.5">{pendingPurchaseOrders}</p>
+                                <p className="text-[10px] sm:text-xs uppercase tracking-wider text-orange-600 font-semibold">PO Pending</p>
+                                <p className="text-lg sm:text-2xl font-bold tabular-nums text-orange-800 mt-0.5">{pendingPurchaseOrders}</p>
                             </div>
                         </div>
                         <Link href="/purchases" className="text-xs font-semibold text-orange-600 hover:text-orange-700 transition-colors underline underline-offset-2">
@@ -685,7 +685,7 @@ export function DashboardContent() {
             </div>
 
             {/* ===== ROW 6: Top Products (1/3) + Category (1/3) + Top Cashiers (1/3) ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Top Products */}
                 <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
                     <CardHeader className="pb-2">
@@ -816,8 +816,8 @@ export function DashboardContent() {
                             <TableHeader>
                                 <TableRow className="border-border/30 hover:bg-transparent">
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Invoice</TableHead>
-                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Kasir</TableHead>
-                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Pembayaran</TableHead>
+                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Kasir</TableHead>
+                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Pembayaran</TableHead>
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Status</TableHead>
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-right">Total</TableHead>
                                 </TableRow>
@@ -833,10 +833,10 @@ export function DashboardContent() {
                                                     <p className="text-[11px] text-slate-400 mt-0.5">{formatDateTime(tx.createdAt)}</p>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="hidden sm:table-cell">
                                                 <span className="text-sm text-slate-600 font-medium">{tx.user.name}</span>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="hidden sm:table-cell">
                                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
                                                     <CreditCard className="w-3 h-3" />
                                                     {PAYMENT_LABELS[tx.paymentMethod] ?? tx.paymentMethod}
@@ -887,8 +887,8 @@ export function DashboardContent() {
                                 <TableHeader>
                                     <TableRow className="border-border/30 hover:bg-transparent">
                                         <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Produk</TableHead>
-                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Kategori</TableHead>
-                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-center">Min. Stok</TableHead>
+                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Kategori</TableHead>
+                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-center hidden sm:table-cell">Min. Stok</TableHead>
                                         <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-right">Stok Saat Ini</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -896,8 +896,8 @@ export function DashboardContent() {
                                     {stats.lowStockProducts.map((product) => (
                                         <TableRow key={product.id} className="border-border/20 hover:bg-slate-50/50 transition-colors">
                                             <TableCell className="font-semibold text-sm text-slate-700">{product.name}</TableCell>
-                                            <TableCell className="text-sm text-slate-500">{product.category.name}</TableCell>
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-sm text-slate-500 hidden sm:table-cell">{product.category.name}</TableCell>
+                                            <TableCell className="text-center hidden sm:table-cell">
                                                 <span className="text-xs text-slate-400 tabular-nums">{product.minStock}</span>
                                             </TableCell>
                                             <TableCell className="text-right">

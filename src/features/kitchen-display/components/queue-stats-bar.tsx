@@ -78,16 +78,16 @@ export function QueueStatsBar({ stats, darkMode }: QueueStatsBarProps) {
   ];
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+    <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
       {items.map((item) => (
         <div
           key={item.label}
-          className={`flex items-center gap-3 rounded-xl px-4 py-2 min-w-fit ${item.bg} ${item.ring}`}
+          className={`flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl px-2.5 sm:px-4 py-1.5 sm:py-2 min-w-fit ${item.bg} ${item.ring}`}
         >
-          <item.icon className={`w-4 h-4 ${item.color} shrink-0`} />
+          <item.icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${item.color} shrink-0`} />
           <div className="flex flex-col">
             <span
-              className={`text-lg font-extrabold font-mono tabular-nums leading-tight ${
+              className={`text-sm sm:text-lg font-extrabold font-mono tabular-nums leading-tight ${
                 darkMode ? "text-white" : "text-gray-900"
               }`}
             >

@@ -81,10 +81,10 @@ export function CheckBalanceDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="rounded-2xl max-w-sm overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 rounded-t-2xl -mt-6 mb-2" />
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+      <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm overflow-hidden p-0 gap-0">
+        <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 rounded-t-2xl" />
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+          <DialogTitle className="flex items-center gap-3 text-base sm:text-lg">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-md shadow-blue-500/25">
               <Search className="w-4 h-4 text-white" />
             </div>
@@ -92,7 +92,7 @@ export function CheckBalanceDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4 px-4 sm:px-6 pb-4 sm:pb-6">
           <div className="space-y-2">
             <Label className="text-sm font-medium">Kode Gift Card</Label>
             <div className="flex gap-2">

@@ -132,10 +132,10 @@ export function GiftCardDetailDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="rounded-2xl max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto">
-        <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl -mt-6 mb-2" />
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+      <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-lg overflow-hidden max-h-[90vh] p-0 gap-0 flex flex-col">
+        <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl shrink-0" />
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+          <DialogTitle className="flex items-center gap-3 text-base sm:text-lg">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/25">
               <CreditCard className="w-4 h-4 text-white" />
             </div>
@@ -143,9 +143,9 @@ export function GiftCardDetailDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 sm:space-y-5">
           {/* Visual Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-6 text-white shadow-lg">
+          <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-4 sm:p-6 text-white shadow-lg">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-28 h-28 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
             <div className="relative z-10">

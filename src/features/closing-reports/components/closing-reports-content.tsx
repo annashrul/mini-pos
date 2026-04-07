@@ -218,16 +218,16 @@ export function ClosingReportsContent() {
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-200/50">
-                        <ClipboardList className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-lg shadow-teal-200/50">
+                        <ClipboardList className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Laporan Closing</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Ringkasan shift kasir yang sudah ditutup</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Laporan Closing</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Ringkasan shift kasir yang sudah ditutup</p>
                     </div>
                 </div>
             </div>
@@ -318,15 +318,15 @@ export function ClosingReportsContent() {
                         return (
                             <div
                                 key={row.id}
-                                className={`group rounded-xl border border-border/30 bg-white hover:shadow-md transition-all p-4 border-l-4 ${borderColorMap[status]}`}
+                                className={`group rounded-xl border border-border/30 bg-white hover:shadow-md transition-all p-3 sm:p-4 border-l-4 ${borderColorMap[status]}`}
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                                     {/* Left: Avatar + Name */}
                                     <div className="flex items-center gap-3 min-w-0 shrink-0">
                                         <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 text-white text-sm font-bold shrink-0">
                                             {row.user.name.charAt(0).toUpperCase()}
                                         </div>
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 flex-1">
                                             <p className="text-sm font-bold text-foreground truncate">{row.user.name}</p>
                                             {branchName && (
                                                 <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -335,10 +335,22 @@ export function ClosingReportsContent() {
                                                 </p>
                                             )}
                                         </div>
+                                        {/* Mobile action buttons */}
+                                        <div className="flex items-center gap-0.5 sm:hidden">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-teal-50 hover:text-teal-600 transition-colors" onClick={() => openDetail(row.id)} title="Lihat Detail">
+                                                <Eye className="w-4 h-4" />
+                                            </Button>
+                                            <DisabledActionTooltip disabled={!canReclosing} message={cannotMessage("reclosing")}>
+                                                <Button disabled={!canReclosing} variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-orange-500 hover:text-orange-700 hover:bg-orange-50 transition-colors"
+                                                    onClick={() => openReclose(row.id, row.closingCash)} title="Reclosing">
+                                                    <RefreshCw className="w-4 h-4" />
+                                                </Button>
+                                            </DisabledActionTooltip>
+                                        </div>
                                     </div>
 
                                     {/* Middle: Time Info Blocks */}
-                                    <div className="flex items-center gap-4 flex-1 min-w-0 justify-center">
+                                    <div className="flex items-center gap-4 flex-1 min-w-0 sm:justify-center">
                                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                             <Clock className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
                                             <div>
@@ -357,7 +369,7 @@ export function ClosingReportsContent() {
 
                                     {/* Right: Cash + Difference + Actions */}
                                     <div className="flex items-center gap-4 shrink-0">
-                                        <div className="text-right">
+                                        <div className="text-right flex-1 sm:flex-none">
                                             <div className="flex items-center gap-1.5 justify-end text-xs">
                                                 <span className="font-mono tabular-nums text-muted-foreground">{formatCurrency(row.openingCash)}</span>
                                                 <ArrowDown className="w-3 h-3 text-muted-foreground/40 rotate-[-90deg]" />
@@ -378,8 +390,8 @@ export function ClosingReportsContent() {
                                             </div>
                                         </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {/* Action Buttons - desktop */}
+                                        <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-teal-50 hover:text-teal-600 transition-colors" onClick={() => openDetail(row.id)} title="Lihat Detail">
                                                 <Eye className="w-4 h-4" />
                                             </Button>
@@ -410,10 +422,10 @@ export function ClosingReportsContent() {
 
             {/* Detail Report Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-2xl w-[99vw] max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-green-500 rounded-t-2xl -mt-6 mb-2" />
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
+                <DialogContent className="rounded-2xl w-[calc(100vw-2rem)] sm:w-[99vw] max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+                    <div className="h-1 w-full bg-gradient-to-r from-teal-500 via-emerald-500 to-green-500 rounded-t-2xl" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                        <DialogTitle className="flex items-center gap-3 text-base sm:text-lg font-bold">
                             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 shadow-md shadow-teal-200/50">
                                 <ClipboardList className="w-4 h-4 text-white" />
                             </div>
@@ -428,10 +440,10 @@ export function ClosingReportsContent() {
                         </div>
                     ) : report ? (
                         <>
-                            <DialogBody className="space-y-5 pr-1">
+                            <DialogBody className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-5">
                                 {/* Shift Info Grid */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-3 space-y-1">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                                    <div className="rounded-xl bg-slate-50/80 border border-slate-100 p-2.5 sm:p-3 space-y-1">
                                         <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                                             <User className="w-3 h-3" /> Kasir
                                         </div>
@@ -465,8 +477,8 @@ export function ClosingReportsContent() {
                                 </div>
 
                                 {/* Summary Cards */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100/50 p-3.5 text-center space-y-1">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+                                    <div className="rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100/50 p-2.5 sm:p-3.5 text-center space-y-1">
                                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 mx-auto">
                                             <ShoppingCart className="w-4 h-4" />
                                         </div>
@@ -602,8 +614,8 @@ export function ClosingReportsContent() {
                                                     <TableHeader>
                                                         <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
                                                             <TableHead className="text-xs font-semibold">Invoice</TableHead>
-                                                            <TableHead className="text-xs font-semibold">Waktu</TableHead>
-                                                            <TableHead className="text-xs font-semibold">Pembayaran</TableHead>
+                                                            <TableHead className="text-xs font-semibold hidden sm:table-cell">Waktu</TableHead>
+                                                            <TableHead className="text-xs font-semibold hidden sm:table-cell">Pembayaran</TableHead>
                                                             <TableHead className="text-xs font-semibold text-right">Total</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
@@ -614,8 +626,8 @@ export function ClosingReportsContent() {
                                                             return (
                                                                 <TableRow key={tx.id} className="hover:bg-muted/20 transition-colors">
                                                                     <TableCell className="text-xs font-mono font-medium">{tx.invoiceNumber}</TableCell>
-                                                                    <TableCell className="text-xs text-muted-foreground font-mono tabular-nums">{format(new Date(tx.createdAt), "HH:mm")}</TableCell>
-                                                                    <TableCell>
+                                                                    <TableCell className="text-xs text-muted-foreground font-mono tabular-nums hidden sm:table-cell">{format(new Date(tx.createdAt), "HH:mm")}</TableCell>
+                                                                    <TableCell className="hidden sm:table-cell">
                                                                         <Badge variant="outline" className={`rounded-full text-[10px] font-medium px-2 py-0.5 border-0 ${pmCfg?.color || "bg-slate-50 text-slate-600"}`}>
                                                                             <PmIcon className="w-3 h-3 mr-1" />
                                                                             {pmCfg?.label || tx.paymentMethod}
@@ -635,8 +647,8 @@ export function ClosingReportsContent() {
                                 )}
                             </DialogBody>
 
-                            <DialogFooter>
-                                <div className="flex items-center justify-between w-full">
+                            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
+                                <div className="flex flex-col-reverse sm:flex-row items-center justify-between w-full gap-2">
                                     <DisabledActionTooltip disabled={!canReclosing} message={cannotMessage("reclosing")}>
                                         <Button
                                             disabled={!canReclosing}
@@ -673,7 +685,7 @@ export function ClosingReportsContent() {
 
             {/* Reclosing Dialog */}
             <Dialog open={recloseOpen} onOpenChange={setRecloseOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm">
                     <div className="h-1 w-full bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3 text-lg font-bold">

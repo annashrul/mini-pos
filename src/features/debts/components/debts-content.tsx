@@ -391,22 +391,22 @@ export function DebtsContent() {
     // ---- render ----
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-200/50">
-                        <Wallet className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-200/50 shrink-0">
+                        <Wallet className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Hutang Piutang</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola hutang dan piutang usaha Anda</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Hutang Piutang</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola hutang dan piutang usaha Anda</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl shadow-md shadow-amber-200/30 hover:shadow-lg hover:shadow-amber-300/40 transition-all bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                        className="w-full sm:w-auto rounded-xl shadow-md shadow-amber-200/30 hover:shadow-lg hover:shadow-amber-300/40 transition-all bg-gradient-to-r from-amber-500 to-orange-600 text-white text-xs sm:text-sm"
                         onClick={openCreateDialog}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah
@@ -415,7 +415,7 @@ export function DebtsContent() {
             </div>
 
             {/* Stats Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap">
                 <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-red-100">
                     <ArrowDownCircle className="w-3.5 h-3.5" />
                     Hutang <span className="font-mono tabular-nums font-bold">{formatCurrency(summary.totalPayableRemaining)}</span>
@@ -440,8 +440,8 @@ export function DebtsContent() {
 
             {/* Filter Tabs */}
             <div className="space-y-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap">
+                    <div className="flex items-center gap-1.5 shrink-0">
                         {typeFilterOptions.map((opt) => (
                             <button
                                 key={opt.value}
@@ -455,8 +455,8 @@ export function DebtsContent() {
                             </button>
                         ))}
                     </div>
-                    <div className="h-4 w-px bg-border/40" />
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="h-4 w-px bg-border/40 shrink-0" />
+                    <div className="flex items-center gap-1.5 shrink-0">
                         {statusFilterOptions.map((opt) => (
                             <button
                                 key={opt.value}
@@ -488,19 +488,19 @@ export function DebtsContent() {
             </div>
 
             {/* Card List */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
                 {loading && data.debts.length === 0 ? (
                     <>
                         {Array.from({ length: 4 }).map((_, i) => (
-                            <div key={i} className="rounded-xl border bg-white p-4 border-l-4 border-l-slate-200">
-                                <div className="flex items-center gap-4">
-                                    <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+                            <div key={i} className="rounded-xl border bg-white p-3 sm:p-4 border-l-4 border-l-slate-200">
+                                <div className="flex items-center gap-2 sm:gap-4">
+                                    <Skeleton className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl shrink-0" />
                                     <div className="flex-1 min-w-0 space-y-2">
                                         <Skeleton className="h-4 w-40" />
                                         <Skeleton className="h-3 w-28" />
                                         <Skeleton className="h-3 w-36" />
                                     </div>
-                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                    <div className="hidden sm:flex flex-col items-end gap-2 shrink-0">
                                         <Skeleton className="h-5 w-28" />
                                         <Skeleton className="h-2 w-24 rounded-full" />
                                         <Skeleton className="h-4 w-20" />
@@ -521,7 +521,7 @@ export function DebtsContent() {
                         </DisabledActionTooltip>
                     </div>
                 ) : (
-                    <div className={loading ? "space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-3"}>
+                    <div className={loading ? "space-y-2 sm:space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-2 sm:space-y-3"}>
                         {data.debts.map((debt) => {
                             const isPayable = debt.type === "PAYABLE";
                             const statusInfo = getStatusDisplay(debt);
@@ -531,27 +531,27 @@ export function DebtsContent() {
                             return (
                                 <div
                                     key={debt.id}
-                                    className={`rounded-xl border bg-white hover:shadow-md transition-all group p-4 border-l-4 ${isPayable ? "border-l-red-500" : "border-l-emerald-500"
+                                    className={`rounded-xl border bg-white hover:shadow-md transition-all group p-3 sm:p-4 border-l-4 ${isPayable ? "border-l-red-500" : "border-l-emerald-500"
                                         }`}
                                 >
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-start sm:items-center gap-2 sm:gap-4">
                                         {/* Left: Type Icon */}
                                         <div
-                                            className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${isPayable
+                                            className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl shrink-0 ${isPayable
                                                 ? "bg-gradient-to-br from-red-100 to-red-50 text-red-600"
                                                 : "bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600"
                                                 }`}
                                         >
                                             {isPayable ? (
-                                                <ArrowDownCircle className="w-5 h-5" />
+                                                <ArrowDownCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                                             ) : (
-                                                <ArrowUpCircle className="w-5 h-5" />
+                                                <ArrowUpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                                             )}
                                         </div>
 
                                         {/* Middle: Info */}
                                         <div className="flex-1 min-w-0 space-y-1">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-sm font-bold text-foreground truncate">{debt.partyName}</p>
                                                 <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${isPayable
                                                     ? "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-sm shadow-red-200"
@@ -560,31 +560,63 @@ export function DebtsContent() {
                                                     {isPayable ? "Hutang" : "Piutang"}
                                                 </Badge>
                                             </div>
+                                            {/* Mobile: amount inline */}
+                                            <div className="sm:hidden">
+                                                <p className={`text-sm font-bold font-mono tabular-nums ${isPayable ? "text-red-600" : "text-emerald-600"}`}>
+                                                    {formatCurrency(debt.totalAmount)}
+                                                </p>
+                                                {debt.remainingAmount > 0 && (
+                                                    <p className="text-[10px] text-muted-foreground font-mono tabular-nums">
+                                                        Sisa {formatCurrency(debt.remainingAmount)}
+                                                    </p>
+                                                )}
+                                                <div className="w-full mt-1">
+                                                    <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-slate-200"}`}
+                                                            style={{ width: `${pct}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
                                             {debt.description && (
                                                 <p className="text-xs text-muted-foreground truncate">{debt.description}</p>
-                                            )}
-                                            {debt.referenceType && debt.referenceId && (
-                                                <p className="text-xs text-muted-foreground/60 truncate">
-                                                    Ref: {debt.referenceType} #{debt.referenceId.slice(0, 8)}
-                                                </p>
                                             )}
                                             {debt.dueDate && (
                                                 <div className={`flex items-center gap-1.5 text-xs ${isOverdue(debt) ? "text-red-500" : "text-muted-foreground"
                                                     }`}>
                                                     <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isOverdue(debt) ? "text-red-400" : "text-muted-foreground/60"
                                                         }`} />
-                                                    <span className="font-mono tabular-nums">
-                                                        Jatuh tempo: {format(new Date(debt.dueDate), "dd MMM yyyy", { locale: idLocale })}
+                                                    <span className="font-mono tabular-nums text-[11px] sm:text-xs">
+                                                        {format(new Date(debt.dueDate), "dd MMM yyyy", { locale: idLocale })}
                                                     </span>
                                                     {isOverdue(debt) && (
                                                         <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Lewat</span>
                                                     )}
                                                 </div>
                                             )}
+                                            {/* Mobile: status + actions row */}
+                                            <div className="flex sm:hidden items-center gap-2 pt-1">
+                                                <Badge variant="outline" className={`text-[10px] font-medium rounded-full px-2 ${statusInfo.className}`}>
+                                                    <StatusIcon className="w-3 h-3 mr-0.5" />
+                                                    {statusInfo.label}
+                                                </Badge>
+                                                <div className="flex gap-0.5 ml-auto">
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-amber-50 hover:text-amber-600" onClick={() => openDetailDialog(debt)}>
+                                                        <Eye className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(debt)}>
+                                                        <Pencil className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                    <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(debt)}>
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        {/* Right: Amount + Progress + Status + Actions */}
-                                        <div className="flex items-center gap-4 shrink-0">
+                                        {/* Right: Amount + Progress + Status + Actions (desktop only) */}
+                                        <div className="hidden sm:flex items-center gap-4 shrink-0">
                                             <div className="text-right space-y-1.5">
                                                 <p className={`text-lg font-bold font-mono tabular-nums ${isPayable ? "text-red-600" : "text-emerald-600"
                                                     }`}>
@@ -616,7 +648,7 @@ export function DebtsContent() {
                                                     {statusInfo.label}
                                                 </Badge>
                                             </div>
-                                            <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -671,15 +703,15 @@ export function DebtsContent() {
 
             {/* ============ Create/Edit Dialog ============ */}
             <Dialog open={formOpen} onOpenChange={(v) => { if (!v) closeFormDialog(); else setFormOpen(true); }}>
-                <DialogContent className="rounded-2xl max-w-md">
-                    <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500 -mt-6 mb-2 rounded-t-2xl" />
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-800">
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-md p-0 gap-0 max-h-[90vh] flex flex-col">
+                    <div className="h-1 bg-gradient-to-r from-amber-400 to-orange-500 rounded-t-2xl shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">
                             {editing ? "Edit Hutang/Piutang" : "Tambah Hutang/Piutang"}
                         </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleFormSubmit} className="min-h-0 flex flex-col">
-                        <DialogBody className="space-y-4">
+                    <form onSubmit={handleFormSubmit} className="min-h-0 flex flex-col flex-1 overflow-hidden">
+                        <DialogBody className="space-y-3 sm:space-y-4 px-4 sm:px-6">
                             {/* Type */}
                             {!editing && (
                                 <div className="space-y-2">
@@ -737,9 +769,9 @@ export function DebtsContent() {
                             </div>
 
                             {/* Amount + Due Date */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="totalAmount">Jumlah (Rp)</Label>
+                                    <Label htmlFor="totalAmount" className="text-xs sm:text-sm">Jumlah (Rp)</Label>
                                     <Input
                                         id="totalAmount"
                                         name="totalAmount"
@@ -758,7 +790,7 @@ export function DebtsContent() {
                             </div>
                         </DialogBody>
 
-                        <DialogFooter>
+                        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
                             <Button type="button" variant="outline" onClick={closeFormDialog} className="rounded-full">Batal</Button>
                             <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
                                 <Button
@@ -785,19 +817,19 @@ export function DebtsContent() {
                     }
                 }}
             >
-                <DialogContent className="rounded-2xl max-w-lg max-h-[85vh]">
-                    <div className={`h-1 -mt-6 mb-2 rounded-t-2xl ${detailDebt?.type === "PAYABLE"
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-lg p-0 gap-0 max-h-[90vh] flex flex-col">
+                    <div className={`h-1 rounded-t-2xl shrink-0 ${detailDebt?.type === "PAYABLE"
                         ? "bg-gradient-to-r from-red-400 to-rose-500"
                         : "bg-gradient-to-r from-emerald-400 to-green-500"
                         }`} />
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-800">Detail Hutang/Piutang</DialogTitle>
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">Detail Hutang/Piutang</DialogTitle>
                     </DialogHeader>
 
-                    <DialogBody className="space-y-5">
+                    <DialogBody className="space-y-4 sm:space-y-5 px-4 sm:px-6 flex-1 overflow-y-auto">
                         {detailDebt && (
                             <>
-                                <div className="rounded-xl bg-slate-50 p-4 space-y-3">
+                                <div className="rounded-xl bg-slate-50 p-3 sm:p-4 space-y-3">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
                                             {detailDebt.type === "PAYABLE" ? (
@@ -916,9 +948,9 @@ export function DebtsContent() {
                                 </div>
 
                                 {paymentOpen && (
-                                    <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-4 space-y-3">
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-3 sm:p-4 space-y-3">
                                         <h4 className="text-sm font-bold text-slate-700">Tambah Pembayaran</h4>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs">Jumlah (Rp)</Label>
                                                 <Input
@@ -980,7 +1012,7 @@ export function DebtsContent() {
                         )}
                     </DialogBody>
 
-                    <DialogFooter>
+                    <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
                         <Button
                             type="button"
                             variant="outline"
@@ -999,13 +1031,15 @@ export function DebtsContent() {
 
             {/* ============ Delete Confirmation Dialog ============ */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
-                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 -mt-6 mb-2 rounded-t-2xl" />
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-slate-800">Konfirmasi Hapus</DialogTitle>
-                    </DialogHeader>
-                    <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
-                    <DialogFooter>
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-0 gap-0">
+                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 rounded-t-2xl" />
+                    <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+                        <DialogHeader>
+                            <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">Konfirmasi Hapus</DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
+                    </div>
+                    <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
                         <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-full">
                             Batal
                         </Button>

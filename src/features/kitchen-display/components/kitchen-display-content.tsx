@@ -426,15 +426,15 @@ export function KitchenDisplayContent() {
         }`}
       >
         <div className="px-4 lg:px-6 py-3">
-          <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3">
             {/* Left: Icon + Title + Live indicator */}
-            <div className="flex items-center gap-4">
-              <div className="relative h-13 w-13 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
-                <ChefHat className="h-7 w-7 text-white drop-shadow-sm" />
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="relative h-10 w-10 sm:h-13 sm:w-13 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+                <ChefHat className="h-5 w-5 sm:h-7 sm:w-7 text-white drop-shadow-sm" />
               </div>
               <div>
-                <div className="flex items-center gap-2.5">
-                  <h1 className="text-2xl font-black tracking-tight">Kitchen Display</h1>
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <h1 className="text-base sm:text-2xl font-black tracking-tight">Kitchen Display</h1>
                   {/* LIVE indicator */}
                   <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/25">
                     <span className="relative flex h-2 w-2">
@@ -447,7 +447,7 @@ export function KitchenDisplayContent() {
                   </span>
                 </div>
                 <p
-                  className={`text-sm font-mono tabular-nums mt-0.5 ${
+                  className={`text-xs sm:text-sm font-mono tabular-nums mt-0.5 hidden sm:block ${
                     darkMode ? "text-gray-400" : "text-gray-500"
                   }`}
                 >
@@ -468,12 +468,12 @@ export function KitchenDisplayContent() {
             </div>
 
             {/* Right: Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`h-11 w-11 rounded-xl transition-all duration-300 ${
+                className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl transition-all duration-300 ${
                   darkMode
                     ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white"
                     : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -481,43 +481,43 @@ export function KitchenDisplayContent() {
                 title={soundEnabled ? "Matikan suara" : "Nyalakan suara"}
               >
                 {soundEnabled ? (
-                  <Volume2 className="h-5 w-5" />
+                  <Volume2 className="h-4 w-4 sm:h-5 sm:w-5" />
                 ) : (
-                  <VolumeX className="h-5 w-5" />
+                  <VolumeX className="h-4 w-4 sm:h-5 sm:w-5" />
                 )}
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setDarkMode(!darkMode)}
-                className={`h-11 w-11 rounded-xl transition-all duration-300 ${
+                className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl transition-all duration-300 ${
                   darkMode
                     ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white"
                     : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
                 title={darkMode ? "Mode terang" : "Mode gelap"}
               >
-                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                {darkMode ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={fetchData}
                 disabled={isPending}
-                className={`h-11 w-11 rounded-xl transition-all duration-300 ${
+                className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl transition-all duration-300 ${
                   darkMode
                     ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white"
                     : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
                 title="Refresh"
               >
-                <RefreshCcw className={`h-5 w-5 ${isPending ? "animate-spin" : ""}`} />
+                <RefreshCcw className={`h-4 w-4 sm:h-5 sm:w-5 ${isPending ? "animate-spin" : ""}`} />
               </Button>
               <Button
                 variant="outline"
                 onClick={handleReset}
                 disabled={isPending}
-                className={`h-11 rounded-xl gap-2 transition-all duration-300 ${
+                className={`h-9 sm:h-11 rounded-xl gap-1 sm:gap-2 transition-all duration-300 text-xs sm:text-sm ${
                   darkMode
                     ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50"
                     : "border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300"

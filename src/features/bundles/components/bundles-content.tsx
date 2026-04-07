@@ -472,23 +472,23 @@ export function BundlesContent() {
     return (
         <div className="space-y-5">
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                        <Package className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-800">Paket Produk</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola paket bundling produk dengan harga spesial</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-800">Paket Produk</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola paket bundling produk</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                        className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm"
                         onClick={() => openDialog()}
                     >
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Paket
+                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Paket
                     </Button>
                 </DisabledActionTooltip>
             </div>
@@ -590,130 +590,81 @@ export function BundlesContent() {
 
             {/* Create/Edit Dialog */}
             <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setProductSearch(""); setProductResults([]); } }}>
-                <DialogContent className="rounded-2xl max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-t-2xl -mt-6 mb-2" />
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
-                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-200/50">
-                                <Package className="w-4 h-4 text-white" />
+                <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-2xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
+                        <DialogTitle className="flex items-center gap-2 sm:gap-3 text-base sm:text-lg font-bold">
+                            <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-200/50 shrink-0">
+                                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                             </div>
                             {editing ? "Edit Paket" : "Tambah Paket"}
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className={`space-y-5 mt-1 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                    <div className={`flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-5 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
                         {/* Basic Info */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-medium">Kode Paket <span className="text-red-400">*</span></Label>
-                                <Input
-                                    value={formCode}
-                                    onChange={(e) => setFormCode(e.target.value)}
-                                    className="rounded-xl h-10 font-mono"
-                                    placeholder="BDL-XXXXXX"
-                                />
+                                <Label className="text-xs sm:text-sm font-medium">Kode Paket <span className="text-red-400">*</span></Label>
+                                <Input value={formCode} onChange={(e) => setFormCode(e.target.value)} className="rounded-xl h-9 sm:h-10 font-mono text-sm" placeholder="BDL-XXXXXX" />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-medium">Nama Paket <span className="text-red-400">*</span></Label>
-                                <Input
-                                    value={formName}
-                                    onChange={(e) => setFormName(e.target.value)}
-                                    className="rounded-xl h-10"
-                                    placeholder="Paket Hemat Makan Siang"
-                                    autoFocus
-                                />
+                                <Label className="text-xs sm:text-sm font-medium">Nama Paket <span className="text-red-400">*</span></Label>
+                                <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Paket Hemat Makan Siang" autoFocus />
                             </div>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-medium">Deskripsi</Label>
-                            <Textarea
-                                value={formDescription}
-                                onChange={(e) => setFormDescription(e.target.value)}
-                                className="rounded-xl resize-none"
-                                rows={2}
-                                placeholder="Deskripsi singkat tentang paket ini..."
-                            />
+                            <Label className="text-xs sm:text-sm font-medium">Deskripsi</Label>
+                            <Textarea value={formDescription} onChange={(e) => setFormDescription(e.target.value)} className="rounded-xl resize-none text-sm" rows={2} placeholder="Deskripsi singkat..." />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-medium">Harga Paket <span className="text-red-400">*</span></Label>
-                                <Input
-                                    type="number"
-                                    value={formSellingPrice}
-                                    onChange={(e) => setFormSellingPrice(e.target.value)}
-                                    className="rounded-xl h-10"
-                                    placeholder="0"
-                                    min={0}
-                                />
+                                <Label className="text-xs sm:text-sm font-medium">Harga Paket <span className="text-red-400">*</span></Label>
+                                <Input type="number" value={formSellingPrice} onChange={(e) => setFormSellingPrice(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="0" min={0} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-medium">Kategori</Label>
+                                <Label className="text-xs sm:text-sm font-medium">Kategori</Label>
                                 <Select value={formCategoryId} onValueChange={setFormCategoryId}>
-                                    <SelectTrigger className="rounded-xl h-10">
-                                        <SelectValue placeholder="Pilih kategori" />
-                                    </SelectTrigger>
+                                    <SelectTrigger className="rounded-xl h-9 sm:h-10 text-sm"><SelectValue placeholder="Pilih" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="none">Tanpa Kategori</SelectItem>
-                                        {categories.map((cat) => (
-                                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                                        ))}
+                                        {categories.map((cat) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-medium">Barcode</Label>
-                                <Input
-                                    value={formBarcode}
-                                    onChange={(e) => setFormBarcode(e.target.value)}
-                                    className="rounded-xl h-10"
-                                    placeholder="Opsional"
-                                />
+                                <Label className="text-xs sm:text-sm font-medium">Barcode</Label>
+                                <Input value={formBarcode} onChange={(e) => setFormBarcode(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Opsional" />
                             </div>
                         </div>
 
                         {/* Product Items Section */}
-                        <div className="space-y-3">
+                        <div className="space-y-2 sm:space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold">Isi Paket <span className="text-red-400">*</span></Label>
-                                <span className="text-xs text-muted-foreground">{formItems.length} produk</span>
+                                <Label className="text-xs sm:text-sm font-semibold">Isi Paket <span className="text-red-400">*</span></Label>
+                                <span className="text-[10px] sm:text-xs text-muted-foreground">{formItems.length} produk</span>
                             </div>
 
                             {/* Product Search */}
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                    value={productSearch}
-                                    onChange={(e) => handleProductSearch(e.target.value)}
-                                    className="rounded-xl h-10 pl-9"
-                                    placeholder="Cari produk untuk ditambahkan..."
-                                />
-                                {searchingProducts && (
-                                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-                                )}
-
-                                {/* Search Results Dropdown */}
+                                <Input value={productSearch} onChange={(e) => handleProductSearch(e.target.value)} className="rounded-xl h-9 sm:h-10 pl-9 text-sm" placeholder="Cari produk..." />
+                                {searchingProducts && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
                                 {productResults.length > 0 && (
                                     <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
                                         {productResults.map((product) => {
                                             const alreadyAdded = formItems.some((item) => item.productId === product.id);
                                             return (
-                                                <button
-                                                    key={product.id}
-                                                    type="button"
-                                                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 text-sm transition-colors"
-                                                    onClick={() => addProductToItems(product)}
-                                                >
-                                                    <div>
+                                                <button key={product.id} type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 text-xs sm:text-sm transition-colors" onClick={() => addProductToItems(product)}>
+                                                    <div className="min-w-0 truncate">
                                                         <span className="font-medium text-slate-800">{product.name}</span>
-                                                        <span className="text-xs text-muted-foreground ml-2 font-mono">{product.code}</span>
+                                                        <span className="text-muted-foreground ml-1.5 font-mono hidden sm:inline">{product.code}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1.5 shrink-0">
                                                         <span className="text-xs text-blue-600 font-medium">{formatCurrency(product.sellingPrice)}</span>
-                                                        {alreadyAdded && (
-                                                            <Badge className="rounded-full bg-blue-100 text-blue-700 border-0 text-[10px] px-1.5">+1</Badge>
-                                                        )}
+                                                        {alreadyAdded && <Badge className="rounded-full bg-blue-100 text-blue-700 border-0 text-[10px] px-1.5">+1</Badge>}
                                                     </div>
                                                 </button>
                                             );
@@ -724,64 +675,32 @@ export function BundlesContent() {
 
                             {/* Items List */}
                             {formItems.length === 0 ? (
-                                <div className="rounded-xl border-2 border-dashed border-slate-200 p-6 text-center">
-                                    <PackageOpen className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                                    <p className="text-sm text-muted-foreground">Belum ada produk ditambahkan</p>
-                                    <p className="text-xs text-muted-foreground/70 mt-0.5">Cari dan tambahkan produk di atas</p>
+                                <div className="rounded-xl border-2 border-dashed border-slate-200 p-4 sm:p-6 text-center">
+                                    <PackageOpen className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30 mx-auto mb-2" />
+                                    <p className="text-xs sm:text-sm text-muted-foreground">Belum ada produk</p>
                                 </div>
                             ) : (
-                                <div className="space-y-2">
+                                <div className="space-y-1.5 sm:space-y-2">
                                     {formItems.map((item) => (
-                                        <div key={item.productId} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                        <div key={item.productId} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-slate-50 border border-slate-100">
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-slate-800 truncate">{item.productName}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    <span className="font-mono">{item.productCode}</span>
-                                                    <span className="mx-1.5">·</span>
+                                                <p className="text-xs sm:text-sm font-medium text-slate-800 truncate">{item.productName}</p>
+                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
                                                     {formatCurrency(item.productPrice)}/pcs
                                                 </p>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-7 w-7 rounded-lg"
-                                                    onClick={() => updateItemQuantity(item.productId, item.quantity - 1)}
-                                                    disabled={item.quantity <= 1}
-                                                >
-                                                    <span className="text-sm font-bold">-</span>
+                                            <div className="flex items-center gap-1">
+                                                <Button type="button" variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg" onClick={() => updateItemQuantity(item.productId, item.quantity - 1)} disabled={item.quantity <= 1}>
+                                                    <span className="text-xs sm:text-sm font-bold">-</span>
                                                 </Button>
-                                                <Input
-                                                    type="number"
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateItemQuantity(item.productId, parseInt(e.target.value) || 1)}
-                                                    className="w-14 h-7 rounded-lg text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                    min={1}
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-7 w-7 rounded-lg"
-                                                    onClick={() => updateItemQuantity(item.productId, item.quantity + 1)}
-                                                >
-                                                    <span className="text-sm font-bold">+</span>
+                                                <Input type="number" value={item.quantity} onChange={(e) => updateItemQuantity(item.productId, parseInt(e.target.value) || 1)} className="w-10 sm:w-14 h-6 sm:h-7 rounded-md sm:rounded-lg text-center text-xs sm:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} />
+                                                <Button type="button" variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg" onClick={() => updateItemQuantity(item.productId, item.quantity + 1)}>
+                                                    <span className="text-xs sm:text-sm font-bold">+</span>
                                                 </Button>
                                             </div>
-                                            <div className="text-right min-w-[80px]">
-                                                <p className="text-sm font-semibold text-slate-700">
-                                                    {formatCurrency(item.productPrice * item.quantity)}
-                                                </p>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
-                                                onClick={() => removeProductFromItems(item.productId)}
-                                            >
-                                                <X className="w-3.5 h-3.5" />
+                                            <span className="text-xs sm:text-sm font-semibold text-slate-700 tabular-nums shrink-0 hidden sm:block min-w-[70px] text-right">{formatCurrency(item.productPrice * item.quantity)}</span>
+                                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0" onClick={() => removeProductFromItems(item.productId)}>
+                                                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                             </Button>
                                         </div>
                                     ))}
@@ -790,86 +709,68 @@ export function BundlesContent() {
 
                             {/* Price Summary */}
                             {formItems.length > 0 && (
-                                <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 space-y-2">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-slate-600">Harga Normal (Total Komponen)</span>
-                                        <span className="font-semibold text-slate-700">{formatCurrency(calculatedBasePrice)}</span>
+                                <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-3 sm:p-4 space-y-1.5 sm:space-y-2">
+                                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                                        <span className="text-slate-600">Harga Normal</span>
+                                        <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(calculatedBasePrice)}</span>
                                     </div>
-                                    <div className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center justify-between text-xs sm:text-sm">
                                         <span className="text-slate-600">Harga Paket</span>
-                                        <span className="font-semibold text-blue-600">
-                                            {formSellingPrice ? formatCurrency(parseFloat(formSellingPrice)) : "-"}
-                                        </span>
+                                        <span className="font-semibold text-blue-600 tabular-nums">{formSellingPrice ? formatCurrency(parseFloat(formSellingPrice)) : "-"}</span>
                                     </div>
                                     {savings.amount > 0 && (
-                                        <div className="flex items-center justify-between text-sm pt-1 border-t border-blue-200/50">
-                                            <span className="text-emerald-700 font-medium flex items-center gap-1.5">
-                                                <BadgePercent className="w-3.5 h-3.5" />
-                                                Hemat
-                                            </span>
-                                            <span className="font-bold text-emerald-600">
-                                                {formatCurrency(savings.amount)} ({savings.percentage.toFixed(1)}%)
-                                            </span>
+                                        <div className="flex items-center justify-between text-xs sm:text-sm pt-1 border-t border-blue-200/50">
+                                            <span className="text-emerald-700 font-medium flex items-center gap-1"><BadgePercent className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Hemat</span>
+                                            <span className="font-bold text-emerald-600 tabular-nums">{formatCurrency(savings.amount)} ({savings.percentage.toFixed(1)}%)</span>
                                         </div>
                                     )}
                                     {savings.amount < 0 && (
-                                        <div className="flex items-center justify-between text-sm pt-1 border-t border-red-200/50">
-                                            <span className="text-red-600 font-medium flex items-center gap-1.5">
-                                                <AlertTriangle className="w-3.5 h-3.5" />
-                                                Harga paket lebih mahal
-                                            </span>
-                                            <span className="font-bold text-red-600">
-                                                +{formatCurrency(Math.abs(savings.amount))}
-                                            </span>
+                                        <div className="flex items-center justify-between text-xs sm:text-sm pt-1 border-t border-red-200/50">
+                                            <span className="text-red-600 font-medium flex items-center gap-1"><AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />Lebih mahal</span>
+                                            <span className="font-bold text-red-600 tabular-nums">+{formatCurrency(Math.abs(savings.amount))}</span>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
+                    </div>
 
-                        {/* Actions */}
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl">
-                                Batal
+                    {/* Footer */}
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border/40 shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl w-full sm:w-auto">Batal</Button>
+                        <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
+                            <Button disabled={(editing ? !canUpdate : !canCreate) || submitting} onClick={handleSubmit} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md w-full sm:w-auto">
+                                {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                {editing ? "Update" : "Simpan"}
                             </Button>
-                            <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
-                                <Button
-                                    disabled={(editing ? !canUpdate : !canCreate) || submitting}
-                                    onClick={handleSubmit}
-                                    className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-                                >
-                                    {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    {editing ? "Update" : "Simpan"}
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
+                        </DisabledActionTooltip>
                     </div>
                 </DialogContent>
             </Dialog>
 
             {/* Confirm Delete Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500 rounded-t-2xl -mt-6 mb-2" />
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-lg font-bold">
-                            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-md shadow-red-200/50">
-                                <AlertTriangle className="w-4 h-4 text-white" />
-                            </div>
-                            Konfirmasi Hapus
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="rounded-xl bg-red-50/50 border border-red-100 p-3 mt-1">
-                        <p className="text-sm text-red-700 font-medium">{confirmText}</p>
-                        <p className="text-xs text-red-500/70 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                        <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
-                        <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                            <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-xl shadow-md shadow-red-200/50 hover:shadow-lg hover:shadow-red-300/50 transition-all">
-                                Ya, Hapus
-                            </Button>
-                        </DisabledActionTooltip>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl p-0 gap-0">
+                    <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500" />
+                    <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-4 sm:pb-5">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 sm:gap-3 text-base sm:text-lg font-bold">
+                                <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-md shadow-red-200/50 shrink-0">
+                                    <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                                </div>
+                                Konfirmasi Hapus
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="rounded-xl bg-red-50/50 border border-red-100 p-3 mt-3">
+                            <p className="text-xs sm:text-sm text-red-700 font-medium">{confirmText}</p>
+                            <p className="text-[10px] sm:text-xs text-red-500/70 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
+                        </div>
+                        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl w-full sm:w-auto">Batal</Button>
+                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                                <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-xl shadow-md w-full sm:w-auto">Ya, Hapus</Button>
+                            </DisabledActionTooltip>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

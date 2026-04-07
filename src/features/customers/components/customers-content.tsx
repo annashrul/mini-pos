@@ -268,19 +268,19 @@ export function CustomersContent() {
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/25">
-                        <Users className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/25 shrink-0">
+                        <Users className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Customer</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola data pelanggan dan membership Anda</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Customer</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola data pelanggan dan membership</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all" onClick={openCreateDialog}>
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Customer
+                    <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm" onClick={openCreateDialog}>
+                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Customer
                     </Button>
                 </DisabledActionTooltip>
             </div>

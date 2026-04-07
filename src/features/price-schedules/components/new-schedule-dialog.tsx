@@ -197,15 +197,15 @@ export function NewScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[520px] p-0 gap-0 max-h-[90vh] flex flex-col">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <DollarSign className="h-5 w-5 text-primary" />
             Jadwal Harga Baru
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 pt-2">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-5 pt-2">
           {/* Product Search Combobox */}
           <div className="space-y-2">
             <Label>Produk</Label>
@@ -223,7 +223,7 @@ export function NewScheduleDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[460px] p-0" align="start">
+              <PopoverContent className="w-[calc(100vw-3rem)] sm:w-[460px] p-0" align="start">
                 <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Ketik nama atau kode produk..."
@@ -330,7 +330,7 @@ export function NewScheduleDialog({
           </div>
 
           {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label>Tanggal Mulai</Label>
               <Popover>
@@ -420,7 +420,7 @@ export function NewScheduleDialog({
           )}
 
           {/* Submit */}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-2 pb-4 sm:pb-6">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}

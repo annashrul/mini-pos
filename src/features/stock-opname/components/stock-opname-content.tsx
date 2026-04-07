@@ -325,21 +325,21 @@ export function StockOpnameContent() {
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) createForm.reset(); }}>
-                    <DialogContent className="rounded-xl sm:rounded-2xl border-0 shadow-2xl">
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl border-0 shadow-2xl p-0 gap-0">
                         {/* Gradient accent line */}
-                        <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500" />
+                        <div className="h-1 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shrink-0" />
                         <form onSubmit={createForm.handleSubmit(onCreateSubmit)}>
-                            <DialogHeader className="pt-2">
-                                <DialogTitle className="text-xl font-bold">Buat Stock Opname Baru</DialogTitle>
+                            <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+                                <DialogTitle className="text-base sm:text-lg font-bold">Buat Stock Opname Baru</DialogTitle>
                             </DialogHeader>
-                            <DialogBody className={`space-y-5 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
-                                <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 p-3.5">
-                                    <p className="text-sm text-amber-800">
+                            <DialogBody className={`space-y-3 sm:space-y-5 px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
+                                <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 p-3">
+                                    <p className="text-xs sm:text-sm text-amber-800">
                                         Semua produk aktif akan dimuat dengan stok sistem saat ini. Anda dapat memasukkan stok aktual setelah opname dibuat.
                                     </p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
                                     <div className="rounded-xl border border-slate-200 bg-white p-0.5">
                                         <Controller
                                             control={createForm.control}
@@ -359,15 +359,15 @@ export function StockOpnameContent() {
                                     )}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Catatan (opsional)</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
                                     <textarea
                                         {...createForm.register("notes")}
-                                        className="flex w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all resize-none min-h-[80px]"
+                                        className="flex w-full rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all resize-none min-h-[70px] sm:min-h-[80px]"
                                         placeholder="Tambahkan catatan untuk opname ini, misalnya: Opname akhir bulan Maret 2026..."
                                     />
                                 </div>
                             </DialogBody>
-                            <DialogFooter>
+                            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
                                 <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); createForm.reset(); }} className="rounded-xl px-5">
                                     Batal
                                 </Button>
@@ -562,19 +562,19 @@ export function StockOpnameContent() {
 
             {/* Detail / Edit Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl p-0">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl p-0 gap-0">
                     {/* Gradient accent line */}
-                    <div className="h-1 rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shrink-0" />
+                    <div className="h-1 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shrink-0" />
 
                     {/* Header - sticky */}
-                    <DialogHeader className="px-6 pt-4 pb-3 shrink-0">
-                        <DialogTitle className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-200/40">
-                                    <ClipboardCheck className="h-4 w-4 text-white" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
+                        <DialogTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md shadow-amber-200/40 shrink-0">
+                                    <ClipboardCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
                                 </div>
                                 <div>
-                                    <span className="text-lg font-bold">Detail Stock Opname</span>
+                                    <span className="text-base sm:text-lg font-bold">Detail Stock Opname</span>
                                     <p className="text-xs font-mono text-slate-400 font-normal mt-0.5">{selectedOpname?.opnameNumber}</p>
                                 </div>
                             </div>
@@ -588,7 +588,7 @@ export function StockOpnameContent() {
                     </DialogHeader>
 
                     {/* Body - scrollable */}
-                    <DialogBody className="px-6">
+                    <DialogBody className="px-4 sm:px-6">
                         {selectedOpname && (
                             <div className="space-y-5">
                                 {/* Summary - at top */}
@@ -710,7 +710,7 @@ export function StockOpnameContent() {
                     </DialogBody>
 
                     {/* Footer - sticky */}
-                    <DialogFooter className="px-6 py-4 shrink-0">
+                    <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0">
                         <Button variant="outline" onClick={() => setDetailOpen(false)} className="rounded-xl px-5">
                             Tutup
                         </Button>
@@ -739,9 +739,9 @@ export function StockOpnameContent() {
 
             {/* Confirmation dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm border-0 shadow-2xl p-0">
-                    <div className="h-1 rounded-t-2xl bg-gradient-to-r from-red-400 to-orange-400" />
-                    <div className="px-6 pb-6 pt-4">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl border-0 shadow-2xl p-0 gap-0">
+                    <div className="h-1 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-red-400 to-orange-400" />
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2.5">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-50">

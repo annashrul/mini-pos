@@ -292,26 +292,26 @@ export function StockTransfersContent() {
                     </Button>
                 </DisabledActionTooltip>
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) form.reset(); }}>
-                    <DialogContent className="rounded-xl sm:rounded-2xl w-[95vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                        <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500 rounded-t-2xl -mt-6 mb-2" />
-                        <DialogHeader>
-                            <DialogTitle className="text-lg font-bold">Buat Transfer Stok</DialogTitle>
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+                        <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
+                        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
+                            <DialogTitle className="text-base sm:text-lg font-bold">Buat Transfer Stok</DialogTitle>
                         </DialogHeader>
 
-                        <DialogBody className={`space-y-5 overflow-x-hidden ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
-                            {/* From / To branch selectors — inline */}
-                            <div className="flex items-center gap-3">
+                        <DialogBody className={`space-y-3 sm:space-y-5 overflow-x-hidden px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
+                            {/* From / To branch selectors — inline on sm, stacked on mobile */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <div className="flex-1 space-y-2">
-                                    <Label className="text-sm font-medium">Cabang Asal</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Cabang Asal</Label>
                                     <Controller name="fromBranchId" control={form.control} render={({ field }) => (
                                         <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih cabang asal"
                                             onSearch={async (query) => activeBranches.filter((b) => b.name.toLowerCase().includes(query.toLowerCase())).map((b) => ({ value: b.id, label: b.name }))} />
                                     )} />
                                     {form.formState.errors.fromBranchId && <p className="text-xs text-red-500">{form.formState.errors.fromBranchId.message}</p>}
                                 </div>
-                                <ArrowRight className="w-5 h-5 text-purple-400 shrink-0 mt-6" />
+                                <ArrowRight className="w-5 h-5 text-purple-400 shrink-0 hidden sm:block mt-6" />
                                 <div className="flex-1 space-y-2">
-                                    <Label className="text-sm font-medium">Cabang Tujuan</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Cabang Tujuan</Label>
                                     <Controller name="toBranchId" control={form.control} render={({ field }) => (
                                         <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih cabang tujuan"
                                             onSearch={async (query) => activeBranches.filter((b) => b.name.toLowerCase().includes(query.toLowerCase())).map((b) => ({ value: b.id, label: b.name }))} />
@@ -322,26 +322,26 @@ export function StockTransfersContent() {
 
                             {/* Notes */}
                             <div className="space-y-2">
-                                <Label className="text-sm font-medium">Catatan (opsional)</Label>
+                                <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
                                 <Textarea {...form.register("notes")} className="rounded-xl resize-none min-h-[60px]" placeholder="Catatan transfer..." />
                             </div>
 
                             {/* Add item form — sticky below DialogHeader */}
                             <div className="sticky top-0 z-10 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200/60">
-                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-3 space-y-2">
+                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-2 sm:p-3 space-y-2">
                                     <div className="flex items-center gap-2">
                                         <Package className="w-4 h-4 text-purple-600" />
-                                        <Label className="font-semibold text-sm">Tambah Produk</Label>
+                                        <Label className="font-semibold text-xs sm:text-sm">Tambah Produk</Label>
                                     </div>
-                                    <div className="grid grid-cols-12 gap-2 items-end">
-                                        <div className="col-span-7">
+                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                        <div className="sm:col-span-7">
                                             <SmartSelect value={selectedProductId} onChange={setSelectedProductId} placeholder="Pilih produk"
                                                 onSearch={async (query) => productOptions.filter((p) => { if (!query) return true; const q = query.toLowerCase(); return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q); }).map((p) => ({ value: p.id, label: p.name, description: `${p.code} • Stok ${p.stock} ${p.unit}` }))} />
                                         </div>
-                                        <div className="col-span-3">
-                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl" min={1} placeholder="Qty" />
+                                        <div className="sm:col-span-3">
+                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
                                         </div>
-                                        <div className="col-span-2">
+                                        <div className="sm:col-span-2">
                                             <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white" size="sm">
                                                 <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
                                             </Button>
@@ -354,7 +354,7 @@ export function StockTransfersContent() {
                             {cartItems.length > 0 ? (
                                 <div className="space-y-2">
                                     {cartItems.map((item, i) => (
-                                        <div key={i} className="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-4 py-3 group hover:shadow-sm transition-shadow">
+                                        <div key={i} className="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 group hover:shadow-sm transition-shadow">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-violet-100 flex items-center justify-center text-purple-600 font-bold text-xs border border-purple-200/50">
                                                     {item.productName.charAt(0).toUpperCase()}
@@ -387,11 +387,11 @@ export function StockTransfersContent() {
                             {form.formState.errors.items && <p className="text-xs text-red-500">{form.formState.errors.items.message || form.formState.errors.items.root?.message}</p>}
                         </DialogBody>
 
-                        <DialogFooter>
-                            <div className="flex items-center justify-between w-full">
+                        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
                                 {cartItems.length > 0 ? (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-purple-700">Total:</span>
+                                        <span className="text-xs sm:text-sm font-medium text-purple-700">Total:</span>
                                         <Badge className="bg-gradient-to-r from-purple-500 to-violet-600 text-white px-3">
                                             {cartItems.length} produk, {cartItems.reduce((sum, item) => sum + item.quantity, 0)} unit
                                         </Badge>
@@ -577,14 +577,14 @@ export function StockTransfersContent() {
 
             {/* Detail Dialog */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 overflow-hidden">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
                     {/* Gradient accent line */}
-                    <div className="h-1.5 bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500" />
-                    <div className="p-6">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center justify-between">
+                    <div className="h-1.5 bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-500 shrink-0" />
+                    <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+                        <DialogHeader className="pt-4 sm:pt-6 pb-3">
+                            <DialogTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-bold">Detail Transfer</span>
+                                    <span className="text-base sm:text-lg font-bold">Detail Transfer</span>
                                     {selectedTransfer && (
                                         <span className="inline-flex items-center font-mono text-xs font-semibold bg-gradient-to-r from-purple-50 to-violet-50 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-lg">
                                             {selectedTransfer.transferNumber}
@@ -730,20 +730,20 @@ export function StockTransfersContent() {
 
             {/* Reject Dialog */}
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl p-0 overflow-hidden">
-                    <div className="h-1.5 bg-gradient-to-r from-red-500 via-rose-500 to-pink-500" />
-                    <div className="p-6">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl p-0 gap-0 overflow-hidden">
+                    <div className="h-1.5 bg-gradient-to-r from-red-500 via-rose-500 to-pink-500 shrink-0" />
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+                        <DialogHeader className="pt-4 sm:pt-6 pb-3">
+                            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center shrink-0">
                                     <XCircle className="w-4 h-4 text-red-600" />
                                 </div>
                                 Tolak Transfer
                             </DialogTitle>
                         </DialogHeader>
-                        <div className="space-y-4 mt-4">
+                        <div className="space-y-3 sm:space-y-4 mt-2 sm:mt-4">
                             <div className="space-y-2">
-                                <Label className="text-sm font-medium">Alasan Penolakan (opsional)</Label>
+                                <Label className="text-xs sm:text-sm font-medium">Alasan Penolakan (opsional)</Label>
                                 <Textarea
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
@@ -767,9 +767,9 @@ export function StockTransfersContent() {
 
             {/* Confirm Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-sm p-0 overflow-hidden">
-                    <div className="h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
-                    <div className="p-6">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl p-0 gap-0 overflow-hidden">
+                    <div className="h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 shrink-0" />
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">

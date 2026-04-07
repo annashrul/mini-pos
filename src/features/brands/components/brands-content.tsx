@@ -124,23 +124,23 @@ export function BrandsContent() {
     return (
         <div className="space-y-5">
             {/* Header Section */}
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                        <Tag className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+                        <Tag className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-800">Brand Produk</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola brand dan merek produk Anda</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-800">Brand Produk</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola brand dan merek produk</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                        className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm"
                         onClick={() => { setEditing(null); setOpen(true); }}
                     >
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Brand
+                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Brand
                     </Button>
                 </DisabledActionTooltip>
             </div>

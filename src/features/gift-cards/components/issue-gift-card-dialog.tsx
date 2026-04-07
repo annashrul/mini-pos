@@ -132,10 +132,10 @@ export function IssueGiftCardDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="max-h-[85vh] flex flex-col p-0 rounded-2xl overflow-hidden gap-0 max-w-md">
+      <DialogContent className="max-h-[90vh] flex flex-col p-0 rounded-2xl overflow-hidden gap-0 max-w-[calc(100vw-2rem)] sm:max-w-md">
         <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500" />
-        <DialogHeader className="shrink-0 px-6 pt-5">
-          <DialogTitle className="flex items-center gap-3">
+        <DialogHeader className="shrink-0 px-4 sm:px-6 pt-4 sm:pt-5">
+          <DialogTitle className="flex items-center gap-3 text-base sm:text-lg">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/25">
               <Gift className="w-4 h-4 text-white" />
             </div>
@@ -146,8 +146,8 @@ export function IssueGiftCardDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="gift-card-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="space-y-5">
+        <form id="gift-card-form" onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          <div className="space-y-4 sm:space-y-5">
             {/* Amount Selection */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">
@@ -286,7 +286,7 @@ export function IssueGiftCardDialog({
           </div>
         </form>
 
-        <DialogFooter className="shrink-0 px-6 pb-6">
+        <DialogFooter className="shrink-0 px-4 sm:px-6 pb-4 sm:pb-6">
           <Button
             type="button"
             variant="outline"

@@ -17,7 +17,7 @@ export async function getExpenses(params?: {
 }) {
   const { search, page = 1, perPage = 10, branchId, sortBy, sortDir = "desc" } = params || {};
   const where: Record<string, unknown> = {};
-  if (branchId) where.branchId = branchId;
+  if (branchId) where.OR = [{ branchId: null }, { branchId }];
 
   if (search) {
     where.OR = [
@@ -63,8 +63,13 @@ export async function createExpense(data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
-    const expense = await prisma.expense.create({ data: parsed.data });
     const branchId = data.get("branchId") as string | null;
+    const expense = await prisma.expense.create({
+      data: {
+        ...parsed.data,
+        ...(branchId ? { branchId } : {}),
+      },
+    });
     createAuditLog({ action: "CREATE", entity: "Expense", details: { data: { description: parsed.data.description, amount: parsed.data.amount, category: parsed.data.category, date: parsed.data.date } }, ...(branchId ? { branchId } : {}) }).catch(() => {});
     revalidatePath("/expenses");
 

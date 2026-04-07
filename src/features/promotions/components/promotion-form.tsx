@@ -207,7 +207,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
-            <DialogBody className="space-y-5">
+            <DialogBody className="space-y-4 sm:space-y-5 px-4 sm:px-6">
                 <div className="h-1 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
                 {/* Nama */}
                 <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
@@ -458,7 +458,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 </div>
             </DialogBody>
 
-            <DialogFooter className="border-t border-border/40 pt-4">
+            <DialogFooter className="border-t border-border/40 pt-4 px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
                 <Button type="button" variant="outline" onClick={onCancel} className="rounded-full px-5">Batal</Button>
                 <Button type="submit" className="rounded-full px-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-200 hover:shadow-lg hover:shadow-blue-300" disabled={isSubmitting}>
                     {isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}

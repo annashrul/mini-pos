@@ -17,10 +17,10 @@ interface ProductFormDialogProps {
 export function ProductFormDialog({ open, onOpenChange, editingProduct, categories, brands, branches, onSubmitted }: ProductFormDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex h-[92vh] max-h-[92vh] max-w-3xl flex-col overflow-hidden rounded-2xl p-0">
-                <div className="sticky top-0 z-10 shrink-0  bg-background px-6 py-4">
+            <DialogContent className="flex h-[92vh] max-h-[92vh] max-w-[calc(100vw-1rem)] sm:max-w-3xl flex-col overflow-hidden rounded-xl sm:rounded-2xl p-0">
+                <div className="sticky top-0 z-10 shrink-0 bg-background px-4 sm:px-6 py-3 sm:py-4">
                     <DialogHeader>
-                        <DialogTitle className="text-lg">{editingProduct ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
+                        <DialogTitle className="text-base sm:text-lg">{editingProduct ? "Edit Produk" : "Tambah Produk Baru"}</DialogTitle>
                     </DialogHeader>
                 </div>
                 <div className="min-h-0 flex-1 overflow-hidden">

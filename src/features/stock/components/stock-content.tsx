@@ -371,17 +371,17 @@ export function StockContent() {
             </div>
 
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="rounded-xl sm:rounded-2xl max-w-lg p-0 overflow-hidden">
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
                     {/* Gradient accent line */}
-                    <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500" />
-                    <div className="p-6">
-                        <DialogHeader>
-                            <DialogTitle className="text-lg font-bold">Tambah Pergerakan Stok</DialogTitle>
+                    <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 shrink-0" />
+                    <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+                        <DialogHeader className="pt-4 sm:pt-6 pb-3">
+                            <DialogTitle className="text-base sm:text-lg font-bold">Tambah Pergerakan Stok</DialogTitle>
                         </DialogHeader>
                         <form action={handleSubmit} className={!canCreate ? "pointer-events-none opacity-70" : ""}>
-                            <DialogBody className="space-y-5 py-2">
+                            <DialogBody className="space-y-3 sm:space-y-5 py-2">
                                 <div className="space-y-1.5">
-                                    <Label className="text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
                                     <BranchMultiSelect
                                         branches={branches}
                                         value={selectedBranchIds}
@@ -391,7 +391,7 @@ export function StockContent() {
                                     <input type="hidden" name="branchIds" value={JSON.stringify(selectedBranchIds)} />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
                                     <SmartSelect
                                         value={selectedProductId}
                                         onChange={setSelectedProductId}
@@ -412,8 +412,8 @@ export function StockContent() {
                                     <input type="hidden" name="productId" value={selectedProductId} required />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Tipe <span className="text-red-400">*</span></Label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <Label className="text-xs sm:text-sm font-medium">Tipe <span className="text-red-400">*</span></Label>
+                                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                                         {typeCards.map((card) => {
                                             const IconComp = card.icon;
                                             const isSelected = selectedType === card.value;
@@ -425,8 +425,8 @@ export function StockContent() {
                                                     className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all bg-gradient-to-br ${card.gradient} ${isSelected ? card.selectedBorder + " shadow-sm" : "border-transparent opacity-60 hover:opacity-90"
                                                         }`}
                                                 >
-                                                    <IconComp className="w-5 h-5" />
-                                                    <span className="text-xs font-semibold">{card.label}</span>
+                                                    <IconComp className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                    <span className="text-[11px] sm:text-xs font-semibold">{card.label}</span>
                                                 </button>
                                             );
                                         })}
@@ -434,13 +434,13 @@ export function StockContent() {
                                     <input type="hidden" name="type" value={selectedType} required />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm font-medium">Quantity <span className="text-red-400">*</span></Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Quantity <span className="text-red-400">*</span></Label>
                                     <div className="flex items-center gap-2">
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="icon"
-                                            className="rounded-xl h-12 w-12 shrink-0"
+                                            className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 shrink-0"
                                             onClick={() => {
                                                 const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
                                                 if (input) { const v = Math.max(1, Number(input.value || 1) - 1); input.value = String(v); }
@@ -454,13 +454,13 @@ export function StockContent() {
                                             min={1}
                                             defaultValue={1}
                                             required
-                                            className="rounded-xl h-12 text-xl font-bold text-center"
+                                            className="rounded-xl h-10 sm:h-12 text-lg sm:text-xl font-bold text-center"
                                         />
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="icon"
-                                            className="rounded-xl h-12 w-12 shrink-0"
+                                            className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 shrink-0"
                                             onClick={() => {
                                                 const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
                                                 if (input) { const v = Number(input.value || 0) + 1; input.value = String(v); }
@@ -471,7 +471,7 @@ export function StockContent() {
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-sm font-medium">Catatan</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Catatan</Label>
                                     <textarea
                                         name="note"
                                         rows={2}
@@ -480,7 +480,7 @@ export function StockContent() {
                                     />
                                 </div>
                             </DialogBody>
-                            <DialogFooter className="pb-4">
+                            <DialogFooter className="px-0 pb-4 sm:pb-6">
                                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Batal</Button>
                                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                                     <Button disabled={!canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white">Simpan</Button>

@@ -162,27 +162,27 @@ export function PromotionsContent() {
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-purple-200/50">
-                        <Sparkles className="w-6 h-6 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-purple-200/50 shrink-0">
+                        <Sparkles className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Promo</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">Kelola promosi, diskon, voucher, dan program bundle</p>
+                        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Promo</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola promosi, diskon, voucher, dan bundle</p>
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all" onClick={() => openForm(null)}>
+                    <Button disabled={!canCreate} className="w-full sm:w-auto rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm" onClick={() => openForm(null)}>
                         <Plus className="w-4 h-4 mr-2" /> Tambah Promo
                     </Button>
                 </DisabledActionTooltip>
             </div>
 
             {/* Stats Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap">
                 <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-medium">
                     <Package className="w-3.5 h-3.5" />
                     <span className="font-mono tabular-nums">{stats.total}</span> Total
@@ -215,12 +215,12 @@ export function PromotionsContent() {
                     </div>
                     {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap -mx-1 px-1">
                     {typeFilterOptions.map((opt) => (
                         <button
                             key={opt.value}
                             onClick={() => handleFilterType(opt.value)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
                                 activeFilters.type === opt.value
                                     ? "bg-foreground text-background shadow-sm"
                                     : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -263,7 +263,7 @@ export function PromotionsContent() {
                         <p className="text-xs text-muted-foreground/60 mt-1">Tambahkan promo pertama Anda</p>
                     </div>
                 ) : (
-                    <div className={loading ? "space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-3"}>
+                    <div className={loading ? "space-y-2 sm:space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-2 sm:space-y-3"}>
                     {data.promotions.map((row) => {
                         const t = typeLabels[row.type];
                         const TypeIcon = t?.icon || Percent;
@@ -272,17 +272,17 @@ export function PromotionsContent() {
                         return (
                             <div
                                 key={row.id}
-                                className={`rounded-xl border bg-white hover:shadow-md transition-all group p-4 border-l-4 ${t?.borderColor || "border-l-slate-300"}`}
+                                className={`rounded-xl border bg-white hover:shadow-md transition-all group p-3 sm:p-4 border-l-4 ${t?.borderColor || "border-l-slate-300"}`}
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-start sm:items-center gap-2 sm:gap-4">
                                     {/* Left: Type Icon */}
-                                    <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
-                                        <TypeIcon className="w-5 h-5" />
+                                    <div className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
+                                        <TypeIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                                     </div>
 
                                     {/* Middle: Info */}
                                     <div className="flex-1 min-w-0 space-y-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
                                             <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
                                                 {t?.label || row.type}
@@ -293,24 +293,37 @@ export function PromotionsContent() {
                                         </p>
                                         <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
                                             <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
-                                            <span className="font-mono tabular-nums">
+                                            <span className="font-mono tabular-nums text-[11px] sm:text-xs">
                                                 {format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}
                                             </span>
                                             {isExpired && (
                                                 <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Expired</span>
                                             )}
                                         </div>
+                                        {/* Mobile: value + status + actions */}
+                                        <div className="flex sm:hidden items-center gap-2 pt-1 flex-wrap">
+                                            <div>{renderValue(row)}</div>
+                                            <div>{renderStatus(row)}</div>
+                                            <div className="flex gap-0.5 ml-auto">
+                                                <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </Button>
+                                                <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    {/* Right: Value + Status + Actions */}
-                                    <div className="flex items-center gap-4 shrink-0">
+                                    {/* Right: Value + Status + Actions (desktop) */}
+                                    <div className="hidden sm:flex items-center gap-4 shrink-0">
                                         <div className="text-right">
                                             {renderValue(row)}
                                         </div>
                                         <div>
                                             {renderStatus(row)}
                                         </div>
-                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                                             <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
                                                 <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openForm(row)}>
                                                     <Pencil className="w-3.5 h-3.5" />
@@ -343,9 +356,9 @@ export function PromotionsContent() {
 
             {/* Promo Form Dialog */}
             <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
-                <DialogContent className="rounded-2xl w-[95vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl -mt-6 mb-2" />
-                    <DialogHeader><DialogTitle className="text-lg font-bold">{editing ? "Edit Promo" : "Tambah Promo Baru"}</DialogTitle></DialogHeader>
+                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+                    <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-t-2xl shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 shrink-0"><DialogTitle className="text-base sm:text-lg font-bold">{editing ? "Edit Promo" : "Tambah Promo Baru"}</DialogTitle></DialogHeader>
                     {open && (
                         <PromotionForm
                             key={editing?.id ?? "new"}

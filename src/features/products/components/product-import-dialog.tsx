@@ -235,7 +235,7 @@ export function ProductImportDialog({ open, onOpenChange, onImported }: Props) {
 
     return (
         <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
-            <DialogContent className="rounded-2xl w-[95vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogContent className="rounded-xl sm:rounded-2xl max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
                 {/* Gradient accent */}
                 <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-t-2xl -mt-6 mb-2" />
 
