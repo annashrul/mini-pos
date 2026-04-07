@@ -671,8 +671,8 @@ export function PurchasesContent() {
 
                                     <div className="p-3 sm:p-4 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
                                         {/* Icon — hidden on mobile */}
-                                        <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${iconBg} items-center justify-center shadow-sm shrink-0`}>
-                                            <ClipboardList className="w-4.5 h-4.5" />
+                                        <div className={`flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${iconBg} items-center justify-center shadow-sm shrink-0`}>
+                                            <ClipboardList className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                                         </div>
 
                                         {/* PO info */}

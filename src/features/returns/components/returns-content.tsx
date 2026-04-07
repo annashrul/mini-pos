@@ -408,9 +408,9 @@ export function ReturnsContent() {
                             <CardContent className="p-2.5 sm:p-4">
                                 <div className="flex items-center gap-2 sm:gap-3">
                                     <div
-                                        className={`hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-sm`}
+                                        className={`flex h-7 w-7 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br ${card.gradient} text-white shadow-sm`}
                                     >
-                                        <Icon className="h-5 w-5" />
+                                        <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                                     </div>
                                     <div className="min-w-0">
                                         <p className="text-[10px] sm:text-xs font-medium text-gray-500 truncate">

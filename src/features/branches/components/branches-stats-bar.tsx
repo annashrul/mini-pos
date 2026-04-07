@@ -33,8 +33,8 @@ export function BranchesStatsBar(props: {
             {items.map((item) => (
                 <div key={item.label} className={`rounded-xl bg-gradient-to-r ${item.bg} border ${item.border} p-2.5 sm:p-4`}>
                     <div className="flex items-center gap-2 sm:gap-3">
-                        <div className={`hidden sm:flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br ${item.gradient} shadow-sm ${item.shadow} shrink-0`}>
-                            <item.icon className="w-4 h-4 text-white" />
+                        <div className={`flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br ${item.gradient} shadow-sm ${item.shadow} shrink-0`}>
+                            <item.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                         </div>
                         <div>
                             <p className="text-lg sm:text-xl font-bold tabular-nums text-foreground">{item.value}</p>

@@ -143,8 +143,8 @@ export function CustomerIntelligenceContent() {
                                 <p className="text-sm sm:text-xl font-bold text-slate-900 tabular-nums">{totalCustomers.toLocaleString()}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">Semua pelanggan terdaftar</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 items-center justify-center shadow-lg shadow-violet-500/25">
-                                <Users className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 items-center justify-center shadow-md sm:shadow-lg shadow-violet-500/25 shrink-0">
+                                <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -162,8 +162,8 @@ export function CustomerIntelligenceContent() {
                                     {totalCustomers > 0 ? `${Math.round((repeatCount / totalCustomers) * 100)}% retention rate` : "Belum ada data"}
                                 </p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 items-center justify-center shadow-lg shadow-emerald-500/25">
-                                <UserCheck className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 items-center justify-center shadow-md sm:shadow-lg shadow-emerald-500/25 shrink-0">
+                                <UserCheck className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -179,8 +179,8 @@ export function CustomerIntelligenceContent() {
                                 <p className="text-sm sm:text-xl font-bold text-purple-600 tabular-nums">{totalPoints.toLocaleString()}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">Akumulasi loyalty points</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 items-center justify-center shadow-lg shadow-purple-500/25">
-                                <Zap className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 items-center justify-center shadow-md sm:shadow-lg shadow-purple-500/25 shrink-0">
+                                <Zap className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -196,8 +196,8 @@ export function CustomerIntelligenceContent() {
                                 <p className="text-sm sm:text-xl font-bold text-indigo-600 tabular-nums">{formatCurrency(totalSpendingAll)}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">Revenue dari member</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-lg shadow-indigo-500/25">
-                                <TrendingUp className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 items-center justify-center shadow-md sm:shadow-lg shadow-indigo-500/25 shrink-0">
+                                <TrendingUp className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>

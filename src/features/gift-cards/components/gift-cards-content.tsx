@@ -456,8 +456,8 @@ export function GiftCardsContent() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <div className="bg-white rounded-xl sm:rounded-2xl border border-emerald-100 p-2.5 sm:p-4 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-emerald-50 items-center justify-center">
-              <CreditCard className="w-5 h-5 text-emerald-600" />
+            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-50 items-center justify-center shrink-0">
+              <CreditCard className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600" />
             </div>
             <div>
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
@@ -471,8 +471,8 @@ export function GiftCardsContent() {
         </div>
         <div className="bg-white rounded-xl sm:rounded-2xl border border-violet-100 p-2.5 sm:p-4 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-violet-50 items-center justify-center">
-              <Wallet className="w-5 h-5 text-violet-600" />
+            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-violet-50 items-center justify-center shrink-0">
+              <Wallet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-violet-600" />
             </div>
             <div>
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
@@ -486,8 +486,8 @@ export function GiftCardsContent() {
         </div>
         <div className="bg-white rounded-xl sm:rounded-2xl border border-blue-100 p-2.5 sm:p-4 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-blue-50 items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
+            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 items-center justify-center shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-600" />
             </div>
             <div>
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">
@@ -501,8 +501,8 @@ export function GiftCardsContent() {
         </div>
         <div className="bg-white rounded-xl sm:rounded-2xl border border-amber-100 p-2.5 sm:p-4 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-amber-50 items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-50 items-center justify-center shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-amber-600" />
             </div>
             <div>
               <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">

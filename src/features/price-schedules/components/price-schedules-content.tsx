@@ -332,8 +332,8 @@ export function PriceSchedulesContent() {
               className={`rounded-xl border ${card.border} ${card.bg} p-2.5 sm:p-4 transition-all`}
             >
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className={`hidden sm:flex rounded-lg ${card.bg} p-2`}>
-                  <Icon className={`h-5 w-5 ${card.color}`} />
+                <div className={`flex rounded-lg ${card.bg} p-1.5 sm:p-2 shrink-0`}>
+                  <Icon className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${card.color}`} />
                 </div>
                 <div>
                   <p className="text-[10px] sm:text-xs text-muted-foreground">{card.label}</p>

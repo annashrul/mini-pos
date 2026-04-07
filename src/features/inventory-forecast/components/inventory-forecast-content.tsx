@@ -307,18 +307,17 @@ export function InventoryForecastContent() {
               onClick={() => setRiskFilter(prev => prev === card.key ? "ALL" : card.key)}
             >
               <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
-                <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} ${card.shadow} shadow-md items-center justify-center mb-3`}>
-                  <span className="text-white font-bold text-lg">{card.count}</span>
+                <div className={`flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${card.gradient} ${card.shadow} shadow-md items-center justify-center mb-2 sm:mb-3 shrink-0`}>
+                  <span className="text-white font-bold text-xs sm:text-lg">{card.count}</span>
                 </div>
-                <p className="text-sm sm:text-xl font-bold text-slate-800 sm:hidden">{card.count}</p>
                 <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{card.label}</p>
               </CardContent>
             </Card>
           ))}
           <Card>
             <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
-              <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 shadow-md shadow-slate-200 items-center justify-center mb-3">
-                <ShoppingCart className="w-5 h-5 text-white" />
+              <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 shadow-md shadow-slate-200 items-center justify-center mb-2 sm:mb-3 shrink-0">
+                <ShoppingCart className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
               </div>
               <p className="text-sm sm:text-xl font-bold sm:font-semibold text-slate-800">{summary.productsNeedingReorder}</p>
               <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Perlu Reorder</p>

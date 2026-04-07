@@ -178,8 +178,8 @@ function AnalyticsContentInner() {
                                 <p className="text-sm sm:text-xl font-bold text-slate-900 tabular-nums">{negativeMargins.length}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">produk merugi</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 items-center justify-center shadow-lg shadow-red-500/25">
-                                <TrendingDown className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-600 items-center justify-center shadow-md sm:shadow-lg shadow-red-500/25 shrink-0">
+                                <TrendingDown className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -195,8 +195,8 @@ function AnalyticsContentInner() {
                                 <p className="text-sm sm:text-xl font-bold text-orange-600 tabular-nums">{inventory.deadStock.length}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">produk tidak terjual</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 items-center justify-center shadow-lg shadow-orange-500/25">
-                                <PackageX className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 items-center justify-center shadow-md sm:shadow-lg shadow-orange-500/25 shrink-0">
+                                <PackageX className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -212,8 +212,8 @@ function AnalyticsContentInner() {
                                 <p className="text-sm sm:text-xl font-bold text-amber-600 tabular-nums">{formatCurrency(inventory.deadStockValue)}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">modal tertahan</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 items-center justify-center shadow-lg shadow-amber-500/25">
-                                <DollarSign className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 items-center justify-center shadow-md sm:shadow-lg shadow-amber-500/25 shrink-0">
+                                <DollarSign className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>
@@ -229,8 +229,8 @@ function AnalyticsContentInner() {
                                 <p className="text-sm sm:text-xl font-bold text-purple-600 tabular-nums">{inventory.slowMoving.length}</p>
                                 <p className="text-[10px] sm:text-xs text-slate-400">produk lambat terjual</p>
                             </div>
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 items-center justify-center shadow-lg shadow-purple-500/25">
-                                <Snail className="w-6 h-6 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 items-center justify-center shadow-md sm:shadow-lg shadow-purple-500/25 shrink-0">
+                                <Snail className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                         </div>
                     </CardContent>

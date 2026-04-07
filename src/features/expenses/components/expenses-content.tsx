@@ -214,8 +214,8 @@ export function ExpensesContent() {
                 <Card className="rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-2.5 sm:p-5">
                         <div className="flex items-center justify-between mb-2 sm:mb-3">
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-500 items-center justify-center shadow-md shadow-rose-200">
-                                <Wallet className="w-5 h-5 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-rose-500 to-red-500 items-center justify-center shadow-md shadow-rose-200 shrink-0">
+                                <Wallet className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">Total</span>
                         </div>
@@ -226,8 +226,8 @@ export function ExpensesContent() {
                 <Card className="rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-2.5 sm:p-5">
                         <div className="flex items-center justify-between mb-2 sm:mb-3">
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 items-center justify-center shadow-md shadow-violet-200">
-                                <CalendarDays className="w-5 h-5 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 items-center justify-center shadow-md shadow-violet-200 shrink-0">
+                                <CalendarDays className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <TrendingDown className="w-4 h-4 text-slate-300" />
                         </div>
@@ -238,8 +238,8 @@ export function ExpensesContent() {
                 <Card className="col-span-2 lg:col-span-1 rounded-xl sm:rounded-2xl border-border/30 shadow-sm hover:shadow-md transition-shadow">
                     <CardContent className="p-2.5 sm:p-5">
                         <div className="flex items-center justify-between mb-2 sm:mb-3">
-                            <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 items-center justify-center shadow-md shadow-amber-200">
-                                <ReceiptText className="w-5 h-5 text-white" />
+                            <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 items-center justify-center shadow-md shadow-amber-200 shrink-0">
+                                <ReceiptText className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                             </div>
                             <span className="text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">{data.total} data</span>
                         </div>
