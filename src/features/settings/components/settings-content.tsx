@@ -195,7 +195,8 @@ export function SettingsContent() {
                 <div className={!canUpdate ? "pointer-events-none opacity-70" : ""}>
                 {/* ====== POS Settings Tab ====== */}
                 <TabsContent value="pos" className="space-y-5">
-                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 max-w-2xl shadow-sm">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
                                 <ShoppingCart className="w-5 h-5 text-white" />
@@ -352,7 +353,7 @@ export function SettingsContent() {
                         </div>
                     </div>
                     {/* Kitchen Display Section */}
-                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 max-w-2xl shadow-sm">
+                    <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
                                 <ChefHat className="w-5 h-5 text-white" />
@@ -419,6 +420,7 @@ export function SettingsContent() {
                             </div>
                         </div>
                     </div>
+                  </div>
                 </TabsContent>
 
                 {/* ====== Tab Toko & Struk ====== */}

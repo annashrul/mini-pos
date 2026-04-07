@@ -18,6 +18,7 @@ import {
     PieChart,
     Wallet,
     SlidersHorizontal,
+    Search,
 } from "lucide-react";
 import {
     useAccountingReports,
@@ -172,17 +173,93 @@ function TrialBalanceTab({ date, setDate, branchId }: {
         return Array.from(map.entries());
     }, [filtered]);
 
+    const trialPresets = getSingleDatePresets();
+    const [trialPresetKey, setTrialPresetKey] = useState<PresetKey>("today");
+
+    const handleTrialPreset = (p: Preset) => {
+        setTrialPresetKey(p.key);
+        setDate(p.to);
+    };
+
     return (
         <div className="space-y-5">
-            {/* Filter */}
-            <SingleDateFilter date={date} setDate={setDate} onGenerate={() => { }} isPending={isPending} icon={BarChart3}
-                badge={data && (
-                    <Badge className={`gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${data.isBalanced ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
-                        {data.isBalanced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                        {data.isBalanced ? "Balance" : "Selisih " + formatAccountingCurrency(data.difference)}
-                    </Badge>
-                )}
-            />
+            {/* Filter: search + date presets */}
+            <Card className="rounded-2xl border-0 shadow-sm bg-white">
+                <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
+                    {/* Mobile: stacked search + date pills */}
+                    <div className="sm:hidden space-y-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari kode atau nama akun..."
+                                value={q}
+                                onChange={(e) => setQ(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-9"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                            {trialPresets.map((p) => (
+                                <button key={p.key} type="button" onClick={() => handleTrialPreset(p)}
+                                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === p.key ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                    {p.label}
+                                </button>
+                            ))}
+                            <button type="button" onClick={() => setTrialPresetKey("custom")}
+                                className={`flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === "custom" ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                <SlidersHorizontal className="w-3 h-3" />
+                                Custom
+                            </button>
+                            {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                            {data && (
+                                <Badge className={`shrink-0 gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${data.isBalanced ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                                    {data.isBalanced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                    {data.isBalanced ? "Balance" : "Selisih " + formatAccountingCurrency(data.difference)}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Desktop: search left + date pills right */}
+                    <div className="hidden sm:flex items-center justify-between gap-4">
+                        <div className="relative flex-1 max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Cari kode atau nama akun..."
+                                value={q}
+                                onChange={(e) => setQ(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-10"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {trialPresets.map((p) => (
+                                <button key={p.key} type="button" onClick={() => handleTrialPreset(p)}
+                                    className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === p.key ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                    {p.label}
+                                </button>
+                            ))}
+                            <button type="button" onClick={() => setTrialPresetKey("custom")}
+                                className={`flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === "custom" ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                <SlidersHorizontal className="w-3 h-3" />
+                                Custom
+                            </button>
+                            {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                            {data && (
+                                <Badge className={`gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${data.isBalanced ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                                    {data.isBalanced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                    {data.isBalanced ? "Balance" : "Selisih " + formatAccountingCurrency(data.difference)}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Custom date picker */}
+                    {trialPresetKey === "custom" && (
+                        <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-full sm:w-[180px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Summary cards */}
             {data && (
@@ -205,20 +282,6 @@ function TrialBalanceTab({ date, setDate, branchId }: {
                             <p className="text-xl font-extrabold font-mono tabular-nums text-slate-700 mt-1">{data.rows.length}</p>
                         </CardContent>
                     </Card>
-                </div>
-            )}
-
-            {/* Search */}
-            {data && data.rows.length > 0 && (
-                <div className="relative max-w-sm">
-                    <BarChart3 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                        type="text"
-                        placeholder="Cari kode atau nama akun..."
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all"
-                    />
                 </div>
             )}
 

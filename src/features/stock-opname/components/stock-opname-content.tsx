@@ -409,32 +409,59 @@ export function StockOpnameContent() {
             </div>
 
             {/* Search bar + Status filter pills */}
-            <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                    <div className="relative flex-1 sm:max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <Input
-                            value={search}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Cari nomor opname..."
-                            className="pl-10 rounded-xl h-9 sm:h-10 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
-                        />
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-1.5 bg-slate-100/80 rounded-xl p-1 overflow-x-auto scrollbar-hide">
-                        {statusPills.map((pill) => (
-                            <button
-                                key={pill.value}
-                                onClick={() => handleStatusFilter(pill.value)}
-                                className={`shrink-0 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                    activeFilters.status === pill.value
-                                        ? "bg-white text-slate-800 shadow-sm"
-                                        : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
-                                }`}
-                            >
-                                {pill.label}
-                            </button>
-                        ))}
-                    </div>
+            {/* Mobile: stacked search + scroll pills */}
+            <div className="sm:hidden space-y-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari nomor opname..."
+                        className="pl-10 rounded-xl h-9 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
+                    />
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                    {statusPills.map((pill) => (
+                        <button
+                            key={pill.value}
+                            onClick={() => handleStatusFilter(pill.value)}
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                                activeFilters.status === pill.value
+                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
+                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                        >
+                            {pill.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Desktop: search left + pills right */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari nomor opname..."
+                        className="pl-10 rounded-xl h-10 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
+                    />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {statusPills.map((pill) => (
+                        <button
+                            key={pill.value}
+                            onClick={() => handleStatusFilter(pill.value)}
+                            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                                activeFilters.status === pill.value
+                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
+                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                        >
+                            {pill.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 

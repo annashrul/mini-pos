@@ -586,27 +586,57 @@ export function PurchasesContent() {
             </div>
 
             {/* Search bar + Status filter pills */}
-            <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                    <div className="relative flex-1 sm:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Cari PO berdasarkan nomor, supplier..."
-                            className="pl-10 rounded-xl border-slate-200 bg-white h-9 sm:h-10 text-sm"
-                        />
-                        {loading && (
-                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
-                        )}
-                    </div>
+            {/* Mobile: stacked search + scroll pills */}
+            <div className="sm:hidden space-y-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari PO berdasarkan nomor, supplier..."
+                        className="pl-10 rounded-xl border-slate-200 bg-white h-9 text-sm"
+                    />
+                    {loading && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+                    )}
                 </div>
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                     {statusFilterPills.map((pill) => (
                         <button
                             key={pill.value}
                             onClick={() => handleStatusFilter(pill.value)}
-                            className={`shrink-0 px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                                activeFilters.status === pill.value
+                                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
+                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                        >
+                            {pill.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Desktop: search left + pills right */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari PO berdasarkan nomor, supplier..."
+                        className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm"
+                    />
+                    {loading && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
+                    )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {statusFilterPills.map((pill) => (
+                        <button
+                            key={pill.value}
+                            onClick={() => handleStatusFilter(pill.value)}
+                            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                                 activeFilters.status === pill.value
                                     ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
                                     : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"

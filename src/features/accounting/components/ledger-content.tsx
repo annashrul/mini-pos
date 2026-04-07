@@ -208,70 +208,131 @@ export function LedgerContent() {
             {/* Filter Section */}
             <Card className="rounded-2xl border-0 shadow-sm bg-white">
                 <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
-                    {/* Account combobox — full width on mobile */}
-                    <Popover open={accountOpen} onOpenChange={setAccountOpen}>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                role="combobox"
-                                className="w-full sm:w-[320px] justify-between rounded-xl font-normal h-9 border-gray-200 hover:border-gray-300 transition-colors text-sm"
-                            >
-                                {selectedAccount ? (
-                                    <span className="flex items-center gap-2 truncate">
-                                        <span className="font-mono text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                                            {selectedAccount.code}
+                    {/* Mobile: stacked account combobox + date presets */}
+                    <div className="sm:hidden space-y-3">
+                        <Popover open={accountOpen} onOpenChange={setAccountOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between rounded-xl font-normal h-9 border-gray-200 hover:border-gray-300 transition-colors text-sm"
+                                >
+                                    {selectedAccount ? (
+                                        <span className="flex items-center gap-2 truncate">
+                                            <span className="font-mono text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                {selectedAccount.code}
+                                            </span>
+                                            <span className="text-gray-700 truncate">{selectedAccount.name}</span>
                                         </span>
-                                        <span className="text-gray-700 truncate">{selectedAccount.name}</span>
-                                    </span>
-                                ) : (
-                                    <span className="text-gray-400">Pilih akun...</span>
-                                )}
-                                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] p-0" align="start">
-                            <Command>
-                                <CommandInput placeholder="Cari kode atau nama akun..." />
-                                <CommandList>
-                                    <CommandEmpty>Tidak ditemukan</CommandEmpty>
-                                    <CommandGroup>
-                                        {accounts.map((a) => (
-                                            <CommandItem
-                                                key={a.id}
-                                                value={`${a.code} ${a.name}`}
-                                                onSelect={() => {
-                                                    setSelectedAccountId(a.id);
-                                                    setAccountOpen(false);
-                                                }}
-                                            >
-                                                <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedAccountId === a.id ? "opacity-100 text-violet-600" : "opacity-0")} />
-                                                <span className="font-mono text-xs text-gray-400 mr-2">{a.code}</span>
-                                                <span className="flex-1 truncate">{a.name}</span>
-                                                <Badge variant="outline" className="ml-auto text-[10px] font-normal hidden sm:inline-flex">{a.category}</Badge>
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
-
-                    {/* Date preset tabs — scrollable on mobile */}
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center bg-slate-100/80 rounded-xl p-1 gap-0.5 overflow-x-auto scrollbar-hide w-full sm:w-auto">
+                                    ) : (
+                                        <span className="text-gray-400">Pilih akun...</span>
+                                    )}
+                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-40" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Cari kode atau nama akun..." />
+                                    <CommandList>
+                                        <CommandEmpty>Tidak ditemukan</CommandEmpty>
+                                        <CommandGroup>
+                                            {accounts.map((a) => (
+                                                <CommandItem
+                                                    key={a.id}
+                                                    value={`${a.code} ${a.name}`}
+                                                    onSelect={() => {
+                                                        setSelectedAccountId(a.id);
+                                                        setAccountOpen(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedAccountId === a.id ? "opacity-100 text-violet-600" : "opacity-0")} />
+                                                    <span className="font-mono text-xs text-gray-400 mr-2">{a.code}</span>
+                                                    <span className="flex-1 truncate">{a.name}</span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                             {presets.map((p) => (
                                 <button key={p.key} type="button" onClick={() => handlePresetSelect(p)}
-                                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap shrink-0 ${selectedPresetKey === p.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === p.key ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
                                     {p.label}
                                 </button>
                             ))}
                             <button type="button" onClick={() => setSelectedPresetKey("custom")}
-                                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap shrink-0 ${selectedPresetKey === "custom" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                                className={`flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === "custom" ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
                                 <SlidersHorizontal className="w-3 h-3" />
                                 Custom
                             </button>
+                            {loading && <Loader2 className="w-4 h-4 animate-spin text-violet-400 shrink-0" />}
                         </div>
-                        {loading && <Loader2 className="w-4 h-4 animate-spin text-violet-400 shrink-0" />}
+                    </div>
+
+                    {/* Desktop: account combobox left + date presets right */}
+                    <div className="hidden sm:flex items-center justify-between gap-4">
+                        <Popover open={accountOpen} onOpenChange={setAccountOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-[320px] justify-between rounded-xl font-normal h-10 border-gray-200 hover:border-gray-300 transition-colors text-sm"
+                                >
+                                    {selectedAccount ? (
+                                        <span className="flex items-center gap-2 truncate">
+                                            <span className="font-mono text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                {selectedAccount.code}
+                                            </span>
+                                            <span className="text-gray-700 truncate">{selectedAccount.name}</span>
+                                        </span>
+                                    ) : (
+                                        <span className="text-gray-400">Pilih akun...</span>
+                                    )}
+                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-40" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[420px] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Cari kode atau nama akun..." />
+                                    <CommandList>
+                                        <CommandEmpty>Tidak ditemukan</CommandEmpty>
+                                        <CommandGroup>
+                                            {accounts.map((a) => (
+                                                <CommandItem
+                                                    key={a.id}
+                                                    value={`${a.code} ${a.name}`}
+                                                    onSelect={() => {
+                                                        setSelectedAccountId(a.id);
+                                                        setAccountOpen(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedAccountId === a.id ? "opacity-100 text-violet-600" : "opacity-0")} />
+                                                    <span className="font-mono text-xs text-gray-400 mr-2">{a.code}</span>
+                                                    <span className="flex-1 truncate">{a.name}</span>
+                                                    <Badge variant="outline" className="ml-auto text-[10px] font-normal">{a.category}</Badge>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                            {presets.map((p) => (
+                                <button key={p.key} type="button" onClick={() => handlePresetSelect(p)}
+                                    className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === p.key ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                    {p.label}
+                                </button>
+                            ))}
+                            <button type="button" onClick={() => setSelectedPresetKey("custom")}
+                                className={`flex items-center gap-1 shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === "custom" ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                                <SlidersHorizontal className="w-3 h-3" />
+                                Custom
+                            </button>
+                            {loading && <Loader2 className="w-4 h-4 animate-spin text-violet-400 shrink-0" />}
+                        </div>
                     </div>
 
                     {/* Custom date pickers */}

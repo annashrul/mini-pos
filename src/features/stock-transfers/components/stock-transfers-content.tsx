@@ -437,24 +437,50 @@ export function StockTransfersContent() {
             </div>
 
             {/* Search Bar + Status Filter Pills */}
-            <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                    <div className="relative flex-1 sm:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(e) => handleSearchChange(e.target.value)}
-                            placeholder="Cari nomor transfer, cabang..."
-                            className="pl-9 rounded-xl h-9 sm:h-10 text-sm"
-                        />
-                    </div>
+            {/* Mobile: stacked search + scroll pills */}
+            <div className="sm:hidden space-y-3">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari nomor transfer, cabang..."
+                        className="pl-9 rounded-xl h-9 text-sm"
+                    />
                 </div>
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
                     {STATUS_PILLS.map((pill) => (
                         <button
                             key={pill.value}
                             onClick={() => handleStatusPill(pill.value)}
-                            className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all ${activeFilters.status === pill.value
+                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${activeFilters.status === pill.value
+                                ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
+                                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                                }`}
+                        >
+                            {pill.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Desktop: search left + pills right */}
+            <div className="hidden sm:flex items-center justify-between gap-4">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                        value={search}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        placeholder="Cari nomor transfer, cabang..."
+                        className="pl-9 rounded-xl h-10 text-sm"
+                    />
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {STATUS_PILLS.map((pill) => (
+                        <button
+                            key={pill.value}
+                            onClick={() => handleStatusPill(pill.value)}
+                            className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${activeFilters.status === pill.value
                                 ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
                                 : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
                                 }`}
