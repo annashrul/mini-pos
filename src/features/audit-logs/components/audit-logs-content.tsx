@@ -82,6 +82,13 @@ export function AuditLogsContent() {
         fetchData({ filters: f, page: 1 });
     };
 
+    const handleFilterBatch = (updates: Record<string, string>) => {
+        const f = { ...activeFilters, ...updates };
+        setActiveFilters(f);
+        setPage(1);
+        fetchData({ filters: f, page: 1 });
+    };
+
 
     // Group logs by date
     const groupedLogs = useMemo(() => {
@@ -107,6 +114,7 @@ export function AuditLogsContent() {
                 onSearchChange={(v) => { setSearch(v); setPage(1); fetchData({ search: v, page: 1 }); }}
                 filters={activeFilters}
                 onFilterChange={handleFilterChange}
+                onFilterBatch={handleFilterBatch}
                 onRefresh={() => fetchData({})}
                 loading={loading}
             />

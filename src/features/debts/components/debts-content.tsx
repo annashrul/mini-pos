@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getDebts, getDebtById, createDebt, updateDebt, deleteDebt, addDebtPayment, getDebtSummary } from "@/features/debts";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +28,9 @@ import {
     Clock,
     CreditCard,
     Banknote,
+    SlidersHorizontal,
+    Check,
+    ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -139,6 +143,11 @@ export function DebtsContent() {
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("ALL");
     const [statusFilter, setStatusFilter] = useState("ALL");
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [draftType, setDraftType] = useState("ALL");
+    const [draftStatus, setDraftStatus] = useState("ALL");
+    const [typeExpanded, setTypeExpanded] = useState(true);
+    const [statusExpanded, setStatusExpanded] = useState(true);
     const [loading, startTransition] = useTransition();
 
     // dialogs
@@ -438,28 +447,117 @@ export function DebtsContent() {
                 )}
             </div>
 
-            {/* Mobile: stacked search + scroll pills */}
-            <div className="sm:hidden space-y-3">
-                <div className="relative">
+            {/* Mobile: search + filter button + bottom sheet */}
+            <div className="sm:hidden flex items-center gap-2">
+                <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
                     <Input placeholder="Cari nama, deskripsi..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-9 text-sm" />
                 </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                    {typeFilterOptions.map((opt) => (
-                        <button key={opt.value} onClick={() => handleTypeFilter(opt.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${typeFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                            {opt.label}
-                        </button>
-                    ))}
-                    <div className="h-4 w-px bg-border/40 shrink-0" />
-                    {statusFilterOptions.map((opt) => (
-                        <button key={opt.value} onClick={() => handleStatusFilter(opt.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${statusFilter === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                            {opt.label}
-                        </button>
-                    ))}
-                </div>
+                <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => { setDraftType(typeFilter); setDraftStatus(statusFilter); setFilterSheetOpen(true); }}>
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span className="text-xs">Filter</span>
+                    {(typeFilter !== "ALL" || statusFilter !== "ALL") && (
+                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center">
+                            {(typeFilter !== "ALL" ? 1 : 0) + (statusFilter !== "ALL" ? 1 : 0)}
+                        </span>
+                    )}
+                </Button>
+                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        {/* Header */}
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="px-4 pb-3 pt-0">
+                                <SheetTitle className="text-base font-bold">Filter</SheetTitle>
+                            </SheetHeader>
+                        </div>
+
+                        {/* Body - scrollable */}
+                        <div className="flex-1 overflow-y-auto px-4 space-y-3">
+                            {/* Tipe */}
+                            <div>
+                                <button
+                                    onClick={() => setTypeExpanded(!typeExpanded)}
+                                    className="w-full flex items-center justify-between py-2"
+                                >
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tipe</p>
+                                    <div className="flex items-center gap-1.5">
+                                        {draftType !== "ALL" && (
+                                            <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5">
+                                                {typeFilterOptions.find((o) => o.value === draftType)?.label}
+                                            </span>
+                                        )}
+                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", typeExpanded && "rotate-180")} />
+                                    </div>
+                                </button>
+                                {typeExpanded && (
+                                    <div className="space-y-1">
+                                        {typeFilterOptions.map((opt) => {
+                                            const isActive = draftType === opt.value;
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => setDraftType(opt.value)}
+                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
+                                                >
+                                                    <span>{opt.label}</span>
+                                                    {isActive && <Check className="w-4 h-4" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                            {/* Status */}
+                            <div>
+                                <button
+                                    onClick={() => setStatusExpanded(!statusExpanded)}
+                                    className="w-full flex items-center justify-between py-2"
+                                >
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</p>
+                                    <div className="flex items-center gap-1.5">
+                                        {draftStatus !== "ALL" && (
+                                            <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5">
+                                                {statusFilterOptions.find((o) => o.value === draftStatus)?.label}
+                                            </span>
+                                        )}
+                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", statusExpanded && "rotate-180")} />
+                                    </div>
+                                </button>
+                                {statusExpanded && (
+                                    <div className="space-y-1">
+                                        {statusFilterOptions.map((opt) => {
+                                            const isActive = draftStatus === opt.value;
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => setDraftStatus(opt.value)}
+                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
+                                                >
+                                                    <span>{opt.label}</span>
+                                                    {isActive && <Check className="w-4 h-4" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Footer - fixed */}
+                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => { setDraftType("ALL"); setDraftStatus("ALL"); }}>
+                                Reset
+                            </Button>
+                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => { handleTypeFilter(draftType); handleStatusFilter(draftStatus); setFilterSheetOpen(false); }}>
+                                Terapkan Filter
+                            </Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
             </div>
 
             {/* Desktop: search left + pills right, 1 row */}

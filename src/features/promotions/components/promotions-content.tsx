@@ -9,8 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2, SlidersHorizontal, Check } from "lucide-react";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -47,6 +50,7 @@ export function PromotionsContent() {
     const [sortKey] = useState("");
     const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const { canAction, cannotMessage } = useMenuActionAccess("promotions");
     const canCreate = canAction("create");
     const canUpdate = canAction("update");
@@ -202,21 +206,45 @@ export function PromotionsContent() {
             </div>
 
             {/* Search + Filter Bar */}
-            {/* Mobile: stacked search + scroll pills */}
-            <div className="sm:hidden space-y-3">
-                <div className="relative">
+            {/* Mobile: search + filter button + bottom sheet */}
+            <div className="sm:hidden flex items-center gap-2">
+                <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
                     {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                    {typeFilterOptions.map((opt) => (
-                        <button key={opt.value} onClick={() => handleFilterType(opt.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${activeFilters.type === opt.value ? "bg-foreground text-background shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                            {opt.label}
-                        </button>
-                    ))}
-                </div>
+                <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span className="text-xs">Filter</span>
+                    {activeFilters.type !== "ALL" && (
+                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center">1</span>
+                    )}
+                </Button>
+                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-6 pt-0" showCloseButton={false}>
+                        <div className="flex justify-center pt-3 pb-2">
+                            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                        </div>
+                        <SheetHeader className="p-0 pb-4">
+                            <SheetTitle className="text-base font-bold">Filter Tipe Promo</SheetTitle>
+                        </SheetHeader>
+                        <div className="space-y-1">
+                            {typeFilterOptions.map((opt) => {
+                                const isActive = activeFilters.type === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { handleFilterType(opt.value); setFilterSheetOpen(false); }}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
+                                    >
+                                        <span>{opt.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </SheetContent>
+                </Sheet>
             </div>
 
             {/* Desktop: search left + pills right, 1 row */}
