@@ -25,12 +25,25 @@ export function UsersHeader(props: {
       <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
         <Button
           disabled={!canCreate}
-          className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+          className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
           onClick={onCreate}
         >
           <Plus className="w-4 h-4 mr-2" /> Tambah User
         </Button>
       </DisabledActionTooltip>
+
+      {/* Mobile: Floating button */}
+      {canCreate && (
+        <div className="sm:hidden fixed bottom-4 right-4 z-50">
+          <Button
+            onClick={onCreate}
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-xl shadow-primary/30 bg-gradient-to-br from-primary to-primary/80"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

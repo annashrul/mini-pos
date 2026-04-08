@@ -13,7 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,6 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DatePicker } from "@/components/ui/date-picker";
+import { TimePicker } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, Sun, Sunset, Moon, Clock } from "lucide-react";
 import { toast } from "sonner";
@@ -239,7 +239,7 @@ export function ScheduleDialog({
           <div className="space-y-4">
             {/* Employee Select */}
             <div className="space-y-2">
-              <Label>Karyawan</Label>
+              <Label>Karyawan <span className="text-red-500">*</span></Label>
               <Controller
                 control={control}
                 name="employeeId"
@@ -300,7 +300,7 @@ export function ScheduleDialog({
 
             {/* Date */}
             <div className="space-y-2">
-              <Label>Tanggal</Label>
+              <Label>Tanggal <span className="text-red-500">*</span></Label>
               <Controller
                 control={control}
                 name="date"
@@ -324,7 +324,7 @@ export function ScheduleDialog({
 
             {/* Shift Presets */}
             <div className="space-y-2">
-              <Label>Shift</Label>
+              <Label>Shift <span className="text-red-500">*</span></Label>
               <div className="grid grid-cols-4 gap-2">
                 {SHIFT_PRESETS.map((preset) => {
                   const Icon = preset.icon;
@@ -352,20 +352,32 @@ export function ScheduleDialog({
             {shiftPreset === "Custom" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Mulai</Label>
-                  <Input
-                    type="time"
-                    {...register("startTime")}
+                  <Label className="text-xs">Mulai <span className="text-red-500">*</span></Label>
+                  <Controller
+                    control={control}
+                    name="startTime"
+                    render={({ field }) => (
+                      <TimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    )}
                   />
                   {errors.startTime && (
                     <p className="text-xs text-red-500">{errors.startTime.message}</p>
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Selesai</Label>
-                  <Input
-                    type="time"
-                    {...register("endTime")}
+                  <Label className="text-xs">Selesai <span className="text-red-500">*</span></Label>
+                  <Controller
+                    control={control}
+                    name="endTime"
+                    render={({ field }) => (
+                      <TimePicker
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    )}
                   />
                   {errors.endTime && (
                     <p className="text-xs text-red-500">{errors.endTime.message}</p>

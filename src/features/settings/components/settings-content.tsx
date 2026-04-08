@@ -112,36 +112,37 @@ export function SettingsContent() {
     const basePoints = Math.floor(previewTransaction / pointCfg.earnRate);
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-4 sm:space-y-8">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
-                        <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                        <Settings className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Pengaturan</h1>
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+                            <h1 className="text-lg sm:text-3xl font-bold text-foreground tracking-tight">Pengaturan</h1>
                             {selectedBranchId ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
-                                    <MapPin className="w-3 h-3" />
-                                    Cabang: {selectedBranchName}
+                                <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] sm:text-xs font-semibold">
+                                    <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                    {selectedBranchName}
                                 </span>
                             ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium">
-                                    <Globe className="w-3 h-3" />
-                                    Global — berlaku untuk semua lokasi
+                                <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-slate-50 border border-slate-200 text-slate-600 text-[10px] sm:text-xs font-medium">
+                                    <Globe className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                    Global
                                 </span>
                             )}
                         </div>
-                        <p className="text-muted-foreground text-sm mt-1">Kelola konfigurasi sistem dan preferensi aplikasi</p>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola konfigurasi sistem</p>
                     </div>
                 </div>
+                {/* Desktop save button */}
                 <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
                     <Button
                         onClick={handleSave}
                         disabled={!canUpdate || isSaving || !hasChanges}
-                        className={`rounded-xl h-11 px-6 font-semibold transition-all duration-300 w-full sm:w-auto ${
+                        className={`hidden sm:inline-flex rounded-xl h-11 px-6 font-semibold transition-all duration-300 ${
                             hasChanges
                                 ? "bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg shadow-primary/25 text-white"
                                 : "bg-muted text-muted-foreground"
@@ -154,27 +155,27 @@ export function SettingsContent() {
             </div>
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
                 {/* Mobile: 5 equal tabs in grid */}
-                <TabsList className="sm:hidden grid grid-cols-5 w-full h-auto bg-muted/50 rounded-2xl p-1.5 gap-1">
-                    <TabsTrigger value="pos" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <ShoppingCart className="w-4 h-4" /> POS
+                <TabsList className="sm:hidden sticky top-0 z-40 grid grid-cols-5 w-full !h-auto bg-background/95 backdrop-blur-sm rounded-xl p-1 gap-0.5 shadow-sm">
+                    <TabsTrigger value="pos" className="rounded-lg py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <ShoppingCart className="w-3.5 h-3.5" /> POS
                     </TabsTrigger>
-                    <TabsTrigger value="store" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Store className="w-4 h-4" /> Struk
+                    <TabsTrigger value="store" className="rounded-lg py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Store className="w-3.5 h-3.5" /> Struk
                     </TabsTrigger>
-                    <TabsTrigger value="earn" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <Coins className="w-4 h-4" /> Poin
+                    <TabsTrigger value="earn" className="rounded-lg py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <Coins className="w-3.5 h-3.5" /> Poin
                     </TabsTrigger>
-                    <TabsTrigger value="redeem" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <ArrowRightLeft className="w-4 h-4" /> Tukar
+                    <TabsTrigger value="redeem" className="rounded-lg py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <ArrowRightLeft className="w-3.5 h-3.5" /> Tukar
                     </TabsTrigger>
-                    <TabsTrigger value="levels" className="rounded-xl py-2.5 text-[11px] font-medium flex flex-col items-center gap-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
-                        <TrendingUp className="w-4 h-4" /> Level
+                    <TabsTrigger value="levels" className="rounded-lg py-2 text-[10px] font-medium flex flex-col items-center gap-0.5 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
+                        <TrendingUp className="w-3.5 h-3.5" /> Level
                     </TabsTrigger>
                 </TabsList>
                 {/* Desktop: horizontal tabs */}
-                <TabsList className="hidden sm:flex rounded-2xl h-12 w-full bg-muted/50 p-1.5 gap-1">
+                <TabsList className="hidden sm:flex rounded-2xl !h-12 w-full bg-muted/50 p-1.5 gap-1">
                     <TabsTrigger value="pos" className="rounded-xl h-full text-sm gap-2 font-medium flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-primary transition-all">
                         <ShoppingCart className="w-4 h-4" /> POS
                     </TabsTrigger>
@@ -198,25 +199,27 @@ export function SettingsContent() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
                     <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 shadow-sm">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md shadow-blue-500/20">
                                 <ShoppingCart className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                                <h3 className="text-base font-semibold">Pengaturan POS</h3>
+                                <h3 className="text-sm sm:text-base font-semibold">Pengaturan POS</h3>
                                 <p className="text-sm text-muted-foreground mt-0.5">Konfigurasi perilaku kasir</p>
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             {/* Business Mode */}
-                            <div className="rounded-xl border border-border/40 p-4 space-y-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                                        <Utensils className="w-4 h-4" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium">Mode Bisnis</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Pilih jenis usaha untuk menyesuaikan fitur POS.</p>
+                            <div className="rounded-xl border border-border/40 p-3 sm:p-4 space-y-2 sm:space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                                    <div className="flex items-center gap-2 sm:gap-3 flex-1">
+                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                                            <Utensils className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs sm:text-sm font-medium">Mode Bisnis</p>
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Pilih jenis usaha untuk menyesuaikan fitur POS.</p>
+                                        </div>
                                     </div>
                                     <Select value={posCfg.businessMode} onValueChange={(v) => {
                                         const updates: Partial<PosConfig> = { businessMode: v };
@@ -228,7 +231,7 @@ export function SettingsContent() {
                                         setPosCfg({ ...posCfg, ...updates });
                                         setHasChanges(true);
                                     }}>
-                                        <SelectTrigger className="w-full sm:w-40 rounded-xl h-10">
+                                        <SelectTrigger className="w-full sm:w-40 rounded-xl">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -242,18 +245,18 @@ export function SettingsContent() {
 
                             {/* Show Table Number — only for restaurant/cafe */}
                             {(posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") && (
-                                <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                     posCfg.showTableNumber
                                         ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                         : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                                 }`}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.showTableNumber ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${posCfg.showTableNumber ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                             <LayoutGrid className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium">Tampilkan Nomor Meja</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">Menampilkan input nomor meja pada halaman POS.</p>
+                                            <p className="text-xs sm:text-sm font-medium">Tampilkan Nomor Meja</p>
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Menampilkan input nomor meja pada halaman POS.</p>
                                         </div>
                                     </div>
                                     <Switch checked={posCfg.showTableNumber} onCheckedChange={(v) => { setPosCfg({ ...posCfg, showTableNumber: v }); setHasChanges(true); }} />
@@ -262,18 +265,18 @@ export function SettingsContent() {
 
                             {/* Auto Send Kitchen — only for restaurant/cafe */}
                             {(posCfg.businessMode === "restaurant" || posCfg.businessMode === "cafe") && (
-                                <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                                <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                     posCfg.autoSendKitchen
                                         ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                         : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                                 }`}>
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.autoSendKitchen ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${posCfg.autoSendKitchen ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                             <Send className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium">Auto Kirim ke Kitchen</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">Otomatis kirim order ke kitchen display saat transaksi selesai.</p>
+                                            <p className="text-xs sm:text-sm font-medium">Auto Kirim ke Kitchen</p>
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Otomatis kirim order ke kitchen display saat transaksi selesai.</p>
                                         </div>
                                     </div>
                                     <Switch checked={posCfg.autoSendKitchen} onCheckedChange={(v) => { setPosCfg({ ...posCfg, autoSendKitchen: v }); setHasChanges(true); }} />
@@ -281,68 +284,68 @@ export function SettingsContent() {
                             )}
 
                             {/* Validate Stock */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 posCfg.validateStock
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.validateStock ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${posCfg.validateStock ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <Shield className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Validasi Stok</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Cek ketersediaan stok saat transaksi. Jika dimatikan, produk bisa dijual melebihi stok.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Validasi Stok</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Cek ketersediaan stok saat transaksi. Jika dimatikan, produk bisa dijual melebihi stok.</p>
                                     </div>
                                 </div>
                                 <Switch checked={posCfg.validateStock} onCheckedChange={(v) => { setPosCfg({ ...posCfg, validateStock: v }); setHasChanges(true); }} />
                             </div>
 
                             {/* Allow Negative Stock */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 posCfg.allowNegativeStock
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.allowNegativeStock ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${posCfg.allowNegativeStock ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <AlertTriangle className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Izinkan Stok Negatif</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Stok bisa menjadi minus jika validasi stok aktif tapi tetap ingin transaksi berjalan.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Izinkan Stok Negatif</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Stok bisa menjadi minus jika validasi stok aktif tapi tetap ingin transaksi berjalan.</p>
                                     </div>
                                 </div>
                                 <Switch checked={posCfg.allowNegativeStock} onCheckedChange={(v) => { setPosCfg({ ...posCfg, allowNegativeStock: v }); setHasChanges(true); }} />
                             </div>
 
                             {/* Require Customer */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 posCfg.requireCustomer
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${posCfg.requireCustomer ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${posCfg.requireCustomer ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <Users className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Wajib Input Customer</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Kasir harus memilih customer sebelum proses pembayaran.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Wajib Input Customer</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Kasir harus memilih customer sebelum proses pembayaran.</p>
                                     </div>
                                 </div>
                                 <Switch checked={posCfg.requireCustomer} onCheckedChange={(v) => { setPosCfg({ ...posCfg, requireCustomer: v }); setHasChanges(true); }} />
                             </div>
 
                             {/* Tax */}
-                            <div className="rounded-xl border border-border/40 p-5 bg-gradient-to-r from-amber-50/50 to-orange-50/30 space-y-3">
+                            <div className="rounded-xl border border-border/40 p-3 sm:p-5 bg-gradient-to-r from-amber-50/50 to-orange-50/30 space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
                                         <Percent className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Pajak Default</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Persentase pajak yang otomatis diterapkan di POS.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Pajak Default</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Persentase pajak yang otomatis diterapkan di POS.</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -355,65 +358,65 @@ export function SettingsContent() {
                     {/* Kitchen Display Section */}
                     <div className="rounded-2xl bg-white border border-border/40 p-4 sm:p-6 space-y-5 shadow-sm">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md shadow-orange-500/20">
                                 <ChefHat className="w-5 h-5 text-white" />
                             </div>
                             <div>
-                                <h3 className="text-base font-semibold">Kitchen Display</h3>
+                                <h3 className="text-sm sm:text-base font-semibold">Kitchen Display</h3>
                                 <p className="text-sm text-muted-foreground mt-0.5">Konfigurasi integrasi kitchen display system</p>
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             {/* Kitchen Enabled */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 kitchenCfg.enabled
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.enabled ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${kitchenCfg.enabled ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <ChefHat className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Kirim order ke Kitchen Display</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Otomatis kirim order baru ke layar dapur saat transaksi selesai.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Kirim order ke Kitchen Display</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Otomatis kirim order baru ke layar dapur saat transaksi selesai.</p>
                                     </div>
                                 </div>
                                 <Switch checked={kitchenCfg.enabled} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, enabled: v }); setHasChanges(true); }} />
                             </div>
 
                             {/* Auto Advance */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 kitchenCfg.autoAdvance
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.autoAdvance ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${kitchenCfg.autoAdvance ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <RefreshCw className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Auto-advance status</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Otomatis ubah status order saat semua item selesai diproses.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Auto-advance status</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Otomatis ubah status order saat semua item selesai diproses.</p>
                                     </div>
                                 </div>
                                 <Switch checked={kitchenCfg.autoAdvance} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, autoAdvance: v }); setHasChanges(true); }} />
                             </div>
 
                             {/* Notification Sound */}
-                            <div className={`flex items-center justify-between rounded-xl border p-4 transition-all duration-200 ${
+                            <div className={`flex items-center justify-between rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
                                 kitchenCfg.notificationSound
                                     ? "border-l-4 border-l-emerald-500 border-t-border/40 border-r-border/40 border-b-border/40 bg-emerald-50/30"
                                     : "border-l-4 border-l-gray-300 border-t-border/40 border-r-border/40 border-b-border/40"
                             }`}>
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${kitchenCfg.notificationSound ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
+                                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center ${kitchenCfg.notificationSound ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-400"}`}>
                                         <Bell className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium">Suara notifikasi order baru</p>
-                                        <p className="text-xs text-muted-foreground mt-0.5">Putar suara notifikasi saat ada order baru masuk ke kitchen display.</p>
+                                        <p className="text-xs sm:text-sm font-medium">Suara notifikasi order baru</p>
+                                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Putar suara notifikasi saat ada order baru masuk ke kitchen display.</p>
                                     </div>
                                 </div>
                                 <Switch checked={kitchenCfg.notificationSound} onCheckedChange={(v) => { setKitchenCfg({ ...kitchenCfg, notificationSound: v }); setHasChanges(true); }} />
@@ -504,7 +507,7 @@ export function SettingsContent() {
                                     ]).map((item) => (
                                         <div key={item.key} className="flex items-center justify-between py-3">
                                             <div>
-                                                <p className="text-sm font-medium">{item.label}</p>
+                                                <p className="text-xs sm:text-sm font-medium">{item.label}</p>
                                                 <p className="text-xs text-muted-foreground">{item.desc}</p>
                                             </div>
                                             <Switch checked={receiptCfg[item.key] as boolean} onCheckedChange={(v) => updateReceipt(item.key, v)} />
@@ -759,6 +762,22 @@ export function SettingsContent() {
                 </TabsContent>
                 </div>
             </Tabs>
+
+            {/* Mobile: Floating save button */}
+            {hasChanges && (
+                <div className="sm:hidden fixed bottom-4 left-4 right-4 z-50">
+                    <Button
+                        onClick={handleSave}
+                        disabled={!canUpdate || isSaving}
+                        className={`w-full rounded-xl h-10 font-semibold shadow-xl transition-all duration-300 ${
+                            "bg-gradient-to-r from-primary to-primary/80 text-white shadow-primary/30"
+                        } ${isSaving ? "animate-pulse" : ""}`}
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        Simpan Perubahan
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }

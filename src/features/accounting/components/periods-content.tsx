@@ -204,10 +204,21 @@ export function PeriodsContent() {
                 </div>
                 <Button
                     onClick={() => setShowCreate(true)}
-                    className="rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20 w-full sm:w-auto"
+                    className="hidden sm:inline-flex rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20"
                 >
                     <Plus className="w-4 h-4" />
                     Buat Periode
+                </Button>
+            </div>
+
+            {/* Mobile: Floating button */}
+            <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                <Button
+                    onClick={() => setShowCreate(true)}
+                    size="icon"
+                    className="h-12 w-12 rounded-full shadow-xl shadow-amber-300/50 bg-gradient-to-br from-amber-500 to-orange-600"
+                >
+                    <Plus className="w-5 h-5" />
                 </Button>
             </div>
 

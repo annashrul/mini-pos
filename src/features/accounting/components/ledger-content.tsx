@@ -19,10 +19,18 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
+import {
     BookText,
     Loader2,
     Check,
     ChevronsUpDown,
+    ChevronDown,
     FileSpreadsheet,
     Wallet,
     ArrowUpRight,
@@ -79,6 +87,14 @@ export function LedgerContent() {
 
     const presets = useMemo(() => getLedgerPresets(), []);
     const [selectedPresetKey, setSelectedPresetKey] = useState<PresetKey>("this-month");
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [draftPresetKey, setDraftPresetKey] = useState<PresetKey>("this-month");
+    const [draftAccountId, setDraftAccountId] = useState(selectedAccountId);
+    const [draftAccountOpen, setDraftAccountOpen] = useState(false);
+    const [draftDateFrom, setDraftDateFrom] = useState(dateFrom);
+    const [draftDateTo, setDraftDateTo] = useState(dateTo);
+    const [accountExpanded, setAccountExpanded] = useState(true);
+    const [periodExpanded, setPeriodExpanded] = useState(true);
 
     const handlePresetSelect = useCallback((p: Preset) => {
         setSelectedPresetKey(p.key);
@@ -206,71 +222,142 @@ export function LedgerContent() {
             </div>
 
             {/* Filter Section */}
-            <Card className="rounded-2xl border-0 shadow-sm bg-white">
-                <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
-                    {/* Mobile: stacked account combobox + date presets */}
-                    <div className="sm:hidden space-y-3">
-                        <Popover open={accountOpen} onOpenChange={setAccountOpen}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className="w-full justify-between rounded-xl font-normal h-9 border-gray-200 hover:border-gray-300 transition-colors text-sm"
-                                >
-                                    {selectedAccount ? (
-                                        <span className="flex items-center gap-2 truncate">
-                                            <span className="font-mono text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
-                                                {selectedAccount.code}
-                                            </span>
-                                            <span className="text-gray-700 truncate">{selectedAccount.name}</span>
-                                        </span>
-                                    ) : (
-                                        <span className="text-gray-400">Pilih akun...</span>
-                                    )}
-                                    <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Cari kode atau nama akun..." />
-                                    <CommandList>
-                                        <CommandEmpty>Tidak ditemukan</CommandEmpty>
-                                        <CommandGroup>
-                                            {accounts.map((a) => (
-                                                <CommandItem
-                                                    key={a.id}
-                                                    value={`${a.code} ${a.name}`}
-                                                    onSelect={() => {
-                                                        setSelectedAccountId(a.id);
-                                                        setAccountOpen(false);
-                                                    }}
-                                                >
-                                                    <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedAccountId === a.id ? "opacity-100 text-violet-600" : "opacity-0")} />
-                                                    <span className="font-mono text-xs text-gray-400 mr-2">{a.code}</span>
-                                                    <span className="flex-1 truncate">{a.name}</span>
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
-                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                            {presets.map((p) => (
-                                <button key={p.key} type="button" onClick={() => handlePresetSelect(p)}
-                                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === p.key ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                                    {p.label}
-                                </button>
-                            ))}
-                            <button type="button" onClick={() => setSelectedPresetKey("custom")}
-                                className={`flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${selectedPresetKey === "custom" ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                                <SlidersHorizontal className="w-3 h-3" />
-                                Custom
-                            </button>
-                            {loading && <Loader2 className="w-4 h-4 animate-spin text-violet-400 shrink-0" />}
+            {/* Mobile: no card wrapper */}
+            <div className="sm:hidden flex items-center gap-2">
+                <Button variant="outline" size="sm" className="flex-1 justify-between rounded-xl h-9 font-normal text-sm truncate" onClick={() => { setDraftAccountId(selectedAccountId); setDraftPresetKey(selectedPresetKey); setDraftDateFrom(dateFrom); setDraftDateTo(dateTo); setFilterSheetOpen(true); }}>
+                    <span className="truncate">
+                        {selectedAccount ? (
+                            <span className="flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded">{selectedAccount.code}</span>
+                                <span className="text-gray-700 truncate">{selectedAccount.name}</span>
+                            </span>
+                        ) : "Pilih akun..."}
+                    </span>
+                    <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 ml-2 text-muted-foreground" />
+                </Button>
+                {loading && <Loader2 className="w-4 h-4 animate-spin text-violet-400 shrink-0" />}
+                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="px-4 pb-3 pt-0">
+                                <SheetTitle className="text-base font-bold">Filter Buku Besar</SheetTitle>
+                            </SheetHeader>
                         </div>
-                    </div>
+                        <div className="flex-1 overflow-y-auto px-4 space-y-3">
+                            {/* Akun */}
+                            <div>
+                                <button onClick={() => setAccountExpanded(!accountExpanded)} className="w-full flex items-center justify-between py-2">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Akun</p>
+                                    <div className="flex items-center gap-1.5">
+                                        {(() => { const acc = accounts.find(a => a.id === draftAccountId); return acc ? <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5 truncate max-w-[150px]">{acc.name}</span> : null; })()}
+                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", accountExpanded && "rotate-180")} />
+                                    </div>
+                                </button>
+                                {accountExpanded && (
+                                    <Popover open={draftAccountOpen} onOpenChange={setDraftAccountOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" role="combobox" className="w-full justify-between rounded-xl font-normal h-10 border-gray-200 text-sm">
+                                                {(() => {
+                                                    const acc = accounts.find(a => a.id === draftAccountId); return acc ? (
+                                                        <span className="flex items-center gap-2 truncate">
+                                                            <span className="font-mono text-[11px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{acc.code}</span>
+                                                            <span className="text-gray-700 truncate">{acc.name}</span>
+                                                        </span>
+                                                    ) : <span className="text-gray-400">Pilih akun...</span>;
+                                                })()}
+                                                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-40" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[calc(100vw-3rem)] p-0" align="start">
+                                            <Command>
+                                                <CommandInput placeholder="Cari kode atau nama akun..." />
+                                                <CommandList>
+                                                    <CommandEmpty>Tidak ditemukan</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {accounts.map((a) => (
+                                                            <CommandItem key={a.id} value={`${a.code} ${a.name}`} onSelect={() => { setDraftAccountId(a.id); setDraftAccountOpen(false); }}>
+                                                                <Check className={cn("mr-2 h-4 w-4 shrink-0", draftAccountId === a.id ? "opacity-100 text-violet-600" : "opacity-0")} />
+                                                                <span className="font-mono text-xs text-gray-400 mr-2">{a.code}</span>
+                                                                <span className="flex-1 truncate">{a.name}</span>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
+                            </div>
+                            {/* Periode */}
+                            <div>
+                                <button onClick={() => setPeriodExpanded(!periodExpanded)} className="w-full flex items-center justify-between py-2">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Periode</p>
+                                    <div className="flex items-center gap-1.5">
+                                        {draftPresetKey !== "this-month" && (
+                                            <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5">
+                                                {presets.find(p => p.key === draftPresetKey)?.label ?? "Custom"}
+                                            </span>
+                                        )}
+                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", periodExpanded && "rotate-180")} />
+                                    </div>
+                                </button>
+                                {periodExpanded && (
+                                    <div className="space-y-1">
+                                        {presets.map((p) => {
+                                            const isActive = draftPresetKey === p.key;
+                                            return (
+                                                <button key={p.key} onClick={() => setDraftPresetKey(p.key)}
+                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                                    <span>{p.label}</span>
+                                                    {isActive && <Check className="w-4 h-4" />}
+                                                </button>
+                                            );
+                                        })}
+                                        <button onClick={() => setDraftPresetKey("custom")}
+                                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${draftPresetKey === "custom" ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                            <span className="flex items-center gap-1.5"><SlidersHorizontal className="w-3.5 h-3.5" /> Custom</span>
+                                            {draftPresetKey === "custom" && <Check className="w-4 h-4" />}
+                                        </button>
+                                        {draftPresetKey === "custom" && (
+                                            <div className="flex items-center gap-2 pt-2">
+                                                <DatePicker value={draftDateFrom} onChange={setDraftDateFrom} placeholder="Dari" className="flex-1 rounded-xl h-10 text-sm" />
+                                                <span className="text-muted-foreground text-xs">—</span>
+                                                <DatePicker value={draftDateTo} onChange={setDraftDateTo} placeholder="Sampai" className="flex-1 rounded-xl h-10 text-sm" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => { setDraftPresetKey("this-month"); setDraftAccountId(accounts[0]?.id ?? ""); }}>
+                                Reset
+                            </Button>
+                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => {
+                                setSelectedAccountId(draftAccountId);
+                                if (draftPresetKey !== "custom") {
+                                    const p = presets.find(pr => pr.key === draftPresetKey);
+                                    if (p) { handlePresetSelect(p); }
+                                } else {
+                                    setSelectedPresetKey("custom");
+                                    setDateFrom(draftDateFrom);
+                                    setDateTo(draftDateTo);
+                                }
+                                setFilterSheetOpen(false);
+                            }}>
+                                Terapkan Filter
+                            </Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
+            </div>
 
+            {/* Desktop: Card wrapped filter */}
+            <Card className="hidden sm:block rounded-2xl border-0 shadow-sm bg-white">
+                <CardContent className="px-5 py-4 space-y-3">
                     {/* Desktop: account combobox left + date presets right */}
                     <div className="hidden sm:flex items-center justify-between gap-4">
                         <Popover open={accountOpen} onOpenChange={setAccountOpen}>
@@ -335,12 +422,12 @@ export function LedgerContent() {
                         </div>
                     </div>
 
-                    {/* Custom date pickers */}
+                    {/* Custom date pickers (desktop only) */}
                     {selectedPresetKey === "custom" && (
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-full sm:w-[140px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
-                            <span className="text-slate-300 text-xs text-center hidden sm:block">—</span>
-                            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-full sm:w-[140px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                        <div className="hidden sm:flex items-center gap-2">
+                            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-[140px] rounded-xl h-8 text-xs" />
+                            <span className="text-slate-300 text-xs">—</span>
+                            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-[140px] rounded-xl h-8 text-xs" />
                         </div>
                     )}
                 </CardContent>

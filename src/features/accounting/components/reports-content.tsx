@@ -3,8 +3,16 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+    Sheet,
+    SheetContent,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import {
     Loader2,
     CheckCircle2,
@@ -19,6 +27,8 @@ import {
     Wallet,
     SlidersHorizontal,
     Search,
+    Check,
+    CalendarDays,
 } from "lucide-react";
 import {
     useAccountingReports,
@@ -175,6 +185,9 @@ function TrialBalanceTab({ date, setDate, branchId }: {
 
     const trialPresets = getSingleDatePresets();
     const [trialPresetKey, setTrialPresetKey] = useState<PresetKey>("today");
+    const [trialSheetOpen, setTrialSheetOpen] = useState(false);
+    const [draftTrialPreset, setDraftTrialPreset] = useState<PresetKey>("today");
+    const [draftTrialDate, setDraftTrialDate] = useState(date);
 
     const handleTrialPreset = (p: Preset) => {
         setTrialPresetKey(p.key);
@@ -184,44 +197,89 @@ function TrialBalanceTab({ date, setDate, branchId }: {
     return (
         <div className="space-y-5">
             {/* Filter: search + date presets */}
-            <Card className="rounded-2xl border-0 shadow-sm bg-white">
-                <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
-                    {/* Mobile: stacked search + date pills */}
-                    <div className="sm:hidden space-y-3">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari kode atau nama akun..."
-                                value={q}
-                                onChange={(e) => setQ(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-9"
-                            />
+            {/* Mobile */}
+            <div className="sm:hidden space-y-3">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari akun..."
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-9"
+                        />
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5" onClick={() => { setDraftTrialPreset(trialPresetKey); setDraftTrialDate(date); setTrialSheetOpen(true); }}>
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        <span className="text-xs">{trialPresets.find(p => p.key === trialPresetKey)?.label ?? "Custom"}</span>
+                    </Button>
+                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                </div>
+                {data && (
+                    <Badge className={`gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${data.isBalanced ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+                        {data.isBalanced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                        {data.isBalanced ? "Balance" : "Selisih " + formatAccountingCurrency(data.difference)}
+                    </Badge>
+                )}
+                <Sheet open={trialSheetOpen} onOpenChange={setTrialSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="px-4 pb-3 pt-0">
+                                <SheetTitle className="text-base font-bold">Pilih Periode</SheetTitle>
+                            </SheetHeader>
                         </div>
-                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                            {trialPresets.map((p) => (
-                                <button key={p.key} type="button" onClick={() => handleTrialPreset(p)}
-                                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === p.key ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                                    {p.label}
-                                </button>
-                            ))}
-                            <button type="button" onClick={() => setTrialPresetKey("custom")}
-                                className={`flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap ${trialPresetKey === "custom" ? "bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200/50" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                                <SlidersHorizontal className="w-3 h-3" />
-                                Custom
+                        <div className="flex-1 overflow-y-auto px-4 space-y-1">
+                            {trialPresets.map((p) => {
+                                const isActive = draftTrialPreset === p.key;
+                                return (
+                                    <button key={p.key} onClick={() => setDraftTrialPreset(p.key)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                        <span>{p.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                            <button onClick={() => setDraftTrialPreset("custom")}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${draftTrialPreset === "custom" ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                <span className="flex items-center gap-1.5"><SlidersHorizontal className="w-3.5 h-3.5" /> Custom</span>
+                                {draftTrialPreset === "custom" && <Check className="w-4 h-4" />}
                             </button>
-                            {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
-                            {data && (
-                                <Badge className={`shrink-0 gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${data.isBalanced ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
-                                    {data.isBalanced ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                    {data.isBalanced ? "Balance" : "Selisih " + formatAccountingCurrency(data.difference)}
-                                </Badge>
+                            {draftTrialPreset === "custom" && (
+                                <div className="pt-2">
+                                    <p className="text-xs text-muted-foreground mb-1.5">Pilih tanggal</p>
+                                    <DatePicker value={draftTrialDate} onChange={setDraftTrialDate} placeholder="Pilih tanggal" className="w-full rounded-xl h-10 text-sm" />
+                                </div>
                             )}
                         </div>
-                    </div>
+                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => setDraftTrialPreset("today")}>
+                                Reset
+                            </Button>
+                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => {
+                                if (draftTrialPreset !== "custom") {
+                                    const p = trialPresets.find(pr => pr.key === draftTrialPreset);
+                                    if (p) handleTrialPreset(p);
+                                } else {
+                                    setTrialPresetKey("custom");
+                                    setDate(draftTrialDate);
+                                }
+                                setTrialSheetOpen(false);
+                            }}>
+                                Terapkan Filter
+                            </Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
+            </div>
 
-                    {/* Desktop: search left + date pills right */}
-                    <div className="hidden sm:flex items-center justify-between gap-4">
+            {/* Desktop */}
+            <Card className="hidden sm:block rounded-2xl border-0 shadow-sm bg-white">
+                <CardContent className="px-5 py-4 space-y-3">
+                    <div className="flex items-center justify-between gap-4">
                         <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
@@ -256,7 +314,7 @@ function TrialBalanceTab({ date, setDate, branchId }: {
 
                     {/* Custom date picker */}
                     {trialPresetKey === "custom" && (
-                        <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-full sm:w-[180px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+                        <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-[180px] rounded-xl h-8 text-xs" />
                     )}
                 </CardContent>
             </Card>
@@ -417,6 +475,10 @@ function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo, isPending }
 }) {
     const presets = getRangePresets();
     const [selectedKey, setSelectedKey] = useState<PresetKey>("this-month");
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [draftKey, setDraftKey] = useState<PresetKey>("this-month");
+    const [draftFrom, setDraftFrom] = useState(dateFrom);
+    const [draftTo, setDraftTo] = useState(dateTo);
 
     const handleSelect = (p: Preset) => {
         setSelectedKey(p.key);
@@ -425,24 +487,84 @@ function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo, isPending }
     };
 
     return (
-        <Card className="rounded-2xl border-0 shadow-sm bg-white">
-            <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
-                <div className="flex items-center gap-2">
-                    <PresetTabs presets={presets} activeKey={selectedKey}
-                        onSelect={handleSelect}
-                        onCustom={() => setSelectedKey("custom")} />
-                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
-                </div>
-
-                {selectedKey === "custom" && (
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-full sm:w-[150px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
-                        <span className="text-slate-300 text-xs text-center hidden sm:block">—</span>
-                        <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-full sm:w-[150px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
+        <>
+            {/* Mobile */}
+            <div className="sm:hidden flex items-center gap-2">
+                <Button variant="outline" size="sm" className="flex-1 rounded-xl h-9 gap-1.5 justify-start" onClick={() => { setDraftKey(selectedKey); setDraftFrom(dateFrom); setDraftTo(dateTo); setSheetOpen(true); }}>
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    <span className="text-xs">{presets.find(p => p.key === selectedKey)?.label ?? "Custom"}</span>
+                </Button>
+                {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="px-4 pb-3 pt-0">
+                                <SheetTitle className="text-base font-bold">Pilih Periode</SheetTitle>
+                            </SheetHeader>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-4 space-y-1">
+                            {presets.map((p) => {
+                                const isActive = draftKey === p.key;
+                                return (
+                                    <button key={p.key} onClick={() => setDraftKey(p.key)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                        <span>{p.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                            <button onClick={() => setDraftKey("custom")}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${draftKey === "custom" ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                <span className="flex items-center gap-1.5"><SlidersHorizontal className="w-3.5 h-3.5" /> Custom</span>
+                                {draftKey === "custom" && <Check className="w-4 h-4" />}
+                            </button>
+                            {draftKey === "custom" && (
+                                <div className="pt-2 space-y-2">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground mb-1.5">Dari</p>
+                                        <DatePicker value={draftFrom} onChange={setDraftFrom} placeholder="Tanggal mulai" className="w-full rounded-xl h-10 text-sm" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground mb-1.5">Sampai</p>
+                                        <DatePicker value={draftTo} onChange={setDraftTo} placeholder="Tanggal akhir" className="w-full rounded-xl h-10 text-sm" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => setDraftKey("this-month")}>Reset</Button>
+                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => {
+                                if (draftKey !== "custom") { const p = presets.find(pr => pr.key === draftKey); if (p) handleSelect(p); }
+                                else { setSelectedKey("custom"); setDateFrom(draftFrom); setDateTo(draftTo); }
+                                setSheetOpen(false);
+                            }}>Terapkan Filter</Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
+            </div>
+            {/* Desktop */}
+            <Card className="hidden sm:block rounded-2xl border-0 shadow-sm bg-white">
+                <CardContent className="px-5 py-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <PresetTabs presets={presets} activeKey={selectedKey}
+                            onSelect={handleSelect}
+                            onCustom={() => setSelectedKey("custom")} />
+                        {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
                     </div>
-                )}
-            </CardContent>
-        </Card>
+
+                    {selectedKey === "custom" && (
+                        <div className="flex items-center gap-2">
+                            <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari" className="w-[150px] rounded-xl h-8 text-xs" />
+                            <span className="text-slate-300 text-xs">—</span>
+                            <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai" className="w-[150px] rounded-xl h-8 text-xs" />
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </>
     );
 }
 
@@ -453,6 +575,9 @@ function SingleDateFilter({ date, setDate, isPending, badge }: {
 }) {
     const presets = getSingleDatePresets();
     const [selectedKey, setSelectedKey] = useState<PresetKey>("today");
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const [draftKey, setDraftKey] = useState<PresetKey>("today");
+    const [draftDate, setDraftDate] = useState(date);
 
     const handleSelect = (p: Preset) => {
         setSelectedKey(p.key);
@@ -460,21 +585,76 @@ function SingleDateFilter({ date, setDate, isPending, badge }: {
     };
 
     return (
-        <Card className="rounded-2xl border-0 shadow-sm bg-white">
-            <CardContent className="px-3 sm:px-5 py-3 sm:py-4 space-y-3">
-                <div className="flex items-center gap-2">
-                    <PresetTabs presets={presets} activeKey={selectedKey}
-                        onSelect={handleSelect}
-                        onCustom={() => setSelectedKey("custom")} />
-                    {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
-                    {badge}
-                </div>
+        <>
+            {/* Mobile */}
+            <div className="sm:hidden flex items-center gap-2">
+                <Button variant="outline" size="sm" className="flex-1 rounded-xl h-9 gap-1.5 justify-start" onClick={() => { setDraftKey(selectedKey); setDraftDate(date); setSheetOpen(true); }}>
+                    <CalendarDays className="w-3.5 h-3.5" />
+                    <span className="text-xs">{presets.find(p => p.key === selectedKey)?.label ?? "Custom"}</span>
+                </Button>
+                {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                {badge}
+                <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="px-4 pb-3 pt-0">
+                                <SheetTitle className="text-base font-bold">Pilih Periode</SheetTitle>
+                            </SheetHeader>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-4 space-y-1">
+                            {presets.map((p) => {
+                                const isActive = draftKey === p.key;
+                                return (
+                                    <button key={p.key} onClick={() => setDraftKey(p.key)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                        <span>{p.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                            <button onClick={() => setDraftKey("custom")}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${draftKey === "custom" ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}>
+                                <span className="flex items-center gap-1.5"><SlidersHorizontal className="w-3.5 h-3.5" /> Custom</span>
+                                {draftKey === "custom" && <Check className="w-4 h-4" />}
+                            </button>
+                            {draftKey === "custom" && (
+                                <div className="pt-2">
+                                    <p className="text-xs text-muted-foreground mb-1.5">Pilih tanggal</p>
+                                    <DatePicker value={draftDate} onChange={setDraftDate} placeholder="Pilih tanggal" className="w-full rounded-xl h-10 text-sm" />
+                                </div>
+                            )}
+                        </div>
+                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => setDraftKey("today")}>Reset</Button>
+                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => {
+                                if (draftKey !== "custom") { const p = presets.find(pr => pr.key === draftKey); if (p) handleSelect(p); }
+                                else { setSelectedKey("custom"); setDate(draftDate); }
+                                setSheetOpen(false);
+                            }}>Terapkan Filter</Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
+            </div>
+            {/* Desktop */}
+            <Card className="hidden sm:block rounded-2xl border-0 shadow-sm bg-white">
+                <CardContent className="px-5 py-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <PresetTabs presets={presets} activeKey={selectedKey}
+                            onSelect={handleSelect}
+                            onCustom={() => setSelectedKey("custom")} />
+                        {isPending && <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />}
+                        {badge}
+                    </div>
 
-                {selectedKey === "custom" && (
-                    <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-full sm:w-[180px] rounded-xl h-9 sm:h-8 text-sm sm:text-xs" />
-                )}
-            </CardContent>
-        </Card>
+                    {selectedKey === "custom" && (
+                        <DatePicker value={date} onChange={setDate} placeholder="Pilih tanggal" className="w-[180px] rounded-xl h-8 text-xs" />
+                    )}
+                </CardContent>
+            </Card>
+        </>
     );
 }
 
@@ -533,24 +713,24 @@ function IncomeStatementTab({ dateFrom, setDateFrom, dateTo, setDateTo, branchId
             {isPending ? <LoadingState message="Memuat laporan laba rugi..." /> : data && (
                 <div className="space-y-5">
                     {/* Net Income Hero Card */}
-                    <Card className={`rounded-2xl overflow-hidden border-0 shadow-lg ${isProfit ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-red-500 to-rose-600"}`}>
-                        <CardContent className="py-8 px-8">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-white/70 text-xs font-semibold uppercase tracking-widest mb-2">
+                    <Card className={`rounded-xl sm:rounded-2xl overflow-hidden border-0 shadow-lg py-0 gap-0 ${isProfit ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-red-500 to-rose-600"}`}>
+                        <CardContent className="py-4 px-4 sm:py-8 sm:px-8">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-white/70 text-[10px] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2">
                                         {isProfit ? "Laba Bersih" : "Rugi Bersih"}
                                     </p>
-                                    <p className="text-4xl font-extrabold text-white font-mono tabular-nums tracking-tight">
+                                    <p className="text-2xl sm:text-4xl font-extrabold text-white font-mono tabular-nums tracking-tight">
                                         {formatAccountingCurrency(Math.abs(netIncome))}
                                     </p>
-                                    <div className="flex items-center gap-4 mt-3">
-                                        <span className="text-white/60 text-xs">Pendapatan: <span className="text-white font-semibold font-mono">{formatAccountingCurrency(data.totalRevenue)}</span></span>
-                                        <span className="text-white/40">|</span>
-                                        <span className="text-white/60 text-xs">Beban: <span className="text-white font-semibold font-mono">{formatAccountingCurrency(data.totalExpense)}</span></span>
+                                    <div className="flex items-center gap-2 sm:gap-4 mt-2 sm:mt-3 flex-wrap">
+                                        <span className="text-white/60 text-[10px] sm:text-xs">Pendapatan: <span className="text-white font-semibold font-mono">{formatAccountingCurrency(data.totalRevenue)}</span></span>
+                                        <span className="text-white/40 hidden sm:inline">|</span>
+                                        <span className="text-white/60 text-[10px] sm:text-xs">Beban: <span className="text-white font-semibold font-mono">{formatAccountingCurrency(data.totalExpense)}</span></span>
                                     </div>
                                 </div>
-                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${isProfit ? "bg-white/20" : "bg-white/20"}`}>
-                                    {isProfit ? <ArrowUpRight className="w-8 h-8 text-white" /> : <ArrowDownRight className="w-8 h-8 text-white" />}
+                                <div className={`w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 bg-white/20`}>
+                                    {isProfit ? <ArrowUpRight className="w-5 h-5 sm:w-8 sm:h-8 text-white" /> : <ArrowDownRight className="w-5 h-5 sm:w-8 sm:h-8 text-white" />}
                                 </div>
                             </div>
                         </CardContent>
@@ -648,9 +828,9 @@ function BalanceSheetTab({ date, setDate, branchId }: {
         <div className="space-y-5">
             <SingleDateFilter date={date} setDate={setDate} onGenerate={load} isPending={isPending} icon={PieChart}
                 badge={data && (
-                    <Badge className={`gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border ${data.isBalanced ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}`}>
-                        {data.isBalanced ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                        {data.isBalanced ? "Balance ✓" : "Tidak Balance"}
+                    <Badge className={`shrink-0 gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-medium border ${data.isBalanced ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}`}>
+                        {data.isBalanced ? <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                        {data.isBalanced ? "Balance" : "Tidak Balance"}
                     </Badge>
                 )}
             />
@@ -658,23 +838,39 @@ function BalanceSheetTab({ date, setDate, branchId }: {
             {isPending ? <LoadingState message="Memuat neraca..." /> : data && (
                 <>
                     {/* Summary Bar */}
-                    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-50/30 min-w-0">
-                            <CardContent className="p-3 sm:p-5 text-center">
+                    {/* Mobile: compact inline pills */}
+                    <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                        <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-50 ring-1 ring-blue-100">
+                            <span className="text-[10px] text-blue-500 font-semibold">Aset</span>
+                            <span className="text-[11px] font-bold font-mono tabular-nums text-blue-700">{formatAccountingCurrency(data.totalAssets)}</span>
+                        </div>
+                        <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-red-50 ring-1 ring-red-100">
+                            <span className="text-[10px] text-red-500 font-semibold">Kewajiban</span>
+                            <span className="text-[11px] font-bold font-mono tabular-nums text-red-700">{formatAccountingCurrency(data.totalLiabilities)}</span>
+                        </div>
+                        <div className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-purple-50 ring-1 ring-purple-100">
+                            <span className="text-[10px] text-purple-500 font-semibold">Ekuitas</span>
+                            <span className="text-[11px] font-bold font-mono tabular-nums text-purple-700">{formatAccountingCurrency(data.totalEquity + data.retainedEarnings)}</span>
+                        </div>
+                    </div>
+                    {/* Desktop: cards */}
+                    <div className="hidden sm:grid grid-cols-3 gap-4">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-50/30 min-w-0 py-0 gap-0">
+                            <CardContent className="p-5 text-center">
                                 <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-widest">Total Aset</p>
-                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-blue-700 mt-1">{formatAccountingCurrency(data.totalAssets)}</p>
+                                <p className="text-xl font-extrabold font-mono tabular-nums text-blue-700 mt-1">{formatAccountingCurrency(data.totalAssets)}</p>
                             </CardContent>
                         </Card>
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-red-50 to-rose-50/30 min-w-0">
-                            <CardContent className="p-3 sm:p-5 text-center">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-red-50 to-rose-50/30 min-w-0 py-0 gap-0">
+                            <CardContent className="p-5 text-center">
                                 <p className="text-[10px] font-semibold text-red-400 uppercase tracking-widest">Kewajiban</p>
-                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-red-700 mt-1">{formatAccountingCurrency(data.totalLiabilities)}</p>
+                                <p className="text-xl font-extrabold font-mono tabular-nums text-red-700 mt-1">{formatAccountingCurrency(data.totalLiabilities)}</p>
                             </CardContent>
                         </Card>
-                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-50/30 min-w-0">
-                            <CardContent className="p-3 sm:p-5 text-center">
+                        <Card className="rounded-2xl border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-50/30 min-w-0 py-0 gap-0">
+                            <CardContent className="p-5 text-center">
                                 <p className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest">Ekuitas</p>
-                                <p className="text-sm sm:text-xl font-extrabold font-mono tabular-nums text-purple-700 mt-1">{formatAccountingCurrency(data.totalEquity + data.retainedEarnings)}</p>
+                                <p className="text-xl font-extrabold font-mono tabular-nums text-purple-700 mt-1">{formatAccountingCurrency(data.totalEquity + data.retainedEarnings)}</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -702,9 +898,30 @@ function BalanceSheetTab({ date, setDate, branchId }: {
                     </div>
 
                     {/* Balance equation */}
-                    <Card className={`rounded-2xl overflow-hidden border-0 shadow-md ${data.isBalanced ? "bg-gradient-to-r from-emerald-500 to-teal-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
-                        <CardContent className="py-5 px-8">
-                            <div className="flex items-center justify-center gap-4 text-white">
+                    <Card className={`rounded-xl sm:rounded-2xl overflow-hidden border-0 shadow-md py-0 gap-0 ${data.isBalanced ? "bg-gradient-to-r from-emerald-500 to-teal-600" : "bg-gradient-to-r from-red-500 to-rose-600"}`}>
+                        <CardContent className="py-3 px-4 sm:py-5 sm:px-8">
+                            {/* Mobile */}
+                            <div className="sm:hidden space-y-2">
+                                <div className="flex items-center gap-1.5 text-white">
+                                    {data.isBalanced ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                                    <span className="text-xs font-bold">{data.isBalanced ? "Seimbang" : "Tidak Seimbang"}</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-1 text-white text-center">
+                                    <div>
+                                        <p className="text-white/50 text-[8px] uppercase tracking-wider">Aset</p>
+                                        <p className="text-[11px] font-bold font-mono tabular-nums">{formatAccountingCurrency(data.totalAssets)}</p>
+                                    </div>
+                                    <div className="flex items-center justify-center">
+                                        <span className="text-white/40 text-xs">=</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-white/50 text-[8px] uppercase tracking-wider">Kwjbn + Ekts</p>
+                                        <p className="text-[11px] font-bold font-mono tabular-nums">{formatAccountingCurrency(data.totalLiabilities + data.totalEquity + data.retainedEarnings)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Desktop */}
+                            <div className="hidden sm:flex items-center justify-center gap-4 text-white">
                                 <div className="text-center">
                                     <p className="text-white/60 text-[10px] uppercase tracking-widest">Aset</p>
                                     <p className="text-lg font-bold font-mono tabular-nums">{formatAccountingCurrency(data.totalAssets)}</p>

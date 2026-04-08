@@ -192,10 +192,21 @@ export function JournalsContent() {
         </div>
         <Button
           onClick={() => setFormOpen(true)}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20 h-10 px-5"
+          className="hidden sm:inline-flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20 h-10 px-5"
         >
           <Plus className="w-4 h-4 mr-2" />
           Buat Jurnal
+        </Button>
+      </div>
+
+      {/* Mobile: Floating button */}
+      <div className="sm:hidden fixed bottom-4 right-4 z-50">
+        <Button
+          onClick={() => setFormOpen(true)}
+          size="icon"
+          className="h-12 w-12 rounded-full shadow-xl shadow-blue-300/50 bg-gradient-to-br from-blue-600 to-indigo-600"
+        >
+          <Plus className="w-5 h-5" />
         </Button>
       </div>
 

@@ -269,12 +269,12 @@ export function PriceSchedulesContent() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="hidden sm:flex gap-2">
           <Button
             variant="outline"
             onClick={handleApplyDue}
             disabled={applying}
-            className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm"
+            className="gap-2 text-sm"
           >
             {applying ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -284,11 +284,33 @@ export function PriceSchedulesContent() {
             Proses Jadwal
           </Button>
           <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-            <Button onClick={() => setDialogOpen(true)} disabled={!canCreate} className="gap-2 flex-1 sm:flex-initial text-xs sm:text-sm">
+            <Button onClick={() => setDialogOpen(true)} disabled={!canCreate} className="gap-2 text-sm">
               <Plus className="h-4 w-4" /> Jadwal Baru
             </Button>
           </DisabledActionTooltip>
         </div>
+      </div>
+
+      {/* Mobile: Floating buttons */}
+      <div className="sm:hidden fixed bottom-4 right-4 z-50 flex flex-col gap-2 items-end">
+        <Button
+          variant="outline"
+          onClick={handleApplyDue}
+          disabled={applying}
+          size="icon"
+          className="h-10 w-10 rounded-full shadow-lg bg-white"
+        >
+          {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+        </Button>
+        {canCreate && (
+          <Button
+            onClick={() => setDialogOpen(true)}
+            size="icon"
+            className="h-12 w-12 rounded-full shadow-xl shadow-primary/30 bg-gradient-to-br from-primary to-primary/80"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}

@@ -12,6 +12,9 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+    Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
     DropdownMenu, DropdownMenuContent, DropdownMenuTrigger,
     DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -237,24 +240,24 @@ export function SmartTable<T>({
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-border/50 overflow-hidden">
             {/* Header */}
-            <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-border/50 space-y-3">
-                {/* Row 1: Title + actions */}
+            <div className="px-3 sm:px-5 py-3 sm:py-4 border-b border-border/50 space-y-2 sm:space-y-3">
+                {/* Row 1: Title + actions (desktop) */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                         {titleIcon && <span className="shrink-0">{titleIcon}</span>}
-                        {title && <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">{title}</h3>}
+                        {title && <h3 className="font-semibold text-xs sm:text-base text-foreground truncate">{title}</h3>}
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Filter button */}
+                    {/* Desktop actions */}
+                    <div className="hidden sm:flex items-center gap-1.5 shrink-0">
                         {filters && filters.length > 0 && (
                             <Button
                                 variant="outline"
                                 size="icon"
-                                className="rounded-lg h-8 w-8 sm:h-8 sm:w-auto sm:px-3 sm:gap-1.5"
+                                className="relative rounded-lg h-8 w-auto px-3 gap-1.5"
                                 onClick={() => { setTempFilters(activeFilters); setFilterModalOpen(true); }}
                             >
                                 <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline text-xs">Filter</span>
+                                <span className="text-xs">Filter</span>
                                 {activeFilterCount > 0 && (
                                     <Badge className="h-4 w-4 p-0 text-[10px] rounded-full bg-primary text-primary-foreground">
                                         {activeFilterCount}
@@ -263,12 +266,11 @@ export function SmartTable<T>({
                             </Button>
                         )}
 
-                        {/* Column visibility — hidden on mobile */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="icon" className="rounded-lg h-8 w-8 hidden sm:inline-flex sm:w-auto sm:px-3 sm:gap-1.5">
+                                <Button variant="outline" size="icon" className="rounded-lg h-8 w-auto px-3 gap-1.5">
                                     <Columns3 className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline text-xs">Kolom</span>
+                                    <span className="text-xs">Kolom</span>
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="rounded-xl w-[180px]">
@@ -291,11 +293,10 @@ export function SmartTable<T>({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* Export — icon only on mobile */}
                         {exportFilename && (
-                            <Button variant="outline" size="icon" className="rounded-lg h-8 w-8 sm:w-auto sm:px-3 sm:gap-1.5" onClick={handleExport}>
+                            <Button variant="outline" size="icon" className="rounded-lg h-8 w-auto px-3 gap-1.5" onClick={handleExport}>
                                 <Download className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline text-xs">Export</span>
+                                <span className="text-xs">Export</span>
                             </Button>
                         )}
 
@@ -303,15 +304,38 @@ export function SmartTable<T>({
                     </div>
                 </div>
 
-                {/* Row 2: Search — full width */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder={searchPlaceholder}
-                        value={searchValue}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        className="pl-9 rounded-xl w-full h-9 sm:h-8 text-sm"
-                    />
+                {/* Row 2: Search + mobile actions */}
+                <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder={searchPlaceholder}
+                            value={searchValue}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            className="pl-9 rounded-xl w-full h-9 sm:h-8 text-sm"
+                        />
+                    </div>
+                    {/* Mobile action buttons — next to search */}
+                    <div className="flex sm:hidden items-center gap-1 shrink-0">
+                        {filters && filters.length > 0 && (
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                className="relative rounded-lg h-9 w-9"
+                                onClick={() => { setTempFilters(activeFilters); setFilterModalOpen(true); }}
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                {activeFilterCount > 0 && (
+                                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500" />
+                                )}
+                            </Button>
+                        )}
+                        {exportFilename && (
+                            <Button variant="outline" size="icon" className="rounded-lg h-9 w-9" onClick={handleExport}>
+                                <Download className="w-3.5 h-3.5" />
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Active filter chips */}
@@ -660,78 +684,168 @@ export function SmartTable<T>({
                 )}
             </div>
 
-            {/* Filter Modal */}
+            {/* Filter — Desktop: Dialog, Mobile: Bottom Sheet */}
             {filters && (
-                <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-                    <DialogContent className="rounded-2xl max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Filter Data</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                            {filters.map((filter) => (
-                                <div key={filter.key} className="space-y-1.5">
-                                    <label className="text-sm font-medium">{filter.label}</label>
-                                    {filter.type === "select" && filter.options && (
-                                        <Select
-                                            value={tempFilters[filter.key] || "ALL"}
-                                            onValueChange={(v) => setTempFilters({ ...tempFilters, [filter.key]: v })}
-                                        >
-                                            <SelectTrigger className="w-full rounded-lg">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="w-[--radix-select-trigger-width]">
-                                                <SelectItem value="ALL">Semua</SelectItem>
-                                                {filter.options.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                    {filter.type === "text" && (
-                                        <Input
-                                            value={tempFilters[filter.key] || ""}
-                                            onChange={(e) => setTempFilters({ ...tempFilters, [filter.key]: e.target.value })}
-                                            className="w-full rounded-lg"
-                                        />
-                                    )}
-                                    {filter.type === "date" && (
-                                        <DatePicker
-                                            value={tempFilters[filter.key] || ""}
-                                            onChange={(value) => setTempFilters({ ...tempFilters, [filter.key]: value })}
-                                            className="w-full"
-                                        />
-                                    )}
-                                    {filter.type === "daterange" && (
-                                        <div className="flex gap-2 items-center">
-                                            <DatePicker
-                                                value={tempFilters[`${filter.key}_from`] || ""}
-                                                onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_from`]: value })}
-                                                placeholder="Dari"
-                                                className="flex-1"
+                <>
+                    {/* Desktop Dialog */}
+                    <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+                        <DialogContent className="rounded-2xl max-w-md hidden sm:block">
+                            <DialogHeader>
+                                <DialogTitle>Filter Data</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                                {filters.map((filter) => (
+                                    <div key={filter.key} className="space-y-1.5">
+                                        <label className="text-sm font-medium">{filter.label}</label>
+                                        {filter.type === "select" && filter.options && (
+                                            <Select
+                                                value={tempFilters[filter.key] || "ALL"}
+                                                onValueChange={(v) => setTempFilters({ ...tempFilters, [filter.key]: v })}
+                                            >
+                                                <SelectTrigger className="w-full rounded-lg">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="w-[--radix-select-trigger-width]">
+                                                    <SelectItem value="ALL">Semua</SelectItem>
+                                                    {filter.options.map((opt) => (
+                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                        {filter.type === "text" && (
+                                            <Input
+                                                value={tempFilters[filter.key] || ""}
+                                                onChange={(e) => setTempFilters({ ...tempFilters, [filter.key]: e.target.value })}
+                                                className="w-full rounded-lg"
                                             />
-                                            <span className="text-xs text-muted-foreground shrink-0">s/d</span>
+                                        )}
+                                        {filter.type === "date" && (
                                             <DatePicker
-                                                value={tempFilters[`${filter.key}_to`] || ""}
-                                                onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_to`]: value })}
-                                                placeholder="Sampai"
-                                                className="flex-1"
+                                                value={tempFilters[filter.key] || ""}
+                                                onChange={(value) => setTempFilters({ ...tempFilters, [filter.key]: value })}
+                                                className="w-full"
                                             />
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div className="flex justify-between pt-2">
-                                <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={resetFilters}>
-                                    Reset Filter
-                                </Button>
-                                <div className="flex gap-2">
-                                    <Button variant="outline" className="rounded-lg" onClick={() => setFilterModalOpen(false)}>Batal</Button>
-                                    <Button className="rounded-lg" onClick={applyFilters}>Terapkan</Button>
+                                        )}
+                                        {filter.type === "daterange" && (
+                                            <div className="flex gap-2 items-center">
+                                                <DatePicker
+                                                    value={tempFilters[`${filter.key}_from`] || ""}
+                                                    onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_from`]: value })}
+                                                    placeholder="Dari"
+                                                    className="flex-1"
+                                                />
+                                                <span className="text-xs text-muted-foreground shrink-0">s/d</span>
+                                                <DatePicker
+                                                    value={tempFilters[`${filter.key}_to`] || ""}
+                                                    onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_to`]: value })}
+                                                    placeholder="Sampai"
+                                                    className="flex-1"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                <div className="flex justify-between pt-2">
+                                    <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={resetFilters}>
+                                        Reset Filter
+                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" className="rounded-lg" onClick={() => setFilterModalOpen(false)}>Batal</Button>
+                                        <Button className="rounded-lg" onClick={applyFilters}>Terapkan</Button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Mobile Bottom Sheet */}
+                    <Sheet open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+                        <SheetContent side="bottom" className="sm:hidden rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                            <div className="shrink-0">
+                                <div className="flex justify-center pt-3 pb-2">
+                                    <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                                </div>
+                                <SheetHeader className="px-4 pb-3 pt-0">
+                                    <SheetTitle className="text-base font-bold">Filter</SheetTitle>
+                                </SheetHeader>
+                            </div>
+                            <div className="flex-1 overflow-y-auto px-4 space-y-4">
+                                {filters.map((filter) => (
+                                    <div key={filter.key} className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{filter.label}</label>
+                                        {filter.type === "select" && filter.options && (
+                                            <div className="space-y-1">
+                                                <button
+                                                    onClick={() => setTempFilters({ ...tempFilters, [filter.key]: "ALL" })}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                                                        (!tempFilters[filter.key] || tempFilters[filter.key] === "ALL") ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"
+                                                    )}
+                                                >
+                                                    <span>Semua</span>
+                                                    {(!tempFilters[filter.key] || tempFilters[filter.key] === "ALL") && <X className="w-4 h-4" />}
+                                                </button>
+                                                {filter.options.map((opt) => (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setTempFilters({ ...tempFilters, [filter.key]: opt.value })}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                                                            tempFilters[filter.key] === opt.value ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"
+                                                        )}
+                                                    >
+                                                        <span>{opt.label}</span>
+                                                        {tempFilters[filter.key] === opt.value && <X className="w-4 h-4" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {filter.type === "text" && (
+                                            <Input
+                                                value={tempFilters[filter.key] || ""}
+                                                onChange={(e) => setTempFilters({ ...tempFilters, [filter.key]: e.target.value })}
+                                                className="w-full rounded-xl"
+                                            />
+                                        )}
+                                        {filter.type === "date" && (
+                                            <DatePicker
+                                                value={tempFilters[filter.key] || ""}
+                                                onChange={(value) => setTempFilters({ ...tempFilters, [filter.key]: value })}
+                                                className="w-full"
+                                            />
+                                        )}
+                                        {filter.type === "daterange" && (
+                                            <div className="flex gap-2 items-center">
+                                                <DatePicker
+                                                    value={tempFilters[`${filter.key}_from`] || ""}
+                                                    onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_from`]: value })}
+                                                    placeholder="Dari"
+                                                    className="flex-1"
+                                                />
+                                                <span className="text-xs text-muted-foreground shrink-0">—</span>
+                                                <DatePicker
+                                                    value={tempFilters[`${filter.key}_to`] || ""}
+                                                    onChange={(value) => setTempFilters({ ...tempFilters, [`${filter.key}_to`]: value })}
+                                                    placeholder="Sampai"
+                                                    className="flex-1"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
+                                <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={resetFilters}>
+                                    Reset
+                                </Button>
+                                <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={applyFilters}>
+                                    Terapkan Filter
+                                </Button>
+                            </SheetFooter>
+                        </SheetContent>
+                    </Sheet>
+                </>
             )}
         </div>
     );

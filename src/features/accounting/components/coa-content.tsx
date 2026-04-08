@@ -60,46 +60,46 @@ function AccountRow({
   return (
     <>
       <div
-        className="group flex items-center gap-3 py-2.5 px-4 hover:bg-gray-50/80 rounded-xl transition-all duration-150"
-        style={{ paddingLeft: `${depth * 28 + 16}px` }}
+        className="group flex items-center gap-1.5 sm:gap-3 py-2 sm:py-2.5 px-2 sm:px-4 hover:bg-gray-50/80 rounded-lg sm:rounded-xl transition-all duration-150"
+        style={{ paddingLeft: `${depth * 20 + 8}px` }}
       >
         {hasChildren ? (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded transition-colors"
+            className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded transition-colors shrink-0"
           >
             {expanded ? (
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             ) : (
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             )}
           </button>
         ) : (
-          <span className="w-5" />
+          <span className="w-4 sm:w-5 shrink-0" />
         )}
 
-        <span className="font-mono text-sm text-gray-500 w-24 shrink-0 tabular-nums">
+        <span className="font-mono text-[11px] sm:text-sm text-gray-500 w-14 sm:w-24 shrink-0 tabular-nums">
           {account.code}
         </span>
 
-        <span className="text-sm font-medium text-gray-900 flex-1 truncate">
+        <span className="text-xs sm:text-sm font-medium text-gray-900 flex-1 truncate">
           {account.name}
         </span>
 
         {!account.isActive && (
           <Badge
             variant="outline"
-            className="text-[11px] bg-gray-100 text-gray-400 border-gray-200"
+            className="text-[10px] sm:text-[11px] bg-gray-100 text-gray-400 border-gray-200 px-1.5 sm:px-2"
           >
             Nonaktif
           </Badge>
         )}
 
-        <span className="text-sm font-semibold font-mono tabular-nums w-36 text-right text-gray-800">
+        <span className="text-[11px] sm:text-sm font-semibold font-mono tabular-nums w-20 sm:w-36 text-right text-gray-800 shrink-0">
           {formatCurrency(account.balance)}
         </span>
 
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-1">
+        <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-1">
           <Button
             variant="ghost"
             size="icon"
@@ -187,38 +187,38 @@ export function COAContent() {
   // ── Loading skeleton ────────────────────────────────────────────────
   if (initialLoad) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header skeleton */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Skeleton className="w-12 h-12 rounded-2xl" />
-            <div className="space-y-2">
-              <Skeleton className="h-7 w-52" />
-              <Skeleton className="h-4 w-72" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Skeleton className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl" />
+            <div className="space-y-1.5 sm:space-y-2">
+              <Skeleton className="h-5 sm:h-7 w-40 sm:w-52" />
+              <Skeleton className="h-3.5 sm:h-4 w-52 sm:w-72" />
             </div>
           </div>
-          <Skeleton className="h-10 w-32 rounded-xl" />
+          <Skeleton className="hidden sm:block h-10 w-32 rounded-xl" />
         </div>
 
         {/* Search skeleton */}
-        <Skeleton className="h-10 w-80 rounded-xl" />
+        <Skeleton className="h-9 sm:h-10 w-full sm:w-80 rounded-xl" />
 
         {/* Stats skeleton */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[104px] rounded-2xl" />
+            <Skeleton key={i} className="h-[72px] sm:h-[104px] rounded-xl sm:rounded-2xl" />
           ))}
         </div>
 
         {/* Tree skeleton */}
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="rounded-2xl overflow-hidden">
-              <Skeleton className="h-14 w-full" />
-              <div className="space-y-1 p-2">
-                <Skeleton className="h-10 w-full rounded-xl" />
-                <Skeleton className="h-10 w-full rounded-xl" />
-                <Skeleton className="h-10 w-[95%] rounded-xl ml-7" />
+            <div key={i} className="rounded-xl sm:rounded-2xl overflow-hidden">
+              <Skeleton className="h-10 sm:h-14 w-full" />
+              <div className="space-y-1 p-1.5 sm:p-2">
+                <Skeleton className="h-8 sm:h-10 w-full rounded-lg sm:rounded-xl" />
+                <Skeleton className="h-8 sm:h-10 w-full rounded-lg sm:rounded-xl" />
+                <Skeleton className="h-8 sm:h-10 w-[95%] rounded-lg sm:rounded-xl ml-5 sm:ml-7" />
               </div>
             </div>
           ))}
@@ -228,61 +228,74 @@ export function COAContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <BookOpen className="w-6 h-6 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900">
               Bagan Akun (COA)
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
               Kelola chart of accounts perusahaan Anda
             </p>
           </div>
         </div>
         <Button
           onClick={handleOpenCreate}
-          className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 gap-2"
+          className="hidden sm:inline-flex bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 gap-2 text-sm"
         >
           <Plus className="w-4 h-4" />
           Tambah Akun
         </Button>
       </div>
 
+      {/* Mobile: Floating button */}
+      <div className="sm:hidden fixed bottom-4 right-4 z-50">
+        <Button
+          onClick={handleOpenCreate}
+          size="icon"
+          className="h-12 w-12 rounded-full shadow-xl shadow-blue-300/50 bg-gradient-to-br from-blue-500 to-indigo-600"
+        >
+          <Plus className="w-5 h-5" />
+        </Button>
+      </div>
+
       {/* ── Search ─────────────────────────────────────────────────────── */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="relative sm:max-w-sm">
+        <Search className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <Input
           placeholder="Cari kode atau nama akun..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-10 rounded-xl border-gray-200 focus-visible:ring-blue-500/20"
+          className="pl-9 sm:pl-10 rounded-xl h-9 sm:h-10 text-sm border-gray-200 focus-visible:ring-blue-500/20"
         />
       </div>
 
       {/* ── Stats Bar ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {statsCards.map((s) => (
           <Card
             key={s.label}
-            className="rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-200"
+            className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white hover:shadow-md transition-shadow duration-200"
           >
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
+            <CardContent className="p-3 sm:p-5">
+              <div className="flex items-center gap-2.5 sm:block">
                 <div
-                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} ${s.shadow} shadow-lg flex items-center justify-center`}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${s.gradient} ${s.shadow} shadow-lg flex items-center justify-center shrink-0 sm:mb-3`}
                 >
-                  <s.icon className="w-5 h-5 text-white" />
+                  <s.icon className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 sm:order-2 sm:mt-1">{s.label}</p>
+                  <p className="text-sm sm:text-lg font-bold text-gray-900 font-mono tabular-nums truncate">
+                    {s.value}
+                  </p>
                 </div>
               </div>
-              <p className="text-lg font-bold text-gray-900 font-mono tabular-nums">
-                {s.value}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">{s.label}</p>
             </CardContent>
           </Card>
         ))}
@@ -297,15 +310,15 @@ export function COAContent() {
       )}
 
       {filteredTree.length === 0 && !loading && (
-        <Card className="rounded-2xl border-0 shadow-sm bg-white">
-          <CardContent className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
-              <BookOpen className="w-8 h-8 text-gray-300" />
+        <Card className="rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white">
+          <CardContent className="flex flex-col items-center justify-center py-12 sm:py-20 text-gray-400">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gray-100 flex items-center justify-center mb-3 sm:mb-4">
+              <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-gray-300" />
             </div>
-            <p className="text-base font-medium text-gray-500 mb-1">
+            <p className="text-sm sm:text-base font-medium text-gray-500 mb-1">
               Belum ada akun
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-xs sm:text-sm text-gray-400">
               Mulai dengan menambahkan akun pertama Anda
             </p>
           </CardContent>
@@ -313,7 +326,7 @@ export function COAContent() {
       )}
 
       {filteredTree.length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {CATEGORY_ORDER.map((catKey) => {
             const catData = filteredTree.find((t) => t.category === catKey);
             if (!catData) return null;
@@ -327,49 +340,49 @@ export function COAContent() {
             return (
               <Card
                 key={catKey}
-                className={`rounded-2xl border-0 shadow-sm bg-white overflow-hidden border-l-4 ${borderColor}`}
+                className={`rounded-xl sm:rounded-2xl border-0 shadow-sm bg-white overflow-hidden border-l-4 ${borderColor}`}
               >
                 <CardContent className="p-0">
                   {/* Category header */}
                   <button
                     onClick={() => toggleCategory(catKey)}
-                    className={`w-full flex items-center gap-3 px-5 py-4 ${config.bgColor} hover:opacity-90 transition-all duration-150`}
+                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-4 ${config.bgColor} hover:opacity-90 transition-all duration-150`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center`}
+                      className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-white/60 flex items-center justify-center shrink-0"
                     >
-                      <Icon className={`w-4.5 h-4.5 ${config.color}`} />
+                      <Icon className={`w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 ${config.color}`} />
                     </div>
 
                     <span
-                      className={`font-bold text-sm ${config.color} tracking-wide`}
+                      className={`font-bold text-xs sm:text-sm ${config.color} tracking-wide`}
                     >
                       {config.label}
                     </span>
 
                     <Badge
                       variant="outline"
-                      className={`text-[11px] px-2 py-0.5 ${config.badgeColor} border-0 font-medium`}
+                      className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 ${config.badgeColor} border-0 font-medium`}
                     >
-                      {catData.accounts.length} akun
+                      {catData.accounts.length}
                     </Badge>
 
                     <div className="flex-1" />
 
                     <span
-                      className={`text-sm font-bold font-mono tabular-nums ${config.color}`}
+                      className={`text-[11px] sm:text-sm font-bold font-mono tabular-nums ${config.color}`}
                     >
                       {formatCurrency(catData.total)}
                     </span>
 
-                    <div className="w-5 h-5 flex items-center justify-center">
+                    <div className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center shrink-0">
                       {isCollapsed ? (
                         <ChevronRight
-                          className={`w-4 h-4 ${config.color} transition-transform duration-200`}
+                          className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${config.color} transition-transform duration-200`}
                         />
                       ) : (
                         <ChevronDown
-                          className={`w-4 h-4 ${config.color} transition-transform duration-200`}
+                          className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${config.color} transition-transform duration-200`}
                         />
                       )}
                     </div>
@@ -383,7 +396,7 @@ export function COAContent() {
                         : "max-h-[2000px] opacity-100"
                     }`}
                   >
-                    <div className="py-1 px-1">
+                    <div className="py-0.5 sm:py-1 px-0.5 sm:px-1">
                       {catData.accounts.map((account) => (
                         <AccountRow
                           key={account.id}

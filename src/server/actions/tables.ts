@@ -3,12 +3,20 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-export async function getTables(branchId?: string) {
+export async function getTables(branchId?: string, search?: string, section?: string) {
   return prisma.restaurantTable.findMany({
     where: {
       isActive: true,
       // Show global tables (branchId null) OR branch-specific tables
       ...(branchId ? { OR: [{ branchId: null }, { branchId }] } : {}),
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" as const } },
+          { section: { contains: search, mode: "insensitive" as const } },
+          { number: { equals: parseInt(search) || -1 } },
+        ],
+      } : {}),
+      ...(section === "Lainnya" ? { section: null } : section ? { section } : {}),
     },
     orderBy: [{ section: "asc" }, { sortOrder: "asc" }, { number: "asc" }],
   });
