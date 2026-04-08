@@ -13,13 +13,13 @@ export function UsersHeader(props: {
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-200/50">
-          <Users className="w-6 h-6 text-white" />
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-200/50 shrink-0">
+          <Users className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Manajemen Pengguna</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Kelola user dan hak akses sistem</p>
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Pengguna</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola user dan hak akses</p>
         </div>
       </div>
       <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>

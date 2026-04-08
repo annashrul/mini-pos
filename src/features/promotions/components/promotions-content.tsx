@@ -179,35 +179,24 @@ export function PromotionsContent() {
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="w-full sm:w-auto rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm" onClick={() => openForm(null)}>
+                    <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 text-sm" onClick={() => openForm(null)}>
                         <Plus className="w-4 h-4 mr-2" /> Tambah Promo
                     </Button>
                 </DisabledActionTooltip>
             </div>
-
-            {/* Stats Bar */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 sm:pb-0 sm:flex-wrap">
-                <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-medium">
-                    <Package className="w-3.5 h-3.5" />
-                    <span className="font-mono tabular-nums">{stats.total}</span> Total
+            {/* Mobile: Floating button */}
+            {canCreate && (
+                <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                    <Button onClick={() => openForm(null)} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-primary/30 bg-gradient-to-br from-violet-500 to-purple-600">
+                        <Plus className="w-5 h-5" />
+                    </Button>
                 </div>
-                <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-100">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span className="font-mono tabular-nums">{stats.active}</span> Aktif
-                </div>
-                <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-red-100">
-                    <XCircle className="w-3.5 h-3.5" />
-                    <span className="font-mono tabular-nums">{stats.expired}</span> Expired
-                </div>
-                <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-orange-100">
-                    <Ticket className="w-3.5 h-3.5" />
-                    <span className="font-mono tabular-nums">{stats.vouchers}</span> Voucher
-                </div>
-            </div>
+            )}
 
             {/* Search + Filter Bar */}
-            {/* Mobile: search + filter button + bottom sheet */}
-            <div className="sm:hidden flex items-center gap-2">
+            {/* Mobile: search + filter button + stats below */}
+            <div className="sm:hidden space-y-2">
+            <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
@@ -246,6 +235,26 @@ export function PromotionsContent() {
                     </SheetContent>
                 </Sheet>
             </div>
+            {/* Mobile: Stats below search */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                <div className="inline-flex items-center gap-1 bg-slate-100/80 text-slate-600 rounded-full px-2 py-1 text-[11px] font-medium shrink-0">
+                    <Package className="w-3 h-3" />
+                    <span className="font-mono tabular-nums">{stats.total}</span> Total
+                </div>
+                <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-emerald-100 shrink-0">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span className="font-mono tabular-nums">{stats.active}</span>
+                </div>
+                <div className="inline-flex items-center gap-1 bg-red-50 text-red-500 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-red-100 shrink-0">
+                    <XCircle className="w-3 h-3" />
+                    <span className="font-mono tabular-nums">{stats.expired}</span>
+                </div>
+                <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-orange-100 shrink-0">
+                    <Ticket className="w-3 h-3" />
+                    <span className="font-mono tabular-nums">{stats.vouchers}</span>
+                </div>
+            </div>
+            </div>
 
             {/* Desktop: search left + pills right, 1 row */}
             <div className="hidden sm:flex items-center justify-between gap-4">
@@ -261,6 +270,26 @@ export function PromotionsContent() {
                             {opt.label}
                         </button>
                     ))}
+                </div>
+            </div>
+
+            {/* Desktop: stats bar below search */}
+            <div className="hidden sm:flex items-center gap-2 flex-wrap">
+                <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-medium">
+                    <Package className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.total}</span> Total
+                </div>
+                <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-100">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.active}</span> Aktif
+                </div>
+                <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-red-100">
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.expired}</span> Expired
+                </div>
+                <div className="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-orange-100">
+                    <Ticket className="w-3.5 h-3.5" />
+                    <span className="font-mono tabular-nums">{stats.vouchers}</span> Voucher
                 </div>
             </div>
 
@@ -302,70 +331,64 @@ export function PromotionsContent() {
                         const isExpired = new Date(row.endDate) < new Date();
 
                         return (
-                            <div
-                                key={row.id}
-                                className={`rounded-xl border bg-white hover:shadow-md transition-all group p-3 sm:p-4 border-l-4 ${t?.borderColor || "border-l-slate-300"}`}
-                            >
-                                <div className="flex items-start sm:items-center gap-2 sm:gap-4">
-                                    {/* Left: Type Icon */}
-                                    <div className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
-                                        <TypeIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <div key={row.id} className={`rounded-lg sm:rounded-xl border bg-white hover:shadow-md transition-all group border-l-4 ${t?.borderColor || "border-l-slate-300"}`}>
+                                {/* Mobile */}
+                                <div className="sm:hidden px-2.5 py-2 space-y-1">
+                                    <div className="flex items-center justify-between gap-1">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <TypeIcon className={`w-3.5 h-3.5 shrink-0 ${t?.iconBg ? t.iconBg.split(" ")[1] : "text-slate-500"}`} />
+                                            <p className="text-xs font-bold text-foreground truncate">{row.name}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            {renderStatus(row)}
+                                        </div>
                                     </div>
-
-                                    {/* Middle: Info */}
-                                    <div className="flex-1 min-w-0 space-y-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
-                                            <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                            <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
                                                 {t?.label || row.type}
                                             </Badge>
+                                            <span className="font-mono tabular-nums">
+                                                {format(new Date(row.startDate), "dd/MM")} → {format(new Date(row.endDate), "dd/MM")}
+                                            </span>
+                                            {isExpired && <span className="text-[8px] font-medium text-red-500 bg-red-50 px-1 rounded">Exp</span>}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <div className="text-[11px]">{renderValue(row)}</div>
+                                            <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
+                                                <Pencil className="w-3 h-3" />
+                                            </Button>
+                                            <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
+                                                <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Desktop */}
+                                <div className="hidden sm:flex items-center gap-4 p-4">
+                                    <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
+                                        <TypeIcon className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
+                                            <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>{t?.label || row.type}</Badge>
                                         </div>
                                         <p className="text-xs text-muted-foreground truncate">
                                             {row.product ? `Produk: ${row.product.name}` : row.category ? `Kategori: ${row.category.name}` : "Semua produk"}
                                         </p>
                                         <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
                                             <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
-                                            <span className="font-mono tabular-nums text-[11px] sm:text-xs">
-                                                {format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}
-                                            </span>
-                                            {isExpired && (
-                                                <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Expired</span>
-                                            )}
-                                        </div>
-                                        {/* Mobile: value + status + actions */}
-                                        <div className="flex sm:hidden items-center gap-2 pt-1 flex-wrap">
-                                            <div>{renderValue(row)}</div>
-                                            <div>{renderStatus(row)}</div>
-                                            <div className="flex gap-0.5 ml-auto">
-                                                <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </Button>
-                                                <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </div>
+                                            <span className="font-mono tabular-nums text-xs">{format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}</span>
+                                            {isExpired && <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded">Expired</span>}
                                         </div>
                                     </div>
-
-                                    {/* Right: Value + Status + Actions (desktop) */}
-                                    <div className="hidden sm:flex items-center gap-4 shrink-0">
-                                        <div className="text-right">
-                                            {renderValue(row)}
-                                        </div>
-                                        <div>
-                                            {renderStatus(row)}
-                                        </div>
+                                    <div className="flex items-center gap-4 shrink-0">
+                                        <div className="text-right">{renderValue(row)}</div>
+                                        <div>{renderStatus(row)}</div>
                                         <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
-                                                <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openForm(row)}>
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </DisabledActionTooltip>
-                                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                                                <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.id)}>
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </DisabledActionTooltip>
+                                            <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                                            <Button disabled={!canDelete} variant="ghost" size="icon-sm" className="rounded-lg text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                         </div>
                                     </div>
                                 </div>

@@ -26,13 +26,16 @@ import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
     Plus, Eye, ClipboardCheck,
     CheckCircle2, XCircle, Save,
     FileEdit, Loader2, Copy,
     Package, TrendingUp, TrendingDown, AlertTriangle,
     Search, CalendarDays, MapPin,
+    SlidersHorizontal, Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -85,6 +88,7 @@ export function StockOpnameContent() {
     const [data, setData] = useState<{ opnames: StockOpname[]; total: number; totalPages: number; currentPage: number }>({ opnames: [], total: 0, totalPages: 0, currentPage: 1 });
     const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [selectedOpname, setSelectedOpname] = useState<StockOpnameDetail | null>(null);
     const [search, setSearch] = useState("");
@@ -319,11 +323,19 @@ export function StockOpnameContent() {
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50 transition-all duration-200 hover:shadow-xl hover:shadow-amber-200/50 hover:-translate-y-0.5" onClick={() => setCreateOpen(true)}>
+                    <Button disabled={!canCreate} className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50" onClick={() => setCreateOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Buat Opname
                     </Button>
                 </DisabledActionTooltip>
+                {/* Mobile: Floating button */}
+                {canCreate && (
+                    <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                        <Button onClick={() => setCreateOpen(true)} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-amber-300/50 bg-gradient-to-br from-amber-500 to-orange-500">
+                            <Plus className="w-5 h-5" />
+                        </Button>
+                    </div>
+                )}
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) createForm.reset(); }}>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl border-0 shadow-2xl p-0 gap-0">
                         {/* Gradient accent line */}
@@ -384,85 +396,97 @@ export function StockOpnameContent() {
                 </Dialog>
             </div>
 
-            {/* Stats bar */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <FileEdit className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-slate-700">{stats.draft}</span>
-                    <span className="text-[11px] sm:text-xs text-slate-500">Draft</span>
+            {/* Mobile: search + filter + stats */}
+            <div className="sm:hidden space-y-2">
+                <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari opname..." className="pl-9 rounded-xl h-9 text-sm border-slate-200" />
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span className="text-xs">Filter</span>
+                        {activeFilters.status !== "ALL" && <span className="absolute -top-1.5 -right-1.5 w-2 h-2 rounded-full bg-amber-500" />}
+                    </Button>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.inProgress}</span>
-                    <span className="text-[11px] sm:text-xs text-blue-500">Berlangsung</span>
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                    <div className="inline-flex items-center gap-1 rounded-full bg-slate-50 ring-1 ring-slate-200 px-2 py-1 shrink-0">
+                        <FileEdit className="w-3 h-3 text-slate-500" />
+                        <span className="text-[11px] font-semibold text-slate-700">{stats.draft}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
+                        <Loader2 className="w-3 h-3 text-blue-500" />
+                        <span className="text-[11px] font-semibold text-blue-700">{stats.inProgress}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        <span className="text-[11px] font-semibold text-emerald-700">{stats.completed}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-red-50 ring-1 ring-red-100 px-2 py-1 shrink-0">
+                        <XCircle className="w-3 h-3 text-red-400" />
+                        <span className="text-[11px] font-semibold text-red-700">{stats.cancelled}</span>
+                    </div>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100 border border-emerald-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.completed}</span>
-                    <span className="text-[11px] sm:text-xs text-emerald-500">Selesai</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-50 to-red-100 border border-red-200/60 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-400" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-red-700">{stats.cancelled}</span>
-                    <span className="text-[11px] sm:text-xs text-red-400">Dibatalkan</span>
-                </div>
+                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
+                            <SheetHeader className="px-4 pb-3 pt-0"><SheetTitle className="text-base font-bold">Filter Status</SheetTitle></SheetHeader>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+                            {statusPills.map((pill) => {
+                                const isActive = activeFilters.status === pill.value;
+                                return (
+                                    <button key={pill.value} onClick={() => { handleStatusFilter(pill.value); setFilterSheetOpen(false); }}
+                                        className={cn("w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                                            isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted")}>
+                                        <span>{pill.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </SheetContent>
+                </Sheet>
             </div>
 
-            {/* Search bar + Status filter pills */}
-            {/* Mobile: stacked search + scroll pills */}
-            <div className="sm:hidden space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                        value={search}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        placeholder="Cari nomor opname..."
-                        className="pl-10 rounded-xl h-9 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
-                    />
-                </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                    {statusPills.map((pill) => (
-                        <button
-                            key={pill.value}
-                            onClick={() => handleStatusFilter(pill.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                                activeFilters.status === pill.value
-                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
-                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                            {pill.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Desktop: search left + pills right */}
+            {/* Desktop: search + stats + filter */}
             <div className="hidden sm:flex items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                        value={search}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        placeholder="Cari nomor opname..."
-                        className="pl-10 rounded-xl h-10 text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
-                    />
+                    <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari nomor opname..." className="pl-10 rounded-xl h-10 text-sm border-slate-200" />
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                    {statusPills.map((pill) => (
-                        <button
-                            key={pill.value}
-                            onClick={() => handleStatusFilter(pill.value)}
-                            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                                activeFilters.status === pill.value
-                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
-                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                            {pill.label}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-1.5">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5">
+                        <FileEdit className="w-3 h-3 text-slate-500" />
+                        <span className="text-[11px] font-semibold text-slate-700">{stats.draft}</span>
+                        <span className="text-[11px] text-slate-500">Draft</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
+                        <Loader2 className="w-3 h-3 text-blue-500" />
+                        <span className="text-[11px] font-semibold text-blue-700">{stats.inProgress}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        <span className="text-[11px] font-semibold text-emerald-700">{stats.completed}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-3 py-1.5">
+                        <XCircle className="w-3 h-3 text-red-400" />
+                        <span className="text-[11px] font-semibold text-red-700">{stats.cancelled}</span>
+                    </div>
                 </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
+                {statusPills.map((pill) => (
+                    <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
+                        className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            activeFilters.status === pill.value
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
+                                : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}>
+                        {pill.label}
+                    </button>
+                ))}
             </div>
 
             {/* Card List */}
@@ -493,7 +517,7 @@ export function StockOpnameContent() {
                         <p className="text-xs sm:text-sm text-slate-400 text-center max-w-sm">Buat stock opname pertama untuk mulai menghitung stok fisik</p>
                     </div>
                 ) : (
-                    /* Opname card grid — 2 columns */
+                    /* Opname card grid */
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
                         {data.opnames.map((opname) => {
                             const cfg = statusConfig[opname.status];
@@ -505,69 +529,85 @@ export function StockOpnameContent() {
                                     key={opname.id}
                                     className={`group relative rounded-xl border border-slate-200/60 bg-white border-l-4 ${cfg?.borderColor || "border-l-slate-300"} shadow-sm hover:shadow-md transition-all duration-200`}
                                 >
-                                    {/* Status badge — absolute top right */}
-                                    <Badge className={`${cfg?.classes || ""} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
-                                        {cfg?.icon || null}
-                                        {cfg?.label || null}
-                                    </Badge>
-
-                                    <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4">
-                                        {/* Left icon */}
-                                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} shadow-md`}>
-                                            <ClipboardCheck className="h-5 w-5 text-white" />
-                                        </div>
-
-                                        {/* Middle content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="font-mono text-sm font-bold text-slate-800">{opname.opnameNumber}</span>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }}
-                                                    className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100"
-                                                >
-                                                    <Copy className="w-3 h-3 text-slate-400" />
-                                                </button>
+                                    <div className="p-3 sm:p-4 space-y-2 sm:space-y-0">
+                                        {/* Mobile: stacked layout */}
+                                        <div className="sm:hidden space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-xs font-bold text-slate-800">{opname.opnameNumber}</span>
+                                                    <button onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }} className="p-0.5 rounded hover:bg-slate-100">
+                                                        <Copy className="w-2.5 h-2.5 text-slate-400" />
+                                                    </button>
+                                                </div>
+                                                <Badge className={`${cfg?.classes || ""} gap-1 px-2 py-0.5 text-[10px] font-medium shadow-none`}>
+                                                    {cfg?.icon || null}
+                                                    {cfg?.label || null}
+                                                </Badge>
                                             </div>
-                                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                                            <div className="flex items-center gap-3 text-[11px] text-slate-500">
                                                 <span className="inline-flex items-center gap-1">
-                                                    <MapPin className="w-3 h-3 text-slate-400" />
-                                                    {opname.branch?.name || "Semua Cabang"}
+                                                    <MapPin className="w-2.5 h-2.5" />
+                                                    {opname.branch?.name || "Semua"}
                                                 </span>
                                                 <span className="inline-flex items-center gap-1">
-                                                    <CalendarDays className="w-3 h-3 text-slate-400" />
-                                                    {format(date, "dd MMM yyyy", { locale: idLocale })}
-                                                    <span className="text-slate-300 ml-0.5">({formatDistanceToNow(date, { addSuffix: true, locale: idLocale })})</span>
+                                                    <CalendarDays className="w-2.5 h-2.5" />
+                                                    {format(date, "dd MMM yy", { locale: idLocale })}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1">
+                                                    <Package className="w-2.5 h-2.5" />
+                                                    {info.itemCount}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                                                    <Package className="w-3 h-3 text-slate-400" />
-                                                    {info.itemCount} item
-                                                </span>
+                                            <div className="flex items-center gap-1 pt-1">
+                                                <Button variant="ghost" size="xs" className="rounded-lg hover:bg-amber-50 hover:text-amber-700" onClick={() => handleViewDetail(opname.id)}>
+                                                    <Eye className="w-3 h-3 mr-1" /> Lihat
+                                                </Button>
+                                                {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
+                                                    <Button disabled={!canUpdate} variant="ghost" size="xs" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() => handleCancel(opname.id)}>
+                                                        <XCircle className="w-3 h-3 mr-1" /> Batal
+                                                    </Button>
+                                                )}
                                             </div>
                                         </div>
 
-                                        {/* Action buttons */}
-                                        <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-amber-50 hover:text-amber-700 transition-colors" onClick={() => handleViewDetail(opname.id)}>
-                                                <Eye className="w-3.5 h-3.5" />
-                                            </Button>
-                                            {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
-                                                <>
-                                                    <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")}>
-                                                        <Button disabled={!canApprove} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                                                            onClick={async () => { await handleViewDetail(opname.id); }}>
-                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                        </Button>
-                                                    </DisabledActionTooltip>
-                                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
-                                                        <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                                                            onClick={() => handleCancel(opname.id)}>
-                                                            <XCircle className="w-3.5 h-3.5" />
-                                                        </Button>
-                                                    </DisabledActionTooltip>
-                                                </>
-                                            )}
+                                        {/* Desktop: horizontal layout */}
+                                        <div className="hidden sm:flex items-center gap-4">
+                                            <Badge className={`${cfg?.classes || ""} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
+                                                {cfg?.icon || null}
+                                                {cfg?.label || null}
+                                            </Badge>
+                                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} shadow-md`}>
+                                                <ClipboardCheck className="h-5 w-5 text-white" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-mono text-sm font-bold text-slate-800">{opname.opnameNumber}</span>
+                                                    <button onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
+                                                        <Copy className="w-3 h-3 text-slate-400" />
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                    <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{opname.branch?.name || "Semua Cabang"}</span>
+                                                    <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3 text-slate-400" />{format(date, "dd MMM yyyy", { locale: idLocale })}<span className="text-slate-300 ml-0.5">({formatDistanceToNow(date, { addSuffix: true, locale: idLocale })})</span></span>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                                        <Package className="w-3 h-3 text-slate-400" />{info.itemCount} item
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                                                <Button variant="ghost" size="icon-sm" className="rounded-lg hover:bg-amber-50 hover:text-amber-700" onClick={() => handleViewDetail(opname.id)}>
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                </Button>
+                                                {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() => handleCancel(opname.id)}>
+                                                        <XCircle className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -617,73 +657,104 @@ export function StockOpnameContent() {
                     {/* Body - scrollable */}
                     <DialogBody className="px-4 sm:px-6">
                         {selectedOpname && (
-                            <div className="space-y-5">
-                                {/* Summary - at top */}
+                            <div className="space-y-3 sm:space-y-5">
+                                {/* Summary */}
                                 {selectedOpname.items.length > 0 && (
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                                        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 rounded-xl p-3 text-center">
-                                            <Package className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                            <p className="text-lg font-bold text-slate-700">{detailSummary.total}</p>
-                                            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Total Item</p>
+                                    <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
+                                        <div className="bg-slate-50 border border-slate-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                                            <p className="text-sm sm:text-lg font-bold text-slate-700">{detailSummary.total}</p>
+                                            <p className="text-[8px] sm:text-[10px] text-slate-400 font-medium uppercase">Item</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-3 text-center">
-                                            <AlertTriangle className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-                                            <p className="text-lg font-bold text-amber-700">{detailSummary.withDiff}</p>
-                                            <p className="text-[10px] text-amber-500 font-medium uppercase tracking-wider">Ada Selisih</p>
+                                        <div className="bg-amber-50 border border-amber-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                                            <p className="text-sm sm:text-lg font-bold text-amber-700">{detailSummary.withDiff}</p>
+                                            <p className="text-[8px] sm:text-[10px] text-amber-500 font-medium uppercase">Selisih</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-100 rounded-xl p-3 text-center">
-                                            <TrendingUp className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-                                            <p className="text-lg font-bold text-emerald-600">{detailSummary.surplus}</p>
-                                            <p className="text-[10px] text-emerald-500 font-medium uppercase tracking-wider">Kelebihan</p>
+                                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                                            <p className="text-sm sm:text-lg font-bold text-emerald-600">{detailSummary.surplus}</p>
+                                            <p className="text-[8px] sm:text-[10px] text-emerald-500 font-medium uppercase">Lebih</p>
                                         </div>
-                                        <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100 rounded-xl p-3 text-center">
-                                            <TrendingDown className="w-4 h-4 text-red-400 mx-auto mb-1" />
-                                            <p className="text-lg font-bold text-red-600">{detailSummary.deficit}</p>
-                                            <p className="text-[10px] text-red-400 font-medium uppercase tracking-wider">Kekurangan</p>
+                                        <div className="bg-red-50 border border-red-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                                            <p className="text-sm sm:text-lg font-bold text-red-600">{detailSummary.deficit}</p>
+                                            <p className="text-[8px] sm:text-[10px] text-red-400 font-medium uppercase">Kurang</p>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Info cards */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                                    <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 p-3.5">
-                                        <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Cabang</p>
-                                        <p className="font-semibold text-sm text-slate-700 mt-1">{selectedOpname.branch?.name || "Semua Cabang"}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 p-3.5">
-                                        <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Tanggal Mulai</p>
-                                        <p className="font-semibold text-sm text-slate-700 mt-1">{format(new Date(selectedOpname.startedAt), "dd MMM yyyy HH:mm", { locale: idLocale })}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-100 p-3.5">
-                                        <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Catatan</p>
-                                        <p className="text-sm text-slate-700 mt-1">{selectedOpname.notes || "-"}</p>
-                                    </div>
+                                {/* Info */}
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500">
+                                    <span className="inline-flex items-center gap-1 bg-slate-50 rounded-full px-2 py-1 ring-1 ring-slate-100">
+                                        <MapPin className="w-3 h-3" /> {selectedOpname.branch?.name || "Semua"}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 bg-slate-50 rounded-full px-2 py-1 ring-1 ring-slate-100">
+                                        <CalendarDays className="w-3 h-3" /> {format(new Date(selectedOpname.startedAt), "dd MMM yyyy HH:mm", { locale: idLocale })}
+                                    </span>
+                                    {selectedOpname.notes && (
+                                        <span className="text-slate-400 truncate max-w-[200px]">{selectedOpname.notes}</span>
+                                    )}
                                 </div>
 
-                                {/* Product table */}
+                                {/* Product list */}
                                 {selectedOpname.items.length > 0 && (
                                     <>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <p className="text-sm font-bold text-slate-800">Daftar Produk</p>
-                                                <Badge variant="secondary" className="rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-xs px-2">
-                                                    {selectedOpname.items.length} item
+                                                <p className="text-xs sm:text-sm font-bold text-slate-800">Daftar Produk</p>
+                                                <Badge variant="secondary" className="rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] sm:text-xs px-1.5 sm:px-2">
+                                                    {selectedOpname.items.length}
                                                 </Badge>
                                             </div>
                                             {isEditable && (
-                                                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1 border border-amber-100">
-                                                    Masukkan stok aktual hasil penghitungan fisik
+                                                <p className="hidden sm:block text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1 border border-amber-100">
+                                                    Masukkan stok aktual
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
+
+                                        {/* Mobile: card-based items */}
+                                        <div className="sm:hidden space-y-1.5">
+                                            {selectedOpname.items.map((item) => {
+                                                const actualStock = editedItems[item.productId] ?? item.actualStock;
+                                                const diff = actualStock - item.systemStock;
+                                                return (
+                                                    <div key={item.id} className="rounded-lg border border-slate-200/60 p-2.5 space-y-1.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-medium text-slate-700 truncate flex-1">{item.product.name}</span>
+                                                            {diff !== 0 && (
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${diff > 0 ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"}`}>
+                                                                    {diff > 0 ? "+" : ""}{diff}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1">
+                                                                <span className="text-[10px] text-slate-400">Sistem</span>
+                                                                <p className="text-xs font-semibold text-slate-600">{item.systemStock}</p>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <span className="text-[10px] text-slate-400">Aktual</span>
+                                                                {isEditable ? (
+                                                                    <Input type="number" min={0} value={actualStock}
+                                                                        onChange={(e) => setEditedItems({ ...editedItems, [item.productId]: Number(e.target.value) })}
+                                                                        className="w-full h-8 rounded-lg text-center text-xs border-slate-200" />
+                                                                ) : (
+                                                                    <p className="text-xs font-semibold">{item.actualStock}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Desktop: table */}
+                                        <div className="hidden sm:block border border-slate-200/80 rounded-xl overflow-hidden shadow-sm overflow-x-auto">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
-                                                        <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Kode</TableHead>
+                                                        <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kode</TableHead>
                                                         <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Produk</TableHead>
-                                                        <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Stok Sistem</TableHead>
-                                                        <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Stok Aktual</TableHead>
+                                                        <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sistem</TableHead>
+                                                        <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Aktual</TableHead>
                                                         <TableHead className="text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">Selisih</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
@@ -693,35 +764,25 @@ export function StockOpnameContent() {
                                                         const diff = actualStock - item.systemStock;
                                                         return (
                                                             <TableRow key={item.id} className="group hover:bg-amber-50/30 transition-colors">
-                                                                <TableCell className="hidden sm:table-cell">
-                                                                    <span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5 text-slate-600">{item.product.code}</span>
-                                                                </TableCell>
+                                                                <TableCell><span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5 text-slate-600">{item.product.code}</span></TableCell>
                                                                 <TableCell className="text-sm font-medium text-slate-700">{item.product.name}</TableCell>
                                                                 <TableCell className="text-center text-sm text-slate-600 font-medium">{item.systemStock}</TableCell>
                                                                 <TableCell className="text-center">
                                                                     {isEditable ? (
-                                                                        <Input
-                                                                            type="number"
-                                                                            min={0}
-                                                                            value={actualStock}
+                                                                        <Input type="number" min={0} value={actualStock}
                                                                             onChange={(e) => setEditedItems({ ...editedItems, [item.productId]: Number(e.target.value) })}
-                                                                            className="w-20 mx-auto rounded-xl text-center text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30"
-                                                                        />
+                                                                            className="w-20 mx-auto rounded-xl text-center text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30" />
                                                                     ) : (
                                                                         <span className="text-sm font-medium">{item.actualStock}</span>
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell className="text-center">
                                                                     {diff > 0 ? (
-                                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5 border border-emerald-100">
-                                                                            <TrendingUp className="w-3 h-3" />+{diff}
-                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5 border border-emerald-100"><TrendingUp className="w-3 h-3" />+{diff}</span>
                                                                     ) : diff < 0 ? (
-                                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 rounded-full px-2.5 py-0.5 border border-red-100">
-                                                                            <TrendingDown className="w-3 h-3" />{diff}
-                                                                        </span>
+                                                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 rounded-full px-2.5 py-0.5 border border-red-100"><TrendingDown className="w-3 h-3" />{diff}</span>
                                                                     ) : (
-                                                                        <span className="text-xs text-slate-400 font-medium">0</span>
+                                                                        <span className="text-xs text-slate-400">0</span>
                                                                     )}
                                                                 </TableCell>
                                                             </TableRow>
@@ -737,29 +798,25 @@ export function StockOpnameContent() {
                     </DialogBody>
 
                     {/* Footer - sticky */}
-                    <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0">
-                        <Button variant="outline" onClick={() => setDetailOpen(false)} className="rounded-xl px-5">
-                            Tutup
-                        </Button>
-                        {isEditable && (
-                            <>
-                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                    <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
+                        <div className="flex items-center justify-between w-full gap-2">
+                            <Button variant="outline" onClick={() => setDetailOpen(false)} className="rounded-xl">
+                                Tutup
+                            </Button>
+                            {isEditable && (
+                                <div className="flex items-center gap-1.5 sm:gap-2">
                                     <Button disabled={!canUpdate} variant="outline" onClick={handleSaveItems} className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50">
-                                        <Save className="w-4 h-4 mr-2" /> Simpan
+                                        <Save className="w-4 h-4 mr-1.5" /> Simpan
                                     </Button>
-                                </DisabledActionTooltip>
-                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
                                     <Button disabled={!canUpdate} variant="outline" onClick={() => handleCancel(selectedOpname!.id)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50">
-                                        <XCircle className="w-4 h-4 mr-2" /> Batalkan
+                                        <XCircle className="w-4 h-4 mr-1.5" /> Batal
                                     </Button>
-                                </DisabledActionTooltip>
-                                <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")}>
                                     <Button disabled={!canApprove} onClick={handleComplete} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-md shadow-emerald-200/40">
-                                        <CheckCircle2 className="w-4 h-4 mr-2" /> Selesaikan Opname
+                                        <CheckCircle2 className="w-4 h-4 mr-1.5" /> Selesai
                                     </Button>
-                                </DisabledActionTooltip>
-                            </>
-                        )}
+                                </div>
+                            )}
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

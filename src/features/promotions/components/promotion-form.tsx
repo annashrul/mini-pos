@@ -207,43 +207,42 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col min-h-0 flex-1">
-            <DialogBody className="space-y-4 sm:space-y-5 px-4 sm:px-6">
-                <div className="h-1 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
+            <DialogBody className="space-y-3 sm:space-y-5 px-4 sm:px-6">
                 {/* Nama */}
-                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                    <Label className="text-sm font-semibold text-slate-700">Nama Promo <span className="text-red-400">*</span></Label>
-                    <Input {...register("name")} className={`rounded-xl h-10 ${fieldError("name") ? "border-red-400" : "border-slate-200"}`} autoFocus placeholder="cth: Diskon Weekend 20%" />
-                    {fieldError("name") && <p className="text-xs text-red-500">{fieldError("name")}</p>}
-                    <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-slate-700">Deskripsi</Label>
-                        <Input {...register("description")} className="rounded-xl h-10 border-slate-200" placeholder="Opsional" />
+                <div className="space-y-2 sm:space-y-3 ">
+                    <div className="space-y-1 sm:space-y-1.5">
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Nama Promo <span className="text-red-400">*</span></Label>
+                        <Input {...register("name")} className={`rounded-xl ${fieldError("name") ? "border-red-400" : "border-slate-200"}`} autoFocus placeholder="cth: Diskon Weekend 20%" />
+                        {fieldError("name") && <p className="text-xs text-red-500">{fieldError("name")}</p>}
+                    </div>
+                    <div className="space-y-1 sm:space-y-1.5">
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Deskripsi</Label>
+                        <Input {...register("description")} className="rounded-xl border-slate-200" placeholder="Opsional" />
                     </div>
                 </div>
 
                 {/* Tipe */}
-                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                    <Label className="text-sm font-semibold text-slate-700">Tipe Promo <span className="text-red-400">*</span></Label>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <div className="space-y-2 sm:space-y-3 ">
+                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Tipe Promo <span className="text-red-400">*</span></Label>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
                         {typeOptions.map(({ key, label, icon: Icon }) => (
-                            <label key={key} className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border cursor-pointer transition-all
+                            <label key={key} className={`flex flex-col items-center gap-1 p-2 sm:p-3 rounded-lg sm:rounded-xl border cursor-pointer transition-all
                                 ${type === key ? "border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm" : "border-border/50 hover:border-slate-300"}`}>
                                 <input type="radio" value={key} {...register("type")} className="sr-only" />
-                                <Icon className={`w-5 h-5 ${type === key ? "text-blue-600" : "text-muted-foreground"}`} />
-                                <span className={`text-xs font-medium text-center ${type === key ? "text-blue-700" : "text-slate-600"}`}>{label}</span>
+                                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${type === key ? "text-blue-600" : "text-muted-foreground"}`} />
+                                <span className={`text-[10px] sm:text-xs font-medium text-center leading-tight ${type === key ? "text-blue-700" : "text-slate-600"}`}>{label}</span>
                             </label>
                         ))}
                     </div>
                 </div>
 
-                <Separator />
-
                 {/* Scope */}
-                <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                    <Label className="text-sm font-semibold text-slate-700">Berlaku Untuk</Label>
-                    <div className="flex gap-2">
+                <div className="space-y-2 sm:space-y-3 ">
+                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Berlaku Untuk</Label>
+                    <div className="flex gap-1.5 sm:gap-2">
                         {scopeOptions.map(({ key, label }) => (
                             <button key={key} type="button" onClick={() => setValue("scope", key, { shouldValidate: true })}
-                                className={`flex-1 text-xs py-2 rounded-lg border font-medium transition-all
+                                className={`flex-1 text-[10px] sm:text-xs py-1.5 sm:py-2 rounded-lg border font-medium transition-all
                                     ${scope === key ? "border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700" : "border-border/50 text-muted-foreground hover:border-slate-300"}`}>
                                 {label}
                             </button>
@@ -252,8 +251,8 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 </div>
 
                 {scope === "product" && (
-                    <div className="space-y-1.5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
-                        <Label className="text-sm font-semibold text-slate-700">Pilih Produk <span className="text-red-400">*</span></Label>
+                    <div className="space-y-1.5 ">
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Pilih Produk <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="productId"
@@ -271,13 +270,13 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                                 />
                             )}
                         />
-                        {fieldError("productId") && <p className="text-xs text-red-500">{fieldError("productId")}</p>}
+                        {fieldError("productId") && <p className="text-xs sm:text-sm text-red-500">{fieldError("productId")}</p>}
                     </div>
                 )}
 
                 {scope === "category" && (
-                    <div className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
-                        <Label className="text-sm font-semibold text-slate-700">Pilih Kategori <span className="text-red-400">*</span></Label>
+                    <div className="space-y-1.5 ">
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Pilih Kategori <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="categoryId"
@@ -295,7 +294,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                                 />
                             )}
                         />
-                        {fieldError("categoryId") && <p className="text-xs text-red-500">{fieldError("categoryId")}</p>}
+                        {fieldError("categoryId") && <p className="text-xs sm:text-sm text-red-500">{fieldError("categoryId")}</p>}
                     </div>
                 )}
 
@@ -303,15 +302,15 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
                 {/* Type-specific fields */}
                 {(type === "DISCOUNT_PERCENT" || type === "DISCOUNT_AMOUNT") && (
-                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <div className="grid grid-cols-2 gap-3 ">
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">{type === "DISCOUNT_PERCENT" ? "Diskon (%)" : "Diskon (Rp)"} <span className="text-red-400">*</span></Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">{type === "DISCOUNT_PERCENT" ? "Diskon (%)" : "Diskon (Rp)"} <span className="text-red-400">*</span></Label>
                             <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
-                            {fieldError("value") && <p className="text-xs text-red-500">{fieldError("value")}</p>}
+                            {fieldError("value") && <p className="text-xs sm:text-sm text-red-500">{fieldError("value")}</p>}
                         </div>
                         {type === "DISCOUNT_PERCENT" && (
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Maks. Diskon (Rp)</Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Maks. Diskon (Rp)</Label>
                                 <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa batas" />
                             </div>
                         )}
@@ -319,23 +318,23 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {type === "BUY_X_GET_Y" && (
-                    <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                        <div className="bg-emerald-50 rounded-xl p-3 text-xs text-emerald-700">
+                    <div className="space-y-3 ">
+                        <div className="bg-emerald-50 rounded-xl p-3 text-xs sm:text-sm text-emerald-700">
                             <p className="font-medium text-foreground mb-1">Beli X Gratis Y</p>
                             <p>Pelanggan beli sejumlah produk dan mendapat produk gratis</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Beli (qty) <span className="text-red-400">*</span></Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Beli (qty) <span className="text-red-400">*</span></Label>
                                 <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Gratis (qty) <span className="text-red-400">*</span></Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Gratis (qty) <span className="text-red-400">*</span></Label>
                                 <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">Produk Gratis</Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Produk Gratis</Label>
                             <Controller
                                 control={control}
                                 name="getProductId"
@@ -355,31 +354,31 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {type === "BUNDLE" && (
-                    <div className="space-y-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                        <div className="bg-pink-50 rounded-xl p-3 text-xs text-pink-700">
+                    <div className="space-y-3 ">
+                        <div className="bg-pink-50 rounded-xl p-3 text-xs sm:text-sm text-pink-700">
                             <p className="font-medium text-foreground mb-1">Promo Tebus Murah</p>
                             <p>Setelah syarat tercapai, pelanggan dapat menebus produk tertentu dengan harga khusus.</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Syarat Qty (Beli) <span className="text-red-400">*</span></Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Syarat Qty (Beli) <span className="text-red-400">*</span></Label>
                                 <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Qty Tebus <span className="text-red-400">*</span></Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Qty Tebus <span className="text-red-400">*</span></Label>
                                 <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Harga Tebus (Rp) <span className="text-red-400">*</span></Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Harga Tebus (Rp) <span className="text-red-400">*</span></Label>
                                 <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-sm font-semibold text-slate-700">Maks Qty Tebus / Transaksi</Label>
+                                <Label className="text-xs sm:text-sm font-semibold text-slate-700">Maks Qty Tebus / Transaksi</Label>
                                 <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Sesuai kelipatan" />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">Produk Tebus <span className="text-red-400">*</span></Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Produk Tebus <span className="text-red-400">*</span></Label>
                             <Controller
                                 control={control}
                                 name="getProductId"
@@ -398,33 +397,33 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 )}
 
                 {type === "VOUCHER" && (
-                    <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                    <div className="grid grid-cols-2 gap-3 ">
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">Kode Voucher <span className="text-red-400">*</span></Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Kode Voucher <span className="text-red-400">*</span></Label>
                             <Input {...register("voucherCode")} className={`rounded-xl h-10 font-mono ${fieldError("voucherCode") ? "border-red-400" : "border-slate-200"}`} placeholder="HEMAT20" />
-                            {fieldError("voucherCode") && <p className="text-xs text-red-500">{fieldError("voucherCode")}</p>}
+                            {fieldError("voucherCode") && <p className="text-xs sm:text-sm text-red-500">{fieldError("voucherCode")}</p>}
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">Nilai Diskon (Rp) <span className="text-red-400">*</span></Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Nilai Diskon (Rp) <span className="text-red-400">*</span></Label>
                             <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-sm font-semibold text-slate-700">Batas Penggunaan</Label>
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Batas Penggunaan</Label>
                             <Input type="number" {...register("usageLimit", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Tanpa batas" />
                         </div>
                     </div>
                 )}
 
                 {/* Min purchase */}
-                <div className="space-y-1.5 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
-                    <Label className="text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
+                <div className="space-y-1.5 ">
+                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
                     <Input type="number" {...register("minPurchase", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa minimum" />
                 </div>
 
                 {/* Period */}
-                <div className="grid grid-cols-2 gap-3 rounded-2xl border border-border/40 bg-white p-4 shadow-sm">
+                <div className="grid grid-cols-2 gap-3 ">
                     <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-slate-700">Mulai <span className="text-red-400">*</span></Label>
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Mulai <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="startDate"
@@ -437,10 +436,10 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                                 />
                             )}
                         />
-                        {fieldError("startDate") && <p className="text-xs text-red-500">{fieldError("startDate")}</p>}
+                        {fieldError("startDate") && <p className="text-xs sm:text-sm text-red-500">{fieldError("startDate")}</p>}
                     </div>
                     <div className="space-y-1.5">
-                        <Label className="text-sm font-semibold text-slate-700">Berakhir <span className="text-red-400">*</span></Label>
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Berakhir <span className="text-red-400">*</span></Label>
                         <Controller
                             control={control}
                             name="endDate"
@@ -453,7 +452,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                                 />
                             )}
                         />
-                        {fieldError("endDate") && <p className="text-xs text-red-500">{fieldError("endDate")}</p>}
+                        {fieldError("endDate") && <p className="text-xs sm:text-sm text-red-500">{fieldError("endDate")}</p>}
                     </div>
                 </div>
             </DialogBody>

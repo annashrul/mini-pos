@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Target, User, Building2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -15,11 +20,25 @@ import {
 
 type PeriodType = "DAILY" | "WEEKLY" | "MONTHLY";
 
-interface SetTargetDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
-}
+const targetSchema = z.object({
+  assignTo: z.enum(["user", "branch"]),
+  userId: z.string(),
+  branchId: z.string(),
+  type: z.enum(["DAILY", "WEEKLY", "MONTHLY"]),
+  period: z.string().min(1, "Periode wajib diisi"),
+  targetRevenue: z.string(),
+  targetTx: z.string(),
+  targetItems: z.string(),
+}).refine((data) => {
+  if (data.assignTo === "user" && !data.userId) return false;
+  if (data.assignTo === "branch" && !data.branchId) return false;
+  return true;
+}, { message: "Pilih kasir atau cabang", path: ["userId"] })
+.refine((data) => {
+  return data.targetRevenue || data.targetTx || data.targetItems;
+}, { message: "Isi minimal satu target", path: ["targetRevenue"] });
+
+type TargetFormValues = z.infer<typeof targetSchema>;
 
 function getCurrentPeriodValue(type: PeriodType): string {
   const now = new Date();
@@ -34,51 +53,64 @@ function getCurrentPeriodValue(type: PeriodType): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+interface SetTargetDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}
+
 export function SetTargetDialog({ open, onOpenChange, onSuccess }: SetTargetDialogProps) {
   const [isPending, startTransition] = useTransition();
-  const [assignTo, setAssignTo] = useState<"user" | "branch">("user");
-  const [userId, setUserId] = useState("");
-  const [branchId, setBranchId] = useState("");
-  const [type, setType] = useState<PeriodType>("MONTHLY");
-  const [period, setPeriod] = useState(getCurrentPeriodValue("MONTHLY"));
-  const [targetRevenue, setTargetRevenue] = useState("");
-  const [targetTx, setTargetTx] = useState("");
-  const [targetItems, setTargetItems] = useState("");
-
   const [users, setUsers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+
+  const form = useForm<TargetFormValues>({
+    resolver: zodResolver(targetSchema),
+    defaultValues: {
+      assignTo: "user",
+      userId: "",
+      branchId: "",
+      type: "MONTHLY",
+      period: getCurrentPeriodValue("MONTHLY"),
+      targetRevenue: "",
+      targetTx: "",
+      targetItems: "",
+    },
+  });
+
+  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = form;
+  const assignTo = watch("assignTo");
+  const type = watch("type");
 
   useEffect(() => {
     if (open) {
       getSalesTargetUsers().then(setUsers).catch(() => {});
       getSalesTargetBranches().then(setBranches).catch(() => {});
+      reset({
+        assignTo: "user", userId: "", branchId: "",
+        type: "MONTHLY", period: getCurrentPeriodValue("MONTHLY"),
+        targetRevenue: "", targetTx: "", targetItems: "",
+      });
     }
-  }, [open]);
+  }, [open, reset]);
 
   useEffect(() => {
-    setPeriod(getCurrentPeriodValue(type));
-  }, [type]);
+    setValue("period", getCurrentPeriodValue(type));
+  }, [type, setValue]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = (data: TargetFormValues) => {
     startTransition(async () => {
       try {
         await createSalesTarget({
-          userId: assignTo === "user" ? userId || undefined : undefined,
-          branchId: assignTo === "branch" ? branchId || undefined : undefined,
-          type,
-          targetRevenue: targetRevenue ? parseFloat(targetRevenue) : undefined,
-          targetTx: targetTx ? parseInt(targetTx) : undefined,
-          targetItems: targetItems ? parseInt(targetItems) : undefined,
-          period,
+          userId: data.assignTo === "user" ? data.userId || undefined : undefined,
+          branchId: data.assignTo === "branch" ? data.branchId || undefined : undefined,
+          type: data.type,
+          targetRevenue: data.targetRevenue ? parseFloat(data.targetRevenue) : undefined,
+          targetTx: data.targetTx ? parseInt(data.targetTx) : undefined,
+          targetItems: data.targetItems ? parseInt(data.targetItems) : undefined,
+          period: data.period,
         });
         toast.success("Target berhasil disimpan!");
-        // Reset
-        setUserId("");
-        setBranchId("");
-        setTargetRevenue("");
-        setTargetTx("");
-        setTargetItems("");
         onSuccess();
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : "Gagal menyimpan target");
@@ -88,101 +120,63 @@ export function SetTargetDialog({ open, onOpenChange, onSuccess }: SetTargetDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-              <Target className="w-4 h-4 text-white" />
+      <DialogContent className="sm:max-w-lg rounded-2xl max-w-[calc(100vw-2rem)] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+              <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
             </div>
-            Set Target Penjualan
+            Set Target
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <DialogBody className="space-y-4">
-            {/* Assign to user or branch */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Assign Ke</label>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <DialogBody className="px-4 sm:px-6 space-y-3 sm:space-y-4">
+            {/* Assign to */}
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Assign Ke <span className="text-red-400">*</span></Label>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAssignTo("user")}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                    assignTo === "user"
-                      ? "border-amber-400 bg-amber-50 text-amber-700"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300"
-                  }`}
-                >
-                  <User className="w-4 h-4" />
-                  Kasir
+                <button type="button" onClick={() => setValue("assignTo", "user")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs sm:text-sm font-medium transition-all ${
+                    assignTo === "user" ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500"
+                  }`}>
+                  <User className="w-3.5 h-3.5" /> Kasir
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setAssignTo("branch")}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                    assignTo === "branch"
-                      ? "border-amber-400 bg-amber-50 text-amber-700"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300"
-                  }`}
-                >
-                  <Building2 className="w-4 h-4" />
-                  Cabang
+                <button type="button" onClick={() => setValue("assignTo", "branch")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border text-xs sm:text-sm font-medium transition-all ${
+                    assignTo === "branch" ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500"
+                  }`}>
+                  <Building2 className="w-3.5 h-3.5" /> Cabang
                 </button>
               </div>
             </div>
 
             {/* User / Branch selector */}
-            {assignTo === "user" ? (
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Pilih Kasir</label>
-                <select
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  required
-                >
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">{assignTo === "user" ? "Pilih Kasir" : "Pilih Cabang"} <span className="text-red-400">*</span></Label>
+              {assignTo === "user" ? (
+                <select {...register("userId")} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                   <option value="">-- Pilih kasir --</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role})
-                    </option>
-                  ))}
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
                 </select>
-              </div>
-            ) : (
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Pilih Cabang</label>
-                <select
-                  value={branchId}
-                  onChange={(e) => setBranchId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  required
-                >
+              ) : (
+                <select {...register("branchId")} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                   <option value="">-- Pilih cabang --</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
-              </div>
-            )}
+              )}
+              {errors.userId && <p className="text-xs text-red-500">{errors.userId.message}</p>}
+            </div>
 
             {/* Type */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Tipe Target</label>
-              <div className="flex gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm">Tipe Target</Label>
+              <div className="flex gap-1.5 sm:gap-2">
                 {(["DAILY", "WEEKLY", "MONTHLY"] as PeriodType[]).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setType(t)}
-                    className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
-                      type === t
-                        ? "border-amber-400 bg-amber-50 text-amber-700"
-                        : "border-gray-200 text-gray-500 hover:border-gray-300"
-                    }`}
-                  >
+                  <button key={t} type="button" onClick={() => setValue("type", t)}
+                    className={`flex-1 px-2 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-medium border transition-all ${
+                      type === t ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-500"
+                    }`}>
                     {t === "DAILY" ? "Harian" : t === "WEEKLY" ? "Mingguan" : "Bulanan"}
                   </button>
                 ))}
@@ -190,90 +184,33 @@ export function SetTargetDialog({ open, onOpenChange, onSuccess }: SetTargetDial
             </div>
 
             {/* Period */}
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                Periode
-              </label>
-              {type === "DAILY" ? (
-                <input
-                  type="date"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  required
-                />
-              ) : type === "WEEKLY" ? (
-                <input
-                  type="week"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  required
-                />
-              ) : (
-                <input
-                  type="month"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                  required
-                />
-              )}
+            <div className="space-y-1.5">
+              <Label className="text-xs sm:text-sm"><Calendar className="w-3 h-3 inline mr-1" /> Periode <span className="text-red-400">*</span></Label>
+              <Input type={type === "DAILY" ? "date" : type === "WEEKLY" ? "week" : "month"} {...register("period")} className="rounded-xl" />
+              {errors.period && <p className="text-xs text-red-500">{errors.period.message}</p>}
             </div>
 
             {/* Targets */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Target Revenue</label>
-                <input
-                  type="number"
-                  value={targetRevenue}
-                  onChange={(e) => setTargetRevenue(e.target.value)}
-                  placeholder="Rp 0"
-                  min="0"
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                />
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] sm:text-xs">Revenue</Label>
+                <Input type="number" {...register("targetRevenue")} placeholder="Rp 0" min="0" className="rounded-xl text-xs sm:text-sm" />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Target Transaksi</label>
-                <input
-                  type="number"
-                  value={targetTx}
-                  onChange={(e) => setTargetTx(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                />
+              <div className="space-y-1">
+                <Label className="text-[10px] sm:text-xs">Transaksi</Label>
+                <Input type="number" {...register("targetTx")} placeholder="0" min="0" className="rounded-xl text-xs sm:text-sm" />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Target Items</label>
-                <input
-                  type="number"
-                  value={targetItems}
-                  onChange={(e) => setTargetItems(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-                />
+              <div className="space-y-1">
+                <Label className="text-[10px] sm:text-xs">Items</Label>
+                <Input type="number" {...register("targetItems")} placeholder="0" min="0" className="rounded-xl text-xs sm:text-sm" />
               </div>
             </div>
+            {errors.targetRevenue && <p className="text-xs text-red-500">{errors.targetRevenue.message}</p>}
           </DialogBody>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="rounded-xl"
-            >
-              Batal
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-              className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
-            >
+          <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">Batal</Button>
+            <Button type="submit" disabled={isPending} className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white">
               {isPending ? "Menyimpan..." : "Simpan Target"}
             </Button>
           </DialogFooter>

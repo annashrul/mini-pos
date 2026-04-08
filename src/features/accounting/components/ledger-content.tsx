@@ -209,14 +209,14 @@ export function LedgerContent() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
-                    <BookText className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25 shrink-0">
+                    <BookText className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Buku Besar</h1>
-                    <p className="text-sm text-gray-500">
-                        Detail transaksi dan saldo per akun dalam periode tertentu
+                    <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Buku Besar</h1>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                        Detail transaksi dan saldo per akun
                     </p>
                 </div>
             </div>

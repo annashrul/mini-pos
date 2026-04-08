@@ -181,14 +181,19 @@ export function JournalsContent() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-            Jurnal Umum
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Catat dan kelola seluruh entri jurnal akuntansi perusahaan
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 tracking-tight">
+              Jurnal Umum
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+              Catat dan kelola entri jurnal
+            </p>
+          </div>
         </div>
         <Button
           onClick={() => setFormOpen(true)}
@@ -246,20 +251,25 @@ export function JournalsContent() {
               ? "bg-red-100 text-red-700"
               : statusCfg?.className;
           return (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-sm font-medium text-gray-900">{row.number}</span>
-                <Badge variant="secondary" className={`rounded-full px-2 py-0.5 text-[11px] font-medium border-0 ${statusClass}`}>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-xs font-semibold text-gray-900">{row.number}</span>
+                  <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${typeCfg?.className}`}>
+                    {typeCfg?.label}
+                  </Badge>
+                </div>
+                <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${statusClass}`}>
                   {statusCfg?.label}
                 </Badge>
               </div>
-              <div className="text-xs text-gray-500">
-                {formatDate(row.date)} <span className="mx-1">&bull;</span> {typeCfg?.label}
-              </div>
-              <p className="text-xs text-gray-600 truncate">{row.description}</p>
-              <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
-                <span className="text-gray-700">Debit: <span className="font-semibold">{formatCurrency(row.totalDebit)}</span></span>
-                <span className="text-gray-700">Kredit: <span className="font-semibold">{formatCurrency(row.totalCredit)}</span></span>
+              <p className="text-[11px] text-gray-600 truncate">{row.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-gray-400">{formatDate(row.date)}</span>
+                <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums">
+                  <span className="text-emerald-600 font-semibold">D {formatCurrency(row.totalDebit)}</span>
+                  <span className="text-rose-600 font-semibold">K {formatCurrency(row.totalCredit)}</span>
+                </div>
               </div>
             </div>
           );

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { createStockMovement, getStockMovements, getProductsForSelect } from "@/features/stock";
 import { getAllBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -14,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFoo
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { SmartSelect } from "@/components/ui/smart-select";
 import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Plus, BoxesIcon, ArrowDownLeft, ArrowUpRight, RefreshCw, ArrowLeftRight, ClipboardCheck,
@@ -28,6 +32,16 @@ import { useBranch } from "@/components/providers/branch-provider";
 
 type StockMovementsData = Awaited<ReturnType<typeof getStockMovements>>;
 type StockMovementRow = StockMovementsData["movements"][number];
+
+const stockFormSchema = z.object({
+    branchIds: z.array(z.string()).min(1, "Pilih minimal 1 lokasi"),
+    productId: z.string().min(1, "Pilih produk"),
+    type: z.enum(["IN", "OUT", "ADJUSTMENT"], { error: "Pilih tipe pergerakan" }),
+    quantity: z.number().min(1, "Quantity minimal 1"),
+    note: z.string().optional(),
+});
+
+type StockFormValues = z.infer<typeof stockFormSchema>;
 
 const typeConfig: Record<string, { label: string; color: string; icon: React.ElementType; borderColor: string; bgColor: string }> = {
     IN: { label: "Masuk", color: "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200", icon: ArrowDownLeft, borderColor: "border-l-emerald-500", bgColor: "from-emerald-50 to-green-50" },
@@ -60,9 +74,10 @@ export function StockContent() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
-    const [selectedProductId, setSelectedProductId] = useState("");
-    const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
-    const [selectedType, setSelectedType] = useState("IN");
+    const stockForm = useForm<StockFormValues>({
+        resolver: zodResolver(stockFormSchema),
+        defaultValues: { branchIds: [], productId: "", type: "IN", quantity: 1, note: "" },
+    });
     const [activeFilters] = useState<Record<string, string>>({
         type: "ALL",
     });
@@ -103,7 +118,7 @@ export function StockContent() {
             setProducts(productsData);
             const activeBranches = allBranches.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
             setBranches(activeBranches);
-            setSelectedBranchIds(activeBranches.map((b) => b.id));
+            stockForm.setValue("branchIds", activeBranches.map((b) => b.id));
         });
     }, []);
 
@@ -118,15 +133,21 @@ export function StockContent() {
         }
     }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSubmit = async (formData: FormData) => {
-        if (!canCreate) { toast.error(cannotMessage("create")); return; }
+    const onFormSubmit = async (values: StockFormValues) => {
+        if (!canCreate) return;
+        const formData = new FormData();
+        formData.set("branchIds", JSON.stringify(values.branchIds));
+        formData.set("productId", values.productId);
+        formData.set("type", values.type);
+        formData.set("quantity", String(values.quantity));
+        if (values.note) formData.set("note", values.note);
         const result = await createStockMovement(formData);
-        if (result.error) toast.error(result.error);
-        else {
+        if (result.error) {
+            toast.error(result.error);
+        } else {
             toast.success("Pergerakan stok berhasil disimpan");
             setOpen(false);
-            setSelectedProductId("");
-            setSelectedType("IN");
+            stockForm.reset();
             fetchData({});
         }
     };
@@ -190,7 +211,7 @@ export function StockContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
+                        className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
                         onClick={() => setOpen(true)}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
@@ -198,38 +219,70 @@ export function StockContent() {
                 </DisabledActionTooltip>
             </div>
 
-            {/* Stats Bar */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.inCount}</span>
-                    <span className="text-[11px] sm:text-xs text-emerald-600">Masuk</span>
+            {/* Mobile: Floating button */}
+            {canCreate && (
+                <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                    <Button
+                        onClick={() => setOpen(true)}
+                        size="icon"
+                        className="h-12 w-12 rounded-full shadow-xl shadow-indigo-300/50 bg-gradient-to-br from-indigo-500 to-blue-600"
+                    >
+                        <Plus className="w-5 h-5" />
+                    </Button>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-600" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-red-700">{stats.outCount}</span>
-                    <span className="text-[11px] sm:text-xs text-red-600">Keluar</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.adjCount}</span>
-                    <span className="text-[11px] sm:text-xs text-blue-600">Penyesuaian</span>
-                </div>
-            </div>
+            )}
 
             {/* Movement List */}
             <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
-                {/* Search bar */}
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 p-4 border-b border-border/20">
-                    <div className="relative flex-1 sm:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
-                        <Input
-                            placeholder="Cari produk..."
-                            className="pl-9 pr-9 rounded-xl h-9 sm:h-10 text-sm border-border/40"
-                            defaultValue={search}
-                            onChange={(e) => handleSearch(e.target.value)}
-                        />
+                {/* Search bar + Stats */}
+                <div className="p-3 sm:p-4 border-b border-border/20 space-y-2 sm:space-y-0">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <div className="relative flex-1 sm:max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+                            <Input
+                                placeholder="Cari produk..."
+                                className="pl-9 pr-9 rounded-xl h-9 text-sm border-border/40"
+                                defaultValue={search}
+                                onChange={(e) => handleSearch(e.target.value)}
+                            />
+                        </div>
+                        {/* Desktop: stats inline */}
+                        <div className="hidden sm:flex items-center gap-1.5 ml-auto">
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
+                                <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                                <span className="text-[11px] font-semibold text-emerald-700">{stats.inCount}</span>
+                                <span className="text-[11px] text-emerald-600">Masuk</span>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-3 py-1.5">
+                                <ArrowUpRight className="w-3 h-3 text-red-600" />
+                                <span className="text-[11px] font-semibold text-red-700">{stats.outCount}</span>
+                                <span className="text-[11px] text-red-600">Keluar</span>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
+                                <RefreshCw className="w-3 h-3 text-blue-600" />
+                                <span className="text-[11px] font-semibold text-blue-700">{stats.adjCount}</span>
+                                <span className="text-[11px] text-blue-600">Penyesuaian</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Mobile: stats below search */}
+                    <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                        <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
+                            <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                            <span className="text-[11px] font-semibold text-emerald-700">{stats.inCount}</span>
+                            <span className="text-[11px] text-emerald-500">Masuk</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 rounded-full bg-red-50 ring-1 ring-red-100 px-2 py-1 shrink-0">
+                            <ArrowUpRight className="w-3 h-3 text-red-600" />
+                            <span className="text-[11px] font-semibold text-red-700">{stats.outCount}</span>
+                            <span className="text-[11px] text-red-500">Keluar</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
+                            <RefreshCw className="w-3 h-3 text-blue-600" />
+                            <span className="text-[11px] font-semibold text-blue-700">{stats.adjCount}</span>
+                            <span className="text-[11px] text-blue-500">Adj</span>
+                        </div>
                     </div>
                 </div>
 
@@ -370,124 +423,102 @@ export function StockContent() {
                 </div>
             </div>
 
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
-                    {/* Gradient accent line */}
-                    <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 shrink-0" />
-                    <div className="flex-1 overflow-y-auto px-4 sm:px-6">
-                        <DialogHeader className="pt-4 sm:pt-6 pb-3">
-                            <DialogTitle className="text-base sm:text-lg font-bold">Tambah Pergerakan Stok</DialogTitle>
-                        </DialogHeader>
-                        <form action={handleSubmit} className={!canCreate ? "pointer-events-none opacity-70" : ""}>
-                            <DialogBody className="space-y-3 sm:space-y-5 py-2">
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
-                                    <BranchMultiSelect
-                                        branches={branches}
-                                        value={selectedBranchIds}
-                                        onChange={setSelectedBranchIds}
-                                        placeholder="Pilih lokasi"
-                                    />
-                                    <input type="hidden" name="branchIds" value={JSON.stringify(selectedBranchIds)} />
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) stockForm.reset(); }}>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
+                    <div className="h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 shrink-0" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
+                        <DialogTitle className="text-base sm:text-lg font-bold">Tambah Pergerakan Stok</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={stockForm.handleSubmit(onFormSubmit)} className={!canCreate ? "pointer-events-none opacity-70" : "flex flex-col flex-1 overflow-hidden"}>
+                        <DialogBody className="px-4 sm:px-6 space-y-3 sm:space-y-4">
+                            {/* Lokasi */}
+                            <div className="space-y-1">
+                                <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                <BranchMultiSelect
+                                    branches={branches}
+                                    value={stockForm.watch("branchIds")}
+                                    onChange={(v) => { stockForm.setValue("branchIds", v); stockForm.clearErrors("branchIds"); }}
+                                    placeholder="Pilih lokasi"
+                                />
+                                {stockForm.formState.errors.branchIds && <p className="text-xs text-red-500">{stockForm.formState.errors.branchIds.message}</p>}
+                            </div>
+
+                            {/* Produk */}
+                            <div className="space-y-1">
+                                <Label className="text-xs sm:text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
+                                <SmartSelect
+                                    value={stockForm.watch("productId")}
+                                    onChange={(v) => { stockForm.setValue("productId", v); stockForm.clearErrors("productId"); }}
+                                    placeholder="Pilih Produk"
+                                    onSearch={async (query) =>
+                                        products
+                                            .filter((p) => {
+                                                const q = query.toLowerCase();
+                                                return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
+                                            })
+                                            .map((p) => ({
+                                                value: p.id,
+                                                label: `${p.code} - ${p.name}`,
+                                                description: `Stok: ${p.stock}`,
+                                            }))
+                                    }
+                                />
+                                {stockForm.formState.errors.productId && <p className="text-xs text-red-500">{stockForm.formState.errors.productId.message}</p>}
+                            </div>
+
+                            {/* Tipe */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs sm:text-sm font-medium">Tipe <span className="text-red-400">*</span></Label>
+                                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+                                    {typeCards.map((card) => {
+                                        const IconComp = card.icon;
+                                        const isSelected = stockForm.watch("type") === card.value;
+                                        return (
+                                            <button key={card.value} type="button"
+                                                onClick={() => { stockForm.setValue("type", card.value as "IN" | "OUT" | "ADJUSTMENT"); stockForm.clearErrors("type"); }}
+                                                className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all bg-gradient-to-br ${card.gradient} ${isSelected ? card.selectedBorder + " shadow-sm" : "border-transparent opacity-60 hover:opacity-90"}`}>
+                                                <IconComp className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                <span className="text-[11px] sm:text-xs font-semibold">{card.label}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs sm:text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
-                                    <SmartSelect
-                                        value={selectedProductId}
-                                        onChange={setSelectedProductId}
-                                        placeholder="Pilih Produk"
-                                        onSearch={async (query) =>
-                                            products
-                                                .filter((p) => {
-                                                    const q = query.toLowerCase();
-                                                    return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
-                                                })
-                                                .map((p) => ({
-                                                    value: p.id,
-                                                    label: `${p.code} - ${p.name}`,
-                                                    description: `Stok: ${p.stock}`,
-                                                }))
-                                        }
-                                    />
-                                    <input type="hidden" name="productId" value={selectedProductId} required />
+                                {stockForm.formState.errors.type && <p className="text-xs text-red-500">{stockForm.formState.errors.type.message}</p>}
+                            </div>
+
+                            {/* Quantity */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs sm:text-sm font-medium">Quantity <span className="text-red-400">*</span></Label>
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="outline" size="icon" className="rounded-xl h-10 w-10 shrink-0"
+                                        onClick={() => { const v = Math.max(1, (stockForm.getValues("quantity") || 1) - 1); stockForm.setValue("quantity", v); }}>
+                                        <Minus className="w-4 h-4" />
+                                    </Button>
+                                    <Input type="number" min={1}
+                                        {...stockForm.register("quantity", { valueAsNumber: true })}
+                                        className="rounded-xl h-10 text-lg font-bold text-center" />
+                                    <Button type="button" variant="outline" size="icon" className="rounded-xl h-10 w-10 shrink-0"
+                                        onClick={() => { const v = (stockForm.getValues("quantity") || 0) + 1; stockForm.setValue("quantity", v); }}>
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Tipe <span className="text-red-400">*</span></Label>
-                                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-                                        {typeCards.map((card) => {
-                                            const IconComp = card.icon;
-                                            const isSelected = selectedType === card.value;
-                                            return (
-                                                <button
-                                                    key={card.value}
-                                                    type="button"
-                                                    onClick={() => setSelectedType(card.value)}
-                                                    className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all bg-gradient-to-br ${card.gradient} ${isSelected ? card.selectedBorder + " shadow-sm" : "border-transparent opacity-60 hover:opacity-90"
-                                                        }`}
-                                                >
-                                                    <IconComp className="w-4 h-4 sm:w-5 sm:h-5" />
-                                                    <span className="text-[11px] sm:text-xs font-semibold">{card.label}</span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <input type="hidden" name="type" value={selectedType} required />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Quantity <span className="text-red-400">*</span></Label>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 shrink-0"
-                                            onClick={() => {
-                                                const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
-                                                if (input) { const v = Math.max(1, Number(input.value || 1) - 1); input.value = String(v); }
-                                            }}
-                                        >
-                                            <Minus className="w-4 h-4" />
-                                        </Button>
-                                        <Input
-                                            name="quantity"
-                                            type="number"
-                                            min={1}
-                                            defaultValue={1}
-                                            required
-                                            className="rounded-xl h-10 sm:h-12 text-lg sm:text-xl font-bold text-center"
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="icon"
-                                            className="rounded-xl h-10 w-10 sm:h-12 sm:w-12 shrink-0"
-                                            onClick={() => {
-                                                const input = document.querySelector<HTMLInputElement>('input[name="quantity"]');
-                                                if (input) { const v = Number(input.value || 0) + 1; input.value = String(v); }
-                                            }}
-                                        >
-                                            <Plus className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs sm:text-sm font-medium">Catatan</Label>
-                                    <textarea
-                                        name="note"
-                                        rows={2}
-                                        className="flex w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                                        placeholder="Tambahkan catatan..."
-                                    />
-                                </div>
-                            </DialogBody>
-                            <DialogFooter className="px-0 pb-4 sm:pb-6">
-                                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                                    <Button disabled={!canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white">Simpan</Button>
-                                </DisabledActionTooltip>
-                            </DialogFooter>
-                        </form>
-                    </div>
+                                {stockForm.formState.errors.quantity && <p className="text-xs text-red-500">{stockForm.formState.errors.quantity.message}</p>}
+                            </div>
+
+                            {/* Catatan */}
+                            <div className="space-y-1">
+                                <Label className="text-xs sm:text-sm font-medium">Catatan</Label>
+                                <Textarea {...stockForm.register("note")} rows={2} placeholder="Tambahkan catatan..." className="rounded-xl resize-none" />
+                            </div>
+                        </DialogBody>
+                        <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
+                            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Batal</Button>
+                            <Button disabled={!canCreate || stockForm.formState.isSubmitting} type="submit" className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white">
+                                {stockForm.formState.isSubmitting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
+                                Simpan
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
         </div>

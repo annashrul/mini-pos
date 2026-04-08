@@ -56,15 +56,15 @@ export function ReportsContent() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                    <FileBarChart className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
+                    <FileBarChart className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
+                    <h1 className="text-lg sm:text-2xl font-bold text-gray-900">
                         Laporan Keuangan
                     </h1>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                         Neraca saldo, laba rugi, neraca, dan arus kas
                     </p>
                 </div>

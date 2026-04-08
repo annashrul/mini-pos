@@ -87,24 +87,44 @@ export function useJournalForm(open: boolean, onClose: (saved?: boolean) => void
   const difference = totalDebit - totalCredit;
   const isBalanced = Math.abs(difference) < 0.01;
 
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const clearError = (key: string) => {
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const handleSave = (postImmediately: boolean) => {
+    const errors: Record<string, string> = {};
+
+    if (!date) {
+      errors.date = "Tanggal wajib diisi";
+    }
+
     if (!description.trim()) {
-      toast.error("Deskripsi jurnal wajib diisi");
-      return;
+      errors.description = "Deskripsi jurnal wajib diisi";
     }
 
     const validLines = lines.filter(
       (l) => l.accountId && (parseFloat(l.debit) > 0 || parseFloat(l.credit) > 0)
     );
     if (validLines.length < 2) {
-      toast.error("Minimal 2 baris jurnal dengan akun dan nominal");
-      return;
+      errors.lines = "Minimal 2 baris jurnal dengan akun dan nominal";
     }
 
     if (postImmediately && !isBalanced) {
-      toast.error("Debit dan kredit harus seimbang untuk posting");
+      errors.balance = "Debit dan kredit harus seimbang untuk posting";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
       return;
     }
+
+    setValidationErrors({});
 
     startSaving(async () => {
       try {
@@ -151,5 +171,7 @@ export function useJournalForm(open: boolean, onClose: (saved?: boolean) => void
     addLine,
     removeLine,
     handleSave,
+    validationErrors,
+    clearError,
   };
 }

@@ -5,49 +5,27 @@ import { formatCurrency } from "@/lib/utils";
 import {
   generateAutoReorderList,
   type SupplierReorderGroup,
-  type RiskLevel,
 } from "@/server/actions/inventory-forecast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CreatePODialog } from "@/features/purchases/components/create-po-dialog";
 import {
   Building2,
   FileText,
-  Mail,
   Phone,
   ShoppingCart,
   Truck,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Props {
   branchId?: string | undefined;
 }
 
-const riskColors: Record<RiskLevel, string> = {
-  CRITICAL: "bg-red-50 text-red-700 border-red-200",
-  WARNING: "bg-amber-50 text-amber-700 border-amber-200",
-  LOW: "bg-blue-50 text-blue-700 border-blue-200",
-  SAFE: "bg-emerald-50 text-emerald-700 border-emerald-200",
-};
-
-const riskLabels: Record<RiskLevel, string> = {
-  CRITICAL: "Kritis",
-  WARNING: "Peringatan",
-  LOW: "Rendah",
-  SAFE: "Aman",
-};
-
 export function AutoReorderList({ branchId }: Props) {
   const [groups, setGroups] = useState<SupplierReorderGroup[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [poDialogOpen, setPODialogOpen] = useState(false);
 
   useEffect(() => {
     startTransition(async () => {
@@ -58,13 +36,17 @@ export function AutoReorderList({ branchId }: Props) {
 
   if (isPending) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
+        <Skeleton className="h-16 rounded-xl" />
         {[1, 2].map(i => (
-          <Card key={i}>
-            <CardContent className="py-12">
-              <div className="flex items-center justify-center text-sm text-slate-400">Memuat data reorder...</div>
-            </CardContent>
-          </Card>
+          <div key={i} className="rounded-xl border border-slate-200 overflow-hidden">
+            <Skeleton className="h-14" />
+            <div className="p-3 space-y-2">
+              <Skeleton className="h-10 rounded-lg" />
+              <Skeleton className="h-10 rounded-lg" />
+              <Skeleton className="h-10 rounded-lg" />
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -72,17 +54,13 @@ export function AutoReorderList({ branchId }: Props) {
 
   if (groups.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-10 sm:py-16">
-          <div className="text-center">
-            <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-              <ShoppingCart className="w-5 h-5 sm:w-8 sm:h-8 text-emerald-500" />
-            </div>
-            <h3 className="text-sm sm:text-lg font-semibold text-slate-700 mb-1">Semua Stok Aman</h3>
-            <p className="text-xs sm:text-sm text-slate-400">Tidak ada produk yang memerlukan pemesanan ulang saat ini.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mb-3 sm:mb-4">
+          <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400" />
+        </div>
+        <h3 className="text-sm sm:text-base font-semibold text-slate-700 mb-1">Semua Stok Aman</h3>
+        <p className="text-xs sm:text-sm text-slate-400 max-w-xs">Tidak ada produk yang memerlukan reorder saat ini.</p>
+      </div>
     );
   }
 
@@ -91,102 +69,83 @@ export function AutoReorderList({ branchId }: Props) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-2 sm:gap-4 p-3 sm:p-4 rounded-xl bg-violet-50 border border-violet-100">
-        <div className="flex items-center gap-2">
-          <Truck className="w-4 h-4 text-violet-600" />
-          <span className="text-sm font-medium text-violet-700">{groups.length} supplier</span>
+      {/* Summary */}
+      <div className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-xl bg-violet-50/80 border border-violet-100">
+        <Truck className="w-4 h-4 text-violet-600 shrink-0" />
+        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0 text-[11px] sm:text-sm">
+          <span className="text-violet-700 font-medium">{groups.length} supplier</span>
+          <span className="text-violet-500">{totalItems} produk</span>
         </div>
-        <div className="text-sm text-violet-600">{totalItems} produk perlu diorder</div>
-        <div className="ml-auto text-sm font-semibold text-violet-700">
-          Total estimasi: {formatCurrency(totalCost)}
-        </div>
+        <span className="font-bold text-violet-700 text-xs sm:text-sm font-mono tabular-nums shrink-0">{formatCurrency(totalCost)}</span>
       </div>
 
       {/* Supplier groups */}
       {groups.map(group => (
-        <Card key={group.supplierId} className="overflow-hidden">
-          <CardHeader className="bg-slate-50/80 border-b border-slate-100 py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                  <Building2 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold text-slate-800">
-                    {group.supplierName}
-                  </CardTitle>
-                  <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                    {group.supplierContact && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {group.supplierContact}
-                      </span>
-                    )}
-                    {group.supplierEmail && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" /> {group.supplierEmail}
-                      </span>
-                    )}
-                  </div>
-                </div>
+        <div key={group.supplierId} className="rounded-xl sm:rounded-2xl border border-slate-200/60 bg-white overflow-hidden shadow-sm">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 p-3 sm:p-4 bg-slate-50/60 border-b border-slate-100">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+                <Building2 className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right mr-3">
-                  <p className="text-xs text-slate-500">Estimasi</p>
-                  <p className="text-sm font-bold text-slate-800">{formatCurrency(group.totalEstimatedCost)}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">{group.supplierName}</p>
+                <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-400 mt-0.5">
+                  {group.supplierContact && <span className="flex items-center gap-0.5"><Phone className="w-2.5 h-2.5" />{group.supplierContact}</span>}
+                  <span>{group.items.length} item</span>
+                  <span className="font-mono tabular-nums font-medium text-slate-600">{formatCurrency(group.totalEstimatedCost)}</span>
                 </div>
-                <Button size="sm" className="gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-sm">
-                  <FileText className="w-3.5 h-3.5" />
-                  Buat PO
-                </Button>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Produk</TableHead>
-                  <TableHead className="text-right">Stok</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">Avg/Hari</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">Sisa Hari</TableHead>
-                  <TableHead className="hidden sm:table-cell">Risiko</TableHead>
-                  <TableHead className="text-right">Order Qty</TableHead>
-                  <TableHead className="text-right hidden sm:table-cell">Harga Beli</TableHead>
-                  <TableHead className="text-right">Est. Biaya</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {group.items.map(item => (
-                  <TableRow key={item.productId}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-sm text-slate-800">{item.productName}</p>
-                        <p className="text-xs text-slate-400">{item.productCode}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-slate-700">{item.currentStock}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-slate-700 hidden sm:table-cell">{item.avgDailySales}</TableCell>
-                    <TableCell className="text-right hidden sm:table-cell">
-                      <span className={`text-sm tabular-nums font-medium ${item.daysUntilStockout < 3 ? "text-red-600" : item.daysUntilStockout < 7 ? "text-amber-600" : "text-slate-700"}`}>
+            <Button size="sm" className="gap-1.5 shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-sm rounded-lg sm:rounded-xl" onClick={() => setPODialogOpen(true)}>
+              <FileText className="w-3.5 h-3.5" />
+              <span className="text-xs">Buat PO</span>
+            </Button>
+          </div>
+
+          {/* Items */}
+          <div className="divide-y divide-slate-100">
+            {group.items.map(item => {
+              const isUrgent = item.daysUntilStockout < 3;
+              return (
+                <div key={item.productId} className="px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-3">
+                  {/* Risk indicator */}
+                  <div className={`w-1.5 sm:w-2 h-8 sm:h-10 rounded-full shrink-0 ${
+                    item.riskLevel === "CRITICAL" ? "bg-red-500" :
+                    item.riskLevel === "WARNING" ? "bg-amber-500" :
+                    item.riskLevel === "LOW" ? "bg-blue-400" : "bg-emerald-400"
+                  }`} />
+
+                  {/* Product info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs sm:text-sm font-medium text-slate-800 truncate">{item.productName}</p>
+                      {isUrgent && <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />}
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 mt-0.5 text-[10px] sm:text-xs text-slate-400">
+                      <span className="font-mono">{item.productCode}</span>
+                      <span>Stok: <span className={isUrgent ? "text-red-600 font-medium" : ""}>{item.currentStock}</span></span>
+                      <span className="hidden sm:inline">Avg: {item.avgDailySales}/hari</span>
+                      <span className={`font-medium ${item.daysUntilStockout < 3 ? "text-red-600" : item.daysUntilStockout < 7 ? "text-amber-600" : ""}`}>
                         {item.daysUntilStockout >= 9999 ? "N/A" : `${item.daysUntilStockout}d`}
                       </span>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge variant="outline" className={riskColors[item.riskLevel]}>
-                        {riskLabels[item.riskLevel]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold tabular-nums text-violet-700">{item.recommendedQty}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums text-slate-600 hidden sm:table-cell">{formatCurrency(item.purchasePrice)}</TableCell>
-                    <TableCell className="text-right text-sm font-medium tabular-nums text-slate-800">{formatCurrency(item.estimatedCost)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    </div>
+                  </div>
+
+                  {/* Order info */}
+                  <div className="text-right shrink-0">
+                    <p className="text-xs sm:text-sm font-bold text-violet-700 font-mono tabular-nums">{item.recommendedQty}</p>
+                    <p className="text-[9px] sm:text-[11px] text-slate-400 font-mono tabular-nums">{formatCurrency(item.estimatedCost)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       ))}
+
+      {/* Create PO Dialog */}
+      <CreatePODialog open={poDialogOpen} onOpenChange={setPODialogOpen} />
     </div>
   );
 }

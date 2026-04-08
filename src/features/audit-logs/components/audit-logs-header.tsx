@@ -13,13 +13,13 @@ export function AuditLogsHeader(props: {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 shadow-lg shadow-teal-200/50">
-            <ScrollText className="w-6 h-6 text-white" />
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 shadow-lg shadow-teal-200/50 shrink-0">
+            <ScrollText className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Audit Log</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Riwayat semua aktivitas sistem</p>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Audit Log</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Riwayat aktivitas sistem</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

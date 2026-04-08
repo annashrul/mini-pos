@@ -5,10 +5,15 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-    TrendingDown, PackageX, DollarSign, Snail, BarChart3,
+    Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
+    TrendingDown, PackageX, DollarSign, Snail, BarChart3, SlidersHorizontal, Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { TAB_CONFIG } from "@/features/analytics/utils";
 import { useMarginAnalysis } from "@/features/analytics/hooks/use-margin-analysis";
@@ -41,6 +46,7 @@ function AnalyticsContentInner() {
     const router = useRouter();
     const tabParam = searchParams.get("tab") || "margin";
     const [activeTab, setActiveTab] = useState(tabParam);
+    const [tabSheetOpen, setTabSheetOpen] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set());
@@ -239,17 +245,71 @@ function AnalyticsContentInner() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
-                <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
-                    <TabsList className="inline-flex h-10 sm:h-12 items-center gap-0.5 sm:gap-1 rounded-xl bg-slate-100/80 p-1 min-w-max">
+                {/* Mobile: button to open tab sheet */}
+                {(() => {
+                    const activeConfig = TAB_CONFIG.find((t) => t.value === activeTab);
+                    const ActiveIcon = activeConfig?.icon || BarChart3;
+                    return (
+                        <div className="sm:hidden">
+                            <Button
+                                variant="outline"
+                                className="w-full justify-between rounded-xl h-9"
+                                onClick={() => setTabSheetOpen(true)}
+                            >
+                                <span className="flex items-center gap-2">
+                                    <ActiveIcon className="w-3.5 h-3.5 text-blue-600" />
+                                    <span className="text-xs font-medium">{activeConfig?.label || "Pilih analisis"}</span>
+                                </span>
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                            </Button>
+                            <Sheet open={tabSheetOpen} onOpenChange={setTabSheetOpen}>
+                                <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                                    <div className="shrink-0">
+                                        <div className="flex justify-center pt-3 pb-2">
+                                            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                                        </div>
+                                        <SheetHeader className="px-4 pb-3 pt-0">
+                                            <SheetTitle className="text-base font-bold">Pilih Analisis</SheetTitle>
+                                        </SheetHeader>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+                                        {TAB_CONFIG.map(({ value, label, icon: Icon }) => {
+                                            const isActive = activeTab === value;
+                                            return (
+                                                <button
+                                                    key={value}
+                                                    onClick={() => { handleTabChange(value); setTabSheetOpen(false); }}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                                                        isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"
+                                                    )}
+                                                >
+                                                    <span className="flex items-center gap-2.5">
+                                                        <Icon className={cn("w-4 h-4", isActive ? "text-background" : "text-muted-foreground")} />
+                                                        {label}
+                                                    </span>
+                                                    {isActive && <Check className="w-4 h-4" />}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </SheetContent>
+                            </Sheet>
+                        </div>
+                    );
+                })()}
+
+                {/* Desktop: horizontal tabs */}
+                <div className="hidden sm:block overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+                    <TabsList className="inline-flex h-12 items-center gap-1 rounded-xl bg-slate-100/80 p-1 min-w-max">
                         {TAB_CONFIG.map(({ value, label, icon: Icon }) => (
                             <TabsTrigger
                                 key={value}
                                 value={value}
-                                className="inline-flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-sm font-medium text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-slate-500 transition-all data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm whitespace-nowrap"
                             >
-                                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span className="hidden sm:inline">{label}</span>
-                                <span className="sm:hidden">{label.split(" ")[0]}</span>
+                                <Icon className="w-4 h-4" />
+                                {label}
                             </TabsTrigger>
                         ))}
                     </TabsList>

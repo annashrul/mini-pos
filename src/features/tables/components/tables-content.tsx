@@ -312,12 +312,12 @@ export function TablesContent() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200/50">
-                        <Armchair className="w-5 h-5 text-white" />
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200/50 shrink-0">
+                        <Armchair className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-foreground tracking-tight">Manajemen Meja</h1>
-                        <p className="text-xs text-muted-foreground">Kelola meja restoran, status, dan kapasitas</p>
+                        <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Manajemen Meja</h1>
+                        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">Kelola meja, status, dan kapasitas</p>
                     </div>
                 </div>
                 <Button

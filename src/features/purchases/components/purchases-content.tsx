@@ -32,6 +32,7 @@ import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
     Plus, Eye, ShoppingBasket,
     Send, XCircle, PackageCheck, Trash2,
@@ -40,7 +41,9 @@ import {
     Search, Loader2,
     CalendarDays,
     ClipboardList,
+    SlidersHorizontal, Check,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -115,6 +118,7 @@ export function PurchasesContent() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [receiveOpen, setReceiveOpen] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -404,11 +408,19 @@ export function PurchasesContent() {
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="w-full sm:w-auto text-xs sm:text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
+                    <Button disabled={!canCreate} className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Buat PO
                     </Button>
                 </DisabledActionTooltip>
+                {/* Mobile: Floating button */}
+                {canCreate && (
+                    <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                        <Button onClick={() => setCreateOpen(true)} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-emerald-300/50 bg-gradient-to-br from-emerald-500 to-teal-600">
+                            <Plus className="w-5 h-5" />
+                        </Button>
+                    </div>
+                )}
                 <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); setSelectedProductId(""); setNewQty(1); setNewPrice(0); } }}>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
                         <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
@@ -468,15 +480,15 @@ export function PurchasesContent() {
                                                 onSearch={async (query) => productOptions.filter((item) => { if (!query) return true; const q = query.toLowerCase(); return item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q); }).map((item) => ({ value: item.id, label: item.name, description: `${item.code} • Stok ${item.stock} • ${item.unit}` }))} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-2 sm:contents">
+                                            <div className="sm:col-span-2">
+                                                <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
+                                            </div>
+                                            <div className="sm:col-span-3">
+                                                <Input type="number" value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={0} placeholder="Harga beli" />
+                                            </div>
+                                        </div>
                                         <div className="sm:col-span-2">
-                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
-                                        </div>
-                                        <div className="sm:col-span-3">
-                                            <Input type="number" value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={0} placeholder="Harga beli" />
-                                        </div>
-                                        </div>
-                                        <div className="sm:col-span-2">
-                                            <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white" size="sm">
+                                            <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white" size={'lg'}>
                                                 <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
                                             </Button>
                                         </div>
@@ -527,23 +539,25 @@ export function PurchasesContent() {
                             )}
                         </DialogBody>
 
-                        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between w-full gap-2">
+                        <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0 border-t">
+                            <div className="flex items-center justify-between w-full gap-2">
+                                {/* Left: total */}
                                 {watchedItems.length > 0 ? (
-                                    <div className="flex items-center gap-2 sm:gap-3">
-                                        <span className="text-xs sm:text-sm font-medium text-emerald-700">Total:</span>
-                                        <span className="font-mono text-base sm:text-lg font-bold text-emerald-700 tabular-nums">{formatCurrency(cartTotal)}</span>
-                                        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2">
+                                    <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                                        <span className="text-[10px] sm:text-sm font-medium text-emerald-700 shrink-0">Total:</span>
+                                        <span className="font-mono text-sm sm:text-lg font-bold text-emerald-700 tabular-nums truncate">{formatCurrency(cartTotal)}</span>
+                                        <Badge className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 border border-emerald-200 px-2">
                                             {watchedItems.length} produk
                                         </Badge>
                                     </div>
                                 ) : <div />}
-                                <div className="flex items-center gap-2">
+                                {/* Right: buttons */}
+                                <div className="flex items-center gap-2 shrink-0">
                                     <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
                                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                                         <Button disabled={!canCreate} onClick={poForm.handleSubmit(handleCreatePO)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50">
-                                            <ShoppingBasket className="w-4 h-4 mr-2" />
-                                            Buat PO
+                                            <ShoppingBasket className="w-4 h-4 sm:mr-2" />
+                                            <span >Buat PO</span>
                                         </Button>
                                     </DisabledActionTooltip>
                                 </div>
@@ -561,91 +575,102 @@ export function PurchasesContent() {
                 />
             </div>
 
-            {/* Stats bar */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-slate-700">{stats.draftCount}</span>
-                    <span className="text-[11px] sm:text-xs text-slate-500">Draft</span>
+            {/* Mobile: search + filter button + stats below */}
+            <div className="sm:hidden space-y-2">
+                <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari PO..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
+                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span className="text-xs">Filter</span>
+                        {activeFilters.status !== "ALL" && <span className="absolute -top-1.5 -right-1.5 w-2 h-2 rounded-full bg-emerald-500" />}
+                    </Button>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <Send className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-blue-700">{stats.orderedCount}</span>
-                    <span className="text-[11px] sm:text-xs text-blue-500">Dipesan</span>
+                {/* Mobile stats */}
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                    <div className="inline-flex items-center gap-1 rounded-full bg-slate-50 ring-1 ring-slate-200 px-2 py-1 shrink-0">
+                        <FileText className="w-3 h-3 text-slate-500" />
+                        <span className="text-[11px] font-semibold text-slate-700">{stats.draftCount}</span>
+                        <span className="text-[11px] text-slate-400">Draft</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
+                        <Send className="w-3 h-3 text-blue-500" />
+                        <span className="text-[11px] font-semibold text-blue-700">{stats.orderedCount}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
+                        <PackageCheck className="w-3 h-3 text-emerald-500" />
+                        <span className="text-[11px] font-semibold text-emerald-700">{stats.receivedCount}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-100 px-2 py-1 shrink-0">
+                        <DollarSign className="w-3 h-3 text-amber-500" />
+                        <span className="text-[11px] font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
+                    </div>
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <PackageCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-emerald-700">{stats.receivedCount}</span>
-                    <span className="text-[11px] sm:text-xs text-emerald-500">Diterima</span>
-                </div>
-                <div className="inline-flex items-center gap-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 px-2.5 sm:px-4 py-1.5 sm:py-2">
-                    <DollarSign className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
-                    <span className="text-[11px] sm:text-xs font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
-                    <span className="text-[11px] sm:text-xs text-amber-500">Total</span>
-                </div>
+                {/* Filter bottom sheet */}
+                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
+                        <div className="shrink-0">
+                            <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
+                            <SheetHeader className="px-4 pb-3 pt-0"><SheetTitle className="text-base font-bold">Filter Status</SheetTitle></SheetHeader>
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+                            {statusFilterPills.map((pill) => {
+                                const isActive = activeFilters.status === pill.value;
+                                return (
+                                    <button key={pill.value} onClick={() => { handleStatusFilter(pill.value); setFilterSheetOpen(false); }}
+                                        className={cn("w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
+                                            isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted")}>
+                                        <span>{pill.label}</span>
+                                        {isActive && <Check className="w-4 h-4" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </SheetContent>
+                </Sheet>
             </div>
 
-            {/* Search bar + Status filter pills */}
-            {/* Mobile: stacked search + scroll pills */}
-            <div className="sm:hidden space-y-3">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        placeholder="Cari PO berdasarkan nomor, supplier..."
-                        className="pl-10 rounded-xl border-slate-200 bg-white h-9 text-sm"
-                    />
-                    {loading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
-                    )}
-                </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-                    {statusFilterPills.map((pill) => (
-                        <button
-                            key={pill.value}
-                            onClick={() => handleStatusFilter(pill.value)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                                activeFilters.status === pill.value
-                                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
-                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                            {pill.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Desktop: search left + pills right */}
+            {/* Desktop: search + stats + filter pills */}
             <div className="hidden sm:flex items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        value={search}
-                        onChange={(e) => handleSearchChange(e.target.value)}
-                        placeholder="Cari PO berdasarkan nomor, supplier..."
-                        className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm"
-                    />
-                    {loading && (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
-                    )}
+                    <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari PO berdasarkan nomor, supplier..." className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm" />
+                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                    {statusFilterPills.map((pill) => (
-                        <button
-                            key={pill.value}
-                            onClick={() => handleStatusFilter(pill.value)}
-                            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
-                                activeFilters.status === pill.value
-                                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
-                                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                            {pill.label}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-1.5">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5">
+                        <FileText className="w-3 h-3 text-slate-500" />
+                        <span className="text-[11px] font-semibold text-slate-700">{stats.draftCount}</span>
+                        <span className="text-[11px] text-slate-500">Draft</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
+                        <Send className="w-3 h-3 text-blue-500" />
+                        <span className="text-[11px] font-semibold text-blue-700">{stats.orderedCount}</span>
+                        <span className="text-[11px] text-blue-500">Dipesan</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
+                        <PackageCheck className="w-3 h-3 text-emerald-500" />
+                        <span className="text-[11px] font-semibold text-emerald-700">{stats.receivedCount}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5">
+                        <DollarSign className="w-3 h-3 text-amber-500" />
+                        <span className="text-[11px] font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
+                    </div>
                 </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
+                {statusFilterPills.map((pill) => (
+                    <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
+                        className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${activeFilters.status === pill.value
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
+                            : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            }`}>
+                        {pill.label}
+                    </button>
+                ))}
             </div>
 
             {/* PO Card List */}
@@ -959,23 +984,23 @@ export function PurchasesContent() {
                         <DialogTitle className="text-base sm:text-lg font-bold">Konfirmasi</DialogTitle>
                     </DialogHeader>
                     <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-                    <p className="text-sm text-muted-foreground">{confirmText}</p>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
-                        <DisabledActionTooltip
-                            disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                            message={cannotMessage(confirmRequiredAction === "approve" ? "approve" : "update")}
-                        >
-                            <Button
+                        <p className="text-sm text-muted-foreground">{confirmText}</p>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
+                            <DisabledActionTooltip
                                 disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                                variant="destructive"
-                                onClick={async () => { await pendingConfirmAction?.(); }}
-                                className="rounded-xl"
+                                message={cannotMessage(confirmRequiredAction === "approve" ? "approve" : "update")}
                             >
-                                Ya, Lanjutkan
-                            </Button>
-                        </DisabledActionTooltip>
-                    </div>
+                                <Button
+                                    disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
+                                    variant="destructive"
+                                    onClick={async () => { await pendingConfirmAction?.(); }}
+                                    className="rounded-xl"
+                                >
+                                    Ya, Lanjutkan
+                                </Button>
+                            </DisabledActionTooltip>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -14,9 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SmartTable, type SmartColumn, type SmartFilter } from "@/components/ui/smart-table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   AlertTriangle,
-  ArrowRight,
   BarChart3,
   Package,
   ShieldAlert,
@@ -294,113 +294,102 @@ export function InventoryForecastContent() {
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
+        <div className="grid grid-cols-6 sm:grid-cols-5 gap-1.5 sm:gap-3">
           {([
-            { key: "CRITICAL" as const, count: summary.criticalCount, label: "Kritis (<3 hari)", gradient: "from-red-500 to-rose-600", shadow: "shadow-red-200" },
-            { key: "WARNING" as const, count: summary.warningCount, label: "Peringatan (<7 hari)", gradient: "from-amber-500 to-orange-500", shadow: "shadow-amber-200" },
-            { key: "LOW" as const, count: summary.lowCount, label: "Risiko Rendah", gradient: "from-blue-500 to-indigo-500", shadow: "shadow-blue-200" },
-            { key: "SAFE" as const, count: summary.safeCount, label: "Aman (>14 hari)", gradient: "from-emerald-500 to-green-600", shadow: "shadow-emerald-200" },
-          ]).map(card => (
-            <Card
-              key={card.key}
-              className={`cursor-pointer transition-all hover:scale-[1.02] ${riskFilter === card.key ? "ring-2 ring-offset-2 ring-slate-400" : ""}`}
-              onClick={() => setRiskFilter(prev => prev === card.key ? "ALL" : card.key)}
-            >
-              <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
-                <div className={`flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${card.gradient} ${card.shadow} shadow-md items-center justify-center mb-2 sm:mb-3 shrink-0`}>
-                  <span className="text-white font-bold text-xs sm:text-lg">{card.count}</span>
+            { count: summary.criticalCount, label: "Kritis", sublabel: "<3 hari", gradient: "from-red-500 to-rose-600", bg: "bg-red-50", text: "text-red-700" },
+            { count: summary.warningCount, label: "Waspada", sublabel: "<7 hari", gradient: "from-amber-500 to-orange-500", bg: "bg-amber-50", text: "text-amber-700" },
+          ]).map((card, i) => (
+            <Card key={i} className="col-span-3 sm:col-span-1 py-0 gap-0 rounded-xl sm:rounded-2xl border-0 shadow-sm">
+              <CardContent className="p-2.5 sm:p-4 flex items-center gap-2.5 sm:gap-3">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-sm shrink-0`}>
+                  <span className="text-white font-bold text-xs sm:text-lg font-mono">{card.count}</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{card.label}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-semibold text-slate-800">{card.label}</p>
+                  <p className="text-[9px] sm:text-[11px] text-slate-400">{card.sublabel}</p>
+                </div>
               </CardContent>
             </Card>
           ))}
-          <Card>
-            <CardContent className="pt-3 pb-2.5 px-2.5 sm:pt-5 sm:pb-4 sm:px-5">
-              <div className="flex w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 shadow-md shadow-slate-200 items-center justify-center mb-2 sm:mb-3 shrink-0">
-                <ShoppingCart className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
-              </div>
-              <p className="text-sm sm:text-xl font-bold sm:font-semibold text-slate-800">{summary.productsNeedingReorder}</p>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Perlu Reorder</p>
-            </CardContent>
-          </Card>
+          {([
+            { count: summary.lowCount, label: "Rendah", gradient: "from-blue-500 to-indigo-500" },
+            { count: summary.safeCount, label: "Aman", gradient: "from-emerald-500 to-green-600" },
+            { count: summary.productsNeedingReorder, label: "Reorder", gradient: "from-slate-500 to-slate-700", isReorder: true },
+          ]).map((card, i) => (
+            <Card key={i} className="col-span-2 sm:col-span-1 py-0 gap-0 rounded-xl sm:rounded-2xl border-0 shadow-sm">
+              <CardContent className="p-2.5 sm:p-4 flex items-center gap-2.5 sm:gap-3">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center shadow-sm shrink-0`}>
+                  {card.isReorder
+                    ? <ShoppingCart className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-white" />
+                    : <span className="text-white font-bold text-xs sm:text-lg font-mono">{card.count}</span>
+                  }
+                </div>
+                <div className="min-w-0">
+                  {card.isReorder && <p className="text-xs sm:text-lg font-bold text-slate-800 font-mono tabular-nums">{card.count}</p>}
+                  <p className="text-[10px] sm:text-xs text-slate-500 font-medium">{card.label}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* Risk Chart + Value at Risk */}
       {summary && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4">
-          <Card className="lg:col-span-1">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-700">Distribusi Risiko</CardTitle>
+          <Card className="lg:col-span-1 py-0 gap-0 rounded-xl sm:rounded-2xl">
+            <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-base font-semibold text-slate-700">Distribusi Risiko</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={150}>
                   <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {pieData.map((entry, idx) => (
-                        <Cell key={idx} fill={entry.fill} />
-                      ))}
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3} dataKey="value" stroke="none">
+                      {pieData.map((entry, idx) => (<Cell key={idx} fill={entry.fill} />))}
                     </Pie>
                     <Tooltip content={<PieTooltipContent />} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">Tidak ada data</div>
+                <div className="h-[150px] flex items-center justify-center text-xs text-slate-400">Tidak ada data</div>
               )}
-              <div className="flex flex-wrap gap-3 mt-2 justify-center">
+              <div className="flex flex-wrap gap-2 sm:gap-3 mt-1.5 sm:mt-2 justify-center">
                 {pieData.map(d => (
-                  <div key={d.name} className="flex items-center gap-1.5 text-xs text-slate-600">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.fill }} />
+                  <div key={d.name} className="flex items-center gap-1 text-[10px] sm:text-xs text-slate-600">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.fill }} />
                     {d.name} ({d.value})
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-700">Ringkasan Risiko</CardTitle>
+          <Card className="lg:col-span-2 py-0 gap-0 rounded-xl sm:rounded-2xl">
+            <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-base font-semibold text-slate-700">Ringkasan Risiko</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4">
-              <div className="grid grid-cols-2 gap-2 sm:gap-4">
-                <div className="rounded-xl bg-red-50 border border-red-100 p-3 sm:p-4">
-                  <p className="text-xs text-red-600 font-medium mb-1">Nilai Stok Berisiko</p>
-                  <p className="text-xl font-bold text-red-700">{formatCurrency(summary.totalStockValueAtRisk)}</p>
-                  <p className="text-[11px] text-red-500 mt-1">Stok kritis & peringatan</p>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6 space-y-2 sm:space-y-4">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
+                <div className="rounded-lg sm:rounded-xl bg-red-50 border border-red-100 p-2.5 sm:p-4">
+                  <p className="text-[10px] sm:text-xs text-red-600 font-medium mb-0.5 sm:mb-1">Stok Berisiko</p>
+                  <p className="text-sm sm:text-xl font-bold text-red-700">{formatCurrency(summary.totalStockValueAtRisk)}</p>
                 </div>
-                <div className="rounded-xl bg-violet-50 border border-violet-100 p-3 sm:p-4">
-                  <p className="text-xs text-violet-600 font-medium mb-1">Total Produk Dipantau</p>
-                  <p className="text-xl font-bold text-violet-700">{summary.totalProducts}</p>
-                  <p className="text-[11px] text-violet-500 mt-1">Produk aktif</p>
+                <div className="rounded-lg sm:rounded-xl bg-violet-50 border border-violet-100 p-2.5 sm:p-4">
+                  <p className="text-[10px] sm:text-xs text-violet-600 font-medium mb-0.5 sm:mb-1">Dipantau</p>
+                  <p className="text-sm sm:text-xl font-bold text-violet-700">{summary.totalProducts}</p>
                 </div>
               </div>
-              <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 sm:p-4">
-                <p className="text-xs text-slate-500 font-medium mb-2">Kebutuhan Aksi</p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                    <span className="text-sm text-slate-700 font-medium">{summary.criticalCount} produk kritis</span>
-                  </div>
-                  <ArrowRight className="w-3 h-3 text-slate-400" />
-                  <span className="text-sm text-slate-500">Harus segera diorder</span>
+              <div className="rounded-lg sm:rounded-xl bg-slate-50 border border-slate-100 p-2.5 sm:p-4 space-y-1 sm:space-y-1.5">
+                <p className="text-[10px] sm:text-xs text-slate-500 font-medium">Aksi</p>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500 shrink-0" />
+                  <span className="text-[11px] sm:text-sm text-slate-700 font-medium">{summary.criticalCount} kritis</span>
+                  <span className="text-[10px] sm:text-sm text-slate-400">→ segera order</span>
                 </div>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-sm text-slate-700 font-medium">{summary.warningCount} produk peringatan</span>
-                  </div>
-                  <ArrowRight className="w-3 h-3 text-slate-400" />
-                  <span className="text-sm text-slate-500">Rencanakan pembelian</span>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-[11px] sm:text-sm text-slate-700 font-medium">{summary.warningCount} waspada</span>
+                  <span className="text-[10px] sm:text-sm text-slate-400">→ rencanakan</span>
                 </div>
               </div>
             </CardContent>
@@ -408,29 +397,22 @@ export function InventoryForecastContent() {
         </div>
       )}
 
-      {/* Tab Switch */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        <Button
-          variant={activeTab === "forecast" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setActiveTab("forecast")}
-          className="shrink-0 text-xs sm:text-sm gap-2"
-        >
-          <BarChart3 className="w-4 h-4" />
-          Prediksi Stok
-        </Button>
-        <Button
-          variant={activeTab === "reorder" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setActiveTab("reorder")}
-          className="shrink-0 text-xs sm:text-sm gap-2"
-        >
-          <ShoppingCart className="w-4 h-4" />
-          Auto Reorder
-        </Button>
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabView)} className="space-y-4 sm:space-y-5">
+        <div className="flex justify-end">
+          <TabsList className="!h-auto bg-slate-100/80 rounded-xl p-1 gap-0.5">
+            <TabsTrigger value="forecast" className="rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <BarChart3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Prediksi
+            </TabsTrigger>
+            <TabsTrigger value="reorder" className="rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              Reorder
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-      {activeTab === "forecast" ? (
+        <TabsContent value="forecast" className="mt-0">
         <SmartTable<ForecastProduct>
           data={paginatedProducts}
           columns={forecastColumns}
@@ -452,28 +434,26 @@ export function InventoryForecastContent() {
           onRowClick={setSelectedProduct}
           exportFilename="prediksi-stok"
           mobileRender={(row) => {
-            const riskColors: Record<string, string> = { critical: "bg-red-100 text-red-700", warning: "bg-amber-100 text-amber-700", low: "bg-blue-100 text-blue-700", safe: "bg-emerald-100 text-emerald-700" };
-            const riskLabels: Record<string, string> = { critical: "Kritis", warning: "Waspada", low: "Rendah", safe: "Aman" };
-            const trendIcons: Record<string, string> = { up: "↑", down: "↓", stable: "→" };
             return (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{row.productName}</p>
+                    <p className="text-xs font-semibold truncate">{row.productName}</p>
                     <p className="text-[10px] text-muted-foreground">{row.categoryName}{row.supplierName ? ` • ${row.supplierName}` : ""}</p>
                   </div>
-                  <Badge className={`shrink-0 text-[10px] rounded-full ${riskColors[row.riskLevel] ?? "bg-gray-100 text-gray-600"}`}>
-                    {riskLabels[row.riskLevel] ?? row.riskLevel}
-                  </Badge>
+                  <RiskBadge level={row.riskLevel} />
                 </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className={row.currentStock <= row.minStock ? "text-red-600 font-semibold" : "text-muted-foreground"}>Stok: {row.currentStock}</span>
-                  <span className="text-muted-foreground">Avg: {row.avgDailySales.toFixed(1)}/hari</span>
-                  <span className="text-muted-foreground">{trendIcons[row.trend] ?? ""} {row.daysUntilStockout > 999 ? "999+" : row.daysUntilStockout} hari</span>
+                <DaysLeftBar days={row.daysUntilStockout} />
+                <div className="flex items-center justify-between text-[11px]">
+                  <div className="flex items-center gap-2.5">
+                    <span className={row.currentStock <= row.minStock ? "text-red-600 font-semibold" : "text-muted-foreground"}>Stok: {row.currentStock}</span>
+                    <span className="text-muted-foreground">{row.avgDailySales.toFixed(1)}/hari</span>
+                    <TrendIcon trend={row.trend} />
+                  </div>
+                  {row.recommendedReorderQty > 0 && (
+                    <span className="text-violet-600 font-medium">Reorder: {row.recommendedReorderQty}</span>
+                  )}
                 </div>
-                {row.recommendedReorderQty > 0 && (
-                  <p className="text-[10px] text-blue-600 font-medium">Reorder: {row.recommendedReorderQty} pcs</p>
-                )}
               </div>
             );
           }}
@@ -483,9 +463,12 @@ export function InventoryForecastContent() {
           title="Prediksi Stok"
           titleIcon={<BarChart3 className="w-5 h-5 text-violet-600" />}
         />
-      ) : (
-        <AutoReorderList branchId={selectedBranchId || undefined} />
-      )}
+        </TabsContent>
+
+        <TabsContent value="reorder" className="mt-0">
+          <AutoReorderList branchId={selectedBranchId || undefined} />
+        </TabsContent>
+      </Tabs>
 
       {/* Detail Dialog */}
       <ForecastDetailDialog
