@@ -296,21 +296,21 @@ export function ProductsContent() {
         <div className="space-y-6">
             {/* --- Header --- */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20">
-                        <Package className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20">
+                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Master Produk</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">
+                        <h1 className="text-lg sm:text-3xl font-bold tracking-tight text-foreground">Master Produk</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
                             Kelola semua produk Anda{" "}
-                            <Badge variant="secondary" className="ml-1 rounded-full text-xs tabular-nums font-medium">
+                            <Badge variant="secondary" className="ml-1 rounded-full text-[10px] sm:text-xs tabular-nums font-medium">
                                 {data.total} produk
                             </Badge>
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="hidden sm:flex gap-2">
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                         <Button disabled={!canCreate} variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
                             <Upload className="w-4 h-4 mr-2" /> Import
@@ -321,46 +321,6 @@ export function ProductsContent() {
                             <Plus className="w-4 h-4 mr-2" /> Tambah Produk
                         </Button>
                     </DisabledActionTooltip>
-                </div>
-            </div>
-
-            {/* --- Stats Bar --- */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
-                        <Layers className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Total Produk</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
-                        <PackageCheck className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.active}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Produk Aktif</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
-                        <AlertTriangle className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.lowStock}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Stok Menipis</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-red-50 to-rose-50/80 border border-red-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-sm">
-                        <PackageX className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.outOfStock}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Stok Habis</p>
-                    </div>
                 </div>
             </div>
 
@@ -410,6 +370,46 @@ export function ProductsContent() {
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                afterFilters={
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-5 pb-2">
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
+                                <Layers className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Total Produk</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
+                                <PackageCheck className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.active}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Produk Aktif</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+                                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.lowStock}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Stok Menipis</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-red-50 to-rose-50/80 border border-red-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-sm">
+                                <PackageX className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.outOfStock}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Stok Habis</p>
+                            </div>
+                        </div>
+                    </div>
+                }
                 selectable
                 selectedRows={selectedRows}
                 onSelectionChange={setSelectedRows}
@@ -451,6 +451,13 @@ export function ProductsContent() {
                 onOpenChange={setImportOpen}
                 onImported={() => fetchData({})}
             />
+
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={openCreateDialog} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg shadow-indigo-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
 
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <DialogContent className="rounded-2xl max-w-sm">

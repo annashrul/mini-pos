@@ -95,13 +95,15 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     )
 }
 
-function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+function DialogBody({ className, children, ...props }: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="dialog-body"
             className={cn("min-h-0 flex-1 overflow-y-auto py-1", className)}
             {...props}
-        />
+        >
+            {children}
+        </div>
     )
 }
 

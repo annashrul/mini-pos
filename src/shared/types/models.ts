@@ -368,6 +368,15 @@ export interface DashboardStats {
     prevPeriodSales: number;
     prevPeriodTransactions: number;
   }[];
+  upcomingDebts: {
+    id: string;
+    type: "PAYABLE" | "RECEIVABLE";
+    partyName: string;
+    totalAmount: number;
+    remainingAmount: number;
+    status: string;
+    dueDate: Date | null;
+  }[];
 }
 
 // --- Detail types (for getXxxById responses) ---

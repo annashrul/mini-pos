@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition , useRef } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { createCategory, updateCategory, deleteCategory, getCategories } from "@/features/categories";
 import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
@@ -14,6 +17,12 @@ import { SmartTable } from "@/components/ui/smart-table";
 import { Plus, Pencil, Trash2, FolderTree, Folder, Layers, PackageCheck, FolderOpen, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { Category } from "@/types";
+
+const categoryFormSchema = z.object({
+    name: z.string().min(1, "Nama kategori wajib diisi"),
+    description: z.string().optional(),
+});
+type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 
 export function CategoriesContent() {
     const [data, setData] = useState<{ categories: Category[]; total: number; totalPages: number }>({ categories: [], total: 0, totalPages: 0 });
@@ -54,9 +63,17 @@ export function CategoriesContent() {
         fetchData({});
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSubmit = async (formData: FormData) => {
+    const form = useForm<CategoryFormValues>({
+        resolver: zodResolver(categoryFormSchema),
+        defaultValues: { name: "", description: "" },
+    });
+
+    const onSubmit = async (values: CategoryFormValues) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
-        const result = editing ? await updateCategory(editing.id, formData) : await createCategory(formData);
+        const fd = new FormData();
+        fd.set("name", values.name);
+        if (values.description) fd.set("description", values.description);
+        const result = editing ? await updateCategory(editing.id, fd) : await createCategory(fd);
         if (result.error) { toast.error(result.error); }
         else { toast.success(editing ? "Kategori berhasil diupdate" : "Kategori berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
     };
@@ -82,7 +99,7 @@ export function CategoriesContent() {
             key: "name", header: "Nama Kategori", sortable: true,
             render: (row) => (
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 shrink-0">
+                    <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 shrink-0">
                         <Folder className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="min-w-0">
@@ -131,7 +148,7 @@ export function CategoriesContent() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                            onClick={() => { setEditing(row); setOpen(true); }}
+                            onClick={() => { setEditing(row); form.reset({ name: row.name, description: row.description || "" }); setOpen(true); }}
                         >
                             <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -156,15 +173,15 @@ export function CategoriesContent() {
         <div className="space-y-6">
             {/* --- Header --- */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/20">
-                        <FolderTree className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/20">
+                        <FolderTree className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Kategori Produk</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">
+                        <h1 className="text-lg sm:text-3xl font-bold tracking-tight text-foreground">Kategori Produk</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
                             Kelola kategori produk Anda{" "}
-                            <Badge variant="secondary" className="ml-1 rounded-full text-xs tabular-nums font-medium">
+                            <Badge variant="secondary" className="ml-1 rounded-full text-[10px] sm:text-xs tabular-nums font-medium">
                                 {data.total} kategori
                             </Badge>
                         </p>
@@ -173,43 +190,12 @@ export function CategoriesContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
-                        onClick={() => { setEditing(null); setOpen(true); }}
+                        className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
+                        onClick={() => { setEditing(null); form.reset({ name: "", description: "" }); setOpen(true); }}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
                     </Button>
                 </DisabledActionTooltip>
-            </div>
-
-            {/* --- Stats Bar --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
-                        <Layers className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Total Kategori</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
-                        <PackageCheck className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.withProducts}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Memiliki Produk</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
-                        <FolderOpen className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.empty}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Kategori Kosong</p>
-                    </div>
-                </div>
             </div>
 
             {/* --- Table --- */}
@@ -230,6 +216,37 @@ export function CategoriesContent() {
                 )} titleIcon={<FolderTree className="w-4 h-4 text-emerald-500" />}
                 searchPlaceholder="Cari kategori..." onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }} onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                afterFilters={
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-5 pb-2">
+                        <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
+                                <Layers className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
+                                <p className="text-[9px] sm:text-[11px] text-muted-foreground font-medium">Total</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
+                                <PackageCheck className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.withProducts}</p>
+                                <p className="text-[9px] sm:text-[11px] text-muted-foreground font-medium">Ada Produk</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+                                <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.empty}</p>
+                                <p className="text-[9px] sm:text-[11px] text-muted-foreground font-medium">Kosong</p>
+                            </div>
+                        </div>
+                    </div>
+                }
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} exportFilename="kategori"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-green-100 mx-auto">
@@ -253,19 +270,22 @@ export function CategoriesContent() {
                 }
             />
 
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={() => { setEditing(null); form.reset({ name: "", description: "" }); setOpen(true); }} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg shadow-emerald-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
+
             {/* --- Create/Edit Dialog --- */}
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset(); } }}>
                 <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
                     <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500" />
                     <div className="px-6 pt-4 pb-6">
                         <DialogHeader className="pb-4">
                             <DialogTitle className="flex items-center gap-3">
                                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-md shadow-emerald-500/20">
-                                    {editing ? (
-                                        <Pencil className="w-5 h-5 text-white" />
-                                    ) : (
-                                        <Plus className="w-5 h-5 text-white" />
-                                    )}
+                                    {editing ? <Pencil className="w-5 h-5 text-white" /> : <Plus className="w-5 h-5 text-white" />}
                                 </div>
                                 <div>
                                     <p className="text-lg font-bold">{editing ? "Edit Kategori" : "Tambah Kategori"}</p>
@@ -275,24 +295,19 @@ export function CategoriesContent() {
                                 </div>
                             </DialogTitle>
                         </DialogHeader>
-                        <form action={handleSubmit} className={`space-y-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium">Nama Kategori <span className="text-red-400">*</span></Label>
-                                <Input name="name" defaultValue={editing?.name || ""} required className="rounded-xl" autoFocus placeholder="Masukkan nama kategori" />
+                                <Input {...form.register("name")} className="rounded-xl" autoFocus placeholder="Masukkan nama kategori" />
+                                {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium">Deskripsi</Label>
-                                <Input name="description" defaultValue={editing?.description || ""} className="rounded-xl" placeholder="Deskripsi singkat (opsional)" />
+                                <Input {...form.register("description")} className="rounded-xl" placeholder="Deskripsi singkat (opsional)" />
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
-                                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl">
-                                    Batal
-                                </Button>
-                                <Button
-                                    disabled={editing ? !canUpdate : !canCreate}
-                                    type="submit"
-                                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
-                                >
+                                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl">Batal</Button>
+                                <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white">
                                     {editing ? "Update" : "Simpan"}
                                 </Button>
                             </div>

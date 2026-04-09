@@ -472,12 +472,13 @@ export async function deleteProduct(id: string) {
   }
 }
 
-export async function searchProducts(query: string, branchId?: string | null) {
+export async function searchProducts(query: string, branchId?: string | null, categoryId?: string | null) {
   if (!query || query.length < 1) return [];
 
   const products = await prisma.product.findMany({
     where: {
       isActive: true,
+      ...(categoryId ? { categoryId } : {}),
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { code: { contains: query, mode: "insensitive" } },

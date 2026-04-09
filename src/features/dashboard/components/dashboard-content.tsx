@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import {
     DollarSign, ShoppingCart, Package, TrendingUp,
-    AlertTriangle, Users, CreditCard, Clock, BarChart3, ArrowUpRight, ArrowDownRight,
+    AlertTriangle, Users, CreditCard, Clock, BarChart3, ArrowUpRight, ArrowDownRight, ArrowDownCircle, ArrowUpCircle,
     CalendarDays, Wallet, Receipt, Tag, FileText, Trophy, Medal, Award, Zap, Building2,
 } from "lucide-react";
 import {
@@ -67,17 +67,17 @@ function formatDate(): string {
 function RankBadge({ rank }: { rank: number }) {
     if (rank === 0) return (
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center shadow-sm shadow-amber-200 shrink-0">
-            <Trophy className="w-4 h-4 text-white" />
+            <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
         </div>
     );
     if (rank === 1) return (
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-300 to-slate-400 flex items-center justify-center shadow-sm shadow-slate-200 shrink-0">
-            <Medal className="w-4 h-4 text-white" />
+            <Medal className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
         </div>
     );
     if (rank === 2) return (
         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center shadow-sm shadow-orange-200 shrink-0">
-            <Award className="w-4 h-4 text-white" />
+            <Award className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
         </div>
     );
     return (
@@ -129,8 +129,19 @@ export function DashboardContent() {
 
     useDashboardRealtime(refreshStats, selectedBranchId || undefined);
 
+    const didInitialLoad = useRef(false);
     useEffect(() => {
         if (!branchReady) return;
+
+        // Always load on first mount
+        if (!didInitialLoad.current) {
+            didInitialLoad.current = true;
+            prevBranchRef.current = selectedBranchId;
+            prevPeriodRef.current = period;
+            loadStats(period, selectedBranchId || undefined);
+            return;
+        }
+
         const branchChanged = prevBranchRef.current !== selectedBranchId;
         const periodChanged = prevPeriodRef.current !== period;
         if (!branchChanged && !periodChanged) return;
@@ -221,20 +232,12 @@ export function DashboardContent() {
                         <p className="text-sm text-slate-500">{formatDate()}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Link
-                        href="/pos"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-md shadow-blue-200 transition-all hover:shadow-lg hover:shadow-blue-300 hover:-translate-y-0.5"
-                    >
-                        <Zap className="w-3.5 h-3.5" />
-                        Buka POS
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Link href="/pos" className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3 sm:px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white shadow-md shadow-blue-200">
+                        <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> POS
                     </Link>
-                    <Link
-                        href="/reports"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
-                    >
-                        <FileText className="w-3.5 h-3.5" />
-                        Lihat Laporan
+                    <Link href="/reports" className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 shadow-sm">
+                        <FileText className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Laporan
                     </Link>
                 </div>
             </div>
@@ -387,11 +390,11 @@ export function DashboardContent() {
                     ];
                     return (
                         <div>
-                            <div className="flex items-center gap-2 mb-3">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
-                                    <Building2 className="w-4 h-4 text-white" />
+                            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
+                                    <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
-                                <h2 className="text-base font-semibold text-foreground">Pencapaian per Lokasi</h2>
+                                <h2 className="text-xs sm:text-base font-semibold text-foreground">Pencapaian per Lokasi</h2>
                             </div>
                             <div className="flex gap-2 sm:gap-4 overflow-x-auto pb-2 -mx-1 px-1">
                                 {stats.branchPerformance.map((branch, idx) => {
@@ -399,10 +402,10 @@ export function DashboardContent() {
                                     const prevSales = branch.prevPeriodSales;
                                     const salesGrowth = prevSales > 0 ? Math.round(((branch.periodSales - prevSales) / prevSales) * 100) : 0;
                                     return (
-                                        <Card key={branch.branchId} className={`min-w-[180px] sm:min-w-[220px] max-w-[260px] rounded-xl sm:rounded-2xl border bg-gradient-to-br ${gradients[idx % gradients.length]} shadow-sm transition-shadow duration-300 hover:shadow-md shrink-0`}>
-                                            <CardContent className="p-4">
-                                                <p className="font-semibold text-sm text-slate-800 truncate">{branch.branchName}</p>
-                                                <p className="text-2xl font-bold tabular-nums tracking-tight text-blue-700 mt-2">{formatCurrency(branch.periodSales)}</p>
+                                        <Card key={branch.branchId} className={`min-w-[150px] sm:min-w-[220px] max-w-[260px] rounded-xl sm:rounded-2xl border bg-gradient-to-br ${gradients[idx % gradients.length]} shadow-sm hover:shadow-md shrink-0 py-0 gap-0`}>
+                                            <CardContent className="p-2.5 sm:p-4">
+                                                <p className="font-semibold text-xs sm:text-sm text-slate-800 truncate">{branch.branchName}</p>
+                                                <p className="text-sm sm:text-2xl font-bold tabular-nums tracking-tight text-blue-700 mt-1 sm:mt-2 font-mono">{formatCurrency(branch.periodSales)}</p>
                                                 <div className="flex items-center gap-1.5 mt-1">
                                                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-medium">{branch.periodTransactions} transaksi</Badge>
                                                     {salesGrowth !== 0 && (
@@ -433,14 +436,14 @@ export function DashboardContent() {
                 {/* ===== ROW 3: Yearly Comparison (2/3) + Payment Methods (1/3) ===== */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
                     {/* Yearly Comparison Chart */}
-                    <Card className="lg:col-span-3 rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                        <CardHeader className="pb-2">
+                    <Card className="lg:col-span-3 rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                        <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                                        <BarChart3 className="w-4 h-4 text-white" />
+                                <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                                        <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                     </div>
-                                    Perbandingan Tahunan
+                                    Tahunan
                                 </CardTitle>
                                 <div className="flex items-center gap-4 text-xs">
                                     <div className="flex items-center gap-1.5">
@@ -454,8 +457,8 @@ export function DashboardContent() {
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={220}>
+                        <CardContent className="px-1 sm:px-6 pb-3 sm:pb-6">
+                            <ResponsiveContainer width="100%" height={160}>
                                 <BarChart data={stats.yearlyComparison} barGap={4}>
                                     <defs>
                                         <linearGradient id="barThisYear" x1="0" y1="0" x2="0" y2="1">
@@ -478,13 +481,13 @@ export function DashboardContent() {
                                 </BarChart>
                             </ResponsiveContainer>
                             {/* Summary */}
-                            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-border/20">
-                                <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">
-                                    <p className="text-[10px] text-blue-600 uppercase tracking-wider font-semibold">{new Date().getFullYear()}</p>
-                                    <p className="text-lg font-bold tabular-nums text-blue-700 mt-0.5">{formatCurrency(stats.yearlyComparison.reduce((s, m) => s + m.thisYear, 0))}</p>
-                                    <p className="text-xs text-blue-500 mt-0.5">{stats.yearlyComparison.reduce((s, m) => s + m.thisYearCount, 0)} transaksi</p>
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border/20 mx-2 sm:mx-0">
+                                <div className="rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-2.5 sm:p-3.5">
+                                    <p className="text-[9px] sm:text-[10px] text-blue-600 uppercase tracking-wider font-semibold">{new Date().getFullYear()}</p>
+                                    <p className="text-xs sm:text-lg font-bold tabular-nums text-blue-700 mt-0.5 font-mono">{formatCurrency(stats.yearlyComparison.reduce((s, m) => s + m.thisYear, 0))}</p>
+                                    <p className="text-[10px] sm:text-xs text-blue-500 mt-0.5">{stats.yearlyComparison.reduce((s, m) => s + m.thisYearCount, 0)} tx</p>
                                 </div>
-                                <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 p-3.5">
+                                <div className="rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 p-2.5 sm:p-3.5">
                                     <p className="text-[10px] text-emerald-600 uppercase tracking-wider font-semibold">{new Date().getFullYear() - 1}</p>
                                     <p className="text-lg font-bold tabular-nums text-emerald-700 mt-0.5">{formatCurrency(stats.yearlyComparison.reduce((s, m) => s + m.lastYear, 0))}</p>
                                     <p className="text-xs text-emerald-500 mt-0.5">{stats.yearlyComparison.reduce((s, m) => s + m.lastYearCount, 0)} transaksi</p>
@@ -494,13 +497,13 @@ export function DashboardContent() {
                     </Card>
 
                     {/* Payment Method Breakdown */}
-                    <Card className="lg:col-span-2 rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-                                    <CreditCard className="w-4 h-4 text-white" />
+                    <Card className="lg:col-span-2 rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                        <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                            <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                                    <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
-                                Metode Pembayaran
+                                Pembayaran
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -560,11 +563,11 @@ export function DashboardContent() {
                 {/* ===== ROW 4: Daily Trend (1/2) + Hourly Sales (1/2) ===== */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {/* Daily Sales Trend (30 days) */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                                    <TrendingUp className="w-4 h-4 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                        <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                            <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                                    <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
                                 Tren Penjualan 30 Hari
                             </CardTitle>
@@ -592,11 +595,11 @@ export function DashboardContent() {
                     </Card>
 
                     {/* Hourly Sales Today */}
-                    <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base font-semibold flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-                                    <Clock className="w-4 h-4 text-white" />
+                    <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                        <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                            <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                                 </div>
                                 Penjualan Per Jam (Hari Ini)
                             </CardTitle>
@@ -687,31 +690,31 @@ export function DashboardContent() {
             {/* ===== ROW 6: Top Products (1/3) + Category (1/3) + Top Cashiers (1/3) ===== */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Top Products */}
-                <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                                <Trophy className="w-4 h-4 text-white" />
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                    <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
+                                <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             Produk Terlaris
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
+                    <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                        <div className="space-y-1.5 sm:space-y-3">
                             {stats.topProducts.map((product, i) => (
-                                <div key={product.productName} className="flex items-center gap-3 group/item p-2 -mx-2 rounded-xl hover:bg-slate-50 transition-colors">
+                                <div key={product.productName} className="flex items-center gap-2 sm:gap-3 group/item p-1.5 sm:p-2 -mx-1.5 sm:-mx-2 rounded-lg sm:rounded-xl hover:bg-slate-50 transition-colors">
                                     <RankBadge rank={i} />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate text-slate-700">{product.productName}</p>
-                                        <p className="text-xs text-slate-400">{product._sum.quantity} terjual</p>
+                                        <p className="text-xs sm:text-sm font-medium truncate text-slate-700">{product.productName}</p>
+                                        <p className="text-[10px] sm:text-xs text-slate-400">{product._sum.quantity} terjual</p>
                                     </div>
-                                    <p className="text-sm font-semibold tabular-nums text-slate-700">{formatCurrency(product._sum.subtotal || 0)}</p>
+                                    <p className="text-[11px] sm:text-sm font-semibold tabular-nums text-slate-700 font-mono">{formatCurrency(product._sum.subtotal || 0)}</p>
                                 </div>
                             ))}
                             {stats.topProducts.length === 0 && (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <Package className="w-10 h-10 text-slate-200 mb-3" />
-                                    <p className="text-sm text-slate-400">Belum ada data</p>
+                                <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                                    <Package className="w-8 h-8 sm:w-10 sm:h-10 text-slate-200 mb-2 sm:mb-3" />
+                                    <p className="text-xs sm:text-sm text-slate-400">Belum ada data</p>
                                 </div>
                             )}
                         </div>
@@ -719,28 +722,28 @@ export function DashboardContent() {
                 </Card>
 
                 {/* Category Breakdown */}
-                <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
-                                <BarChart3 className="w-4 h-4 text-white" />
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                    <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
+                                <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             Penjualan per Kategori
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                         {stats.categoryBreakdown.length > 0 ? (
-                            <div className="space-y-3">
+                            <div className="space-y-2 sm:space-y-3">
                                 {stats.categoryBreakdown.slice(0, 8).map((cat, i) => {
                                     const maxTotal = stats.categoryBreakdown[0]?.total || 1;
                                     const percent = Math.round((cat.total / maxTotal) * 100);
                                     return (
                                         <div key={cat.name} className="group/cat">
-                                            <div className="flex items-center justify-between text-sm mb-1.5">
+                                            <div className="flex items-center justify-between text-xs sm:text-sm mb-1">
                                                 <span className="text-slate-600 font-medium truncate">{cat.name}</span>
-                                                <span className="font-semibold tabular-nums text-slate-700 ml-2">{formatCurrency(cat.total)}</span>
+                                                <span className="font-semibold tabular-nums text-slate-700 ml-2 font-mono">{formatCurrency(cat.total)}</span>
                                             </div>
-                                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className="h-1.5 sm:h-2 bg-slate-100 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full rounded-full transition-all duration-500 ease-out"
                                                     style={{
@@ -763,31 +766,31 @@ export function DashboardContent() {
                 </Card>
 
                 {/* Top Cashiers */}
-                <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center">
-                                <Users className="w-4 h-4 text-white" />
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                    <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center">
+                                <Users className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             Performa Kasir
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
+                    <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+                        <div className="space-y-1.5 sm:space-y-3">
                             {stats.topCashiers.map((cashier, i) => (
-                                <div key={cashier.name} className="flex items-center gap-3 p-2 -mx-2 rounded-xl hover:bg-slate-50 transition-colors">
+                                <div key={cashier.name} className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 -mx-1.5 sm:-mx-2 rounded-lg sm:rounded-xl hover:bg-slate-50 transition-colors">
                                     <RankBadge rank={i} />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate text-slate-700">{cashier.name}</p>
-                                        <p className="text-xs text-slate-400">{cashier.count} transaksi</p>
+                                        <p className="text-xs sm:text-sm font-medium truncate text-slate-700">{cashier.name}</p>
+                                        <p className="text-[10px] sm:text-xs text-slate-400">{cashier.count} tx</p>
                                     </div>
-                                    <p className="text-sm font-semibold tabular-nums text-slate-700">{formatCurrency(cashier.total)}</p>
+                                    <p className="text-[11px] sm:text-sm font-semibold tabular-nums text-slate-700 font-mono">{formatCurrency(cashier.total)}</p>
                                 </div>
                             ))}
                             {stats.topCashiers.length === 0 && (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <Users className="w-10 h-10 text-slate-200 mb-3" />
-                                    <p className="text-sm text-slate-400">Belum ada data</p>
+                                <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                                    <Users className="w-8 h-8 sm:w-10 sm:h-10 text-slate-200 mb-2 sm:mb-3" />
+                                    <p className="text-xs sm:text-sm text-slate-400">Belum ada data</p>
                                 </div>
                             )}
                         </div>
@@ -796,12 +799,12 @@ export function DashboardContent() {
             </div>
 
             {/* ===== ROW 7: Recent Transactions (full width) ===== */}
-            <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                <CardHeader className="pb-2">
+            <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
                     <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
-                                <Receipt className="w-4 h-4 text-white" />
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center">
+                                <Receipt className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             Transaksi Terakhir
                         </CardTitle>
@@ -810,14 +813,37 @@ export function DashboardContent() {
                         </Link>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
+                <CardContent className="px-0 sm:px-6 pb-2 sm:pb-6">
+                    {/* Mobile: card list */}
+                    <div className="sm:hidden divide-y divide-border/20">
+                        {stats.recentTransactions.map((tx) => {
+                            const statusInfo = STATUS_MAP[tx.status] ?? { label: tx.status, className: "bg-slate-50 text-slate-600 border-slate-200" };
+                            return (
+                                <div key={tx.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold text-slate-700 truncate">{tx.invoiceNumber}</p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">{formatDateTime(tx.createdAt)}</p>
+                                    </div>
+                                    <span className={`inline-flex items-center text-[9px] font-semibold rounded-full px-2 py-0.5 border shrink-0 ${statusInfo.className}`}>{statusInfo.label}</span>
+                                    <span className="text-xs font-bold tabular-nums text-slate-700 font-mono shrink-0">{formatCurrency(tx.grandTotal)}</span>
+                                </div>
+                            );
+                        })}
+                        {stats.recentTransactions.length === 0 && (
+                            <div className="text-center py-8">
+                                <Receipt className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                                <p className="text-xs text-slate-400">Belum ada transaksi</p>
+                            </div>
+                        )}
+                    </div>
+                    {/* Desktop: table */}
+                    <div className="hidden sm:block overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow className="border-border/30 hover:bg-transparent">
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Invoice</TableHead>
-                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Kasir</TableHead>
-                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Pembayaran</TableHead>
+                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Kasir</TableHead>
+                                    <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Pembayaran</TableHead>
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Status</TableHead>
                                     <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-right">Total</TableHead>
                                 </TableRow>
@@ -826,26 +852,19 @@ export function DashboardContent() {
                                 {stats.recentTransactions.map((tx) => {
                                     const statusInfo = STATUS_MAP[tx.status] ?? { label: tx.status, className: "bg-slate-50 text-slate-600 border-slate-200" };
                                     return (
-                                        <TableRow key={tx.id} className="border-border/20 hover:bg-slate-50/50 transition-colors">
+                                        <TableRow key={tx.id} className="border-border/20 hover:bg-slate-50/50">
                                             <TableCell>
-                                                <div>
-                                                    <p className="font-semibold text-sm text-slate-700">{tx.invoiceNumber}</p>
-                                                    <p className="text-[11px] text-slate-400 mt-0.5">{formatDateTime(tx.createdAt)}</p>
-                                                </div>
+                                                <p className="font-semibold text-sm text-slate-700">{tx.invoiceNumber}</p>
+                                                <p className="text-[11px] text-slate-400 mt-0.5">{formatDateTime(tx.createdAt)}</p>
                                             </TableCell>
-                                            <TableCell className="hidden sm:table-cell">
-                                                <span className="text-sm text-slate-600 font-medium">{tx.user.name}</span>
-                                            </TableCell>
-                                            <TableCell className="hidden sm:table-cell">
+                                            <TableCell><span className="text-sm text-slate-600 font-medium">{tx.user.name}</span></TableCell>
+                                            <TableCell>
                                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
-                                                    <CreditCard className="w-3 h-3" />
-                                                    {PAYMENT_LABELS[tx.paymentMethod] ?? tx.paymentMethod}
+                                                    <CreditCard className="w-3 h-3" />{PAYMENT_LABELS[tx.paymentMethod] ?? tx.paymentMethod}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <span className={`inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 border ${statusInfo.className}`}>
-                                                    {statusInfo.label}
-                                                </span>
+                                                <span className={`inline-flex items-center text-[11px] font-semibold rounded-full px-2.5 py-1 border ${statusInfo.className}`}>{statusInfo.label}</span>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <span className="font-bold text-sm tabular-nums text-slate-700">{formatCurrency(tx.grandTotal)}</span>
@@ -854,12 +873,7 @@ export function DashboardContent() {
                                     );
                                 })}
                                 {stats.recentTransactions.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-12">
-                                            <Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                                            <p className="text-sm text-slate-400">Belum ada transaksi hari ini</p>
-                                        </TableCell>
-                                    </TableRow>
+                                    <TableRow><TableCell colSpan={5} className="text-center py-12"><Receipt className="w-10 h-10 text-slate-200 mx-auto mb-3" /><p className="text-sm text-slate-400">Belum ada transaksi</p></TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -869,11 +883,11 @@ export function DashboardContent() {
 
             {/* ===== Low Stock Detail Table ===== */}
             {stats.lowStockProducts.length > 0 && (
-                <Card className="rounded-2xl shadow-sm border-border/30 transition-shadow duration-300 hover:shadow-md">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center">
-                                <AlertTriangle className="w-4 h-4 text-white" />
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border-border/30 hover:shadow-md py-0 gap-0">
+                    <CardHeader className="pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center gap-2">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center">
+                                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                             </div>
                             Detail Stok Menipis
                             <Badge variant="secondary" className="ml-2 rounded-full text-xs tabular-nums bg-amber-100 text-amber-700 border-0">
@@ -881,30 +895,42 @@ export function DashboardContent() {
                             </Badge>
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
+                    <CardContent className="px-0 sm:px-6 pb-2 sm:pb-6">
+                        {/* Mobile: card list */}
+                        <div className="sm:hidden divide-y divide-border/20">
+                            {stats.lowStockProducts.map((product) => (
+                                <div key={product.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-xs font-semibold text-slate-700 truncate">{product.name}</p>
+                                        <p className="text-[10px] text-slate-400">{product.category.name}</p>
+                                    </div>
+                                    <Badge variant={product.stock <= 3 ? "destructive" : "secondary"}
+                                        className={`rounded-full tabular-nums font-semibold text-[10px] px-2 shrink-0 ${product.stock <= 3 ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}>
+                                        {product.stock}
+                                    </Badge>
+                                </div>
+                            ))}
+                        </div>
+                        {/* Desktop: table */}
+                        <div className="hidden sm:block overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow className="border-border/30 hover:bg-transparent">
                                         <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Produk</TableHead>
-                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold hidden sm:table-cell">Kategori</TableHead>
-                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-center hidden sm:table-cell">Min. Stok</TableHead>
-                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-right">Stok Saat Ini</TableHead>
+                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Kategori</TableHead>
+                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-center">Min. Stok</TableHead>
+                                        <TableHead className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold text-right">Stok</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {stats.lowStockProducts.map((product) => (
-                                        <TableRow key={product.id} className="border-border/20 hover:bg-slate-50/50 transition-colors">
+                                        <TableRow key={product.id} className="border-border/20 hover:bg-slate-50/50">
                                             <TableCell className="font-semibold text-sm text-slate-700">{product.name}</TableCell>
-                                            <TableCell className="text-sm text-slate-500 hidden sm:table-cell">{product.category.name}</TableCell>
-                                            <TableCell className="text-center hidden sm:table-cell">
-                                                <span className="text-xs text-slate-400 tabular-nums">{product.minStock}</span>
-                                            </TableCell>
+                                            <TableCell className="text-sm text-slate-500">{product.category.name}</TableCell>
+                                            <TableCell className="text-center"><span className="text-xs text-slate-400 tabular-nums">{product.minStock}</span></TableCell>
                                             <TableCell className="text-right">
-                                                <Badge
-                                                    variant={product.stock <= 3 ? "destructive" : "secondary"}
-                                                    className={`rounded-full tabular-nums font-semibold text-xs px-3 ${product.stock <= 3 ? "bg-red-100 text-red-700 border-red-200 hover:bg-red-100" : "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100"}`}
-                                                >
+                                                <Badge variant={product.stock <= 3 ? "destructive" : "secondary"}
+                                                    className={`rounded-full tabular-nums font-semibold text-xs px-3 ${product.stock <= 3 ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}>
                                                     {product.stock}
                                                 </Badge>
                                             </TableCell>
@@ -912,6 +938,60 @@ export function DashboardContent() {
                                     ))}
                                 </TableBody>
                             </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Upcoming Debts */}
+            {stats.upcomingDebts && stats.upcomingDebts.length > 0 && (
+                <Card className="rounded-xl sm:rounded-2xl shadow-sm border border-border/30 py-0 gap-0">
+                    <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-5 pb-2 sm:pb-3">
+                        <CardTitle className="text-xs sm:text-base font-semibold flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                Hutang/Piutang Jatuh Tempo
+                            </div>
+                            <Link href="/debts" className="text-[10px] sm:text-xs font-medium text-primary hover:underline">
+                                Lihat Semua
+                            </Link>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-3 sm:px-6 pb-3 sm:pb-5">
+                        <div className="space-y-1.5 sm:space-y-2">
+                            {stats.upcomingDebts.map((debt) => {
+                                const isOverdue = debt.dueDate && new Date(debt.dueDate) < new Date();
+                                const isPayable = debt.type === "PAYABLE";
+                                return (
+                                    <div key={debt.id} className="flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl border border-border/30 bg-white px-2.5 py-2 sm:px-4 sm:py-3">
+                                        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center shrink-0 ${isPayable ? "bg-red-50" : "bg-emerald-50"}`}>
+                                            {isPayable ? <ArrowDownCircle className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" /> : <ArrowUpCircle className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-xs sm:text-sm font-medium text-foreground truncate">{debt.partyName}</p>
+                                                {isOverdue && (
+                                                    <Badge variant="destructive" className="rounded-full text-[8px] sm:text-[10px] px-1.5 py-0 h-4 shrink-0">
+                                                        Jatuh Tempo
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                                                <span className={isPayable ? "text-red-500" : "text-emerald-500"}>{isPayable ? "Hutang" : "Piutang"}</span>
+                                                {debt.dueDate && (
+                                                    <span className="flex items-center gap-0.5">
+                                                        <CalendarDays className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                                        {new Date(debt.dueDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "2-digit" })}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className={`text-xs sm:text-sm font-bold font-mono tabular-nums shrink-0 ${isPayable ? "text-red-600" : "text-emerald-600"}`}>
+                                            {formatCurrency(debt.remainingAmount)}
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>

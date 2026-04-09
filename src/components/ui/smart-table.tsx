@@ -106,6 +106,9 @@ export interface SmartTableProps<T> {
 
     // Row click
     onRowClick?: (row: T) => void;
+
+    // Slot rendered between search/filters and the table content
+    afterFilters?: ReactNode;
 }
 
 // ===========================
@@ -145,6 +148,7 @@ export function SmartTable<T>({
     emptyDescription,
     onRowClick,
     mobileRender,
+    afterFilters,
 }: SmartTableProps<T>) {
     const [searchValue, setSearchValue] = useState("");
     const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -362,6 +366,9 @@ export function SmartTable<T>({
                     </div>
                 )}
             </div>
+
+            {/* After filters slot */}
+            {afterFilters && <div className="pt-2">{afterFilters}</div>}
 
             {/* Bulk action bar */}
             {hasSelection && bulkActions && (

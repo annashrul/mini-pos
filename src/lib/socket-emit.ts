@@ -54,14 +54,16 @@ export function emitEvent(event: string, data?: unknown, branchId?: string) {
 
     const pusher = getPusher();
     if (pusher) {
-      pusher.trigger("pos-events", event, payload).catch(() => {});
+      pusher.trigger("pos-events", event, payload).catch((err) => {
+        console.error("[Pusher] Failed to trigger event:", event, err);
+        // Fallback to SSE if Pusher fails
+        broadcastEvent(event, payload);
+      });
       return;
     }
 
-    broadcastEvent(event, {
-      ...payload,
-    });
-  } catch {
-    // Silently fail
+    broadcastEvent(event, payload);
+  } catch (err) {
+    console.error("[emitEvent] Error:", err);
   }
 }

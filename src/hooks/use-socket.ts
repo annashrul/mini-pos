@@ -38,10 +38,19 @@ export function useRealtimeEvents() {
         };
 
         channel = pusher.subscribe("pos-events");
+
+        pusher.connection.bind("connected", () => {
+          console.log("[Pusher] Connected");
+        });
+        pusher.connection.bind("error", (err: unknown) => {
+          console.error("[Pusher] Connection error:", err);
+        });
+
         channel.bind_global(
           (eventName: string, data: Record<string, unknown>) => {
             // Skip Pusher internal events
             if (!eventName || eventName.startsWith("pusher:") || eventName.startsWith("pusher_internal:")) return;
+            console.log("[Pusher] Event received:", eventName);
             dispatch(eventName, data || {});
           },
         );

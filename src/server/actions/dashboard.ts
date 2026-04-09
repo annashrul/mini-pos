@@ -335,6 +335,26 @@ async function getDashboardStatsUncached(
   }, 0);
   const weekSales = weekSalesAgg._sum?.grandTotal || 0;
 
+  // Upcoming debts (unpaid/partial, sorted by due date)
+  const upcomingDebts = await prisma.debt.findMany({
+    where: {
+      status: { in: ["UNPAID", "PARTIAL"] },
+      ...(branchId ? { branchId } : {}),
+    },
+    select: {
+      id: true,
+      type: true,
+      partyName: true,
+      totalAmount: true,
+      paidAmount: true,
+      remainingAmount: true,
+      status: true,
+      dueDate: true,
+    },
+    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+    take: 5,
+  });
+
   return {
     todaySales: todaySalesVal,
     todayTransactionCount: todayTxCount,
@@ -376,6 +396,15 @@ async function getDashboardStatsUncached(
     activePromotions,
     pendingPurchaseOrders,
     branchPerformance,
+    upcomingDebts: upcomingDebts.map((d) => ({
+      id: d.id,
+      type: d.type as "PAYABLE" | "RECEIVABLE",
+      partyName: d.partyName,
+      totalAmount: d.totalAmount,
+      remainingAmount: d.remainingAmount,
+      status: d.status,
+      dueDate: d.dueDate,
+    })),
   };
 }
 

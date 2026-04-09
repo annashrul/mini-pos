@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition , useRef } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { createBrand, updateBrand, deleteBrand, getBrands } from "@/features/brands";
 import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
@@ -16,6 +19,11 @@ import { SmartTable } from "@/components/ui/smart-table";
 import { Plus, Pencil, Trash2, Tag, AlertTriangle, Package } from "lucide-react";
 import { toast } from "sonner";
 import type { Brand } from "@/types";
+
+const brandFormSchema = z.object({
+    name: z.string().min(1, "Nama brand wajib diisi"),
+});
+type BrandFormValues = z.infer<typeof brandFormSchema>;
 
 export function BrandsContent() {
     const [data, setData] = useState<{ brands: Brand[]; total: number; totalPages: number }>({ brands: [], total: 0, totalPages: 0 });
@@ -59,9 +67,16 @@ export function BrandsContent() {
         fetchData({});
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSubmit = async (formData: FormData) => {
+    const form = useForm<BrandFormValues>({
+        resolver: zodResolver(brandFormSchema),
+        defaultValues: { name: "" },
+    });
+
+    const onSubmit = async (values: BrandFormValues) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
-        const result = editing ? await updateBrand(editing.id, formData) : await createBrand(formData);
+        const fd = new FormData();
+        fd.set("name", values.name);
+        const result = editing ? await updateBrand(editing.id, fd) : await createBrand(fd);
         if (result.error) { toast.error(result.error); }
         else { toast.success(editing ? "Brand berhasil diupdate" : "Brand berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
     };
@@ -111,7 +126,7 @@ export function BrandsContent() {
             render: (row) => (
                 <div className="flex justify-end gap-0.5">
                     <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
-                        <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => { setEditing(row); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => { setEditing(row); form.reset({ name: row.name }); setOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
                     </DisabledActionTooltip>
                     <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
                         <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -137,28 +152,12 @@ export function BrandsContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm"
-                        onClick={() => { setEditing(null); setOpen(true); }}
+                        className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
+                        onClick={() => { setEditing(null); form.reset({ name: "" }); setOpen(true); }}
                     >
                         <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Brand
                     </Button>
                 </DisabledActionTooltip>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
-                    <Tag className="w-3 h-3 mr-1.5" />
-                    Total: {stats.totalBrands}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
-                    <Package className="w-3 h-3 mr-1.5" />
-                    Punya Produk: {stats.withProducts}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
-                    <AlertTriangle className="w-3 h-3 mr-1.5" />
-                    Tanpa Produk: {stats.withoutProducts}
-                </Badge>
             </div>
 
             <SmartTable<Brand>
@@ -183,6 +182,22 @@ export function BrandsContent() {
                 onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                afterFilters={
+                    <div className="flex items-center gap-2 flex-wrap px-3 sm:px-5 pb-2">
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
+                            <Tag className="w-3 h-3 mr-1.5" />
+                            Total: {stats.totalBrands}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
+                            <Package className="w-3 h-3 mr-1.5" />
+                            Punya Produk: {stats.withProducts}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                            <AlertTriangle className="w-3 h-3 mr-1.5" />
+                            Tanpa Produk: {stats.withoutProducts}
+                        </Badge>
+                    </div>
+                }
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
                 bulkActions={[{
                     label: "Hapus",
@@ -211,8 +226,15 @@ export function BrandsContent() {
                 }
             />
 
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={() => { setEditing(null); form.reset({ name: "" }); setOpen(true); }} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
+
             {/* Create/Edit Dialog */}
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset(); } }}>
                 <DialogContent className="rounded-2xl max-w-sm">
                     <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-t-2xl -mt-6 mb-2" />
                     <DialogHeader>
@@ -223,13 +245,14 @@ export function BrandsContent() {
                             {editing ? "Edit Brand" : "Tambah Brand"}
                         </DialogTitle>
                     </DialogHeader>
-                    <form action={handleSubmit} className={`space-y-4 mt-1 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-4 mt-1 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
                         <div className="space-y-1.5">
                             <Label className="text-sm font-medium">Nama Brand <span className="text-red-400">*</span></Label>
-                            <Input name="name" defaultValue={editing?.name || ""} required className="rounded-xl h-10" autoFocus placeholder="Masukkan nama brand" />
+                            <Input {...form.register("name")} className="rounded-xl h-10" autoFocus placeholder="Masukkan nama brand" />
+                            {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl">Batal</Button>
+                            <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl">Batal</Button>
                             <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
                                 <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">{editing ? "Update" : "Simpan"}</Button>
                             </DisabledActionTooltip>

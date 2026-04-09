@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo , useRef } from "react";
+import { useEffect, useState, useTransition, useMemo, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { createSupplier, updateSupplier, deleteSupplier, getSuppliers } from "@/features/suppliers";
 import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
@@ -18,6 +21,15 @@ import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, CheckCircle2, XCircle
 import { toast } from "sonner";
 import type { Supplier } from "@/types";
 
+const supplierFormSchema = z.object({
+    name: z.string().min(1, "Nama supplier wajib diisi"),
+    contact: z.string().optional(),
+    email: z.string().email("Format email tidak valid").or(z.literal("")).optional(),
+    address: z.string().optional(),
+    isActive: z.boolean(),
+});
+type SupplierFormValues = z.infer<typeof supplierFormSchema>;
+
 export function SuppliersContent() {
     const [data, setData] = useState<{ suppliers: Supplier[]; total: number; totalPages: number }>({ suppliers: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
@@ -30,7 +42,6 @@ export function SuppliersContent() {
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
-    const [formIsActive, setFormIsActive] = useState(true);
     const { canAction, cannotMessage } = useMenuActionAccess("suppliers");
     const canCreate = canAction("create");
     const canUpdate = canAction("update");
@@ -67,10 +78,20 @@ export function SuppliersContent() {
         fetchData({});
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSubmit = async (formData: FormData) => {
+    const form = useForm<SupplierFormValues>({
+        resolver: zodResolver(supplierFormSchema),
+        defaultValues: { name: "", contact: "", email: "", address: "", isActive: true },
+    });
+
+    const onSubmit = async (values: SupplierFormValues) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
-        formData.set("isActive", String(formIsActive));
-        const result = editing ? await updateSupplier(editing.id, formData) : await createSupplier(formData);
+        const fd = new FormData();
+        fd.set("name", values.name);
+        if (values.contact) fd.set("contact", values.contact);
+        if (values.email) fd.set("email", values.email);
+        if (values.address) fd.set("address", values.address);
+        fd.set("isActive", String(values.isActive));
+        const result = editing ? await updateSupplier(editing.id, fd) : await createSupplier(fd);
         if (result.error) { toast.error(result.error); }
         else { toast.success(editing ? "Supplier berhasil diupdate" : "Supplier berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
     };
@@ -177,7 +198,7 @@ export function SuppliersContent() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                            onClick={() => { setEditing(row); setFormIsActive(row.isActive); setOpen(true); }}
+                            onClick={() => { setEditing(row); form.reset({ name: row.name, contact: row.contact || "", email: row.email || "", address: row.address || "", isActive: row.isActive }); setOpen(true); }}
                         >
                             <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -207,14 +228,14 @@ export function SuppliersContent() {
             {/* --- Header --- */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
-                        <Truck className="w-6 h-6 text-white" />
+                    <div className="flex items-center justify-center w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
+                        <Truck className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">Supplier</h1>
-                        <p className="text-muted-foreground text-sm mt-0.5">
+                        <h1 className="text-lg sm:text-3xl font-bold tracking-tight text-foreground">Supplier</h1>
+                        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">
                             Kelola data supplier Anda{" "}
-                            <Badge variant="secondary" className="ml-1 rounded-full text-xs tabular-nums font-medium">
+                            <Badge variant="secondary" className="ml-1 rounded-full text-[10px] sm:text-xs tabular-nums font-medium">
                                 {data.total} supplier
                             </Badge>
                         </p>
@@ -223,52 +244,12 @@ export function SuppliersContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-                        onClick={() => { setEditing(null); setFormIsActive(true); setOpen(true); }}
+                        className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                        onClick={() => { setEditing(null); form.reset({ name: "", contact: "", email: "", address: "", isActive: true }); setOpen(true); }}
                     >
                         <Plus className="w-4 h-4 mr-2" /> Tambah Supplier
                     </Button>
                 </DisabledActionTooltip>
-            </div>
-
-            {/* --- Stats Bar --- */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
-                        <Building2 className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Total Supplier</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
-                        <CheckCircle2 className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.active}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Supplier Aktif</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-red-50 to-rose-50/80 border border-red-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-sm">
-                        <XCircle className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.inactive}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Supplier Nonaktif</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
-                    <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
-                        <Package className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                        <p className="text-lg font-bold tabular-nums text-foreground">{stats.withProducts}</p>
-                        <p className="text-[11px] text-muted-foreground font-medium">Punya Produk</p>
-                    </div>
-                </div>
             </div>
 
             {/* --- Table --- */}
@@ -306,6 +287,46 @@ export function SuppliersContent() {
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
                 filters={filters} activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                afterFilters={
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-5 pb-2">
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm">
+                                <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.total}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Total</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-50 to-green-50/80 border border-emerald-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm">
+                                <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.active}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Aktif</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-red-50 to-rose-50/80 border border-red-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-sm">
+                                <XCircle className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.inactive}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Nonaktif</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/60">
+                            <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-sm">
+                                <Package className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div>
+                                <p className="text-sm sm:text-lg font-bold tabular-nums text-foreground">{stats.withProducts}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Punya Produk</p>
+                            </div>
+                        </div>
+                    </div>
+                }
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
                 exportFilename="supplier"
                 emptyIcon={
@@ -320,7 +341,7 @@ export function SuppliersContent() {
                         <Button
                             disabled={!canCreate}
                             className="rounded-xl mt-3 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-                            onClick={() => { setEditing(null); setFormIsActive(true); setOpen(true); }}
+                            onClick={() => { setEditing(null); form.reset({ name: "", contact: "", email: "", address: "", isActive: true }); setOpen(true); }}
                         >
                             <Plus className="w-4 h-4 mr-2" /> Tambah Supplier Pertama
                         </Button>
@@ -328,37 +349,46 @@ export function SuppliersContent() {
                 }
             />
 
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={() => { setEditing(null); form.reset({ name: "", contact: "", email: "", address: "", isActive: true }); setOpen(true); }} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
+
             {/* --- Form Dialog --- */}
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset(); } }}>
                 <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden">
                     <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
                     <div className="px-6 pt-4 pb-6">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
+                                <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-sm">
                                     <Truck className="w-4 h-4 text-white" />
                                 </div>
                                 {editing ? "Edit Supplier" : "Tambah Supplier"}
                             </DialogTitle>
                         </DialogHeader>
-                        <form action={handleSubmit} className={`space-y-4 mt-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-4 mt-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium">Nama Supplier <span className="text-red-400">*</span></Label>
-                                <Input name="name" defaultValue={editing?.name || ""} required className="rounded-xl" autoFocus placeholder="Masukkan nama supplier" />
+                                <Input {...form.register("name")} className="rounded-xl" autoFocus placeholder="Masukkan nama supplier" />
+                                {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <Label className="text-sm font-medium">Kontak</Label>
-                                    <Input name="contact" defaultValue={editing?.contact || ""} className="rounded-xl" placeholder="No. telepon" />
+                                    <Input {...form.register("contact")} className="rounded-xl" placeholder="No. telepon" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <Label className="text-sm font-medium">Email</Label>
-                                    <Input name="email" type="email" defaultValue={editing?.email || ""} className="rounded-xl" placeholder="email@example.com" />
+                                    <Input {...form.register("email")} type="email" className="rounded-xl" placeholder="email@example.com" />
+                                    {form.formState.errors.email && <p className="text-xs text-red-500">{form.formState.errors.email.message}</p>}
                                 </div>
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium">Alamat</Label>
-                                <Input name="address" defaultValue={editing?.address || ""} className="rounded-xl" placeholder="Alamat lengkap supplier" />
+                                <Input {...form.register("address")} className="rounded-xl" placeholder="Alamat lengkap supplier" />
                             </div>
                             <div className="flex items-center justify-between rounded-xl border border-border/60 px-4 py-3 bg-muted/30">
                                 <div className="space-y-0.5">
@@ -367,14 +397,12 @@ export function SuppliersContent() {
                                 </div>
                                 <Switch
                                     disabled={!canUpdate && Boolean(editing)}
-                                    checked={formIsActive}
-                                    onCheckedChange={setFormIsActive}
+                                    checked={form.watch("isActive")}
+                                    onCheckedChange={(v) => form.setValue("isActive", v)}
                                 />
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
-                                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl">
-                                    Batal
-                                </Button>
+                                <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl">Batal</Button>
                                 <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
                                     <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
                                         {editing ? "Update" : "Simpan"}
@@ -393,7 +421,7 @@ export function SuppliersContent() {
                     <div className="px-6 pt-4 pb-6">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-sm">
+                                <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-sm">
                                     <AlertTriangle className="w-4 h-4 text-white" />
                                 </div>
                                 Hapus Supplier

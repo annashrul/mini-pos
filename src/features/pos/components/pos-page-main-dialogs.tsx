@@ -95,39 +95,129 @@ export function POSPageMainDialogs() {
                 </DialogContent>
             </Dialog>
             <Dialog open={showHistoryDialog} onOpenChange={(v) => { setShowHistoryDialog(v); if (!v) setHistoryDetailId(null); }}>
-                <DialogContent className="rounded-2xl max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-                    <DialogHeader><DialogTitle className="flex items-center gap-2">{historyDetail ? <><Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg -ml-1" onClick={() => setHistoryDetailId(null)}><ArrowLeft className="w-4 h-4" /></Button> Detail {historyDetail.invoiceNumber}</> : "Riwayat Transaksi"}</DialogTitle></DialogHeader>
-                    <DialogBody>
+                <DialogContent className="!inset-0 !translate-x-0 !translate-y-0 !w-full !h-full !max-w-none !max-h-none !rounded-none sm:!inset-auto sm:!top-[50%] sm:!left-[50%] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:!w-[92vw] sm:!max-w-2xl sm:!h-auto sm:!max-h-[85vh] sm:!rounded-2xl overflow-hidden flex flex-col !p-0">
+                    <DialogHeader className="px-4 pt-4 pb-3 sm:px-6 sm:pt-6 border-b border-border/30 shrink-0">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            {historyDetail ? (
+                                <>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg -ml-1" onClick={() => setHistoryDetailId(null)}><ArrowLeft className="w-4 h-4" /></Button>
+                                    <span className="truncate text-sm sm:text-base">Detail <span className="font-mono">{historyDetail.invoiceNumber}</span></span>
+                                    <Badge className={cn("ml-auto shrink-0", historyDetail.status === "COMPLETED" ? "bg-green-100 text-green-700" : historyDetail.status === "VOIDED" ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700")}>{historyDetail.status}</Badge>
+                                </>
+                            ) : "Riwayat Transaksi"}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <DialogBody className="px-4 py-3 sm:px-6 sm:py-4">
                         {historyDetail ? (
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-lg bg-muted/30 p-3"><p className="text-[10px] text-muted-foreground uppercase">Invoice</p><p className="font-mono font-medium">{historyDetail.invoiceNumber}</p></div><div className="rounded-lg bg-muted/30 p-3"><p className="text-[10px] text-muted-foreground uppercase">Tanggal</p><p className="font-medium">{new Date(historyDetail.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p></div></div>
-                                <div className="rounded-xl border border-border/40 overflow-hidden"><div className="bg-muted/20 px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Item</div><div className="divide-y divide-border/20">{historyDetail.items.map((item, idx) => (<div key={idx} className="flex items-center justify-between px-3 py-2 text-sm"><div className="flex-1 min-w-0"><p className="font-medium truncate">{item.productName}</p><p className="text-xs text-muted-foreground">{item.quantity}{item.unitName && item.unitName !== "PCS" ? ` ${item.unitName}` : ""} x {formatCurrency(item.unitPrice)}</p>{item.unitName && item.unitName !== "PCS" && item.conversionQty && item.conversionQty > 1 && <p className="text-[10px] text-muted-foreground/70">{item.quantity} {item.unitName} &times; {item.conversionQty} = {item.quantity * item.conversionQty} pcs</p>}</div><p className="font-semibold tabular-nums">{formatCurrency(item.subtotal)}</p></div>))}</div></div>
-                                <div className="space-y-1.5 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums">{formatCurrency(historyDetail.subtotal)}</span></div>{historyDetail.discountAmount > 0 && <div className="flex justify-between text-red-500"><span>Diskon</span><span className="tabular-nums">-{formatCurrency(historyDetail.discountAmount)}</span></div>}{historyDetail.taxAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Pajak</span><span className="tabular-nums">{formatCurrency(historyDetail.taxAmount)}</span></div>}<div className="flex justify-between font-bold text-base border-t border-border/30 pt-1.5"><span>Total</span><span className="tabular-nums">{formatCurrency(historyDetail.grandTotal)}</span></div></div>
-                                <div className="space-y-1.5"><p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pembayaran</p>{historyDetail.payments && historyDetail.payments.length > 1 ? <div className="space-y-1">{historyDetail.payments.map((p, idx) => (<div key={idx} className="flex justify-between text-sm bg-muted/20 rounded-lg px-3 py-1.5"><span>{PAYMENT_METHOD_OPTIONS.find((m) => m.value === p.method)?.label || p.method}</span><span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span></div>))}</div> : <div className="flex justify-between text-sm bg-muted/20 rounded-lg px-3 py-1.5"><span>{PAYMENT_METHOD_OPTIONS.find((m) => m.value === historyDetail.paymentMethod)?.label || historyDetail.paymentMethod}</span><span className="font-semibold tabular-nums">{formatCurrency(historyDetail.paymentAmount)}</span></div>}{historyDetail.changeAmount > 0 && <div className="flex justify-between text-sm px-3"><span className="text-muted-foreground">Kembalian</span><span className="tabular-nums">{formatCurrency(historyDetail.changeAmount)}</span></div>}</div>
-                                <div className="flex gap-2 pt-2"><Button variant="outline" className="flex-1 rounded-lg" onClick={() => reprintReceipt(historyDetail)} disabled={!canPosAction("reprint")}><Printer className="w-4 h-4 mr-1.5" /> Cetak Ulang</Button>{historyDetail.status === "COMPLETED" && <Button variant="outline" className="flex-1 rounded-lg text-red-500 border-red-200 hover:bg-red-50" onClick={() => { setVoidingId(historyDetail.id); setVoidReason(""); setShowVoidDialog(true); }}>Void</Button>}</div>
+                            <div className="space-y-3 sm:space-y-4">
+                                <div className="grid grid-cols-2 gap-2 sm:gap-3 text-sm">
+                                    <div className="rounded-lg bg-muted/30 p-2.5 sm:p-3">
+                                        <p className="text-[10px] text-muted-foreground uppercase">Invoice</p>
+                                        <p className="font-mono font-medium text-xs sm:text-sm truncate">{historyDetail.invoiceNumber}</p>
+                                    </div>
+                                    <div className="rounded-lg bg-muted/30 p-2.5 sm:p-3">
+                                        <p className="text-[10px] text-muted-foreground uppercase">Tanggal</p>
+                                        <p className="font-medium text-xs sm:text-sm">{new Date(historyDetail.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-border/40 overflow-hidden">
+                                    <div className="bg-muted/20 px-3 py-2 text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">{historyDetail.items.length} Item</div>
+                                    <div className="divide-y divide-border/20">
+                                        {historyDetail.items.map((item, idx) => (
+                                            <div key={idx} className="flex items-center justify-between px-3 py-2 text-xs sm:text-sm">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium truncate">{item.productName}</p>
+                                                    <p className="text-[11px] sm:text-xs text-muted-foreground">{item.quantity}{item.unitName && item.unitName !== "PCS" ? ` ${item.unitName}` : ""} x {formatCurrency(item.unitPrice)}</p>
+                                                    {item.unitName && item.unitName !== "PCS" && item.conversionQty && item.conversionQty > 1 && <p className="text-[10px] text-muted-foreground/70">{item.quantity} {item.unitName} &times; {item.conversionQty} = {item.quantity * item.conversionQty} pcs</p>}
+                                                </div>
+                                                <p className="font-semibold tabular-nums shrink-0 ml-2">{formatCurrency(item.subtotal)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5 text-xs sm:text-sm">
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums">{formatCurrency(historyDetail.subtotal)}</span></div>
+                                    {historyDetail.discountAmount > 0 && <div className="flex justify-between text-red-500"><span>Diskon</span><span className="tabular-nums">-{formatCurrency(historyDetail.discountAmount)}</span></div>}
+                                    {historyDetail.taxAmount > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Pajak</span><span className="tabular-nums">{formatCurrency(historyDetail.taxAmount)}</span></div>}
+                                    <div className="flex justify-between font-bold text-sm sm:text-base border-t border-border/30 pt-1.5"><span>Total</span><span className="tabular-nums">{formatCurrency(historyDetail.grandTotal)}</span></div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <p className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pembayaran</p>
+                                    {historyDetail.payments && historyDetail.payments.length > 1 ? (
+                                        <div className="space-y-1">{historyDetail.payments.map((p, idx) => (
+                                            <div key={idx} className="flex justify-between text-xs sm:text-sm bg-muted/20 rounded-lg px-3 py-1.5">
+                                                <span>{PAYMENT_METHOD_OPTIONS.find((m) => m.value === p.method)?.label || p.method}</span>
+                                                <span className="font-semibold tabular-nums">{formatCurrency(p.amount)}</span>
+                                            </div>
+                                        ))}</div>
+                                    ) : (
+                                        <div className="flex justify-between text-xs sm:text-sm bg-muted/20 rounded-lg px-3 py-1.5">
+                                            <span>{PAYMENT_METHOD_OPTIONS.find((m) => m.value === historyDetail.paymentMethod)?.label || historyDetail.paymentMethod}</span>
+                                            <span className="font-semibold tabular-nums">{formatCurrency(historyDetail.paymentAmount)}</span>
+                                        </div>
+                                    )}
+                                    {historyDetail.changeAmount > 0 && <div className="flex justify-between text-xs sm:text-sm px-3"><span className="text-muted-foreground">Kembalian</span><span className="tabular-nums">{formatCurrency(historyDetail.changeAmount)}</span></div>}
+                                </div>
                             </div>
                         ) : historyLoading ? (
                             <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary/40" /></div>
                         ) : historyData.length === 0 ? (
-                            <p className="text-center text-muted-foreground py-8">Belum ada transaksi</p>
+                            <p className="text-center text-muted-foreground py-8 text-sm">Belum ada transaksi</p>
                         ) : (
-                            <div className="space-y-2">{historyData.map((tx) => (<div key={tx.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/40 hover:bg-muted/20 transition-colors"><div className="flex-1 min-w-0 cursor-pointer" onClick={() => setHistoryDetailId(tx.id)}><p className="text-sm font-mono font-medium">{tx.invoiceNumber}</p><p className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}{" · "}{tx.payments && tx.payments.length > 1 ? tx.payments.map((p) => PAYMENT_METHOD_OPTIONS.find((m) => m.value === p.method)?.label || p.method).join(" + ") : PAYMENT_METHOD_OPTIONS.find((m) => m.value === tx.paymentMethod)?.label || tx.paymentMethod}</p></div><p className="text-sm font-semibold tabular-nums">{formatCurrency(tx.grandTotal)}</p><Badge className={tx.status === "COMPLETED" ? "bg-green-100 text-green-700" : tx.status === "VOIDED" ? "bg-red-100 text-red-700" : tx.status === "REFUNDED" ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-700"}>{tx.status}</Badge><div className="flex gap-1 shrink-0"><DisabledActionTooltip disabled={!canPosAction("reprint")} message={cannotMessage("reprint")}><Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => reprintReceipt(tx)} title="Cetak Ulang" disabled={!canPosAction("reprint")}><Printer className="w-3.5 h-3.5" /></Button></DisabledActionTooltip><Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setHistoryDetailId(tx.id)} title="Detail"><Eye className="w-3.5 h-3.5" /></Button>{tx.status === "COMPLETED" && <DisabledActionTooltip disabled={!canPosAction("void")} message={cannotMessage("void")}><Button disabled={!canPosAction("void")} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:bg-red-50" onClick={() => { if (!canPosAction("void")) return; setVoidingId(tx.id); setVoidReason(""); setShowVoidDialog(true); }} title="Void"><Ban className="w-3.5 h-3.5" /></Button></DisabledActionTooltip>}</div></div>))}</div>
+                            <div className="space-y-2">{historyData.map((tx) => (
+                                <div key={tx.id} className="rounded-xl border border-border/40 hover:bg-muted/20 transition-colors overflow-hidden">
+                                    <div className="flex items-center gap-2 p-3 cursor-pointer" onClick={() => setHistoryDetailId(tx.id)}>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-xs sm:text-sm font-mono font-medium truncate">{tx.invoiceNumber}</p>
+                                                <Badge className={cn("shrink-0 text-[10px] px-1.5 py-0", tx.status === "COMPLETED" ? "bg-green-100 text-green-700" : tx.status === "VOIDED" ? "bg-red-100 text-red-700" : tx.status === "REFUNDED" ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-700")}>{tx.status}</Badge>
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                {new Date(tx.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                                {" · "}
+                                                {tx.payments && tx.payments.length > 1 ? tx.payments.map((p) => PAYMENT_METHOD_OPTIONS.find((m) => m.value === p.method)?.label || p.method).join(" + ") : PAYMENT_METHOD_OPTIONS.find((m) => m.value === tx.paymentMethod)?.label || tx.paymentMethod}
+                                            </p>
+                                        </div>
+                                        <p className="text-sm font-semibold tabular-nums shrink-0">{formatCurrency(tx.grandTotal)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 px-2 pb-2 sm:px-3 sm:pb-2.5">
+                                        <DisabledActionTooltip disabled={!canPosAction("reprint")} message={cannotMessage("reprint")}>
+                                            <Button variant="ghost" size="sm" className="h-7 rounded-lg text-[11px] gap-1 text-muted-foreground" onClick={() => reprintReceipt(tx)} disabled={!canPosAction("reprint")}><Printer className="w-3 h-3" /><span className="hidden sm:inline">Cetak</span></Button>
+                                        </DisabledActionTooltip>
+                                        <Button variant="ghost" size="sm" className="h-7 rounded-lg text-[11px] gap-1 text-muted-foreground" onClick={() => setHistoryDetailId(tx.id)}><Eye className="w-3 h-3" /><span className="hidden sm:inline">Detail</span></Button>
+                                        {tx.status === "COMPLETED" && (
+                                            <DisabledActionTooltip disabled={!canPosAction("void")} message={cannotMessage("void")}>
+                                                <Button disabled={!canPosAction("void")} variant="ghost" size="sm" className="h-7 rounded-lg text-[11px] gap-1 text-red-500 hover:bg-red-50 ml-auto" onClick={() => { if (!canPosAction("void")) return; setVoidingId(tx.id); setVoidReason(""); setShowVoidDialog(true); }}><Ban className="w-3 h-3" /><span className="hidden sm:inline">Void</span></Button>
+                                            </DisabledActionTooltip>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}</div>
                         )}
                     </DialogBody>
+                    {historyDetail && (
+                        <DialogFooter className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0 border-t border-border/30">
+                            <div className="flex gap-2 w-full pt-3">
+                                <Button variant="outline" className="flex-1 rounded-lg h-9 sm:h-10 text-xs sm:text-sm" onClick={() => reprintReceipt(historyDetail)} disabled={!canPosAction("reprint")}><Printer className="w-3.5 h-3.5 mr-1.5" /> Cetak Ulang</Button>
+                                {historyDetail.status === "COMPLETED" && <Button variant="outline" className="flex-1 rounded-lg h-9 sm:h-10 text-xs sm:text-sm text-red-500 border-red-200 hover:bg-red-50" onClick={() => { setVoidingId(historyDetail.id); setVoidReason(""); setShowVoidDialog(true); }}><Ban className="w-3.5 h-3.5 mr-1.5" /> Void</Button>}
+                            </div>
+                        </DialogFooter>
+                    )}
                 </DialogContent>
             </Dialog>
             <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
                 <DialogContent className="w-[98vw] max-w-[1400px] rounded-none sm:rounded-2xl p-0 overflow-hidden max-h-[100dvh] sm:max-h-[90vh] flex flex-col" showCloseButton={false}>
                     <div className="flex flex-col md:flex-row md:grid md:grid-cols-[1fr_1.15fr] flex-1 min-h-0 overflow-hidden">
-                        <div className="order-2 md:order-1 p-3 md:p-5 md:border-r border-t md:border-t-0 border-border/30 bg-muted/20 shrink-0 md:overflow-y-auto max-h-[35vh] md:max-h-none overflow-y-auto">
+                        <ScrollArea className="order-2 md:order-1 p-3 md:p-5 md:border-r border-t md:border-t-0 border-border/30 bg-muted/20 shrink-0 max-h-[35vh] md:max-h-none">
                             <DialogHeader className="mb-4 hidden md:flex"><DialogTitle>Kalkulator Pembayaran</DialogTitle></DialogHeader>
                             <div className="mb-3 rounded-xl bg-white border border-border/50 px-4 py-2.5 hidden md:block"><p className="text-[11px] text-muted-foreground">Nominal Input</p><p className="text-3xl font-bold tabular-nums">{formatCurrency(payment || 0)}</p></div>
                             <div className="flex items-center gap-2 mb-2 md:hidden"><div className="flex-1 rounded-lg bg-white border border-border/50 px-3 py-1.5"><p className="text-[9px] text-muted-foreground leading-none">Nominal</p><p className="text-lg font-bold tabular-nums leading-tight">{formatCurrency(payment || 0)}</p></div><div className="flex gap-1 overflow-x-auto scrollbar-hide shrink-0">{dynamicQuickAmounts.map((amount, idx) => (<Button key={amount} type="button" variant="secondary" className="rounded-md h-7 text-[10px] shrink-0 px-2" onClick={() => setPaymentAmount(String(amount))}>{idx === 0 ? "Pas" : formatCurrency(amount)}</Button>))}</div></div>
                             <div className="hidden md:grid grid-cols-2 gap-2 mb-3">{dynamicQuickAmounts.map((amount, idx) => (<Button key={amount} type="button" variant="secondary" className="rounded-lg h-9 text-xs" onClick={() => setPaymentAmount(String(amount))}>{idx === 0 ? "Pas" : formatCurrency(amount)}</Button>))}</div>
                             <div className="grid grid-cols-4 md:grid-cols-3 gap-1 md:gap-2">{["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "BACKSPACE"].map((key) => (<Button key={key} type="button" variant="outline" className="h-9 md:h-11 rounded-lg md:rounded-xl text-sm md:text-base active:scale-95 transition-transform" onClick={() => handleCalculatorInput(key)}>{key === "BACKSPACE" ? "⌫" : key}</Button>))}<Button type="button" variant="ghost" className="h-8 md:h-11 rounded-lg md:rounded-xl text-red-500 text-xs md:text-sm col-span-4 md:col-span-3" onClick={() => handleCalculatorInput("CLEAR")}>Clear</Button></div>
-                        </div>
+                        </ScrollArea>
                         <div className="order-1 md:order-2 flex flex-col min-h-0 flex-1">
-                            <div className="p-4 md:p-5 space-y-3 md:space-y-4 flex-1 overflow-y-auto">
+                            <ScrollArea className="flex-1 min-h-0 overflow-hidden p-4 md:p-5">
+                              <div className="space-y-3 md:space-y-4">
                                 <DialogHeader className="md:hidden"><DialogTitle className="text-base">Pembayaran</DialogTitle></DialogHeader>
                                 <div className="hidden md:block"><DialogHeader><DialogTitle>Konfirmasi Pembayaran</DialogTitle></DialogHeader></div>
                                 <div className="rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/10 px-4 py-2.5 md:hidden"><p className="text-[10px] text-primary/60 uppercase tracking-wider font-medium">Total Bayar</p><p className="text-2xl font-bold text-primary tabular-nums">{formatCurrency(grandTotal)}</p></div>
@@ -153,7 +243,8 @@ export function POSPageMainDialogs() {
                                 <div className="hidden md:block space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Nominal</label><Input type="number" value={String(payment)} onChange={(e) => setPaymentAmount(e.target.value)} className="rounded-lg h-11 text-right text-2xl font-bold tabular-nums" /></div>
                                 {payment > 0 && remainingToPay > 0 && payment < remainingToPay && <Button type="button" variant="outline" size="sm" className="w-full rounded-lg text-xs" onClick={() => addPaymentEntry(payment)}><Plus className="w-3 h-3 mr-1" /> Tambah & Lanjut Metode Lain</Button>}
                                 <div className="rounded-xl border border-border/40 p-2.5 md:p-4 space-y-1 md:space-y-2"><div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">Total</span><span className="font-semibold tabular-nums">{formatCurrency(grandTotal)}</span></div>{paidFromEntries > 0 && <div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">Sudah Dibayar</span><span className="font-semibold tabular-nums text-blue-600">{formatCurrency(paidFromEntries)}</span></div>}<div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">{paymentEntries.length > 0 ? "Bayar Sekarang" : "Dibayar"}</span><span className="font-semibold tabular-nums">{formatCurrency(payment)}</span></div><div className="border-t border-border/30 pt-1 md:pt-2 flex justify-between text-sm md:text-base"><span className="font-medium">Kembalian</span><span className="font-bold tabular-nums text-emerald-600">{formatCurrency(totalPaid >= grandTotal ? changeAmount : 0)}</span></div></div>
-                            </div>
+                              </div>
+                            </ScrollArea>
                             <div className="p-3 md:p-5 pt-2 md:pt-1 border-t border-border/30 bg-white shrink-0"><div className="flex gap-2"><Button variant="outline" className="flex-1 rounded-xl h-10 md:h-11" onClick={() => setShowPaymentDialog(false)}>Batal</Button><DisabledActionTooltip disabled={!canPosAction("create")} message={cannotMessage("create")}><Button className="flex-[2] md:flex-1 rounded-xl h-10 md:h-11 text-sm md:text-base" onClick={() => { if (!canPosAction("create")) return; handlePayment(); }} disabled={!canPosAction("create") || loading || totalPaid < grandTotal}>{loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memproses...</> : "Proses Pembayaran"}</Button></DisabledActionTooltip></div></div>
                         </div>
                     </div>

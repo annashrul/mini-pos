@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition, useMemo, useRef, useCallback } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { getBundles, createBundle, updateBundle, deleteBundle } from "@/server/actions/bundles";
 import { searchProducts } from "@/server/actions/products";
 import { getCategories } from "@/server/actions/categories";
@@ -78,6 +81,20 @@ interface FormItem {
 }
 
 // ===========================
+// Schema
+// ===========================
+
+const bundleFormSchema = z.object({
+    code: z.string().min(1, "Kode paket wajib diisi"),
+    name: z.string().min(1, "Nama paket wajib diisi"),
+    description: z.string().optional(),
+    sellingPrice: z.string().min(1, "Harga paket wajib diisi").refine((v) => parseFloat(v) > 0, "Harga harus lebih dari 0"),
+    categoryId: z.string().optional(),
+    barcode: z.string().optional(),
+});
+type BundleFormValues = z.infer<typeof bundleFormSchema>;
+
+// ===========================
 // Component
 // ===========================
 
@@ -103,12 +120,10 @@ export function BundlesContent() {
     const [submitting, setSubmitting] = useState(false);
 
     // Form state
-    const [formCode, setFormCode] = useState("");
-    const [formName, setFormName] = useState("");
-    const [formDescription, setFormDescription] = useState("");
-    const [formSellingPrice, setFormSellingPrice] = useState("");
-    const [formCategoryId, setFormCategoryId] = useState("");
-    const [formBarcode, setFormBarcode] = useState("");
+    const form = useForm<BundleFormValues>({
+        resolver: zodResolver(bundleFormSchema),
+        defaultValues: { code: "", name: "", description: "", sellingPrice: "", categoryId: "", barcode: "" },
+    });
     const [formItems, setFormItems] = useState<FormItem[]>([]);
 
     // Product search state
@@ -166,12 +181,14 @@ export function BundlesContent() {
     const openDialog = (bundle?: Bundle) => {
         if (bundle) {
             setEditing(bundle);
-            setFormCode(bundle.code);
-            setFormName(bundle.name);
-            setFormDescription(bundle.description || "");
-            setFormSellingPrice(bundle.sellingPrice.toString());
-            setFormCategoryId(bundle.categoryId || "");
-            setFormBarcode(bundle.barcode || "");
+            form.reset({
+                code: bundle.code,
+                name: bundle.name,
+                description: bundle.description || "",
+                sellingPrice: bundle.sellingPrice.toString(),
+                categoryId: bundle.categoryId || "",
+                barcode: bundle.barcode || "",
+            });
             setFormItems(
                 bundle.items.map((item) => ({
                     productId: item.product.id,
@@ -183,12 +200,14 @@ export function BundlesContent() {
             );
         } else {
             setEditing(null);
-            setFormCode(generateCode());
-            setFormName("");
-            setFormDescription("");
-            setFormSellingPrice("");
-            setFormCategoryId("");
-            setFormBarcode("");
+            form.reset({
+                code: generateCode(),
+                name: "",
+                description: "",
+                sellingPrice: "",
+                categoryId: "",
+                barcode: "",
+            });
             setFormItems([]);
         }
         setProductSearch("");
@@ -197,6 +216,7 @@ export function BundlesContent() {
     };
 
     // Product search handler
+    const watchCategoryId = form.watch("categoryId");
     const handleProductSearch = (query: string) => {
         setProductSearch(query);
         if (productSearchTimeout.current) clearTimeout(productSearchTimeout.current);
@@ -207,7 +227,8 @@ export function BundlesContent() {
         setSearchingProducts(true);
         productSearchTimeout.current = setTimeout(async () => {
             try {
-                const results = await searchProducts(query);
+                const catId = watchCategoryId && watchCategoryId !== "none" ? watchCategoryId : undefined;
+                const results = await searchProducts(query, null, catId);
                 setProductResults(
                     results.map((p: { id: string; code: string; name: string; sellingPrice: number }) => ({
                         id: p.id,
@@ -264,33 +285,32 @@ export function BundlesContent() {
     }, [formItems]);
 
     // Savings
+    const watchSellingPrice = form.watch("sellingPrice");
     const savings = useMemo(() => {
-        const selling = parseFloat(formSellingPrice) || 0;
+        const selling = parseFloat(watchSellingPrice) || 0;
         if (calculatedBasePrice <= 0 || selling <= 0) return { amount: 0, percentage: 0 };
         const amount = calculatedBasePrice - selling;
         const percentage = (amount / calculatedBasePrice) * 100;
         return { amount, percentage };
-    }, [calculatedBasePrice, formSellingPrice]);
+    }, [calculatedBasePrice, watchSellingPrice]);
 
     // Submit handler
-    const handleSubmit = async () => {
+    const onSubmit = async (values: BundleFormValues) => {
         if (editing ? !canUpdate : !canCreate) {
             toast.error(cannotMessage(editing ? "update" : "create"));
             return;
         }
-        if (!formName.trim()) { toast.error("Nama paket harus diisi"); return; }
-        if (!formSellingPrice || parseFloat(formSellingPrice) <= 0) { toast.error("Harga paket harus diisi"); return; }
         if (formItems.length === 0) { toast.error("Tambahkan minimal 1 produk ke paket"); return; }
 
         setSubmitting(true);
         try {
             const payload = {
-                code: formCode,
-                name: formName.trim(),
-                ...(formDescription.trim() ? { description: formDescription.trim() } : {}),
-                sellingPrice: parseFloat(formSellingPrice),
-                ...(formCategoryId ? { categoryId: formCategoryId } : {}),
-                ...(formBarcode.trim() ? { barcode: formBarcode.trim() } : {}),
+                code: values.code,
+                name: values.name.trim(),
+                ...(values.description?.trim() ? { description: values.description.trim() } : {}),
+                sellingPrice: parseFloat(values.sellingPrice),
+                ...(values.categoryId ? { categoryId: values.categoryId } : {}),
+                ...(values.barcode?.trim() ? { barcode: values.barcode.trim() } : {}),
                 items: formItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
             };
 
@@ -426,7 +446,7 @@ export function BundlesContent() {
                 <Badge className={`rounded-full text-[11px] font-medium px-2.5 ${row.isActive
                     ? "bg-emerald-100 text-emerald-700 border border-emerald-200/60"
                     : "bg-slate-100 text-slate-500 border border-slate-200/60"
-                }`}>
+                    }`}>
                     {row.isActive ? "Aktif" : "Nonaktif"}
                 </Badge>
             ),
@@ -485,28 +505,12 @@ export function BundlesContent() {
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                     <Button
                         disabled={!canCreate}
-                        className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm"
+                        className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
                         onClick={() => openDialog()}
                     >
                         <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Paket
                     </Button>
                 </DisabledActionTooltip>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
-                    <Package className="w-3 h-3 mr-1.5" />
-                    Total: {stats.total}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                    <ShoppingCart className="w-3 h-3 mr-1.5" />
-                    Aktif: {stats.active}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
-                    <AlertTriangle className="w-3 h-3 mr-1.5" />
-                    Nonaktif: {stats.inactive}
-                </Badge>
             </div>
 
             {/* Table */}
@@ -527,6 +531,22 @@ export function BundlesContent() {
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                afterFilters={
+                    <div className="flex items-center gap-2 flex-wrap px-3 sm:px-5 pb-2">
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
+                            <Package className="w-3 h-3 mr-1.5" />
+                            Total: {stats.total}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                            <ShoppingCart className="w-3 h-3 mr-1.5" />
+                            Aktif: {stats.active}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/60">
+                            <AlertTriangle className="w-3 h-3 mr-1.5" />
+                            Nonaktif: {stats.inactive}
+                        </Badge>
+                    </div>
+                }
                 selectable
                 selectedRows={selectedRows}
                 onSelectionChange={setSelectedRows}
@@ -588,8 +608,15 @@ export function BundlesContent() {
                 }
             />
 
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={() => openDialog()} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
+
             {/* Create/Edit Dialog */}
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setProductSearch(""); setProductResults([]); } }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setProductSearch(""); setProductResults([]); form.reset(); } }}>
                 <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-2xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
                     <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
                     <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
@@ -601,42 +628,47 @@ export function BundlesContent() {
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className={`flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-5 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className={`flex-1 overflow-y-auto px-4 sm:px-6 space-y-4 sm:space-y-5 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`} id="bundle-form">
                         {/* Basic Info */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-medium">Kode Paket <span className="text-red-400">*</span></Label>
-                                <Input value={formCode} onChange={(e) => setFormCode(e.target.value)} className="rounded-xl h-9 sm:h-10 font-mono text-sm" placeholder="BDL-XXXXXX" />
+                                <Input {...form.register("code")} className="rounded-xl h-9 sm:h-10 font-mono text-sm" placeholder="BDL-XXXXXX" />
+                                {form.formState.errors.code && <p className="text-xs text-red-500">{form.formState.errors.code.message}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-medium">Nama Paket <span className="text-red-400">*</span></Label>
-                                <Input value={formName} onChange={(e) => setFormName(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Paket Hemat Makan Siang" autoFocus />
+                                <Input {...form.register("name")} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Paket Hemat Makan Siang" autoFocus />
+                                {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
                             </div>
                         </div>
 
                         <div className="space-y-1.5">
                             <Label className="text-xs sm:text-sm font-medium">Deskripsi</Label>
-                            <Textarea value={formDescription} onChange={(e) => setFormDescription(e.target.value)} className="rounded-xl resize-none text-sm" rows={2} placeholder="Deskripsi singkat..." />
+                            <Textarea {...form.register("description")} className="rounded-xl resize-none text-sm" rows={2} placeholder="Deskripsi singkat..." />
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-medium">Harga Paket <span className="text-red-400">*</span></Label>
-                                <Input type="number" value={formSellingPrice} onChange={(e) => setFormSellingPrice(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="0" min={0} />
+                                <Input {...form.register("sellingPrice")} type="number" className="rounded-xl h-9 sm:h-10 text-sm" placeholder="0" min={0} />
+                                {form.formState.errors.sellingPrice && <p className="text-xs text-red-500">{form.formState.errors.sellingPrice.message}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-medium">Kategori</Label>
-                                <Select value={formCategoryId} onValueChange={setFormCategoryId}>
-                                    <SelectTrigger className="rounded-xl h-9 sm:h-10 text-sm"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">Tanpa Kategori</SelectItem>
-                                        {categories.map((cat) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
+                                <Controller control={form.control} name="categoryId" render={({ field }) => (
+                                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                                        <SelectTrigger className="rounded-xl text-sm"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">Tanpa Kategori</SelectItem>
+                                            {categories.map((cat) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
+                                        </SelectContent>
+                                    </Select>
+                                )} />
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-medium">Barcode</Label>
-                                <Input value={formBarcode} onChange={(e) => setFormBarcode(e.target.value)} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Opsional" />
+                                <Input {...form.register("barcode")} className="rounded-xl h-9 sm:h-10 text-sm" placeholder="Opsional" />
                             </div>
                         </div>
 
@@ -716,7 +748,7 @@ export function BundlesContent() {
                                     </div>
                                     <div className="flex items-center justify-between text-xs sm:text-sm">
                                         <span className="text-slate-600">Harga Paket</span>
-                                        <span className="font-semibold text-blue-600 tabular-nums">{formSellingPrice ? formatCurrency(parseFloat(formSellingPrice)) : "-"}</span>
+                                        <span className="font-semibold text-blue-600 tabular-nums">{watchSellingPrice ? formatCurrency(parseFloat(watchSellingPrice)) : "-"}</span>
                                     </div>
                                     {savings.amount > 0 && (
                                         <div className="flex items-center justify-between text-xs sm:text-sm pt-1 border-t border-blue-200/50">
@@ -733,13 +765,13 @@ export function BundlesContent() {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </form>
 
                     {/* Footer */}
-                    <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border/40 shrink-0 flex flex-col-reverse sm:flex-row justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); }} className="rounded-xl w-full sm:w-auto">Batal</Button>
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border/40 shrink-0 flex flex-row justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl flex-1 sm:flex-none">Batal</Button>
                         <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
-                            <Button disabled={(editing ? !canUpdate : !canCreate) || submitting} onClick={handleSubmit} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md w-full sm:w-auto">
+                            <Button type="submit" form="bundle-form" disabled={(editing ? !canUpdate : !canCreate) || submitting} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md flex-1 sm:flex-none">
                                 {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 {editing ? "Update" : "Simpan"}
                             </Button>
@@ -765,10 +797,10 @@ export function BundlesContent() {
                             <p className="text-xs sm:text-sm text-red-700 font-medium">{confirmText}</p>
                             <p className="text-[10px] sm:text-xs text-red-500/70 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
                         </div>
-                        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl w-full sm:w-auto">Batal</Button>
+                        <div className="flex flex-row justify-end gap-2 pt-4">
+                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl flex-1 sm:flex-none">Batal</Button>
                             <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                                <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-xl shadow-md w-full sm:w-auto">Ya, Hapus</Button>
+                                <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-xl shadow-md flex-1 sm:flex-none">Ya, Hapus</Button>
                             </DisabledActionTooltip>
                         </div>
                     </div>

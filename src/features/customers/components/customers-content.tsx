@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition , useRef } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { createCustomer, updateCustomer, deleteCustomer, getCustomers } from "@/features/customers";
 import { useMenuActionAccess } from "@/features/access-control";
 import { formatCurrency } from "@/lib/utils";
@@ -18,6 +21,16 @@ import { SmartSelect } from "@/components/ui/smart-select";
 import { Plus, Pencil, Trash2, Users, Phone, Mail, Crown, Star, AlertTriangle, Heart, MapPin, Cake } from "lucide-react";
 import { toast } from "sonner";
 import type { Customer } from "@/types";
+
+const customerFormSchema = z.object({
+    name: z.string().min(1, "Nama customer wajib diisi"),
+    phone: z.string().optional(),
+    email: z.string().email("Format email tidak valid").or(z.literal("")).optional(),
+    address: z.string().optional(),
+    memberLevel: z.enum(["REGULAR", "SILVER", "GOLD", "PLATINUM"]),
+    dateOfBirth: z.string().optional(),
+});
+type CustomerFormValues = z.infer<typeof customerFormSchema>;
 
 const memberColors: Record<string, string> = {
     REGULAR: "bg-slate-100 text-slate-600 border border-slate-200",
@@ -49,7 +62,6 @@ export function CustomersContent() {
     const [data, setData] = useState<{ customers: Customer[]; total: number; totalPages: number }>({ customers: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Customer | null>(null);
-    const [formMemberLevel, setFormMemberLevel] = useState("REGULAR");
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
@@ -104,20 +116,23 @@ export function CustomersContent() {
         fetchData({});
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleSubmit = async (formData: FormData) => {
-        if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
-        const result = editing
-            ? await updateCustomer(editing.id, formData)
-            : await createCustomer(formData);
+    const form = useForm<CustomerFormValues>({
+        resolver: zodResolver(customerFormSchema),
+        defaultValues: { name: "", phone: "", email: "", address: "", memberLevel: "REGULAR", dateOfBirth: "" },
+    });
 
-        if (result.error) {
-            toast.error(result.error);
-        } else {
-            toast.success(editing ? "Customer berhasil diupdate" : "Customer berhasil ditambahkan");
-            setOpen(false);
-            setEditing(null);
-            fetchData({});
-        }
+    const onSubmit = async (values: CustomerFormValues) => {
+        if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
+        const fd = new FormData();
+        fd.set("name", values.name);
+        if (values.phone) fd.set("phone", values.phone);
+        if (values.email) fd.set("email", values.email);
+        if (values.address) fd.set("address", values.address);
+        fd.set("memberLevel", values.memberLevel);
+        if (values.dateOfBirth) fd.set("dateOfBirth", values.dateOfBirth);
+        const result = editing ? await updateCustomer(editing.id, fd) : await createCustomer(fd);
+        if (result.error) { toast.error(result.error); }
+        else { toast.success(editing ? "Customer berhasil diupdate" : "Customer berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
     };
 
     const handleDelete = async (id: string) => {
@@ -150,21 +165,28 @@ export function CustomersContent() {
     const openCreateDialog = () => {
         if (!canCreate) { toast.error(cannotMessage("create")); return; }
         setEditing(null);
-        setFormMemberLevel("REGULAR");
+        form.reset({ name: "", phone: "", email: "", address: "", memberLevel: "REGULAR", dateOfBirth: "" });
         setOpen(true);
     };
 
     const openEditDialog = (customer: Customer) => {
         if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         setEditing(customer);
-        setFormMemberLevel(customer.memberLevel);
+        form.reset({
+            name: customer.name,
+            phone: customer.phone || "",
+            email: customer.email || "",
+            address: customer.address || "",
+            memberLevel: customer.memberLevel as CustomerFormValues["memberLevel"],
+            dateOfBirth: customer.dateOfBirth ? new Date(customer.dateOfBirth).toISOString().split("T")[0] : "",
+        });
         setOpen(true);
     };
 
     const closeDialog = () => {
         setOpen(false);
         setEditing(null);
-        setFormMemberLevel("REGULAR");
+        form.reset();
     };
 
     const columns: SmartColumn<Customer>[] = [
@@ -279,41 +301,10 @@ export function CustomersContent() {
                     </div>
                 </div>
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all w-full sm:w-auto text-xs sm:text-sm" onClick={openCreateDialog}>
+                    <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm" onClick={openCreateDialog}>
                         <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Customer
                     </Button>
                 </DisabledActionTooltip>
-            </div>
-
-            {/* Stats Bar */}
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
-                    <Users className="w-3.5 h-3.5 mr-1.5" />
-                    Total: {stats.total}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">
-                    Regular: {stats.regular}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-gray-100 to-slate-100 text-slate-700 border border-slate-200">
-                    Silver: {stats.silver}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-700 border border-amber-200">
-                    <Star className="w-3 h-3 mr-1 text-amber-500" />
-                    Gold: {stats.gold}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-purple-50 to-violet-50 text-purple-700 border border-purple-200">
-                    <Crown className="w-3 h-3 mr-1 text-purple-500" />
-                    Platinum: {stats.platinum}
-                </Badge>
-                <div className="h-4 w-px bg-border mx-1" />
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Heart className="w-3 h-3 mr-1 text-emerald-500" />
-                    Spending: {formatCurrency(stats.totalSpending)}
-                </Badge>
-                <Badge variant="secondary" className="rounded-full px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                    <Star className="w-3 h-3 mr-1 text-amber-500 fill-amber-500" />
-                    Poin: {stats.totalPoints.toLocaleString()}
-                </Badge>
             </div>
 
             <SmartTable<Customer>
@@ -358,6 +349,37 @@ export function CustomersContent() {
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                afterFilters={
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-3 sm:px-5 pb-2">
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                            <Users className="w-3 h-3 mr-1" />
+                            Total: {stats.total}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                            Regular: {stats.regular}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-gradient-to-r from-gray-100 to-slate-100 text-slate-700 border border-slate-200">
+                            Silver: {stats.silver}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-700 border border-amber-200">
+                            <Star className="w-3 h-3 mr-1 text-amber-500" />
+                            Gold: {stats.gold}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-gradient-to-r from-purple-50 to-violet-50 text-purple-700 border border-purple-200">
+                            <Crown className="w-3 h-3 mr-1 text-purple-500" />
+                            Platinum: {stats.platinum}
+                        </Badge>
+                        <div className="h-4 w-px bg-border mx-0.5" />
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Heart className="w-3 h-3 mr-1 text-emerald-500" />
+                            {formatCurrency(stats.totalSpending)}
+                        </Badge>
+                        <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            <Star className="w-3 h-3 mr-1 text-amber-500 fill-amber-500" />
+                            {stats.totalPoints.toLocaleString()} poin
+                        </Badge>
+                    </div>
+                }
                 selectable
                 selectedRows={selectedRows}
                 onSelectionChange={setSelectedRows}
@@ -377,6 +399,13 @@ export function CustomersContent() {
                 }
             />
 
+            {/* Floating button mobile */}
+            {canCreate && (
+                <button onClick={openCreateDialog} className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-lg shadow-rose-500/30 flex items-center justify-center active:scale-95 transition-transform">
+                    <Plus className="w-6 h-6" />
+                </button>
+            )}
+
             {/* Customer Form Dialog */}
             <Dialog open={open} onOpenChange={(v) => { if (v) setOpen(true); else closeDialog(); }}>
                 <DialogContent className="rounded-2xl max-w-md overflow-hidden">
@@ -389,65 +418,57 @@ export function CustomersContent() {
                             <span>{editing ? "Edit Customer" : "Tambah Customer"}</span>
                         </DialogTitle>
                     </DialogHeader>
-                    <form action={handleSubmit} className={`space-y-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium">Nama <span className="text-red-400">*</span></Label>
-                            <Input id="name" name="name" defaultValue={editing?.name || ""} required className="rounded-xl" autoFocus />
+                    <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-4 ${editing ? (!canUpdate ? "pointer-events-none opacity-70" : "") : (!canCreate ? "pointer-events-none opacity-70" : "")}`}>
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium">Nama <span className="text-red-400">*</span></Label>
+                            <Input {...form.register("name")} className="rounded-xl" autoFocus />
+                            {form.formState.errors.name && <p className="text-xs text-red-500">{form.formState.errors.name.message}</p>}
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="phone" className="text-sm font-medium flex items-center gap-1.5">
-                                    <Phone className="w-3.5 h-3.5 text-muted-foreground" />
-                                    No. HP
+                            <div className="space-y-1.5">
+                                <Label className="text-sm font-medium flex items-center gap-1.5">
+                                    <Phone className="w-3.5 h-3.5 text-muted-foreground" /> No. HP
                                 </Label>
-                                <Input id="phone" name="phone" defaultValue={editing?.phone || ""} className="rounded-xl" />
+                                <Input {...form.register("phone")} className="rounded-xl" />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="email" className="text-sm font-medium flex items-center gap-1.5">
-                                    <Mail className="w-3.5 h-3.5 text-muted-foreground" />
-                                    Email
+                            <div className="space-y-1.5">
+                                <Label className="text-sm font-medium flex items-center gap-1.5">
+                                    <Mail className="w-3.5 h-3.5 text-muted-foreground" /> Email
                                 </Label>
-                                <Input id="email" name="email" type="email" defaultValue={editing?.email || ""} className="rounded-xl" />
+                                <Input {...form.register("email")} type="email" className="rounded-xl" />
+                                {form.formState.errors.email && <p className="text-xs text-red-500">{form.formState.errors.email.message}</p>}
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="address" className="text-sm font-medium flex items-center gap-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                                Alamat
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Alamat
                             </Label>
-                            <Input id="address" name="address" defaultValue={editing?.address || ""} className="rounded-xl" />
+                            <Input {...form.register("address")} className="rounded-xl" />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="memberLevel" className="text-sm font-medium flex items-center gap-1.5">
-                                <Crown className="w-3.5 h-3.5 text-muted-foreground" />
-                                Level Member
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium flex items-center gap-1.5">
+                                <Crown className="w-3.5 h-3.5 text-muted-foreground" /> Level Member
                             </Label>
-                            <SmartSelect
-                                value={formMemberLevel}
-                                onChange={setFormMemberLevel}
-                                onSearch={async (query) =>
-                                    [
-                                        { value: "REGULAR", label: "Regular" },
-                                        { value: "SILVER", label: "Silver" },
-                                        { value: "GOLD", label: "Gold" },
-                                        { value: "PLATINUM", label: "Platinum" },
-                                    ].filter((opt) => opt.label.toLowerCase().includes(query.toLowerCase()))
-                                }
-                            />
-                            <input type="hidden" name="memberLevel" value={formMemberLevel} />
+                            <Controller control={form.control} name="memberLevel" render={({ field }) => (
+                                <SmartSelect
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    onSearch={async (query) =>
+                                        [
+                                            { value: "REGULAR", label: "Regular" },
+                                            { value: "SILVER", label: "Silver" },
+                                            { value: "GOLD", label: "Gold" },
+                                            { value: "PLATINUM", label: "Platinum" },
+                                        ].filter((opt) => opt.label.toLowerCase().includes(query.toLowerCase()))
+                                    }
+                                />
+                            )} />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="dateOfBirth" className="text-sm font-medium flex items-center gap-1.5">
-                                <Cake className="w-3.5 h-3.5 text-muted-foreground" />
-                                Tanggal Lahir
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium flex items-center gap-1.5">
+                                <Cake className="w-3.5 h-3.5 text-muted-foreground" /> Tanggal Lahir
                             </Label>
-                            <Input
-                                id="dateOfBirth"
-                                name="dateOfBirth"
-                                type="date"
-                                defaultValue={editing?.dateOfBirth ? new Date(editing.dateOfBirth).toISOString().split("T")[0] : ""}
-                                className="rounded-xl"
-                            />
+                            <Input {...form.register("dateOfBirth")} type="date" className="rounded-xl" />
                         </div>
                         <div className="flex justify-end gap-2 pt-2">
                             <Button type="button" variant="outline" onClick={closeDialog} className="rounded-xl shadow-sm">Batal</Button>
