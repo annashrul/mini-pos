@@ -15,6 +15,7 @@ interface GetStockTransfersParams {
   sortDir?: "asc" | "desc";
   dateFrom?: string;
   dateTo?: string;
+  branchId?: string;
 }
 
 export async function getStockTransfers(params: GetStockTransfersParams = {}) {
@@ -27,15 +28,29 @@ export async function getStockTransfers(params: GetStockTransfersParams = {}) {
     sortDir = "desc",
     dateFrom,
     dateTo,
+    branchId,
   } = params;
   const skip = (page - 1) * limit;
 
   const where: Record<string, unknown> = {};
-  if (search) {
+  if (branchId && branchId !== "ALL") {
     where.OR = [
+      { fromBranchId: branchId },
+      { toBranchId: branchId },
+    ];
+  }
+  if (search) {
+    const searchCondition = [
       { transferNumber: { contains: search, mode: "insensitive" } },
       { notes: { contains: search, mode: "insensitive" } },
     ];
+    if (where.OR) {
+      // Combine branch filter AND search: must match branch AND search
+      where.AND = [{ OR: where.OR }, { OR: searchCondition }];
+      delete where.OR;
+    } else {
+      where.OR = searchCondition;
+    }
   }
   if (status && status !== "ALL") {
     where.status = status;

@@ -59,12 +59,15 @@ export async function getCashierPerformanceList(params?: {
     if (branchId) baseWhere.branchId = branchId;
 
     const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+    const hourlyParams: unknown[] = [currentStart, currentEnd];
+    const hourlyBranchCondition = branchId ? `AND t."branchId" = $3` : "";
+    if (branchId) hourlyParams.push(branchId);
 
     // Use groupBy + raw SQL for cost instead of loading all transactions with items
     const [
         currentAgg, prevAgg, currentCostData, prevCostData,
-        allUsers, currentTxsWithTime, shifts,
-        voidTxs, refundTxs
+        allUsers, largestTxAgg, hourlyAgg, shifts,
+        voidAgg, refundAgg
     ] = await Promise.all([
         // Current period: revenue, discount, transactions per user
         prisma.transaction.groupBy({
@@ -113,10 +116,22 @@ export async function getCashierPerformanceList(params?: {
                 branch: { select: { name: true } },
             },
         }),
-        prisma.transaction.findMany({
+        prisma.transaction.groupBy({
+            by: ["userId"],
             where: { ...baseWhere, createdAt: { gte: currentStart, lte: currentEnd } },
-            select: { userId: true, grandTotal: true, createdAt: true },
+            _max: { grandTotal: true },
         }),
+        prisma.$queryRawUnsafe<{ userId: string; hour: number; count: number }[]>(`
+            SELECT
+              t."userId" as "userId",
+              EXTRACT(HOUR FROM t."createdAt")::int as hour,
+              COUNT(*)::int as count
+            FROM transactions t
+            WHERE t.status = 'COMPLETED'
+              AND t."createdAt" >= $1 AND t."createdAt" <= $2
+              ${hourlyBranchCondition}
+            GROUP BY t."userId", EXTRACT(HOUR FROM t."createdAt")
+        `, ...hourlyParams),
         prisma.cashierShift.findMany({
             where: {
                 ...(branchId ? { branchId } : {}),
@@ -125,13 +140,23 @@ export async function getCashierPerformanceList(params?: {
             },
             select: { userId: true, openedAt: true, closedAt: true },
         }),
-        prisma.transaction.findMany({
-            where: { status: "VOIDED", createdAt: { gte: currentStart, lte: currentEnd }, ...(branchId ? { branchId } : {}) },
-            select: { userId: true },
+        prisma.transaction.groupBy({
+            by: ["userId"],
+            where: {
+                status: "VOIDED",
+                createdAt: { gte: currentStart, lte: currentEnd },
+                ...(branchId ? { branchId } : {}),
+            },
+            _count: { _all: true },
         }),
-        prisma.transaction.findMany({
-            where: { status: "REFUNDED", createdAt: { gte: currentStart, lte: currentEnd }, ...(branchId ? { branchId } : {}) },
-            select: { userId: true },
+        prisma.transaction.groupBy({
+            by: ["userId"],
+            where: {
+                status: "REFUNDED",
+                createdAt: { gte: currentStart, lte: currentEnd },
+                ...(branchId ? { branchId } : {}),
+            },
+            _count: { _all: true },
         }),
     ]);
 
@@ -169,27 +194,23 @@ export async function getCashierPerformanceList(params?: {
 
     // Build void/refund counts per user
     const voidCountMap = new Map<string, number>();
-    for (const tx of voidTxs) {
-        voidCountMap.set(tx.userId, (voidCountMap.get(tx.userId) || 0) + 1);
+    for (const row of voidAgg) {
+        voidCountMap.set(row.userId, row._count._all);
     }
     const refundCountMap = new Map<string, number>();
-    for (const tx of refundTxs) {
-        refundCountMap.set(tx.userId, (refundCountMap.get(tx.userId) || 0) + 1);
+    for (const row of refundAgg) {
+        refundCountMap.set(row.userId, row._count._all);
     }
 
     // Build largest transaction and peak hour per user
     const largestTxMap = new Map<string, number>();
     const hourlyCountMap = new Map<string, Map<number, number>>();
-    for (const tx of currentTxsWithTime) {
-        // Largest transaction
-        const currentLargest = largestTxMap.get(tx.userId) || 0;
-        if (tx.grandTotal > currentLargest) largestTxMap.set(tx.userId, tx.grandTotal);
-
-        // Hourly distribution
-        if (!hourlyCountMap.has(tx.userId)) hourlyCountMap.set(tx.userId, new Map());
-        const hourMap = hourlyCountMap.get(tx.userId)!;
-        const hour = new Date(tx.createdAt).getHours();
-        hourMap.set(hour, (hourMap.get(hour) || 0) + 1);
+    for (const row of largestTxAgg) {
+        largestTxMap.set(row.userId, row._max.grandTotal || 0);
+    }
+    for (const row of hourlyAgg) {
+        if (!hourlyCountMap.has(row.userId)) hourlyCountMap.set(row.userId, new Map());
+        hourlyCountMap.get(row.userId)!.set(row.hour, row.count);
     }
 
     // Calculate growth percentage

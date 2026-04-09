@@ -67,8 +67,6 @@ async function getDashboardStatsUncached(
     todayTxCount,
     yesterdaySales,
     yesterdayTxCount,
-    monthRevenue,
-    monthTxCount,
     prevMonthRevenue,
     prevMonthTxCount,
     totalProducts,
@@ -81,12 +79,11 @@ async function getDashboardStatsUncached(
     topCashiers,
     categoryBreakdown,
     hourlySales,
-    weekSalesAgg,
     refundCount,
     voidCount,
     activePromotions,
     pendingPurchaseOrders,
-    todayProfitItems,
+    profitRows,
     lowStockProducts,
   ] = await Promise.all([
     prisma.transaction.aggregate({
@@ -118,19 +115,6 @@ async function getDashboardStatsUncached(
     }),
     prisma.transaction.count({
       where: { createdAt: { gte: yesterday, lt: today }, ...completedWhere },
-    }),
-    prisma.transaction.aggregate({
-      _sum: { grandTotal: true },
-      where: {
-        createdAt: { gte: periodStart, lt: tomorrow },
-        ...completedWhere,
-      },
-    }),
-    prisma.transaction.count({
-      where: {
-        createdAt: { gte: periodStart, lt: tomorrow },
-        ...completedWhere,
-      },
     }),
     prisma.transaction.aggregate({
       _sum: { grandTotal: true },
@@ -172,13 +156,6 @@ async function getDashboardStatsUncached(
     getTopCashiers(periodStart, tomorrow, branchFilter),
     getCategoryBreakdown(periodStart, tomorrow, branchFilter),
     getHourlySalesData(today, tomorrow, branchFilter),
-    prisma.transaction.aggregate({
-      _sum: { grandTotal: true },
-      where: {
-        createdAt: { gte: periodStart, lt: tomorrow },
-        ...completedWhere,
-      },
-    }),
     prisma.transaction.count({
       where: {
         createdAt: { gte: periodStart, lt: tomorrow },
@@ -199,19 +176,22 @@ async function getDashboardStatsUncached(
     prisma.purchaseOrder.count({
       where: { status: { in: ["DRAFT", "ORDERED"] as const }, ...branchFilter },
     }),
-    prisma.transactionItem.findMany({
-      where: {
-        transaction: {
-          createdAt: { gte: periodStart, lt: tomorrow },
-          ...completedWhere,
-        },
-      },
-      select: {
-        quantity: true,
-        unitPrice: true,
-        product: { select: { purchasePrice: true } },
-      },
-    }),
+    prisma.$queryRawUnsafe<{ profit: number }[]>(
+      `
+      SELECT
+        COALESCE(SUM((ti."unitPrice" - p."purchasePrice") * ti.quantity), 0)::float AS profit
+      FROM transaction_items ti
+      JOIN transactions t ON t.id = ti."transactionId"
+      JOIN products p ON p.id = ti."productId"
+      WHERE t.status = 'COMPLETED'
+        AND t."createdAt" >= $1
+        AND t."createdAt" < $2
+        ${branchId ? `AND t."branchId" = $3` : ""}
+      `,
+      periodStart,
+      tomorrow,
+      ...(branchId ? [branchId] : []),
+    ),
     prisma.$queryRawUnsafe<
       {
         id: string;
@@ -307,8 +287,9 @@ async function getDashboardStatsUncached(
 
   const todaySalesVal = todaySales._sum?.grandTotal || 0;
   const yesterdaySalesVal = yesterdaySales._sum?.grandTotal || 0;
-  const monthRevenueVal = monthRevenue._sum?.grandTotal || 0;
+  const monthRevenueVal = todaySalesVal;
   const prevMonthRevenueVal = prevMonthRevenue._sum?.grandTotal || 0;
+  const monthTxCount = todayTxCount;
 
   const salesGrowthDay =
     yesterdaySalesVal > 0
@@ -329,11 +310,8 @@ async function getDashboardStatsUncached(
 
   const avgTransactionValue =
     todayTxCount > 0 ? Math.round(todaySalesVal / todayTxCount) : 0;
-  const todayProfit = todayProfitItems.reduce((sum, item) => {
-    const purchasePrice = item.product?.purchasePrice || 0;
-    return sum + (item.unitPrice - purchasePrice) * item.quantity;
-  }, 0);
-  const weekSales = weekSalesAgg._sum?.grandTotal || 0;
+  const todayProfit = profitRows[0]?.profit ?? 0;
+  const weekSales = todaySalesVal;
 
   // Upcoming debts (unpaid/partial, sorted by due date)
   const upcomingDebts = await prisma.debt.findMany({
@@ -351,7 +329,10 @@ async function getDashboardStatsUncached(
       status: true,
       dueDate: true,
     },
-    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
     take: 5,
   });
 
@@ -416,8 +397,8 @@ export async function getDashboardStats(
 }
 
 export async function revalidateDashboardStats(branchId?: string) {
-  revalidateTag("dashboard-stats", "seconds");
-  if (branchId) revalidateTag(`dashboard-stats:${branchId}`, "seconds");
+  revalidateTag("dashboard-stats", "max");
+  if (branchId) revalidateTag(`dashboard-stats:${branchId}`, "max");
   await invalidateAccelerate(["dashboard_stats"]);
 }
 
@@ -430,8 +411,12 @@ async function getDailySalesData(
   startDate.setDate(startDate.getDate() - (days - 1));
   startDate.setHours(0, 0, 0, 0);
 
+  const params: unknown[] = [startDate];
   const branchCondition = bf.branchId
-    ? `AND "branchId" = '${bf.branchId}'`
+    ? (() => {
+        params.push(bf.branchId);
+        return `AND "branchId" = $${params.length}`;
+      })()
     : "";
 
   const rows = await prisma.$queryRawUnsafe<
@@ -448,7 +433,7 @@ async function getDailySalesData(
     GROUP BY DATE_TRUNC('day', "createdAt")
     ORDER BY d ASC
   `,
-    startDate,
+    ...params,
   );
 
   const salesMap = new Map<string, { total: number; count: number }>();
@@ -499,8 +484,12 @@ async function getYearlyComparison(bf: Record<string, string> = {}) {
     "Des",
   ];
 
+  const params: unknown[] = [new Date(lastYear, 0, 1)];
   const branchCondition = bf.branchId
-    ? `AND "branchId" = '${bf.branchId}'`
+    ? (() => {
+        params.push(bf.branchId);
+        return `AND "branchId" = $${params.length}`;
+      })()
     : "";
 
   const rows = await prisma.$queryRawUnsafe<
@@ -518,7 +507,7 @@ async function getYearlyComparison(bf: Record<string, string> = {}) {
     GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
     ORDER BY y, m
   `,
-    new Date(lastYear, 0, 1),
+    ...params,
   );
 
   const dataMap = new Map<string, { total: number; count: number }>();
@@ -553,25 +542,34 @@ async function getTopCashiers(
   end: Date,
   bf: Record<string, string> = {},
 ) {
-  const txByUser = await prisma.transaction.groupBy({
-    by: ["userId"],
-    _sum: { grandTotal: true },
-    _count: { _all: true },
-    where: { createdAt: { gte: start, lt: end }, status: "COMPLETED", ...bf },
-    orderBy: { _sum: { grandTotal: "desc" } },
-    take: 5,
-  });
-  const userIds = txByUser.map((t) => t.userId);
-  const users = await prisma.user.findMany({
-    where: { id: { in: userIds } },
-    select: { id: true, name: true },
-  });
-  const userMap = new Map(users.map((u) => [u.id, u.name]));
-  return txByUser.map((t) => ({
-    name: userMap.get(t.userId) || "Unknown",
-    total: t._sum.grandTotal || 0,
-    count: t._count?._all || 0,
-  }));
+  const params: unknown[] = [start, end];
+  const branchCondition = bf.branchId
+    ? (() => {
+        params.push(bf.branchId);
+        return `AND t."branchId" = $${params.length}`;
+      })()
+    : "";
+
+  return prisma.$queryRawUnsafe<
+    { name: string; total: number; count: number }[]
+  >(
+    `
+    SELECT
+      u.name as name,
+      COALESCE(SUM(t."grandTotal"), 0)::float as total,
+      COUNT(*)::int as count
+    FROM transactions t
+    JOIN users u ON u.id = t."userId"
+    WHERE t."createdAt" >= $1
+      AND t."createdAt" < $2
+      AND t.status = 'COMPLETED'
+      ${branchCondition}
+    GROUP BY u.id, u.name
+    ORDER BY total DESC
+    LIMIT 5
+    `,
+    ...params,
+  );
 }
 
 async function getCategoryBreakdown(
@@ -579,31 +577,33 @@ async function getCategoryBreakdown(
   end: Date,
   bf: Record<string, string> = {},
 ) {
-  const items = await prisma.transactionItem.findMany({
-    where: {
-      transaction: {
-        createdAt: { gte: start, lt: end },
-        status: "COMPLETED",
-        ...bf,
-      },
-    },
-    select: {
-      subtotal: true,
-      quantity: true,
-      product: { select: { category: { select: { name: true } } } },
-    },
-  });
-  const map = new Map<string, { total: number; qty: number }>();
-  for (const item of items) {
-    const cat = item.product?.category?.name || "Lainnya";
-    const existing = map.get(cat) || { total: 0, qty: 0 };
-    existing.total += item.subtotal;
-    existing.qty += item.quantity;
-    map.set(cat, existing);
-  }
-  return Array.from(map.entries())
-    .map(([name, data]) => ({ name, total: data.total, qty: data.qty }))
-    .sort((a, b) => b.total - a.total);
+  const params: unknown[] = [start, end];
+  const branchCondition = bf.branchId
+    ? (() => {
+        params.push(bf.branchId);
+        return `AND t."branchId" = $${params.length}`;
+      })()
+    : "";
+
+  return prisma.$queryRawUnsafe<{ name: string; total: number; qty: number }[]>(
+    `
+    SELECT
+      COALESCE(c.name, 'Lainnya') as name,
+      COALESCE(SUM(ti.subtotal), 0)::float as total,
+      COALESCE(SUM(ti.quantity), 0)::int as qty
+    FROM transaction_items ti
+    JOIN transactions t ON t.id = ti."transactionId"
+    JOIN products p ON p.id = ti."productId"
+    LEFT JOIN categories c ON c.id = p."categoryId"
+    WHERE t."createdAt" >= $1
+      AND t."createdAt" < $2
+      AND t.status = 'COMPLETED'
+      ${branchCondition}
+    GROUP BY c.name
+    ORDER BY total DESC
+    `,
+    ...params,
+  );
 }
 
 // Single query with GROUP BY instead of iterating 24 hours
@@ -612,8 +612,12 @@ async function getHourlySalesData(
   end: Date,
   bf: Record<string, string> = {},
 ) {
+  const params: unknown[] = [start, end];
   const branchCondition = bf.branchId
-    ? `AND "branchId" = '${bf.branchId}'`
+    ? (() => {
+        params.push(bf.branchId);
+        return `AND "branchId" = $${params.length}`;
+      })()
     : "";
 
   const rows = await prisma.$queryRawUnsafe<
@@ -631,8 +635,7 @@ async function getHourlySalesData(
     GROUP BY EXTRACT(HOUR FROM "createdAt")
     ORDER BY h
   `,
-    start,
-    end,
+    ...params,
   );
 
   const hoursMap = new Map<number, { total: number; count: number }>();

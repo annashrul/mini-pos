@@ -550,6 +550,10 @@ model Transaction {
   @@index([status])
   @@index([createdAt])
   @@index([paymentMethod])
+  @@index([status, createdAt])
+  @@index([branchId, createdAt])
+  @@index([userId, createdAt])
+  @@index([branchId, status, createdAt])
   @@map("transactions")
 }
 
@@ -574,6 +578,8 @@ model TransactionItem {
   @@index([transactionId])
   @@index([productId])
   @@index([createdAt])
+  @@index([transactionId, createdAt])
+  @@index([productId, createdAt])
   @@map("transaction_items")
 }
 
@@ -628,6 +634,9 @@ model StockMovement {
   @@index([type])
   @@index([createdAt])
   @@index([reference])
+  @@index([branchId, createdAt])
+  @@index([productId, createdAt])
+  @@index([branchId, productId, createdAt])
   @@map("stock_movements")
 }
 
@@ -943,7 +952,11 @@ model AuditLog {
   @@index([userId])
   @@index([branchId])
   @@index([entity])
+  @@index([entityId])
   @@index([createdAt])
+  @@index([branchId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, createdAt])
   @@map("audit_logs")
 }
 
@@ -959,6 +972,7 @@ model ActivityLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+  @@index([userId, createdAt])
   @@map("activity_logs")
 }
 
@@ -993,6 +1007,9 @@ model Debt {
   @@index([partyId])
   @@index([branchId])
   @@index([createdAt])
+  @@index([dueDate])
+  @@index([branchId, status])
+  @@index([branchId, type, status])
   @@map("debts")
 }
 
@@ -1048,6 +1065,7 @@ model ApprovalRequest {
     @@index([type])
     @@index([requestedBy])
     @@index([branchId])
+    @@index([branchId, status, createdAt])
     @@map("approval_requests")
 }
 
@@ -1403,6 +1421,8 @@ model JournalEntry {
     @@index([branchId])
     @@index([periodId])
     @@index([status])
+    @@index([status, date])
+    @@index([branchId, status, date, createdAt])
     @@map("journal_entries")
 }
 
@@ -1419,6 +1439,8 @@ model JournalEntryLine {
 
     @@index([journalId])
     @@index([accountId])
+    @@index([journalId, sortOrder])
+    @@index([accountId, journalId])
     @@map("journal_entry_lines")
 }
 
@@ -1507,4 +1529,3 @@ model RestaurantTable {
   @@index([section])
   @@map("restaurant_tables")
 }
-

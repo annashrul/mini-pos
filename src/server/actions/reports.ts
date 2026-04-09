@@ -22,8 +22,6 @@ export async function getSalesReport(
   const now = new Date();
   const results = [];
 
-  const branchCondition = branchId ? `AND "branchId" = '${branchId}'` : "";
-
   if (period === "daily") {
     const startDate = dateFrom
       ? new Date(dateFrom)
@@ -33,6 +31,13 @@ export async function getSalesReport(
     const endNext = new Date(endDate);
     endNext.setDate(endNext.getDate() + 1);
     endNext.setHours(0, 0, 0, 0);
+
+    const queryParams: unknown[] = [startDate, endNext];
+    let branchCondition = "";
+    if (branchId) {
+      queryParams.push(branchId);
+      branchCondition = `AND "branchId" = $${queryParams.length}`;
+    }
 
     const rows = await prisma.$queryRawUnsafe<{ d: Date; sales: bigint; discount: bigint; tax: bigint; count: bigint }[]>(`
       SELECT DATE_TRUNC('day', "createdAt") as d,
@@ -46,7 +51,7 @@ export async function getSalesReport(
         ${branchCondition}
       GROUP BY DATE_TRUNC('day', "createdAt")
       ORDER BY d ASC
-    `, startDate, endNext);
+    `, ...queryParams);
 
     const salesMap = new Map<string, { sales: number; discount: number; tax: number; count: number }>();
     for (const row of rows) {
@@ -73,6 +78,13 @@ export async function getSalesReport(
     const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
     const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
+    const monthParams: unknown[] = [startMonth, endMonth];
+    let monthBranchCondition = "";
+    if (branchId) {
+      monthParams.push(branchId);
+      monthBranchCondition = `AND "branchId" = $${monthParams.length}`;
+    }
+
     const rows = await prisma.$queryRawUnsafe<{ y: number; m: number; sales: bigint; discount: bigint; tax: bigint; count: bigint }[]>(`
       SELECT EXTRACT(YEAR FROM "createdAt")::int as y,
              EXTRACT(MONTH FROM "createdAt")::int as m,
@@ -83,10 +95,10 @@ export async function getSalesReport(
       FROM transactions
       WHERE "createdAt" >= $1 AND "createdAt" < $2
         AND "status" = 'COMPLETED'
-        ${branchCondition}
+        ${monthBranchCondition}
       GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
       ORDER BY y, m
-    `, startMonth, endMonth);
+    `, ...monthParams);
 
     const salesMap = new Map<string, { sales: number; discount: number; tax: number; count: number }>();
     for (const row of rows) {
@@ -150,7 +162,12 @@ export async function getProfitLossReport(
       })()
     : new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+  const costParams: unknown[] = [monthStart, monthEnd];
+  let costBranchCondition = "";
+  if (branchId) {
+    costParams.push(branchId);
+    costBranchCondition = `AND t."branchId" = $${costParams.length}`;
+  }
 
   const [totals, costResult] = await Promise.all([
     prisma.transaction.aggregate({
@@ -169,8 +186,8 @@ export async function getProfitLossReport(
       JOIN products p ON p.id = ti."productId"
       WHERE t."createdAt" >= $1 AND t."createdAt" < $2
         AND t.status = 'COMPLETED'
-        ${branchCondition}
-    `, monthStart, monthEnd),
+        ${costBranchCondition}
+    `, ...costParams),
   ]);
 
   const totalRevenue = totals._sum.grandTotal || 0;

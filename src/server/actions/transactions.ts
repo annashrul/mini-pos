@@ -492,8 +492,8 @@ export async function createTransaction(input: CreateTransactionInput) {
     if (terminPayment && terminPayment.amount > 0) {
       revalidatePath("/debts");
     }
-    revalidateTag("dashboard-stats", "seconds");
-    revalidateTag("accounting-dashboard", "seconds");
+    revalidateTag("dashboard-stats", "max");
+    revalidateTag("accounting-dashboard", "max");
     invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 
     createAuditLog({
@@ -739,8 +739,8 @@ export async function voidTransaction(id: string, reason: string) {
     revalidateTag("dashboard-stats", "seconds");
     revalidateTag("accounting-dashboard", "seconds");
     if (tx0?.branchId) {
-      revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
-      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
+      revalidateTag(`dashboard-stats:${tx0.branchId}`, "max");
+      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "max");
     }
     invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 
@@ -835,11 +835,11 @@ export async function refundTransaction(id: string, reason: string) {
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
     revalidatePath("/products");
-    revalidateTag("dashboard-stats", "seconds");
-    revalidateTag("accounting-dashboard", "seconds");
+    revalidateTag("dashboard-stats", "max");
+    revalidateTag("accounting-dashboard", "max");
     if (tx0?.branchId) {
-      revalidateTag(`dashboard-stats:${tx0.branchId}`, "seconds");
-      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "seconds");
+      revalidateTag(`dashboard-stats:${tx0.branchId}`, "max");
+      revalidateTag(`accounting-dashboard:${tx0.branchId}`, "max");
     }
     invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
 

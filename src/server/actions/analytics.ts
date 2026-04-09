@@ -98,22 +98,36 @@ export async function getDeadStock(_branchId?: string) {
 }
 
 // Slow moving products (sold < 5 in 30 days)
-export async function getSlowMoving(_branchId?: string) {
+export async function getSlowMoving(branchId?: string) {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const sales = await prisma.transactionItem.groupBy({
-    by: ["productId"],
-    where: { createdAt: { gte: thirtyDaysAgo } },
-    _sum: { quantity: true },
-  });
+  const slowRows = await prisma.$queryRawUnsafe<
+    { productId: string; soldQty: number }[]
+  >(
+    `
+    SELECT
+      ti."productId",
+      COALESCE(SUM(ti.quantity), 0)::int AS "soldQty"
+    FROM transaction_items ti
+    JOIN transactions t ON t.id = ti."transactionId"
+    WHERE t.status = 'COMPLETED'
+      AND t."createdAt" >= $1
+      ${branchId ? `AND t."branchId" = $2` : ""}
+    GROUP BY ti."productId"
+    HAVING COALESCE(SUM(ti.quantity), 0) < 5
+    ORDER BY "soldQty" ASC
+    LIMIT 50
+    `,
+    thirtyDaysAgo,
+    ...(branchId ? [branchId] : []),
+  );
 
-  const slowIds = sales
-    .filter((s) => (s._sum.quantity || 0) < 5)
-    .map((s) => s.productId);
+  const slowIds = slowRows.map((r) => r.productId);
 
   if (slowIds.length === 0) return [];
 
+  const qtyMap = new Map(slowRows.map((r) => [r.productId, r.soldQty]));
   const products = await prisma.product.findMany({
     where: { id: { in: slowIds }, isActive: true },
     select: {
@@ -125,10 +139,10 @@ export async function getSlowMoving(_branchId?: string) {
     },
   });
 
-  return products.map((p: (typeof products)[number]) => {
-    const sale = sales.find((s) => s.productId === p.id);
-    return { ...p, soldQty: sale?._sum.quantity || 0 };
-  });
+  return products.map((p: (typeof products)[number]) => ({
+    ...p,
+    soldQty: qtyMap.get(p.id) ?? 0,
+  }));
 }
 
 // Peak hours analysis
