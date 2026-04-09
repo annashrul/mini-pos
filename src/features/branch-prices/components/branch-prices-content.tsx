@@ -34,6 +34,7 @@ export function BranchPricesContent() {
     const [data, setData] = useState<{ items: BranchPriceItem[]; total: number; totalPages: number }>({ items: [], total: 0, totalPages: 0 });
     const [fallbackBranchId, setFallbackBranchId] = useState("");
     const [search, setSearch] = useState("");
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
     const [loading, startTransition] = useTransition();
@@ -192,7 +193,14 @@ export function BranchPricesContent() {
             <BranchPricesSearch
                 value={search}
                 loading={loading}
-                onChange={(v) => { setSearch(v); setPage(1); fetchData({ search: v, page: 1 }); }}
+                onChange={(v) => {
+                    setSearch(v);
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    debounceRef.current = setTimeout(() => {
+                        setPage(1);
+                        fetchData({ search: v, page: 1 });
+                    }, 300);
+                }}
             />
 
             {/* Product List */}

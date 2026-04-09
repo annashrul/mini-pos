@@ -44,6 +44,7 @@ export function UsersContent() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(12);
     const [search, setSearch] = useState("");
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ role: "ALL", branchId: "ALL" });
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("users");
@@ -153,8 +154,11 @@ export function UsersContent() {
     /* ---------- Search handler ---------- */
     const handleSearch = (value: string) => {
         setSearch(value);
-        setPage(1);
-        fetchData({ search: value, page: 1 });
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: value, page: 1 });
+        }, 300);
     };
 
     /* ---------- Role filter handler ---------- */

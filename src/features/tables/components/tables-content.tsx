@@ -193,7 +193,7 @@ export function TablesContent() {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
             fetchData({ search: value });
-        }, 400);
+        }, 300);
     };
 
     const handleSectionFilter = (section: string) => {

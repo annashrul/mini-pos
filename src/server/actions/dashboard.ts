@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma, shouldUseAccelerate } from "@/lib/prisma";
+import { redisDelByPrefix, redisGetJson, redisSetJson } from "@/lib/redis";
 import { revalidateTag } from "next/cache";
 
 const dashboardCacheStrategy = {
@@ -8,6 +9,7 @@ const dashboardCacheStrategy = {
   swr: 60,
   tags: ["dashboard_stats"],
 } as const;
+const DASHBOARD_REDIS_TTL_SECONDS = 30;
 
 async function invalidateAccelerate(tags: string[]) {
   const accelerate = (
@@ -393,13 +395,28 @@ export async function getDashboardStats(
   branchId?: string,
   period?: "today" | "week" | "month" | "year",
 ) {
-  return getDashboardStatsUncached(branchId, period);
+  const p = period || "today";
+  const b = branchId || "all";
+  const cacheKey = `dashboard:stats:${b}:${p}`;
+  const cached =
+    await redisGetJson<Awaited<ReturnType<typeof getDashboardStatsUncached>>>(
+      cacheKey,
+    );
+  if (cached) return cached;
+  const fresh = await getDashboardStatsUncached(branchId, period);
+  await redisSetJson(cacheKey, fresh, DASHBOARD_REDIS_TTL_SECONDS);
+  return fresh;
 }
 
 export async function revalidateDashboardStats(branchId?: string) {
   revalidateTag("dashboard-stats", "max");
   if (branchId) revalidateTag(`dashboard-stats:${branchId}`, "max");
   await invalidateAccelerate(["dashboard_stats"]);
+  if (branchId) {
+    await redisDelByPrefix(`dashboard:stats:${branchId}:`);
+    return;
+  }
+  await redisDelByPrefix("dashboard:stats:");
 }
 
 // Single query with GROUP BY instead of 30 individual queries

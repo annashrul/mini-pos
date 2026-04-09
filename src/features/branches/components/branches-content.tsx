@@ -24,6 +24,7 @@ export function BranchesContent() {
     const [search, setSearch] = useState("");
     const [loading, startTransition] = useTransition();
     const [formIsActive, setFormIsActive] = useState(true);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { canAction, cannotMessage } = useMenuActionAccess("branches");
     const canCreate = canAction("create");
     const canUpdate = canAction("update");
@@ -91,7 +92,14 @@ export function BranchesContent() {
                 <BranchesSearch
                     value={search}
                     loading={loading}
-                    onChange={(v) => { setSearch(v); setPage(1); fetchData({ search: v, page: 1 }); }}
+                    onChange={(v) => {
+                        setSearch(v);
+                        if (debounceRef.current) clearTimeout(debounceRef.current);
+                        debounceRef.current = setTimeout(() => {
+                            setPage(1);
+                            fetchData({ search: v, page: 1 });
+                        }, 300);
+                    }}
                 />
 
                 <BranchesGrid

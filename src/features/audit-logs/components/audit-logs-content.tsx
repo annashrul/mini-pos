@@ -19,6 +19,7 @@ export function AuditLogsContent() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
     const [search, setSearch] = useState("");
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ entity: "ALL", action: "ALL" });
     const [loading, startTransition] = useTransition();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -111,7 +112,14 @@ export function AuditLogsContent() {
 
             <AuditLogsFilters
                 search={search}
-                onSearchChange={(v) => { setSearch(v); setPage(1); fetchData({ search: v, page: 1 }); }}
+                onSearchChange={(v) => {
+                    setSearch(v);
+                    if (debounceRef.current) clearTimeout(debounceRef.current);
+                    debounceRef.current = setTimeout(() => {
+                        setPage(1);
+                        fetchData({ search: v, page: 1 });
+                    }, 300);
+                }}
                 filters={activeFilters}
                 onFilterChange={handleFilterChange}
                 onFilterBatch={handleFilterBatch}

@@ -6,17 +6,34 @@ import { auth } from "@/lib/auth";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { redisDelByPrefix } from "@/lib/redis";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 
 async function invalidateAccelerate(tags: string[]) {
   const accelerate = (
     prisma as unknown as {
-      $accelerate?: { invalidate: (args: { tags: string[] }) => Promise<unknown> };
+      $accelerate?: {
+        invalidate: (args: { tags: string[] }) => Promise<unknown>;
+      };
     }
   ).$accelerate;
   if (!accelerate) return;
   try {
     await accelerate.invalidate({ tags });
+  } catch {
+    //
+  }
+}
+
+async function invalidateRedisDashboard(branchId?: string) {
+  try {
+    if (branchId) {
+      await redisDelByPrefix(`dashboard:stats:${branchId}:`);
+      await redisDelByPrefix(`reports:`);
+      return;
+    }
+    await redisDelByPrefix("dashboard:stats:");
+    await redisDelByPrefix("reports:");
   } catch {
     //
   }
@@ -494,7 +511,10 @@ export async function createTransaction(input: CreateTransactionInput) {
     }
     revalidateTag("dashboard-stats", "max");
     revalidateTag("accounting-dashboard", "max");
-    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(
+      () => {},
+    );
+    invalidateRedisDashboard(input.branchId).catch(() => {});
 
     createAuditLog({
       action: "CREATE",
@@ -742,7 +762,10 @@ export async function voidTransaction(id: string, reason: string) {
       revalidateTag(`dashboard-stats:${tx0.branchId}`, "max");
       revalidateTag(`accounting-dashboard:${tx0.branchId}`, "max");
     }
-    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(
+      () => {},
+    );
+    invalidateRedisDashboard(tx0?.branchId || undefined).catch(() => {});
 
     createAuditLog({
       action: "VOID",
@@ -841,7 +864,10 @@ export async function refundTransaction(id: string, reason: string) {
       revalidateTag(`dashboard-stats:${tx0.branchId}`, "max");
       revalidateTag(`accounting-dashboard:${tx0.branchId}`, "max");
     }
-    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(() => {});
+    invalidateAccelerate(["dashboard_stats", "accounting_dashboard"]).catch(
+      () => {},
+    );
+    invalidateRedisDashboard(tx0?.branchId || undefined).catch(() => {});
 
     createAuditLog({
       action: "REFUND",

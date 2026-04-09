@@ -67,6 +67,7 @@ export function AccessControlContent() {
     );
     const [selectedRole, setSelectedRole] = useState(roleKeys[0] ?? data.roles[0] ?? "SUPER_ADMIN");
     const [searchQuery, setSearchQuery] = useState("");
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["Utama", "Master Data"]));
     const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
     const [roleSheetOpen, setRoleSheetOpen] = useState(false);
@@ -100,16 +101,22 @@ export function AccessControlContent() {
         });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const fetchMatrix = (q: string) => {
+        startTransition(async () => {
+            const matrix = await accessControlService.getAccessControlMatrix(q);
+            setData((prev) => ({ ...prev, menus: matrix.menus }));
+        });
+    };
+
     const groupedMenus = useMemo(() => {
         const groups = new Map<string, AccessMenu[]>();
         for (const menu of data.menus) {
-            if (searchQuery && !menu.name.toLowerCase().includes(searchQuery.toLowerCase())) continue;
             const current = groups.get(menu.group) ?? [];
             current.push(menu);
             groups.set(menu.group, current);
         }
         return Array.from(groups.entries());
-    }, [data.menus, searchQuery]);
+    }, [data.menus]);
 
     const toggleGroup = (group: string) => {
         setExpandedGroups((prev) => { const n = new Set(prev); if (n.has(group)) n.delete(group); else n.add(group); return n; });
@@ -549,15 +556,22 @@ export function AccessControlContent() {
                 {/* Right Content - Menu Permissions */}
                 <div className="flex-1 min-w-0 space-y-4">
                     {/* Search bar + Role filter button (mobile) */}
-                    <div className="lg:rounded-2xl lg:border lg:border-border/30 lg:bg-white lg:shadow-sm lg:p-4">
+                    <div className="">
                         <div className="flex items-center gap-2">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/60" />
                                 <Input
                                     placeholder="Cari menu..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-9 sm:pl-12 h-9 sm:h-11 rounded-xl bg-muted/30 border-transparent focus:border-primary/30 focus:bg-white transition-colors"
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        setSearchQuery(v);
+                                        if (debounceRef.current) clearTimeout(debounceRef.current);
+                                        debounceRef.current = setTimeout(() => {
+                                            fetchMatrix(v);
+                                        }, 300);
+                                    }}
+                                    className="pl-9 sm:pl-12 h-9 sm:h-11 rounded-xl  focus:border-primary/30 focus:bg-white transition-colors"
                                 />
                             </div>
                             <Button

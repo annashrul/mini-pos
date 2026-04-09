@@ -55,41 +55,73 @@ interface LedgerEntry {
 export async function getGeneralLedger(params: GeneralLedgerParams) {
   const { accountId, dateFrom, dateTo, branchId } = params;
 
-  // Fetch account info with category
-  const account = await prisma.account.findUnique({
-    where: { id: accountId },
-    include: { category: true },
-  });
-
-  if (!account) {
-    throw new Error("Akun tidak ditemukan");
-  }
-
-  const normalSide = account.category.normalSide; // DEBIT or CREDIT
   const from = dateFrom ? toDate(dateFrom) : new Date("2000-01-01");
   const to = dateTo ? endOfDay(dateTo) : new Date("2099-12-31");
 
-  // Calculate opening balance: openingBalance + all movements BEFORE dateFrom
   const priorBranch = branchSQL(branchId, "je", 3);
-  const priorMovements = await prisma.$queryRawUnsafe<
-    { totalDebit: number; totalCredit: number }[]
-  >(
-    `
-    SELECT
-      COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
-      COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    WHERE jel."accountId" = $1
-      AND je.status = 'POSTED'
-      AND je.date < $2
-      ${priorBranch.condition}
-    `,
-    accountId,
-    from,
-    ...priorBranch.params,
-  );
+  const entriesBranch = branchSQL(branchId, "je", 4);
 
+  // Parallelkan semua 3 query sekaligus
+  const [account, priorMovements, entries] = await Promise.all([
+    prisma.account.findUnique({
+      where: { id: accountId },
+      include: { category: true },
+    }),
+
+    prisma.$queryRawUnsafe<{ totalDebit: number; totalCredit: number }[]>(
+      `
+        SELECT
+          COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
+          COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel."journalId"
+        WHERE jel."accountId" = $1
+          AND je.status = 'POSTED'
+          AND je.date < $2
+          ${priorBranch.condition}
+        `,
+      accountId,
+      from,
+      ...priorBranch.params,
+    ),
+
+    prisma.$queryRawUnsafe<
+      {
+        date: Date;
+        entryNumber: string;
+        description: string;
+        lineDescription: string | null;
+        debit: number;
+        credit: number;
+      }[]
+    >(
+      `
+        SELECT
+          je.date,
+          je."entryNumber",
+          je.description,
+          jel.description AS "lineDescription",
+          jel.debit::float AS debit,
+          jel.credit::float AS credit
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel."journalId"
+        WHERE jel."accountId" = $1
+          AND je.status = 'POSTED'
+          AND je.date >= $2
+          AND je.date <= $3
+          ${entriesBranch.condition}
+        ORDER BY je.date ASC, je."createdAt" ASC
+        `,
+      accountId,
+      from,
+      to,
+      ...entriesBranch.params,
+    ),
+  ]);
+
+  if (!account) throw new Error("Akun tidak ditemukan");
+
+  const normalSide = account.category.normalSide;
   const priorDebit = priorMovements[0]?.totalDebit ?? 0;
   const priorCredit = priorMovements[0]?.totalCredit ?? 0;
 
@@ -100,42 +132,6 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
     openingBalance += priorCredit - priorDebit;
   }
 
-  // Fetch entries in range
-  const entriesBranch = branchSQL(branchId, "je", 4);
-  const entries = await prisma.$queryRawUnsafe<
-    {
-      date: Date;
-      entryNumber: string;
-      description: string;
-      lineDescription: string | null;
-      debit: number;
-      credit: number;
-    }[]
-  >(
-    `
-    SELECT
-      je.date,
-      je."entryNumber",
-      je.description,
-      jel.description AS "lineDescription",
-      jel.debit::float AS debit,
-      jel.credit::float AS credit
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    WHERE jel."accountId" = $1
-      AND je.status = 'POSTED'
-      AND je.date >= $2
-      AND je.date <= $3
-      ${entriesBranch.condition}
-    ORDER BY je.date ASC, je."createdAt" ASC
-    `,
-    accountId,
-    from,
-    to,
-    ...entriesBranch.params,
-  );
-
-  // Calculate running balance
   let runningBalance = openingBalance;
   const ledgerEntries: LedgerEntry[] = entries.map((e) => {
     if (normalSide === "DEBIT") {
@@ -150,7 +146,7 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
       lineDescription: e.lineDescription,
       debit: e.debit,
       credit: e.credit,
-      runningBalance,
+      runningBalance: Math.round(runningBalance * 100) / 100,
     };
   });
 
@@ -165,9 +161,11 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
     },
     openingBalance,
     entries: ledgerEntries,
-    closingBalance: runningBalance,
-    totalDebit: entries.reduce((s, e) => s + e.debit, 0),
-    totalCredit: entries.reduce((s, e) => s + e.credit, 0),
+    closingBalance: Math.round(runningBalance * 100) / 100,
+    totalDebit:
+      Math.round(entries.reduce((s, e) => s + e.debit, 0) * 100) / 100,
+    totalCredit:
+      Math.round(entries.reduce((s, e) => s + e.credit, 0) * 100) / 100,
   };
 }
 
@@ -195,100 +193,97 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
   const { date, branchId } = params;
   const upTo = date ? endOfDay(date) : new Date("2099-12-31");
 
-  // Get all active accounts with their categories
-  const accounts = await prisma.account.findMany({
-    where: {
-      isActive: true,
-      ...(branchId ? { OR: [{ branchId }, { branchId: null }] } : {}),
-    },
-    include: { category: true },
-    orderBy: { code: "asc" },
-  });
-
-  // Get aggregated journal movements per account up to the date
   const tbBranch = branchSQL(branchId, "je", 2);
-  const movements = await prisma.$queryRawUnsafe<
-    { accountId: string; totalDebit: number; totalCredit: number }[]
+
+  // 1 query: accounts + movements di-join langsung di DB
+  const rows = await prisma.$queryRawUnsafe<
+    {
+      accountId: string;
+      accountCode: string;
+      accountName: string;
+      categoryType: string;
+      categoryName: string;
+      normalSide: string;
+      openingBalance: number;
+      totalDebit: number;
+      totalCredit: number;
+      isActive: boolean;
+    }[]
   >(
     `
-    SELECT
-      jel."accountId",
-      COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
-      COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    WHERE je.status = 'POSTED'
-      AND je.date <= $1
-      ${tbBranch.condition}
-    GROUP BY jel."accountId"
-    `,
+      SELECT
+        a.id AS "accountId",
+        a.code AS "accountCode",
+        a.name AS "accountName",
+        ac.type AS "categoryType",
+        ac.name AS "categoryName",
+        ac."normalSide",
+        a."openingBalance"::float AS "openingBalance",
+        COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
+        COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
+      FROM accounts a
+      JOIN account_categories ac ON ac.id = a."categoryId"
+      LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
+      LEFT JOIN journal_entries je ON je.id = jel."journalId"
+        AND je.status = 'POSTED'
+        AND je.date <= $1
+        ${tbBranch.condition}
+      WHERE a."isActive" = true
+        ${branchId ? `AND (a."branchId" = '${branchId}' OR a."branchId" IS NULL)` : ""}
+      GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
+      ORDER BY a.code ASC
+      `,
     upTo,
     ...tbBranch.params,
-  );
-
-  const movementMap = new Map(
-    movements.map((m) => [
-      m.accountId,
-      { debit: m.totalDebit, credit: m.totalCredit },
-    ]),
   );
 
   let grandTotalDebit = 0;
   let grandTotalCredit = 0;
 
-  const rows: TrialBalanceRow[] = accounts.map((acc) => {
-    const mv = movementMap.get(acc.id) ?? { debit: 0, credit: 0 };
-    const normalSide = acc.category.normalSide;
+  const result: TrialBalanceRow[] = rows.map((row) => {
+    const { normalSide, openingBalance, totalDebit, totalCredit } = row;
 
-    // Net balance = opening + movements
-    let netBalance = acc.openingBalance;
+    let netBalance = openingBalance;
     if (normalSide === "DEBIT") {
-      netBalance += mv.debit - mv.credit;
+      netBalance += totalDebit - totalCredit;
     } else {
-      netBalance += mv.credit - mv.debit;
+      netBalance += totalCredit - totalDebit;
     }
 
-    // Place net balance on the correct side
     let debit = 0;
     let credit = 0;
 
     if (netBalance >= 0) {
-      if (normalSide === "DEBIT") {
-        debit = netBalance;
-      } else {
-        credit = netBalance;
-      }
+      if (normalSide === "DEBIT") debit = netBalance;
+      else credit = netBalance;
     } else {
-      // Contra balance — place on opposite side
-      if (normalSide === "DEBIT") {
-        credit = Math.abs(netBalance);
-      } else {
-        debit = Math.abs(netBalance);
-      }
+      if (normalSide === "DEBIT") credit = Math.abs(netBalance);
+      else debit = Math.abs(netBalance);
     }
 
     grandTotalDebit += debit;
     grandTotalCredit += credit;
 
     return {
-      accountId: acc.id,
-      accountCode: acc.code,
-      accountName: acc.name,
-      categoryType: acc.category.type,
-      categoryName: acc.category.name,
+      accountId: row.accountId,
+      accountCode: row.accountCode,
+      accountName: row.accountName,
+      categoryType: row.categoryType,
+      categoryName: row.categoryName,
       normalSide,
-      debit,
-      credit,
+      debit: Math.round(debit * 100) / 100,
+      credit: Math.round(credit * 100) / 100,
     };
   });
 
-  const isBalanced = Math.abs(grandTotalDebit - grandTotalCredit) < 0.01;
+  grandTotalDebit = Math.round(grandTotalDebit * 100) / 100;
+  grandTotalCredit = Math.round(grandTotalCredit * 100) / 100;
 
   return {
-    rows,
+    rows: result,
     totalDebit: grandTotalDebit,
     totalCredit: grandTotalCredit,
-    isBalanced,
+    isBalanced: Math.abs(grandTotalDebit - grandTotalCredit) < 0.01,
     difference: grandTotalDebit - grandTotalCredit,
     asOfDate: date ?? new Date().toISOString().split("T")[0],
   };
@@ -315,66 +310,48 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
   const { dateFrom, dateTo, branchId } = params;
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
-
-  // Revenue accounts: net = credit - debit (positive = income)
   const isBranch = branchSQL(branchId, "je", 3);
-  const revenueRows = await prisma.$queryRawUnsafe<
-    { accountId: string; code: string; name: string; amount: number }[]
+
+  // Gabungkan revenue + expense jadi 1 query, pivot di JS
+  const allRows = await prisma.$queryRawUnsafe<
+    {
+      accountId: string;
+      code: string;
+      name: string;
+      type: string;
+      amount: number;
+    }[]
   >(
     `
-    SELECT
-      a.id AS "accountId",
-      a.code,
-      a.name,
-      (COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0))::float AS amount
-    FROM accounts a
-    JOIN account_categories ac ON ac.id = a."categoryId"
-    LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
-    LEFT JOIN journal_entries je ON je.id = jel."journalId"
-      AND je.status = 'POSTED'
-      AND je.date >= $1
-      AND je.date <= $2
-      ${isBranch.condition}
-    WHERE ac.type = 'REVENUE'
-      AND a."isActive" = true
-    GROUP BY a.id, a.code, a.name
-    ORDER BY a.code ASC
-    `,
+      SELECT
+        a.id AS "accountId",
+        a.code,
+        a.name,
+        ac.type,
+        CASE
+          WHEN ac.type = 'REVENUE' THEN (COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0))
+          WHEN ac.type = 'EXPENSE' THEN (COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0))
+        END::float AS amount
+      FROM accounts a
+      JOIN account_categories ac ON ac.id = a."categoryId"
+      LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
+      LEFT JOIN journal_entries je ON je.id = jel."journalId"
+        AND je.status = 'POSTED'
+        AND je.date >= $1
+        AND je.date <= $2
+        ${isBranch.condition}
+      WHERE ac.type IN ('REVENUE', 'EXPENSE')
+        AND a."isActive" = true
+      GROUP BY a.id, a.code, a.name, ac.type
+      ORDER BY a.code ASC
+      `,
     from,
     to,
     ...isBranch.params,
   );
 
-  // Expense accounts: net = debit - credit (positive = expense)
-  const expenseRows = await prisma.$queryRawUnsafe<
-    { accountId: string; code: string; name: string; amount: number }[]
-  >(
-    `
-    SELECT
-      a.id AS "accountId",
-      a.code,
-      a.name,
-      (COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0))::float AS amount
-    FROM accounts a
-    JOIN account_categories ac ON ac.id = a."categoryId"
-    LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
-    LEFT JOIN journal_entries je ON je.id = jel."journalId"
-      AND je.status = 'POSTED'
-      AND je.date >= $1
-      AND je.date <= $2
-      ${isBranch.condition}
-    WHERE ac.type = 'EXPENSE'
-      AND a."isActive" = true
-    GROUP BY a.id, a.code, a.name
-    ORDER BY a.code ASC
-    `,
-    from,
-    to,
-    ...isBranch.params,
-  );
-
-  const revenues: IncomeStatementAccount[] = revenueRows
-    .filter((r) => r.amount !== 0)
+  const revenues: IncomeStatementAccount[] = allRows
+    .filter((r) => r.type === "REVENUE" && r.amount !== 0)
     .map((r) => ({
       accountId: r.accountId,
       accountCode: r.code,
@@ -382,8 +359,8 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
       amount: r.amount,
     }));
 
-  const expenses: IncomeStatementAccount[] = expenseRows
-    .filter((r) => r.amount !== 0)
+  const expenses: IncomeStatementAccount[] = allRows
+    .filter((r) => r.type === "EXPENSE" && r.amount !== 0)
     .map((r) => ({
       accountId: r.accountId,
       accountCode: r.code,
@@ -391,9 +368,11 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
       amount: r.amount,
     }));
 
-  const totalRevenue = revenues.reduce((s, r) => s + r.amount, 0);
-  const totalExpense = expenses.reduce((s, r) => s + r.amount, 0);
-  const netIncome = totalRevenue - totalExpense;
+  const totalRevenue =
+    Math.round(revenues.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+  const totalExpense =
+    Math.round(expenses.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+  const netIncome = Math.round((totalRevenue - totalExpense) * 100) / 100;
 
   return {
     period: { dateFrom, dateTo },
@@ -431,76 +410,87 @@ interface BalanceSheetGroup {
 export async function getBalanceSheet(params: BalanceSheetParams) {
   const { date, branchId } = params;
   const upTo = endOfDay(date);
-
-  // Get all balances: openingBalance + journal movements up to date
   const bsBranch = branchSQL(branchId, "je", 2);
-  const accountBalances = await prisma.$queryRawUnsafe<
-    {
-      accountId: string;
-      code: string;
-      name: string;
-      categoryType: string;
-      categoryName: string;
-      normalSide: string;
-      openingBalance: number;
-      totalDebit: number;
-      totalCredit: number;
-    }[]
-  >(
-    `
-    SELECT
-      a.id AS "accountId",
-      a.code,
-      a.name,
-      ac.type AS "categoryType",
-      ac.name AS "categoryName",
-      ac."normalSide",
-      a."openingBalance"::float AS "openingBalance",
-      COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
-      COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
-    FROM accounts a
-    JOIN account_categories ac ON ac.id = a."categoryId"
-    LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
-    LEFT JOIN journal_entries je ON je.id = jel."journalId"
-      AND je.status = 'POSTED'
-      AND je.date <= $1
-      ${bsBranch.condition}
-    WHERE a."isActive" = true
-      AND ac.type IN ('ASSET', 'LIABILITY', 'EQUITY')
-    GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
-    ORDER BY a.code ASC
-    `,
-    upTo,
-    ...bsBranch.params,
-  );
 
-  // Calculate retained earnings (laba ditahan) = accumulated (revenue - expense) up to date
-  const retainedEarningsResult = await prisma.$queryRawUnsafe<
-    { revenue: number; expense: number }[]
-  >(
-    `
-    SELECT
-      COALESCE(SUM(CASE WHEN ac.type = 'REVENUE' THEN jel.credit - jel.debit ELSE 0 END), 0)::float AS revenue,
-      COALESCE(SUM(CASE WHEN ac.type = 'EXPENSE' THEN jel.debit - jel.credit ELSE 0 END), 0)::float AS expense
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    JOIN accounts a ON a.id = jel."accountId"
-    JOIN account_categories ac ON ac.id = a."categoryId"
-    WHERE je.status = 'POSTED'
-      AND je.date <= $1
-      AND ac.type IN ('REVENUE', 'EXPENSE')
-      ${bsBranch.condition}
-    `,
-    upTo,
-    ...bsBranch.params,
-  );
+  // Parallelkan kedua query yang sebelumnya serial
+  const [accountBalances, retainedEarningsResult] = await Promise.all([
+    prisma.$queryRawUnsafe<
+      {
+        accountId: string;
+        code: string;
+        name: string;
+        categoryType: string;
+        categoryName: string;
+        normalSide: string;
+        openingBalance: number;
+        totalDebit: number;
+        totalCredit: number;
+      }[]
+    >(
+      `
+        SELECT
+          a.id AS "accountId",
+          a.code,
+          a.name,
+          ac.type AS "categoryType",
+          ac.name AS "categoryName",
+          ac."normalSide",
+          a."openingBalance"::float AS "openingBalance",
+          COALESCE(SUM(jel.debit), 0)::float AS "totalDebit",
+          COALESCE(SUM(jel.credit), 0)::float AS "totalCredit"
+        FROM accounts a
+        JOIN account_categories ac ON ac.id = a."categoryId"
+        LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
+        LEFT JOIN journal_entries je ON je.id = jel."journalId"
+          AND je.status = 'POSTED'
+          AND je.date <= $1
+          ${bsBranch.condition}
+        WHERE a."isActive" = true
+          AND ac.type IN ('ASSET', 'LIABILITY', 'EQUITY')
+        GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
+        ORDER BY a.code ASC
+        `,
+      upTo,
+      ...bsBranch.params,
+    ),
+
+    prisma.$queryRawUnsafe<{ revenue: number; expense: number }[]>(
+      `
+        SELECT
+          COALESCE(SUM(CASE WHEN ac.type = 'REVENUE' THEN jel.credit - jel.debit ELSE 0 END), 0)::float AS revenue,
+          COALESCE(SUM(CASE WHEN ac.type = 'EXPENSE' THEN jel.debit - jel.credit ELSE 0 END), 0)::float AS expense
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel."journalId"
+        JOIN accounts a ON a.id = jel."accountId"
+        JOIN account_categories ac ON ac.id = a."categoryId"
+        WHERE je.status = 'POSTED'
+          AND je.date <= $1
+          AND ac.type IN ('REVENUE', 'EXPENSE')
+          ${bsBranch.condition}
+        `,
+      upTo,
+      ...bsBranch.params,
+    ),
+  ]);
 
   const retainedEarnings =
-    (retainedEarningsResult[0]?.revenue ?? 0) -
-    (retainedEarningsResult[0]?.expense ?? 0);
+    Math.round(
+      ((retainedEarningsResult[0]?.revenue ?? 0) -
+        (retainedEarningsResult[0]?.expense ?? 0)) *
+        100,
+    ) / 100;
 
-  // Build groups
-  const groupMap: Record<string, BalanceSheetGroup> = {};
+  // FIX BUG: key pakai composite "categoryType::categoryName" bukan hanya categoryType
+  // Supaya ASSET Lancar dan ASSET Tetap tidak tercampur jadi satu grup
+  const groupMap: Record<
+    string,
+    {
+      categoryType: string;
+      categoryName: string;
+      accounts: BalanceSheetAccount[];
+      total: number;
+    }
+  > = {};
 
   for (const row of accountBalances) {
     let balance = row.openingBalance;
@@ -509,69 +499,100 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
     } else {
       balance += row.totalCredit - row.totalDebit;
     }
+    balance = Math.round(balance * 100) / 100;
 
-    if (!groupMap[row.categoryType]) {
-      groupMap[row.categoryType] = {
+    const key = `${row.categoryType}::${row.categoryName}`;
+    if (!groupMap[key]) {
+      groupMap[key] = {
+        categoryType: row.categoryType,
         categoryName: row.categoryName,
         accounts: [],
         total: 0,
       };
     }
 
-    const group = groupMap[row.categoryType]!;
     if (balance !== 0) {
-      group.accounts.push({
+      groupMap[key]!.accounts.push({
         accountId: row.accountId,
         accountCode: row.code,
         accountName: row.name,
         balance,
       });
-      group.total += balance;
+      groupMap[key]!.total += balance;
     }
   }
 
-  // Add retained earnings to equity
-  if (!groupMap["EQUITY"]) {
-    groupMap["EQUITY"] = { categoryName: "Modal", accounts: [], total: 0 };
+  // Tambah retained earnings ke EQUITY
+  const equityKey =
+    Object.keys(groupMap).find((k) => k.startsWith("EQUITY::")) ??
+    "EQUITY::Modal";
+  if (!groupMap[equityKey]) {
+    groupMap[equityKey] = {
+      categoryType: "EQUITY",
+      categoryName: "Modal",
+      accounts: [],
+      total: 0,
+    };
   }
   if (retainedEarnings !== 0) {
-    groupMap["EQUITY"].accounts.push({
+    groupMap[equityKey]!.accounts.push({
       accountId: "retained-earnings",
       accountCode: "-",
       accountName: "Laba Ditahan",
       balance: retainedEarnings,
     });
-    groupMap["EQUITY"].total += retainedEarnings;
+    groupMap[equityKey]!.total += retainedEarnings;
   }
 
-  const assets = groupMap["ASSET"] ?? {
-    categoryName: "Aset",
-    accounts: [],
-    total: 0,
-  };
-  const liabilities = groupMap["LIABILITY"] ?? {
-    categoryName: "Kewajiban",
-    accounts: [],
-    total: 0,
-  };
-  const equity = groupMap["EQUITY"];
+  // Aggregasi per categoryType untuk return values
+  const allGroups = Object.values(groupMap);
+  const assetGroups = allGroups.filter((g) => g.categoryType === "ASSET");
+  const liabilityGroups = allGroups.filter(
+    (g) => g.categoryType === "LIABILITY",
+  );
+  const equityGroups = allGroups.filter((g) => g.categoryType === "EQUITY");
 
-  const totalAssets = assets.total;
-  const totalLiabilitiesAndEquity = liabilities.total + equity.total;
-  const isBalanced = Math.abs(totalAssets - totalLiabilitiesAndEquity) < 0.01;
+  const totalAssets =
+    Math.round(assetGroups.reduce((s, g) => s + g.total, 0) * 100) / 100;
+  const totalLiabilities =
+    Math.round(liabilityGroups.reduce((s, g) => s + g.total, 0) * 100) / 100;
+  const totalEquity =
+    Math.round(equityGroups.reduce((s, g) => s + g.total, 0) * 100) / 100;
+  const totalLiabilitiesAndEquity =
+    Math.round((totalLiabilities + totalEquity) * 100) / 100;
+
+  const assets: BalanceSheetGroup = {
+    categoryName: "Aset",
+    accounts: assetGroups.flatMap((g) => g.accounts),
+    total: totalAssets,
+  };
+  const liabilities: BalanceSheetGroup = {
+    categoryName: "Kewajiban",
+    accounts: liabilityGroups.flatMap((g) => g.accounts),
+    total: totalLiabilities,
+  };
+  const equity: BalanceSheetGroup = {
+    categoryName: "Ekuitas",
+    accounts: equityGroups.flatMap((g) => g.accounts),
+    total: totalEquity,
+  };
 
   return {
     asOfDate: date,
     assets,
     liabilities,
     equity,
+    assetGroups, // breaking change: sekarang array of groups, bukan single group
+    liabilityGroups,
+    equityGroups,
     totalAssets,
-    totalLiabilities: liabilities.total,
-    totalEquity: equity.total,
+    totalLiabilities,
+    totalEquity,
     totalLiabilitiesAndEquity,
     retainedEarnings,
-    isBalanced,
-    difference: totalAssets - totalLiabilitiesAndEquity,
+    isBalanced: Math.abs(totalAssets - totalLiabilitiesAndEquity) < 0.01,
+    difference:
+      Math.round((totalAssets - totalLiabilitiesAndEquity) * 100) / 100,
   };
 }
 
@@ -597,131 +618,119 @@ export async function getCashFlow(params: CashFlowParams) {
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
 
-  // Opening cash balance: opening balance of cash accounts + movements before dateFrom
   const cfBranch = branchSQL(branchId, "je", 2);
-  const openingCashResult = await prisma.$queryRawUnsafe<{ balance: number }[]>(
-    `
-    SELECT
-      COALESCE(SUM(
-        a."openingBalance" + COALESCE(mv."totalDebit", 0) - COALESCE(mv."totalCredit", 0)
-      ), 0)::float AS balance
-    FROM accounts a
-    JOIN account_categories ac ON ac.id = a."categoryId"
-    LEFT JOIN (
-      SELECT
-        jel."accountId",
-        SUM(jel.debit)::float AS "totalDebit",
-        SUM(jel.credit)::float AS "totalCredit"
-      FROM journal_entry_lines jel
-      JOIN journal_entries je ON je.id = jel."journalId"
-      WHERE je.status = 'POSTED'
-        AND je.date < $1
-        ${cfBranch.condition}
-      GROUP BY jel."accountId"
-    ) mv ON mv."accountId" = a.id
-    WHERE ac.type = 'ASSET'
-      AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
-      AND a."isActive" = true
-    `,
-    from,
-    ...cfBranch.params,
-  );
+  const cfRangeBranch = branchSQL(branchId, "je", 3);
+
+  // Parallelkan semua 3 query sekaligus
+  const [openingCashResult, cashMovements] = await Promise.all([
+    prisma.$queryRawUnsafe<{ balance: number }[]>(
+      `
+        SELECT
+          COALESCE(SUM(
+            a."openingBalance" + COALESCE(mv."totalDebit", 0) - COALESCE(mv."totalCredit", 0)
+          ), 0)::float AS balance
+        FROM accounts a
+        JOIN account_categories ac ON ac.id = a."categoryId"
+        LEFT JOIN (
+          SELECT
+            jel."accountId",
+            SUM(jel.debit)::float AS "totalDebit",
+            SUM(jel.credit)::float AS "totalCredit"
+          FROM journal_entry_lines jel
+          JOIN journal_entries je ON je.id = jel."journalId"
+          WHERE je.status = 'POSTED'
+            AND je.date < $1
+            ${cfBranch.condition}
+          GROUP BY jel."accountId"
+        ) mv ON mv."accountId" = a.id
+        WHERE ac.type = 'ASSET'
+          AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
+          AND a."isActive" = true
+        `,
+      from,
+      ...cfBranch.params,
+    ),
+
+    // Gabungkan cashIn + cashOut jadi 1 query dengan kolom "direction"
+    prisma.$queryRawUnsafe<
+      {
+        entryNumber: string;
+        date: Date;
+        description: string;
+        lineDescription: string | null;
+        debitAmount: number;
+        creditAmount: number;
+        referenceType: string | null;
+      }[]
+    >(
+      `
+        SELECT
+          je."entryNumber",
+          je.date,
+          je.description,
+          jel.description AS "lineDescription",
+          jel.debit::float AS "debitAmount",
+          jel.credit::float AS "creditAmount",
+          je."referenceType"
+        FROM journal_entry_lines jel
+        JOIN journal_entries je ON je.id = jel."journalId"
+        JOIN accounts a ON a.id = jel."accountId"
+        WHERE je.status = 'POSTED'
+          AND je.date >= $1
+          AND je.date <= $2
+          AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
+          AND (jel.debit > 0 OR jel.credit > 0)
+          ${cfRangeBranch.condition}
+        ORDER BY je.date ASC, je."createdAt" ASC
+        `,
+      from,
+      to,
+      ...cfRangeBranch.params,
+    ),
+  ]);
 
   const openingCash = openingCashResult[0]?.balance ?? 0;
 
-  // Cash In: journal lines where cash accounts are debited (money coming in)
-  const cfInOutBranch = branchSQL(branchId, "je", 3);
-  const cashInRows = await prisma.$queryRawUnsafe<
-    {
-      entryNumber: string;
-      date: Date;
-      description: string;
-      lineDescription: string | null;
-      amount: number;
-      referenceType: string | null;
-    }[]
-  >(
-    `
-    SELECT
-      je."entryNumber",
-      je.date,
-      je.description,
-      jel.description AS "lineDescription",
-      jel.debit::float AS amount,
-      je."referenceType"
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    JOIN accounts a ON a.id = jel."accountId"
-    WHERE je.status = 'POSTED'
-      AND je.date >= $1
-      AND je.date <= $2
-      AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
-      AND jel.debit > 0
-      ${cfInOutBranch.condition}
-    ORDER BY je.date ASC, je."createdAt" ASC
-    `,
-    from,
-    to,
-    ...cfInOutBranch.params,
+  const cashIn: CashFlowItem[] = [];
+  const cashOut: CashFlowItem[] = [];
+
+  for (const r of cashMovements) {
+    const desc = r.lineDescription || r.description;
+    if (r.debitAmount > 0) {
+      cashIn.push({
+        description: desc,
+        amount: r.debitAmount,
+        entryNumber: r.entryNumber,
+        date: r.date,
+      });
+    }
+    if (r.creditAmount > 0) {
+      cashOut.push({
+        description: desc,
+        amount: r.creditAmount,
+        entryNumber: r.entryNumber,
+        date: r.date,
+      });
+    }
+  }
+
+  const totalCashIn =
+    Math.round(cashIn.reduce((s, i) => s + i.amount, 0) * 100) / 100;
+  const totalCashOut =
+    Math.round(cashOut.reduce((s, i) => s + i.amount, 0) * 100) / 100;
+  const netCashFlow = Math.round((totalCashIn - totalCashOut) * 100) / 100;
+  const closingCash = Math.round((openingCash + netCashFlow) * 100) / 100;
+
+  const cashInByType = summarizeCashByType(
+    cashMovements
+      .filter((r) => r.debitAmount > 0)
+      .map((r) => ({ referenceType: r.referenceType, amount: r.debitAmount })),
   );
-
-  // Cash Out: journal lines where cash accounts are credited (money going out)
-  const cashOutRows = await prisma.$queryRawUnsafe<
-    {
-      entryNumber: string;
-      date: Date;
-      description: string;
-      lineDescription: string | null;
-      amount: number;
-      referenceType: string | null;
-    }[]
-  >(
-    `
-    SELECT
-      je."entryNumber",
-      je.date,
-      je.description,
-      jel.description AS "lineDescription",
-      jel.credit::float AS amount,
-      je."referenceType"
-    FROM journal_entry_lines jel
-    JOIN journal_entries je ON je.id = jel."journalId"
-    JOIN accounts a ON a.id = jel."accountId"
-    WHERE je.status = 'POSTED'
-      AND je.date >= $1
-      AND je.date <= $2
-      AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
-      AND jel.credit > 0
-      ${cfInOutBranch.condition}
-    ORDER BY je.date ASC, je."createdAt" ASC
-    `,
-    from,
-    to,
-    ...cfInOutBranch.params,
+  const cashOutByType = summarizeCashByType(
+    cashMovements
+      .filter((r) => r.creditAmount > 0)
+      .map((r) => ({ referenceType: r.referenceType, amount: r.creditAmount })),
   );
-
-  const cashIn: CashFlowItem[] = cashInRows.map((r) => ({
-    description: r.lineDescription || r.description,
-    amount: r.amount,
-    entryNumber: r.entryNumber,
-    date: r.date,
-  }));
-
-  const cashOut: CashFlowItem[] = cashOutRows.map((r) => ({
-    description: r.lineDescription || r.description,
-    amount: r.amount,
-    entryNumber: r.entryNumber,
-    date: r.date,
-  }));
-
-  const totalCashIn = cashIn.reduce((s, i) => s + i.amount, 0);
-  const totalCashOut = cashOut.reduce((s, i) => s + i.amount, 0);
-  const netCashFlow = totalCashIn - totalCashOut;
-  const closingCash = openingCash + netCashFlow;
-
-  // Summary by reference type
-  const cashInByType = summarizeCashByType(cashInRows);
-  const cashOutByType = summarizeCashByType(cashOutRows);
 
   return {
     period: { dateFrom, dateTo },
@@ -738,7 +747,7 @@ export async function getCashFlow(params: CashFlowParams) {
 }
 
 function summarizeCashByType(
-  rows: { referenceType: string | null; amount: number; description: string }[],
+  rows: { referenceType: string | null; amount: number }[], // hapus 'description'
 ): { type: string; description: string; amount: number }[] {
   const map = new Map<string, number>();
   for (const r of rows) {
@@ -759,10 +768,9 @@ function summarizeCashByType(
   return Array.from(map.entries()).map(([type, amount]) => ({
     type,
     description: labels[type] ?? type,
-    amount,
+    amount: Math.round(amount * 100) / 100,
   }));
 }
-
 // ===========================
 // 6. DASHBOARD AKUNTANSI
 // ===========================

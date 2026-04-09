@@ -26,10 +26,10 @@ async function ensureViewAccess() {
   return null;
 }
 
-export async function getAccessControlMatrix() {
+export async function getAccessControlMatrix(search?: string) {
   const denied = await ensureViewAccess();
   if (denied) return { error: denied.error, roles: [] as string[], menus: [] };
-  return getAccessMatrix();
+  return getAccessMatrix(search);
 }
 
 export async function updateRoleMenuPermission(input: {

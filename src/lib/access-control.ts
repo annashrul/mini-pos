@@ -545,7 +545,7 @@ export async function getMenusForRole(role: string): Promise<AccessMenu[]> {
   }));
 }
 
-export async function getAccessMatrix(): Promise<{
+export async function getAccessMatrix(search?: string): Promise<{
   role: string;
   menus: AccessMenu[];
   roles: string[];
@@ -558,7 +558,10 @@ export async function getAccessMatrix(): Promise<{
     select: { key: true },
   });
   const menus = await prisma.appMenu.findMany({
-    where: { isActive: true },
+    where: { 
+      isActive: true,
+      ...(search ? { name: { contains: search } } : {})
+    },
     orderBy: [{ group: "asc" }, { sortOrder: "asc" }],
     include: {
       roleMenus: true,

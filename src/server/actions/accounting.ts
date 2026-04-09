@@ -20,21 +20,16 @@ async function resolveSessionUserId() {
     return { error: "Unauthorized" };
   }
 
-  let user = null;
-
-  if (sessionUserId) {
-    user = await prisma.user.findUnique({
-      where: { id: sessionUserId },
-      select: { id: true, isActive: true },
-    });
-  }
-
-  if (!user && sessionEmail) {
-    user = await prisma.user.findUnique({
-      where: { email: sessionEmail },
-      select: { id: true, isActive: true },
-    });
-  }
+  // 1 query dengan OR, eliminasi serial fallback
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        ...(sessionUserId ? [{ id: sessionUserId }] : []),
+        ...(sessionEmail ? [{ email: sessionEmail }] : []),
+      ],
+    },
+    select: { id: true, isActive: true },
+  });
 
   if (!user || !user.isActive) {
     return { error: "Sesi tidak valid. Silakan login ulang." };
@@ -43,16 +38,22 @@ async function resolveSessionUserId() {
   return { userId: user.id };
 }
 
-async function getSystemAccount(code: string) {
-  const account = await prisma.account.findUnique({
-    where: { code },
+async function getSystemAccounts(codes: string[]) {
+  const accounts = await prisma.account.findMany({
+    where: { code: { in: codes } },
   });
-  if (!account) {
-    throw new Error(
-      `System account "${code}" not found. Please run seedDefaultCOA first.`,
-    );
+
+  const map = new Map(accounts.map((a) => [a.code, a]));
+
+  for (const code of codes) {
+    if (!map.has(code)) {
+      throw new Error(
+        `System account "${code}" not found. Please run seedDefaultCOA first.`,
+      );
+    }
   }
-  return account;
+
+  return map;
 }
 
 function generateEntryNumber(date: Date, sequence: number): string {
@@ -159,26 +160,25 @@ export async function getAccounts(params: GetAccountsParams = {}) {
 }
 
 export async function getAccountTree() {
-  const categories = await prisma.accountCategory.findMany({
-    orderBy: { sortOrder: "asc" },
-  });
-
-  const accounts = await prisma.account.findMany({
-    where: { isActive: true },
-    include: {
-      category: {
-        select: { id: true, name: true, type: true, normalSide: true },
+  // Parallelkan 2 query yang independen
+  const [categories, accounts] = await Promise.all([
+    prisma.accountCategory.findMany({
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.account.findMany({
+      where: { isActive: true },
+      include: {
+        category: {
+          select: { id: true, name: true, type: true, normalSide: true },
+        },
+        _count: { select: { children: true, journalLines: true } },
       },
-      _count: { select: { children: true, journalLines: true } },
-    },
-    orderBy: { code: "asc" },
-  });
+      orderBy: { code: "asc" },
+    }),
+  ]);
 
-  // Build tree: group by category, then nest by parent
   const tree = categories.map((cat) => {
     const catAccounts = accounts.filter((a) => a.categoryId === cat.id);
-
-    // Build parent-child map
     const rootAccounts = catAccounts.filter((a) => !a.parentId);
     const childMap = new Map<string, typeof catAccounts>();
     for (const acc of catAccounts) {
@@ -198,10 +198,7 @@ export async function getAccountTree() {
       };
     }
 
-    return {
-      ...cat,
-      accounts: rootAccounts.map(buildNode),
-    };
+    return { ...cat, accounts: rootAccounts.map(buildNode) };
   });
 
   return tree;
@@ -243,15 +240,26 @@ export async function createAccount(data: CreateAccountInput) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
 
-  // Validate category exists
-  const category = await prisma.accountCategory.findUnique({
-    where: { id: data.categoryId },
-  });
-  if (!category) {
-    return { error: "Kategori akun tidak ditemukan" };
+  // Wave 1: category + parent sekaligus (independen)
+  const [category, parent] = await Promise.all([
+    prisma.accountCategory.findUnique({ where: { id: data.categoryId } }),
+    data.parentId
+      ? prisma.account.findUnique({
+          where: { id: data.parentId },
+          select: { id: true, categoryId: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (!category) return { error: "Kategori akun tidak ditemukan" };
+
+  if (data.parentId) {
+    if (!parent) return { error: "Akun induk tidak ditemukan" };
+    if (parent.categoryId !== data.categoryId)
+      return { error: "Akun induk harus dalam kategori yang sama" };
   }
 
-  // Auto-generate code if not provided
+  // Resolve code
   let code = data.code?.trim();
   if (!code) {
     const prefixMap: Record<string, string> = {
@@ -263,7 +271,6 @@ export async function createAccount(data: CreateAccountInput) {
     };
     const prefix = prefixMap[category.type] || "9";
 
-    // Find the highest sequence for this prefix
     const lastAccount = await prisma.account.findFirst({
       where: { code: { startsWith: `${prefix}-` } },
       orderBy: { code: "desc" },
@@ -274,35 +281,14 @@ export async function createAccount(data: CreateAccountInput) {
     if (lastAccount) {
       const parts = lastAccount.code.split("-");
       const lastSeq = parseInt(parts[1] ?? "0", 10);
-      if (!isNaN(lastSeq)) {
-        nextSeq = lastSeq + 1;
-      }
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
     }
-
     code = `${prefix}-${nextSeq}`;
   }
 
-  // Validate unique code
-  const existing = await prisma.account.findUnique({
-    where: { code },
-  });
-  if (existing) {
-    return { error: `Kode akun "${code}" sudah digunakan` };
-  }
-
-  // Validate parent if provided
-  if (data.parentId) {
-    const parent = await prisma.account.findUnique({
-      where: { id: data.parentId },
-      select: { id: true, categoryId: true },
-    });
-    if (!parent) {
-      return { error: "Akun induk tidak ditemukan" };
-    }
-    if (parent.categoryId !== data.categoryId) {
-      return { error: "Akun induk harus dalam kategori yang sama" };
-    }
-  }
+  // Wave 2: cek uniqueness code (hanya jika code sudah diketahui)
+  const existing = await prisma.account.findUnique({ where: { code } });
+  if (existing) return { error: `Kode akun "${code}" sudah digunakan` };
 
   const account = await prisma.account.create({
     data: {
@@ -352,51 +338,43 @@ export async function updateAccount(id: string, data: UpdateAccountInput) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
 
-  const existing = await prisma.account.findUnique({
-    where: { id },
-    include: { category: true },
-  });
-  if (!existing) {
-    return { error: "Akun tidak ditemukan" };
-  }
+  // Wave 1: existing + code uniqueness + parent — semua parallel
+  const [existing, codeConflict, parent] = await Promise.all([
+    prisma.account.findUnique({ where: { id }, include: { category: true } }),
+    data.code
+      ? prisma.account.findUnique({
+          where: { code: data.code },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    data.parentId && data.parentId !== id
+      ? prisma.account.findUnique({
+          where: { id: data.parentId },
+          select: { id: true, categoryId: true },
+        })
+      : Promise.resolve(null),
+  ]);
 
-  // System accounts: can't change code or category
+  if (!existing) return { error: "Akun tidak ditemukan" };
+
   if (existing.isSystem) {
-    if (data.code && data.code !== existing.code) {
+    if (data.code && data.code !== existing.code)
       return { error: "Tidak dapat mengubah kode akun sistem" };
-    }
-    if (data.categoryId && data.categoryId !== existing.categoryId) {
+    if (data.categoryId && data.categoryId !== existing.categoryId)
       return { error: "Tidak dapat mengubah kategori akun sistem" };
-    }
   }
 
-  // Validate code uniqueness if changed
-  if (data.code && data.code !== existing.code) {
-    const codeExists = await prisma.account.findUnique({
-      where: { code: data.code },
-    });
-    if (codeExists) {
-      return { error: `Kode akun "${data.code}" sudah digunakan` };
-    }
-  }
+  if (codeConflict && data.code !== existing.code)
+    return { error: `Kode akun "${data.code}" sudah digunakan` };
 
-  // Validate parent if changed
   if (data.parentId !== undefined && data.parentId !== existing.parentId) {
     if (data.parentId) {
-      if (data.parentId === id) {
+      if (data.parentId === id)
         return { error: "Akun tidak bisa menjadi induk dari dirinya sendiri" };
-      }
-      const parent = await prisma.account.findUnique({
-        where: { id: data.parentId },
-        select: { id: true, categoryId: true },
-      });
-      if (!parent) {
-        return { error: "Akun induk tidak ditemukan" };
-      }
+      if (!parent) return { error: "Akun induk tidak ditemukan" };
       const targetCategoryId = data.categoryId || existing.categoryId;
-      if (parent.categoryId !== targetCategoryId) {
+      if (parent.categoryId !== targetCategoryId)
         return { error: "Akun induk harus dalam kategori yang sama" };
-      }
     }
   }
 
@@ -415,9 +393,7 @@ export async function updateAccount(id: string, data: UpdateAccountInput) {
   const account = await prisma.account.update({
     where: { id },
     data: updateData,
-    include: {
-      category: { select: { name: true, type: true } },
-    },
+    include: { category: { select: { name: true, type: true } } },
   });
 
   await createAuditLog({
@@ -719,7 +695,8 @@ export async function createJournalEntry(data: CreateJournalEntryInput) {
       description: data.description.trim(),
       reference: data.reference?.trim() || null,
       referenceType: "MANUAL",
-      branchId: data.branchId && data.branchId.trim().length > 0 ? data.branchId : null,
+      branchId:
+        data.branchId && data.branchId.trim().length > 0 ? data.branchId : null,
       periodId: period?.id || null,
       status: "DRAFT",
       totalDebit,
@@ -956,44 +933,68 @@ export async function voidJournalEntry(id: string, reason: string) {
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
 
-  if (!reason || !reason.trim()) {
-    return { error: "Alasan void wajib diisi" };
-  }
+  if (!reason?.trim()) return { error: "Alasan void wajib diisi" };
 
+  // Fetch entry + period check + last entry number — parallel
   const entry = await prisma.journalEntry.findUnique({
     where: { id },
-    include: {
-      lines: true,
+    select: {
+      id: true,
+      status: true,
+      entryNumber: true,
+      description: true,
+      branchId: true,
+      periodId: true,
+      totalDebit: true,
+      totalCredit: true,
+      notes: true,
+      // Select minimal fields di lines — jangan include semua kolom
+      lines: {
+        select: {
+          accountId: true,
+          description: true,
+          debit: true,
+          credit: true,
+          sortOrder: true,
+        },
+      },
     },
   });
-  if (!entry) {
-    return { error: "Jurnal tidak ditemukan" };
-  }
-  if (entry.status === "VOIDED") {
-    return { error: "Jurnal sudah di-void" };
-  }
-  if (entry.status === "DRAFT") {
+
+  if (!entry) return { error: "Jurnal tidak ditemukan" };
+  if (entry.status === "VOIDED") return { error: "Jurnal sudah di-void" };
+  if (entry.status === "DRAFT")
     return { error: "Jurnal berstatus DRAFT. Hapus saja atau ubah langsung." };
-  }
 
-  // Check period
-  if (entry.periodId) {
-    const period = await prisma.accountingPeriod.findUnique({
-      where: { id: entry.periodId },
-    });
-    if (period && period.status === "LOCKED") {
-      return { error: "Periode sudah dikunci. Tidak bisa void jurnal." };
-    }
-  }
-
-  // Create reversing entry
+  // Parallel: cek period + cari last entry number untuk reversing
   const today = new Date();
   const todayPrefix = `JV-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
-  const lastEntry = await prisma.journalEntry.findFirst({
-    where: { entryNumber: { startsWith: todayPrefix } },
-    orderBy: { entryNumber: "desc" },
-    select: { entryNumber: true },
-  });
+
+  const [period, lastEntry, currentPeriod] = await Promise.all([
+    entry.periodId
+      ? prisma.accountingPeriod.findUnique({
+          where: { id: entry.periodId },
+          select: { status: true },
+        })
+      : Promise.resolve(null),
+    prisma.journalEntry.findFirst({
+      where: { entryNumber: { startsWith: todayPrefix } },
+      orderBy: { entryNumber: "desc" },
+      select: { entryNumber: true },
+    }),
+    prisma.accountingPeriod.findFirst({
+      where: {
+        startDate: { lte: today },
+        endDate: { gte: today },
+        status: "OPEN",
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  if (period?.status === "LOCKED")
+    return { error: "Periode sudah dikunci. Tidak bisa void jurnal." };
+
   let sequence = 1;
   if (lastEntry) {
     const parts = lastEntry.entryNumber.split("-");
@@ -1002,17 +1003,7 @@ export async function voidJournalEntry(id: string, reason: string) {
   }
   const reversingNumber = generateEntryNumber(today, sequence);
 
-  // Find current period for today
-  const currentPeriod = await prisma.accountingPeriod.findFirst({
-    where: {
-      startDate: { lte: today },
-      endDate: { gte: today },
-      status: "OPEN",
-    },
-  });
-
   await prisma.$transaction([
-    // Void original entry
     prisma.journalEntry.update({
       where: { id },
       data: {
@@ -1023,7 +1014,6 @@ export async function voidJournalEntry(id: string, reason: string) {
           : `[VOIDED] ${reason.trim()}`,
       },
     }),
-    // Create reversing entry (swap debit/credit)
     prisma.journalEntry.create({
       data: {
         entryNumber: reversingNumber,
@@ -1100,31 +1090,38 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
   try {
     switch (referenceType) {
       case "TRANSACTION": {
-        const txn = await prisma.transaction.findUnique({
-          where: { id: referenceId },
-          include: {
-            items: {
-              include: {
-                product: { select: { purchasePrice: true } },
+        // Fetch transaksi + semua system accounts sekaligus — parallel
+        const [txn, accs] = await Promise.all([
+          prisma.transaction.findUnique({
+            where: { id: referenceId },
+            include: {
+              items: {
+                include: { product: { select: { purchasePrice: true } } },
               },
+              payments: true,
             },
-            payments: true,
-          },
-        });
+          }),
+          getSystemAccounts([
+            "1-1001",
+            "1-1002",
+            "1-1003",
+            "1-1004",
+            "4-1001",
+            "5-1001",
+          ]),
+        ]);
         if (!txn) return { error: "Transaksi tidak ditemukan" };
 
         description = `Penjualan ${txn.invoiceNumber}`;
         reference = txn.invoiceNumber;
 
-        // Determine cash/bank account based on payment method
-        const cashAccount = await getSystemAccount("1-1001");
-        const bankAccount = await getSystemAccount("1-1002");
-        const revenueAccount = await getSystemAccount("4-1001");
-        const cogsAccount = await getSystemAccount("5-1001");
-        const inventoryAccount = await getSystemAccount("1-1004");
-        const receivableAccount = await getSystemAccount("1-1003");
+        const cashAccount = accs.get("1-1001")!;
+        const bankAccount = accs.get("1-1002")!;
+        const receivableAccount = accs.get("1-1003")!;
+        const inventoryAccount = accs.get("1-1004")!;
+        const revenueAccount = accs.get("4-1001")!;
+        const cogsAccount = accs.get("5-1001")!;
 
-        // Revenue entry — split by payment method if multi-payment
         if (txn.payments && txn.payments.length > 0) {
           for (const payment of txn.payments) {
             const targetAccount =
@@ -1162,14 +1159,12 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
           credit: txn.grandTotal,
         });
 
-        // COGS entry
         let totalCogs = 0;
         for (const item of txn.items) {
           const costPrice = item.product?.purchasePrice || 0;
           const baseQty = item.baseQty || item.quantity * item.conversionQty;
           totalCogs += costPrice * baseQty;
         }
-
         if (totalCogs > 0) {
           lines.push({
             accountId: cogsAccount.id,
@@ -1188,18 +1183,21 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
       }
 
       case "PURCHASE": {
-        const po = await prisma.purchaseOrder.findUnique({
-          where: { id: referenceId },
-          include: { supplier: { select: { name: true } } },
-        });
+        const [po, accs] = await Promise.all([
+          prisma.purchaseOrder.findUnique({
+            where: { id: referenceId },
+            include: { supplier: { select: { name: true } } },
+          }),
+          getSystemAccounts(["1-1001", "1-1004", "2-1001"]),
+        ]);
         if (!po) return { error: "Purchase order tidak ditemukan" };
 
         description = `Pembelian ${po.orderNumber} — ${po.supplier.name}`;
         reference = po.orderNumber;
 
-        const inventoryAccount = await getSystemAccount("1-1004");
-        const payableAccount = await getSystemAccount("2-1001");
-        const cashAccount = await getSystemAccount("1-1001");
+        const inventoryAccount = accs.get("1-1004")!;
+        const payableAccount = accs.get("2-1001")!;
+        const cashAccount = accs.get("1-1001")!;
 
         lines.push({
           accountId: inventoryAccount.id,
@@ -1207,52 +1205,48 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
           debit: po.totalAmount,
           credit: 0,
         });
-
-        // If fully paid, credit cash; otherwise credit payable
         const unpaidAmount = po.totalAmount - po.paidAmount;
-        if (po.paidAmount > 0) {
+        if (po.paidAmount > 0)
           lines.push({
             accountId: cashAccount.id,
             description: `Pembayaran tunai — ${po.orderNumber}`,
             debit: 0,
             credit: po.paidAmount,
           });
-        }
-        if (unpaidAmount > 0) {
+        if (unpaidAmount > 0)
           lines.push({
             accountId: payableAccount.id,
             description: `Hutang dagang — ${po.orderNumber}`,
             debit: 0,
             credit: unpaidAmount,
           });
-        }
         break;
       }
 
       case "RETURN": {
-        const ret = await prisma.returnExchange.findUnique({
-          where: { id: referenceId },
-          include: {
-            items: {
-              include: {
-                product: { select: { purchasePrice: true } },
+        const [ret, accs] = await Promise.all([
+          prisma.returnExchange.findUnique({
+            where: { id: referenceId },
+            include: {
+              items: {
+                include: { product: { select: { purchasePrice: true } } },
               },
+              transaction: { select: { invoiceNumber: true } },
             },
-            transaction: { select: { invoiceNumber: true } },
-          },
-        });
+          }),
+          getSystemAccounts(["1-1001", "1-1002", "1-1004", "4-1002", "5-1001"]),
+        ]);
         if (!ret) return { error: "Return tidak ditemukan" };
 
         description = `Retur penjualan ${ret.returnNumber}`;
         reference = ret.returnNumber;
 
-        const returnRevenueAccount = await getSystemAccount("4-1002");
-        const cashAccount = await getSystemAccount("1-1001");
-        const bankAccount = await getSystemAccount("1-1002");
-        const inventoryAccount = await getSystemAccount("1-1004");
-        const cogsAccount = await getSystemAccount("5-1001");
+        const cashAccount = accs.get("1-1001")!;
+        const bankAccount = accs.get("1-1002")!;
+        const inventoryAccount = accs.get("1-1004")!;
+        const returnRevenueAccount = accs.get("4-1002")!;
+        const cogsAccount = accs.get("5-1001")!;
 
-        // Debit return account, credit cash/bank
         if (ret.totalRefund > 0) {
           lines.push({
             accountId: returnRevenueAccount.id,
@@ -1260,7 +1254,6 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             debit: ret.totalRefund,
             credit: 0,
           });
-
           const refundAccount =
             ret.refundMethod === "CASH" || !ret.refundMethod
               ? cashAccount
@@ -1273,13 +1266,9 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
           });
         }
 
-        // Reverse COGS for returned items
         let returnCogs = 0;
-        for (const item of ret.items) {
-          const costPrice = item.product?.purchasePrice || 0;
-          returnCogs += costPrice * item.quantity;
-        }
-
+        for (const item of ret.items)
+          returnCogs += (item.product?.purchasePrice || 0) * item.quantity;
         if (returnCogs > 0) {
           lines.push({
             accountId: inventoryAccount.id,
@@ -1298,31 +1287,32 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
       }
 
       case "DEBT_PAYMENT": {
-        const payment = await prisma.debtPayment.findUnique({
-          where: { id: referenceId },
-          include: {
-            debt: {
-              select: {
-                id: true,
-                type: true,
-                partyName: true,
-                description: true,
+        const [payment, accs] = await Promise.all([
+          prisma.debtPayment.findUnique({
+            where: { id: referenceId },
+            include: {
+              debt: {
+                select: {
+                  id: true,
+                  type: true,
+                  partyName: true,
+                  description: true,
+                },
               },
             },
-          },
-        });
+          }),
+          getSystemAccounts(["1-1001", "1-1003", "2-1001"]),
+        ]);
         if (!payment)
           return { error: "Pembayaran hutang/piutang tidak ditemukan" };
 
-        const cashAccount = await getSystemAccount("1-1001");
-        const payableAccount = await getSystemAccount("2-1001");
-        const receivableAccount = await getSystemAccount("1-1003");
+        const cashAccount = accs.get("1-1001")!;
+        const receivableAccount = accs.get("1-1003")!;
+        const payableAccount = accs.get("2-1001")!;
 
         if (payment.debt.type === "PAYABLE") {
-          // Paying supplier — debit payable, credit cash
           description = `Pembayaran hutang — ${payment.debt.partyName}`;
           reference = payment.debt.description || `Debt-${payment.debtId}`;
-
           lines.push({
             accountId: payableAccount.id,
             description: `Pelunasan hutang — ${payment.debt.partyName}`,
@@ -1336,10 +1326,8 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             credit: payment.amount,
           });
         } else {
-          // Receiving from customer — debit cash, credit receivable
           description = `Penerimaan piutang — ${payment.debt.partyName}`;
           reference = payment.debt.description || `Debt-${payment.debtId}`;
-
           lines.push({
             accountId: cashAccount.id,
             description: `Penerimaan kas — ${payment.debt.partyName}`,
@@ -1365,19 +1353,16 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
         description = `Beban: ${expense.description}`;
         reference = `EXP-${expense.id.slice(0, 8)}`;
 
-        const cashAccount = await getSystemAccount("1-1001");
-
-        // Map expense category to account
-        let expenseAccountCode = "5-1002"; // default: Beban Operasional
         const categoryLower = expense.category.toLowerCase();
-        if (
-          categoryLower.includes("gaji") ||
-          categoryLower.includes("salary")
-        ) {
-          expenseAccountCode = "5-1003";
-        }
+        const expenseAccountCode =
+          categoryLower.includes("gaji") || categoryLower.includes("salary")
+            ? "5-1003"
+            : "5-1002";
 
-        const expenseAccount = await getSystemAccount(expenseAccountCode);
+        // Fetch cash + expense account sekaligus
+        const accs = await getSystemAccounts(["1-1001", expenseAccountCode]);
+        const cashAccount = accs.get("1-1001")!;
+        const expenseAccount = accs.get(expenseAccountCode)!;
 
         lines.push({
           accountId: expenseAccount.id,
@@ -1398,27 +1383,35 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
         return { error: `Tipe referensi "${referenceType}" tidak dikenali` };
     }
 
-    // Validate balance
     const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
     const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
-    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+    if (Math.abs(totalDebit - totalCredit) > 0.01)
       return {
         error: `Jurnal tidak seimbang: debit=${totalDebit}, kredit=${totalCredit}`,
       };
-    }
-
-    if (lines.length === 0) {
+    if (lines.length === 0)
       return { error: "Tidak ada entri jurnal yang dihasilkan" };
-    }
 
-    // Generate entry number
     const today = new Date();
     const todayPrefix = `JV-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
-    const lastEntry = await prisma.journalEntry.findFirst({
-      where: { entryNumber: { startsWith: todayPrefix } },
-      orderBy: { entryNumber: "desc" },
-      select: { entryNumber: true },
-    });
+
+    // Parallel: last entry number + current period
+    const [lastEntry, currentPeriod] = await Promise.all([
+      prisma.journalEntry.findFirst({
+        where: { entryNumber: { startsWith: todayPrefix } },
+        orderBy: { entryNumber: "desc" },
+        select: { entryNumber: true },
+      }),
+      prisma.accountingPeriod.findFirst({
+        where: {
+          startDate: { lte: today },
+          endDate: { gte: today },
+          status: "OPEN",
+        },
+        select: { id: true },
+      }),
+    ]);
+
     let sequence = 1;
     if (lastEntry) {
       const parts = lastEntry.entryNumber.split("-");
@@ -1426,15 +1419,6 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
       if (!isNaN(lastSeq)) sequence = lastSeq + 1;
     }
     const entryNumber = generateEntryNumber(today, sequence);
-
-    // Find current period
-    const currentPeriod = await prisma.accountingPeriod.findFirst({
-      where: {
-        startDate: { lte: today },
-        endDate: { gte: today },
-        status: "OPEN",
-      },
-    });
 
     const entry = await prisma.journalEntry.create({
       data: {
