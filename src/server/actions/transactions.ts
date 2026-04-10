@@ -8,6 +8,7 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { redisDelByPrefix } from "@/lib/redis";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 async function invalidateAccelerate(tags: string[]) {
   const accelerate = (
@@ -143,13 +144,14 @@ export async function createTransaction(input: CreateTransactionInput) {
     return { error: authResult.error };
   }
   const userId = authResult.userId;
+  const companyId = await getCurrentCompanyId();
 
   // Generate invoice number
   const today = new Date();
   const prefix = `INV-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
 
   const lastInvoice = await prisma.transaction.findFirst({
-    where: { invoiceNumber: { startsWith: prefix } },
+    where: { invoiceNumber: { startsWith: prefix }, user: { companyId } },
     orderBy: { invoiceNumber: "desc" },
   });
 
@@ -613,8 +615,11 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     sortDir = "desc",
   } = params;
   const skip = (page - 1) * limit;
+  const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    user: { companyId },
+  };
 
   if (search) {
     where.invoiceNumber = { contains: search, mode: "insensitive" };
@@ -678,8 +683,9 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
 }
 
 export async function getTransactionById(id: string) {
-  return prisma.transaction.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.transaction.findFirst({
+    where: { id, user: { companyId } },
     include: {
       user: { select: { name: true, email: true } },
       items: { include: { product: true } },
@@ -693,10 +699,11 @@ export async function voidTransaction(id: string, reason: string) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const tx0 = await prisma.transaction.findUnique({
-      where: { id },
+    const tx0 = await prisma.transaction.findFirst({
+      where: { id, user: { companyId } },
       select: { invoiceNumber: true, grandTotal: true, branchId: true },
     });
 
@@ -795,10 +802,11 @@ export async function refundTransaction(id: string, reason: string) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const tx0 = await prisma.transaction.findUnique({
-      where: { id },
+    const tx0 = await prisma.transaction.findFirst({
+      where: { id, user: { companyId } },
       select: { invoiceNumber: true, grandTotal: true, branchId: true },
     });
 

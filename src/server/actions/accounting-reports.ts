@@ -3,6 +3,7 @@
 import { prisma, shouldUseAccelerate } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ===========================
 // HELPERS
@@ -53,6 +54,7 @@ interface LedgerEntry {
 }
 
 export async function getGeneralLedger(params: GeneralLedgerParams) {
+  await getCurrentCompanyId();
   const { accountId, dateFrom, dateTo, branchId } = params;
 
   const from = dateFrom ? toDate(dateFrom) : new Date("2000-01-01");
@@ -190,10 +192,16 @@ interface TrialBalanceRow {
 }
 
 export async function getTrialBalance(params: TrialBalanceParams = {}) {
+  await getCurrentCompanyId();
   const { date, branchId } = params;
   const upTo = date ? endOfDay(date) : new Date("2099-12-31");
 
   const tbBranch = branchSQL(branchId, "je", 2);
+  const acctBranchIdx = 2 + tbBranch.params.length + 1;
+  const acctBranchCondition = branchId
+    ? `AND (a."branchId" = $${acctBranchIdx} OR a."branchId" IS NULL)`
+    : "";
+  const acctBranchParams = branchId ? [branchId] : [];
 
   // 1 query: accounts + movements di-join langsung di DB
   const rows = await prisma.$queryRawUnsafe<
@@ -229,12 +237,13 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
         AND je.date <= $1
         ${tbBranch.condition}
       WHERE a."isActive" = true
-        ${branchId ? `AND (a."branchId" = '${branchId}' OR a."branchId" IS NULL)` : ""}
+        ${acctBranchCondition}
       GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
       ORDER BY a.code ASC
       `,
     upTo,
     ...tbBranch.params,
+    ...acctBranchParams,
   );
 
   let grandTotalDebit = 0;
@@ -307,6 +316,7 @@ interface IncomeStatementAccount {
 }
 
 export async function getIncomeStatement(params: IncomeStatementParams) {
+  await getCurrentCompanyId();
   const { dateFrom, dateTo, branchId } = params;
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
@@ -408,6 +418,7 @@ interface BalanceSheetGroup {
 }
 
 export async function getBalanceSheet(params: BalanceSheetParams) {
+  await getCurrentCompanyId();
   const { date, branchId } = params;
   const upTo = endOfDay(date);
   const bsBranch = branchSQL(branchId, "je", 2);
@@ -614,6 +625,7 @@ interface CashFlowItem {
 }
 
 export async function getCashFlow(params: CashFlowParams) {
+  await getCurrentCompanyId();
   const { dateFrom, dateTo, branchId } = params;
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
@@ -1040,6 +1052,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
 }
 
 export async function getAccountingDashboard(branchId?: string) {
+  await getCurrentCompanyId();
   const b = branchId || "all";
   const cached = unstable_cache(
     () => getAccountingDashboardUncached(branchId),

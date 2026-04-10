@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { calculateEarnedPoints, calculateRedeemValue, determineLevel } from "@/lib/point-config";
 import { getPointConfig } from "@/server/actions/settings";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ===========================
 // Earn points after transaction
@@ -13,8 +14,9 @@ import { createAuditLog } from "@/lib/audit";
 export async function earnPoints(customerId: string, grandTotal: number, invoiceNumber: string) {
   const config = await getPointConfig();
   if (!config.pointsEnabled) return;
+  const companyId = await getCurrentCompanyId();
 
-  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  const customer = await prisma.customer.findUnique({ where: { id: customerId, companyId } });
   if (!customer) return;
 
   const earned = calculateEarnedPoints(grandTotal, customer.memberLevel, config);
@@ -75,7 +77,8 @@ export async function redeemPoints(customerId: string, points: number) {
   if (!config.pointsEnabled) return { error: "Sistem poin tidak aktif" };
   if (points < config.redeemMin) return { error: `Minimum redeem ${config.redeemMin} poin` };
 
-  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  const companyId = await getCurrentCompanyId();
+  const customer = await prisma.customer.findUnique({ where: { id: customerId, companyId } });
   if (!customer) return { error: "Customer tidak ditemukan" };
   if (customer.points < points) return { error: `Poin tidak cukup (sisa: ${customer.points})` };
 
@@ -119,15 +122,16 @@ export async function confirmRedeem(customerId: string, points: number, invoiceN
 
 export async function getPointHistory(customerId: string, params?: { page?: number; perPage?: number }) {
   const { page = 1, perPage = 15 } = params || {};
+  const companyId = await getCurrentCompanyId();
 
   const [history, total] = await Promise.all([
     prisma.customerPointHistory.findMany({
-      where: { customerId },
+      where: { customerId, customer: { companyId } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
     }),
-    prisma.customerPointHistory.count({ where: { customerId } }),
+    prisma.customerPointHistory.count({ where: { customerId, customer: { companyId } } }),
   ]);
 
   return { history, total, totalPages: Math.ceil(total / perPage) };
@@ -139,8 +143,9 @@ export async function getPointHistory(customerId: string, params?: { page?: numb
 
 export async function adjustPoints(customerId: string, points: number, reason: string) {
   if (!reason) return { error: "Alasan wajib diisi" };
+  const companyId = await getCurrentCompanyId();
 
-  const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+  const customer = await prisma.customer.findUnique({ where: { id: customerId, companyId } });
   if (!customer) return { error: "Customer tidak ditemukan" };
 
   const newPoints = customer.points + points;

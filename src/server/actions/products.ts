@@ -7,6 +7,7 @@ import { productSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 import {
   branchPriceSchema,
   productUnitSchema,
@@ -45,6 +46,7 @@ function parseJsonArray<T>(
 }
 
 export async function getProducts(params: GetProductsParams = {}) {
+  const companyId = await getCurrentCompanyId();
   const {
     page = 1,
     limit = 10,
@@ -56,7 +58,7 @@ export async function getProducts(params: GetProductsParams = {}) {
   } = params;
   const skip = (page - 1) * limit;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
 
   if (search) {
     where.OR = [
@@ -109,14 +111,16 @@ export async function getProducts(params: GetProductsParams = {}) {
 }
 
 export async function getProductById(id: string) {
-  return prisma.product.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.product.findFirst({
+    where: { id, companyId },
     include: { category: true, tierPrices: { orderBy: { minQty: "asc" } } },
   });
 }
 
 export async function createProduct(formData: FormData) {
   await assertMenuActionAccess("products", "create");
+  const companyId = await getCurrentCompanyId();
   const brandIdRaw = (formData.get("brandId") as string) || "";
   const imageUrl = (formData.get("imageUrl") as string) || null;
   const data = {
@@ -175,6 +179,7 @@ export async function createProduct(formData: FormData) {
       ...(parsed.data.categoryId ? { categoryId: parsed.data.categoryId } : {}),
       ...(brandIdRaw ? { brandId: brandIdRaw } : { brandId: null }),
       imageUrl,
+      companyId,
     };
     const product = await prisma.product.create({ data });
 
@@ -274,6 +279,7 @@ export async function createProduct(formData: FormData) {
 
 export async function updateProduct(id: string, formData: FormData) {
   await assertMenuActionAccess("products", "update");
+  const companyId = await getCurrentCompanyId();
   const brandIdRaw = (formData.get("brandId") as string) || "";
   const imageUrl = (formData.get("imageUrl") as string) || null;
   const data = {
@@ -318,8 +324,8 @@ export async function updateProduct(id: string, formData: FormData) {
     return { error: `Harga bertingkat tidak valid: ${tierPricesResult.error}` };
 
   try {
-    const oldProduct = await prisma.product.findUnique({
-      where: { id },
+    const oldProduct = await prisma.product.findFirst({
+      where: { id, companyId },
       select: { name: true, code: true, sellingPrice: true, purchasePrice: true, unit: true, stock: true, minStock: true, barcode: true, isActive: true, categoryId: true, brandId: true, description: true },
     });
 
@@ -338,7 +344,7 @@ export async function updateProduct(id: string, formData: FormData) {
       ...(brandIdRaw ? { brandId: brandIdRaw } : { brandId: null }),
       imageUrl,
     };
-    await prisma.product.update({ where: { id }, data });
+    await prisma.product.update({ where: { id, companyId }, data });
 
     // Update branch prices + branch stock
     await prisma.branchProductPrice.deleteMany({ where: { productId: id } });
@@ -405,8 +411,9 @@ export async function updateProduct(id: string, formData: FormData) {
 }
 
 export async function generateProductCode(): Promise<string> {
+  const companyId = await getCurrentCompanyId();
   const last = await prisma.product.findFirst({
-    where: { code: { startsWith: "PRD" } },
+    where: { companyId, code: { startsWith: "PRD" } },
     orderBy: { code: "desc" },
     select: { code: true },
   });
@@ -423,8 +430,10 @@ export async function checkProductCodeExists(
   code: string,
   excludeId?: string,
 ): Promise<boolean> {
+  const companyId = await getCurrentCompanyId();
   const found = await prisma.product.findFirst({
     where: {
+      companyId,
       code: { equals: code, mode: "insensitive" },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
@@ -453,13 +462,14 @@ export async function getProductBranchPrices(productId: string) {
 
 export async function deleteProduct(id: string) {
   await assertMenuActionAccess("products", "delete");
+  const companyId = await getCurrentCompanyId();
   try {
-    const oldProduct = await prisma.product.findUnique({
-      where: { id },
+    const oldProduct = await prisma.product.findFirst({
+      where: { id, companyId },
       select: { name: true, code: true },
     });
 
-    await prisma.product.delete({ where: { id } });
+    await prisma.product.delete({ where: { id, companyId } });
     revalidatePath("/products");
 
     createAuditLog({ action: "DELETE", entity: "Product", entityId: id, details: { deleted: oldProduct } }).catch(() => {});
@@ -474,9 +484,11 @@ export async function deleteProduct(id: string) {
 
 export async function searchProducts(query: string, branchId?: string | null, categoryId?: string | null) {
   if (!query || query.length < 1) return [];
+  const companyId = await getCurrentCompanyId();
 
   const products = await prisma.product.findMany({
     where: {
+      companyId,
       isActive: true,
       ...(categoryId ? { categoryId } : {}),
       OR: [
@@ -516,10 +528,12 @@ export async function searchProducts(query: string, branchId?: string | null, ca
 
 export async function findByBarcode(barcode: string, branchId?: string | null) {
   if (!barcode) return null;
+  const companyId = await getCurrentCompanyId();
 
   // First check product barcode/code
   const product = await prisma.product.findFirst({
     where: {
+      companyId,
       isActive: true,
       OR: [{ barcode }, { code: barcode }],
     },
@@ -589,6 +603,7 @@ export async function findByBarcode(barcode: string, branchId?: string | null) {
 }
 
 export async function getTopSellingProducts(limit = 8) {
+  const companyId = await getCurrentCompanyId();
   const items = await prisma.transactionItem.groupBy({
     by: ["productId"],
     _sum: { quantity: true },
@@ -598,7 +613,7 @@ export async function getTopSellingProducts(limit = 8) {
 
   const productIds = items.map((i) => i.productId);
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, isActive: true },
+    where: { id: { in: productIds }, companyId, isActive: true },
     include: { category: true },
   });
 
@@ -610,8 +625,9 @@ export async function getTopSellingProducts(limit = 8) {
 }
 
 export async function getProductsByCategory(categoryId: string) {
+  const companyId = await getCurrentCompanyId();
   return prisma.product.findMany({
-    where: { categoryId, isActive: true, stock: { gt: 0 } },
+    where: { companyId, categoryId, isActive: true, stock: { gt: 0 } },
     include: { category: true, tierPrices: { orderBy: { minQty: "asc" } } },
     take: 20,
     orderBy: { name: "asc" },
@@ -625,6 +641,7 @@ export async function browseProducts(params: {
   perPage?: number;
   branchId?: string | null | undefined;
 }) {
+  const companyId = await getCurrentCompanyId();
   const { categoryId, mode = "all", page = 1, perPage = 20, branchId } = params;
 
   // Helper to overlay branch prices + stock
@@ -668,7 +685,7 @@ export async function browseProducts(params: {
 
     const productIds = items.map((i) => i.productId);
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true },
+      where: { id: { in: productIds }, companyId, isActive: true },
       include: { category: true, tierPrices: { orderBy: { minQty: "asc" } }, units: { orderBy: { conversionQty: "asc" } } },
     });
 
@@ -685,7 +702,7 @@ export async function browseProducts(params: {
     };
   }
 
-  const where: Record<string, unknown> = { isActive: true };
+  const where: Record<string, unknown> = { companyId, isActive: true };
   if (categoryId) where.categoryId = categoryId;
 
   const [products, total] = await Promise.all([
@@ -733,6 +750,7 @@ interface ImportProductRow {
 
 export async function importProducts(rows: ImportProductRow[]) {
   await assertMenuActionAccess("products", "create");
+  const companyId = await getCurrentCompanyId();
 
   const results: {
     row: number;
@@ -743,9 +761,9 @@ export async function importProducts(rows: ImportProductRow[]) {
 
   // Pre-fetch categories and brands to map by name
   const [allCategories, allBrands, existingProducts] = await Promise.all([
-    prisma.category.findMany({ select: { id: true, name: true } }),
-    prisma.brand.findMany({ select: { id: true, name: true } }),
-    prisma.product.findMany({ select: { code: true } }),
+    prisma.category.findMany({ where: { companyId }, select: { id: true, name: true } }),
+    prisma.brand.findMany({ where: { companyId }, select: { id: true, name: true } }),
+    prisma.product.findMany({ where: { companyId }, select: { code: true } }),
   ]);
   const categoryMap = new Map(
     allCategories.map((c) => [c.name.toLowerCase().trim(), c.id]),
@@ -789,7 +807,7 @@ export async function importProducts(rows: ImportProductRow[]) {
     // Generate code if empty
     let code = row.code?.trim();
     if (!code) {
-      const count = await prisma.product.count();
+      const count = await prisma.product.count({ where: { companyId } });
       code = `PRD-${String(count + i + 1).padStart(5, "0")}`;
     }
 
@@ -859,6 +877,7 @@ export async function importProducts(rows: ImportProductRow[]) {
           barcode: row.barcode?.trim() || null,
           description: row.description?.trim() || null,
           isActive: true,
+          companyId,
         },
       });
 
@@ -908,12 +927,14 @@ export async function importProducts(rows: ImportProductRow[]) {
 }
 
 export async function getImportTemplate() {
+  const companyId = await getCurrentCompanyId();
   const [categories, brands] = await Promise.all([
     prisma.category.findMany({
+      where: { companyId },
       select: { name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.brand.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ where: { companyId }, select: { name: true }, orderBy: { name: "asc" } }),
   ]);
   return {
     headers: [

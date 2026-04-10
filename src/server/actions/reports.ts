@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { redisGetJson, redisSetJson } from "@/lib/redis";
+import { getCurrentCompanyId } from "@/lib/company";
 
 const REPORTS_REDIS_TTL_SECONDS = 60;
 
@@ -133,14 +134,43 @@ function buildTransactionDateWhere(dateFrom?: string, dateTo?: string) {
   return Object.keys(createdAt).length > 0 ? { createdAt } : {};
 }
 
+function buildSalesViewWhere(
+  dateFrom?: string,
+  dateTo?: string,
+  branchId?: string,
+  alias = "v",
+  companyId?: string,
+) {
+  const params: unknown[] = [];
+  const conditions: string[] = [`${alias}.transaction_status = 'COMPLETED'`];
+  if (dateFrom) {
+    conditions.push(
+      `${alias}.transaction_created_at >= $${params.push(new Date(dateFrom))}`,
+    );
+  }
+  if (dateTo) {
+    const to = new Date(dateTo);
+    to.setDate(to.getDate() + 1);
+    conditions.push(`${alias}.transaction_created_at < $${params.push(to)}`);
+  }
+  if (branchId) {
+    conditions.push(`${alias}.branch_id = $${params.push(branchId)}`);
+  }
+  if (companyId) {
+    conditions.push(`${alias}.branch_id IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`);
+  }
+  return { where: conditions.join(" AND "), params };
+}
+
 export async function getSalesReport(
   period: "daily" | "monthly" = "daily",
   dateFrom?: string,
   dateTo?: string,
   branchId?: string,
 ) {
+  const companyId = await getCurrentCompanyId();
   const cacheKey = reportCacheKey(
-    `sales-${period}`,
+    `sales-${period}-${companyId}`,
     dateFrom,
     dateTo,
     branchId,
@@ -167,6 +197,8 @@ export async function getSalesReport(
       queryParams.push(branchId);
       branchCondition = `AND "branchId" = $${queryParams.length}`;
     }
+    queryParams.push(companyId);
+    const companyCondition = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${queryParams.length})`;
 
     const rows = await prisma.$queryRawUnsafe<
       { d: Date; sales: bigint; discount: bigint; tax: bigint; count: bigint }[]
@@ -181,6 +213,7 @@ export async function getSalesReport(
       WHERE "createdAt" >= $1 AND "createdAt" < $2
         AND "status" = 'COMPLETED'
         ${branchCondition}
+        ${companyCondition}
       GROUP BY DATE_TRUNC('day', "createdAt")
       ORDER BY d ASC
     `,
@@ -237,6 +270,8 @@ export async function getSalesReport(
       monthParams.push(branchId);
       monthBranchCondition = `AND "branchId" = $${monthParams.length}`;
     }
+    monthParams.push(companyId);
+    const monthCompanyCondition = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${monthParams.length})`;
 
     const rows = await prisma.$queryRawUnsafe<
       {
@@ -259,6 +294,7 @@ export async function getSalesReport(
       WHERE "createdAt" >= $1 AND "createdAt" < $2
         AND "status" = 'COMPLETED'
         ${monthBranchCondition}
+        ${monthCompanyCondition}
       GROUP BY EXTRACT(YEAR FROM "createdAt"), EXTRACT(MONTH FROM "createdAt")
       ORDER BY y, m
     `,
@@ -310,8 +346,9 @@ export async function getTopProductsReport(
   dateTo?: string,
   branchId?: string,
 ) {
+  const companyId = await getCurrentCompanyId();
   const cacheKey = reportCacheKey(
-    `top-products-${limit}`,
+    `top-products-${limit}-${companyId}`,
     dateFrom,
     dateTo,
     branchId,
@@ -326,6 +363,7 @@ export async function getTopProductsReport(
         status: "COMPLETED",
         ...(branchId ? { branchId } : {}),
         ...buildTransactionDateWhere(dateFrom, dateTo),
+        branch: { companyId },
       },
     },
     _sum: { quantity: true, subtotal: true },
@@ -346,7 +384,8 @@ export async function getProfitLossReport(
   dateTo?: string,
   branchId?: string,
 ) {
-  const cacheKey = reportCacheKey("profit-loss", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`profit-loss-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<ProfitLossReport>(cacheKey);
   if (cached) return cached;
 
@@ -368,6 +407,8 @@ export async function getProfitLossReport(
     costParams.push(branchId);
     costBranchCondition = `AND t."branchId" = $${costParams.length}`;
   }
+  costParams.push(companyId);
+  const costCompanyCondition = `AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${costParams.length})`;
 
   const [totals, costResult] = await Promise.all([
     prisma.transaction.aggregate({
@@ -375,6 +416,7 @@ export async function getProfitLossReport(
         createdAt: { gte: monthStart, lt: monthEnd },
         status: "COMPLETED",
         ...(branchId ? { branchId } : {}),
+        branch: { companyId },
       },
       _sum: { grandTotal: true, discountAmount: true, taxAmount: true },
       _count: true,
@@ -388,6 +430,7 @@ export async function getProfitLossReport(
       WHERE t."createdAt" >= $1 AND t."createdAt" < $2
         AND t.status = 'COMPLETED'
         ${costBranchCondition}
+        ${costCompanyCondition}
     `,
       ...costParams,
     ),
@@ -422,7 +465,8 @@ export async function getPaymentMethodReport(
   dateTo?: string,
   branchId?: string,
 ) {
-  const cacheKey = reportCacheKey("payment-method", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`payment-method-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<PaymentMethodReportItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -432,6 +476,7 @@ export async function getPaymentMethodReport(
       status: "COMPLETED",
       ...(branchId ? { branchId } : {}),
       ...buildTransactionDateWhere(dateFrom, dateTo),
+      branch: { companyId },
     },
     _sum: { grandTotal: true },
     _count: true,
@@ -452,7 +497,8 @@ export async function getHourlySalesReport(
   dateTo?: string,
   branchId?: string,
 ) {
-  const cacheKey = reportCacheKey("hourly-sales", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`hourly-sales-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<HourlySalesReportItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -468,6 +514,7 @@ export async function getHourlySalesReport(
   const branchCond = branchId
     ? `AND "branchId" = $${params.push(branchId)}`
     : "";
+  const companyCond = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`;
 
   const rows = await prisma.$queryRawUnsafe<
     { h: number; total: bigint; count: bigint }[]
@@ -480,6 +527,7 @@ export async function getHourlySalesReport(
       WHERE status = 'COMPLETED'
         AND "createdAt" >= $1 AND "createdAt" <= $2
         ${branchCond}
+        ${companyCond}
       GROUP BY EXTRACT(HOUR FROM "createdAt")
       ORDER BY h
       `,
@@ -506,23 +554,18 @@ export async function getCategorySalesReport(
   dateTo?: string,
   branchId?: string,
 ) {
-  const cacheKey = reportCacheKey("category-sales", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`category-sales-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<CategorySalesReportItem[]>(cacheKey);
   if (cached) return cached;
 
-  const params: unknown[] = [];
-  const conditions: string[] = ["t.status = 'COMPLETED'"];
-
-  if (dateFrom)
-    conditions.push(`t."createdAt" >= $${params.push(new Date(dateFrom))}`);
-  if (dateTo) {
-    const to = new Date(dateTo);
-    to.setDate(to.getDate() + 1);
-    conditions.push(`t."createdAt" < $${params.push(to)}`);
-  }
-  if (branchId) conditions.push(`t."branchId" = $${params.push(branchId)}`);
-
-  const where = conditions.join(" AND ");
+  const { where, params } = buildSalesViewWhere(
+    dateFrom,
+    dateTo,
+    branchId,
+    "v",
+    companyId,
+  );
 
   // Agregasi utama per kategori
   const rows = await prisma.$queryRawUnsafe<
@@ -537,18 +580,15 @@ export async function getCategorySalesReport(
   >(
     `
       SELECT
-        COALESCE(c.id, 'no-cat') AS "categoryId",
-        COALESCE(c.name, 'Tanpa Kategori') AS "categoryName",
-        SUM(ti.quantity)::int AS "totalQuantity",
-        COALESCE(SUM(ti.subtotal), 0)::float AS "totalRevenue",
-        COALESCE(SUM(ti.quantity * p."purchasePrice"), 0)::float AS "totalCost",
-        COUNT(DISTINCT t.id)::int AS "transactionCount"
-      FROM transaction_items ti
-      JOIN transactions t ON t.id = ti."transactionId"
-      JOIN products p ON p.id = ti."productId"
-      LEFT JOIN categories c ON c.id = p."categoryId"
+        COALESCE(v.category_id, 'no-cat') AS "categoryId",
+        COALESCE(v.category_name, 'Tanpa Kategori') AS "categoryName",
+        SUM(v.quantity)::int AS "totalQuantity",
+        COALESCE(SUM(v.subtotal), 0)::float AS "totalRevenue",
+        COALESCE(SUM(v.quantity * v.purchase_price), 0)::float AS "totalCost",
+        COUNT(DISTINCT v.transaction_id)::int AS "transactionCount"
+      FROM public.vw_sales_item_facts v
       WHERE ${where}
-      GROUP BY c.id, c.name
+      GROUP BY v.category_id, v.category_name
       ORDER BY "totalRevenue" DESC
       `,
     ...params,
@@ -567,20 +607,17 @@ export async function getCategorySalesReport(
     `
       SELECT * FROM (
         SELECT
-          COALESCE(c.id, 'no-cat') AS "categoryId",
-          p.name AS "productName",
-          SUM(ti.quantity)::int AS quantity,
-          COALESCE(SUM(ti.subtotal), 0)::float AS revenue,
+          COALESCE(v.category_id, 'no-cat') AS "categoryId",
+          v.product_name AS "productName",
+          SUM(v.quantity)::int AS quantity,
+          COALESCE(SUM(v.subtotal), 0)::float AS revenue,
           ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(c.id, 'no-cat')
-            ORDER BY SUM(ti.subtotal) DESC
+            PARTITION BY COALESCE(v.category_id, 'no-cat')
+            ORDER BY SUM(v.subtotal) DESC
           ) AS rn
-        FROM transaction_items ti
-        JOIN transactions t ON t.id = ti."transactionId"
-        JOIN products p ON p.id = ti."productId"
-        LEFT JOIN categories c ON c.id = p."categoryId"
+        FROM public.vw_sales_item_facts v
         WHERE ${where}
-        GROUP BY c.id, p.id, p.name
+        GROUP BY v.category_id, v.product_id, v.product_name
       ) ranked
       WHERE rn <= 5
       `,
@@ -615,23 +652,18 @@ export async function getSupplierSalesReport(
   dateTo?: string,
   branchId?: string,
 ): Promise<SupplierSalesItem[]> {
-  const cacheKey = reportCacheKey("supplier-sales", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`supplier-sales-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<SupplierSalesItem[]>(cacheKey);
   if (cached) return cached;
 
-  const params: unknown[] = [];
-  const conditions: string[] = ["t.status = 'COMPLETED'"];
-
-  if (dateFrom)
-    conditions.push(`t."createdAt" >= $${params.push(new Date(dateFrom))}`);
-  if (dateTo) {
-    const to = new Date(dateTo);
-    to.setDate(to.getDate() + 1);
-    conditions.push(`t."createdAt" < $${params.push(to)}`);
-  }
-  if (branchId) conditions.push(`t."branchId" = $${params.push(branchId)}`);
-
-  const where = conditions.join(" AND ");
+  const { where, params } = buildSalesViewWhere(
+    dateFrom,
+    dateTo,
+    branchId,
+    "v",
+    companyId,
+  );
 
   const [rows, topRows] = await Promise.all([
     prisma.$queryRawUnsafe<
@@ -646,18 +678,15 @@ export async function getSupplierSalesReport(
     >(
       `
         SELECT
-          s.id AS "supplierId",
-          COALESCE(s.name, 'Tanpa Supplier') AS "supplierName",
-          SUM(ti.quantity)::int AS "totalQuantity",
-          COALESCE(SUM(ti.subtotal), 0)::float AS "totalRevenue",
-          COALESCE(SUM(ti.quantity * p."purchasePrice"), 0)::float AS "totalCost",
-          COUNT(DISTINCT p.id)::int AS "productCount"
-        FROM transaction_items ti
-        JOIN transactions t ON t.id = ti."transactionId"
-        JOIN products p ON p.id = ti."productId"
-        LEFT JOIN suppliers s ON s.id = p."supplierId"
+          v.supplier_id AS "supplierId",
+          COALESCE(v.supplier_name, 'Tanpa Supplier') AS "supplierName",
+          SUM(v.quantity)::int AS "totalQuantity",
+          COALESCE(SUM(v.subtotal), 0)::float AS "totalRevenue",
+          COALESCE(SUM(v.quantity * v.purchase_price), 0)::float AS "totalCost",
+          COUNT(DISTINCT v.product_id)::int AS "productCount"
+        FROM public.vw_sales_item_facts v
         WHERE ${where}
-        GROUP BY s.id, s.name
+        GROUP BY v.supplier_id, v.supplier_name
         ORDER BY "totalRevenue" DESC
         `,
       ...params,
@@ -673,20 +702,17 @@ export async function getSupplierSalesReport(
       `
         SELECT * FROM (
           SELECT
-            s.id AS "supplierId",
-            p.name AS "productName",
-            SUM(ti.quantity)::int AS quantity,
-            COALESCE(SUM(ti.subtotal), 0)::float AS revenue,
+            v.supplier_id AS "supplierId",
+            v.product_name AS "productName",
+            SUM(v.quantity)::int AS quantity,
+            COALESCE(SUM(v.subtotal), 0)::float AS revenue,
             ROW_NUMBER() OVER (
-              PARTITION BY s.id
-              ORDER BY SUM(ti.subtotal) DESC
+              PARTITION BY v.supplier_id
+              ORDER BY SUM(v.subtotal) DESC
             ) AS rn
-          FROM transaction_items ti
-          JOIN transactions t ON t.id = ti."transactionId"
-          JOIN products p ON p.id = ti."productId"
-          LEFT JOIN suppliers s ON s.id = p."supplierId"
+          FROM public.vw_sales_item_facts v
           WHERE ${where}
-          GROUP BY s.id, p.id, p.name
+          GROUP BY v.supplier_id, v.product_id, v.product_name
         ) ranked WHERE rn <= 5
         `,
       ...params,
@@ -722,23 +748,18 @@ export async function getReportOverview(
   dateTo?: string,
   branchId?: string,
 ): Promise<ReportOverview> {
-  const cacheKey = reportCacheKey("overview", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`overview-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<ReportOverview>(cacheKey);
   if (cached) return cached;
 
-  const params: unknown[] = [];
-  const conditions: string[] = ["t.status = 'COMPLETED'"];
-
-  if (dateFrom)
-    conditions.push(`t."createdAt" >= $${params.push(new Date(dateFrom))}`);
-  if (dateTo) {
-    const to = new Date(dateTo);
-    to.setDate(to.getDate() + 1);
-    conditions.push(`t."createdAt" < $${params.push(to)}`);
-  }
-  if (branchId) conditions.push(`t."branchId" = $${params.push(branchId)}`);
-
-  const where = conditions.join(" AND ");
+  const { where, params } = buildSalesViewWhere(
+    dateFrom,
+    dateTo,
+    branchId,
+    "v",
+    companyId,
+  );
 
   const [totals, topCashiers, categoryRows, itemCount] = await Promise.all([
     // Agregasi utama transaksi
@@ -752,11 +773,11 @@ export async function getReportOverview(
     >(
       `
         SELECT
-          COALESCE(SUM(t."grandTotal"), 0)::float AS revenue,
-          COALESCE(SUM(t."discountAmount"), 0)::float AS discount,
-          COALESCE(SUM(t."taxAmount"), 0)::float AS tax,
-          COUNT(t.id)::int AS "txCount"
-        FROM transactions t
+          COALESCE(SUM(v.grand_total), 0)::float AS revenue,
+          COALESCE(SUM(v.discount_amount), 0)::float AS discount,
+          COALESCE(SUM(v.tax_amount), 0)::float AS tax,
+          COUNT(v.transaction_id)::int AS "txCount"
+        FROM public.vw_sales_transactions_fact v
         WHERE ${where}
         `,
       ...params,
@@ -772,13 +793,13 @@ export async function getReportOverview(
     >(
       `
         SELECT
-          u.id AS "userId", u.name,
-          COUNT(t.id)::int AS transactions,
-          COALESCE(SUM(t."grandTotal"), 0)::float AS revenue
-        FROM transactions t
-        JOIN users u ON u.id = t."userId"
+          v.user_id AS "userId",
+          COALESCE(v.cashier_name, 'Unknown') AS name,
+          COUNT(v.transaction_id)::int AS transactions,
+          COALESCE(SUM(v.grand_total), 0)::float AS revenue
+        FROM public.vw_sales_transactions_fact v
         WHERE ${where}
-        GROUP BY u.id, u.name
+        GROUP BY v.user_id, v.cashier_name
         ORDER BY revenue DESC
         LIMIT 5
         `,
@@ -794,15 +815,12 @@ export async function getReportOverview(
     >(
       `
         SELECT
-          COALESCE(c.name, 'Tanpa Kategori') AS category,
-          COALESCE(SUM(ti.subtotal), 0)::float AS total,
-          SUM(ti.quantity)::int AS quantity
-        FROM transaction_items ti
-        JOIN transactions t ON t.id = ti."transactionId"
-        JOIN products p ON p.id = ti."productId"
-        LEFT JOIN categories c ON c.id = p."categoryId"
+          COALESCE(v.category_name, 'Tanpa Kategori') AS category,
+          COALESCE(SUM(v.subtotal), 0)::float AS total,
+          SUM(v.quantity)::int AS quantity
+        FROM public.vw_sales_item_facts v
         WHERE ${where}
-        GROUP BY c.name
+        GROUP BY v.category_name
         ORDER BY total DESC
         LIMIT 8
         `,
@@ -812,8 +830,7 @@ export async function getReportOverview(
     prisma.$queryRawUnsafe<{ total: number }[]>(
       `
         SELECT COALESCE(SUM(ti.quantity), 0)::int AS total
-        FROM transaction_items ti
-        JOIN transactions t ON t.id = ti."transactionId"
+        FROM public.vw_sales_item_facts ti
         WHERE ${where}
         `,
       ...params,
@@ -845,23 +862,18 @@ export async function getCashierSalesReport(
   dateTo?: string,
   branchId?: string,
 ): Promise<CashierSalesItem[]> {
-  const cacheKey = reportCacheKey("cashier-sales", dateFrom, dateTo, branchId);
+  const companyId = await getCurrentCompanyId();
+  const cacheKey = reportCacheKey(`cashier-sales-${companyId}`, dateFrom, dateTo, branchId);
   const cached = await redisGetJson<CashierSalesItem[]>(cacheKey);
   if (cached) return cached;
 
-  const params: unknown[] = [];
-  const conditions: string[] = ["t.status = 'COMPLETED'"];
-
-  if (dateFrom)
-    conditions.push(`t."createdAt" >= $${params.push(new Date(dateFrom))}`);
-  if (dateTo) {
-    const to = new Date(dateTo);
-    to.setDate(to.getDate() + 1);
-    conditions.push(`t."createdAt" < $${params.push(to)}`);
-  }
-  if (branchId) conditions.push(`t."branchId" = $${params.push(branchId)}`);
-
-  const where = conditions.join(" AND ");
+  const { where, params } = buildSalesViewWhere(
+    dateFrom,
+    dateTo,
+    branchId,
+    "v",
+    companyId,
+  );
 
   const [txRows, itemRows] = await Promise.all([
     // Agregasi per kasir dari tabel transactions
@@ -878,14 +890,16 @@ export async function getCashierSalesReport(
     >(
       `
         SELECT
-          u.id AS "userId", u.name, u.email, u.role,
-          COALESCE(SUM(t."grandTotal"), 0)::float AS "totalRevenue",
-          COALESCE(SUM(t."discountAmount"), 0)::float AS "totalDiscount",
-          COUNT(t.id)::int AS "transactionCount"
-        FROM transactions t
-        JOIN users u ON u.id = t."userId"
+          v.user_id AS "userId",
+          COALESCE(v.cashier_name, 'Unknown') AS name,
+          COALESCE(v.cashier_email, '-') AS email,
+          COALESCE(v.cashier_role, '-') AS role,
+          COALESCE(SUM(v.grand_total), 0)::float AS "totalRevenue",
+          COALESCE(SUM(v.discount_amount), 0)::float AS "totalDiscount",
+          COUNT(v.transaction_id)::int AS "transactionCount"
+        FROM public.vw_sales_transactions_fact v
         WHERE ${where}
-        GROUP BY u.id, u.name, u.email, u.role
+        GROUP BY v.user_id, v.cashier_name, v.cashier_email, v.cashier_role
         `,
       ...params,
     ),
@@ -899,14 +913,12 @@ export async function getCashierSalesReport(
     >(
       `
         SELECT
-          t."userId",
-          COALESCE(SUM(ti.quantity * p."purchasePrice"), 0)::float AS "totalCost",
-          SUM(ti.quantity)::int AS "itemsSold"
-        FROM transaction_items ti
-        JOIN transactions t ON t.id = ti."transactionId"
-        JOIN products p ON p.id = ti."productId"
+          v.user_id AS "userId",
+          COALESCE(SUM(v.quantity * v.purchase_price), 0)::float AS "totalCost",
+          SUM(v.quantity)::int AS "itemsSold"
+        FROM public.vw_sales_item_facts v
         WHERE ${where}
-        GROUP BY t."userId"
+        GROUP BY v.user_id
         `,
       ...params,
     ),

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -20,8 +21,9 @@ export async function getOrderQueue(params?: {
   status?: string;
 }) {
   await assertMenuActionAccess("kitchen-display", "view");
+  const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (params?.branchId) where.branchId = params.branchId;
   if (params?.status) where.status = params.status;
 
@@ -262,10 +264,12 @@ export async function cancelOrder(id: string) {
 
 export async function getQueueStats(branchId?: string) {
   await assertMenuActionAccess("kitchen-display", "view");
+  const companyId = await getCurrentCompanyId();
 
   const today = startOfToday();
   const where: Record<string, unknown> = {
     createdAt: { gte: today },
+    branch: { companyId },
   };
   if (branchId) where.branchId = branchId;
 

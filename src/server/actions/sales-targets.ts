@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { BADGE_DEFINITIONS } from "./sales-targets-types";
+import { getCurrentCompanyId } from "@/lib/company";
 import type { LeaderboardEntry } from "./sales-targets-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -86,8 +87,9 @@ function getCurrentPeriod(type: "DAILY" | "WEEKLY" | "MONTHLY"): string {
 
 export async function getSalesTargets(params?: GetSalesTargetsParams) {
   await assertMenuActionAccess("sales-targets", "view");
+  const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { user: { companyId } };
   if (params?.type) where.type = params.type;
   if (params?.period) where.period = params.period;
   if (params?.userId) where.userId = params.userId;
@@ -178,9 +180,11 @@ export async function getLeaderboard(params: {
   const { start, end } = getPeriodDateRange(period, type);
 
   // Get all cashier/user transactions in this period
+  const companyId = await getCurrentCompanyId();
   const txWhere: Record<string, unknown> = {
     status: "COMPLETED",
     createdAt: { gte: start, lte: end },
+    branch: { companyId },
   };
   if (params.branchId) txWhere.branchId = params.branchId;
 
@@ -495,8 +499,9 @@ export async function evaluateAndAwardBadges(period?: string) {
 // ── Utility: get users for select dropdown ────────────────────────────────────
 
 export async function getSalesTargetUsers() {
+  const companyId = await getCurrentCompanyId();
   const users = await prisma.user.findMany({
-    where: { isActive: true, deletedAt: null },
+    where: { isActive: true, deletedAt: null, companyId },
     select: { id: true, name: true, role: true, branchId: true },
     orderBy: { name: "asc" },
   });
@@ -504,8 +509,9 @@ export async function getSalesTargetUsers() {
 }
 
 export async function getSalesTargetBranches() {
+  const companyId = await getCurrentCompanyId();
   const branches = await prisma.branch.findMany({
-    where: { isActive: true },
+    where: { isActive: true, companyId },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

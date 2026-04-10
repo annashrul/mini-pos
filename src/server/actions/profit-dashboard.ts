@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 type Period = "today" | "week" | "month" | "year";
 
@@ -57,9 +58,14 @@ function branchClause(
 }
 
 export async function getProfitOverview(period: Period, branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const { periodStart, prevPeriodStart, prevPeriodEnd, periodEnd } = getPeriodDates(period);
   const bc = branchClause(branchId, "t", 3);
+  const bcNextIdx = 3 + bc.params.length;
+  const companyClause = `AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${bcNextIdx})`;
   const bcExpense = branchClause(branchId, undefined, 3);
+  const bcExpNextIdx = 3 + bcExpense.params.length;
+  const companyExpenseClause = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${bcExpNextIdx})`;
 
   // Current period: revenue, COGS
   const [currentData] = await prisma.$queryRawUnsafe<
@@ -76,7 +82,8 @@ export async function getProfitOverview(period: Period, branchId?: string) {
       AND t."createdAt" >= $1
       AND t."createdAt" < $2
       ${bc.condition}
-  `, periodStart, periodEnd, ...bc.params);
+      ${companyClause}
+  `, periodStart, periodEnd, ...bc.params, companyId);
 
   // Previous period: revenue, COGS
   const [prevData] = await prisma.$queryRawUnsafe<
@@ -93,7 +100,8 @@ export async function getProfitOverview(period: Period, branchId?: string) {
       AND t."createdAt" >= $1
       AND t."createdAt" < $2
       ${bc.condition}
-  `, prevPeriodStart, prevPeriodEnd, ...bc.params);
+      ${companyClause}
+  `, prevPeriodStart, prevPeriodEnd, ...bc.params, companyId);
 
   // Current period expenses
   const [currentExpenses] = await prisma.$queryRawUnsafe<{ total: number }[]>(`
@@ -101,7 +109,8 @@ export async function getProfitOverview(period: Period, branchId?: string) {
     FROM expenses
     WHERE "date" >= $1 AND "date" < $2
     ${bcExpense.condition}
-  `, periodStart, periodEnd, ...bcExpense.params);
+    ${companyExpenseClause}
+  `, periodStart, periodEnd, ...bcExpense.params, companyId);
 
   // Previous period expenses
   const [prevExpenses] = await prisma.$queryRawUnsafe<{ total: number }[]>(`
@@ -109,7 +118,8 @@ export async function getProfitOverview(period: Period, branchId?: string) {
     FROM expenses
     WHERE "date" >= $1 AND "date" < $2
     ${bcExpense.condition}
-  `, prevPeriodStart, prevPeriodEnd, ...bcExpense.params);
+    ${companyExpenseClause}
+  `, prevPeriodStart, prevPeriodEnd, ...bcExpense.params, companyId);
 
   const revenue = currentData?.revenue ?? 0;
   const cogs = currentData?.cogs ?? 0;
@@ -149,6 +159,7 @@ export async function getProfitOverview(period: Period, branchId?: string) {
 }
 
 export async function getProfitByCategory(period: Period, branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const { periodStart, periodEnd } = getPeriodDates(period);
   const bc = branchClause(branchId, "t", 3);
 
@@ -168,9 +179,10 @@ export async function getProfitByCategory(period: Period, branchId?: string) {
       AND t."createdAt" >= $1
       AND t."createdAt" < $2
       ${bc.condition}
+      AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${3 + bc.params.length})
     GROUP BY c."name"
     ORDER BY SUM(ti."subtotal") DESC
-  `, periodStart, periodEnd, ...bc.params);
+  `, periodStart, periodEnd, ...bc.params, companyId);
 
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
 
@@ -191,6 +203,7 @@ export async function getProfitByProduct(
   limit: number = 10,
   order: "top" | "bottom" = "top"
 ) {
+  const companyId = await getCurrentCompanyId();
   const { periodStart, periodEnd } = getPeriodDates(period);
   const sortDir = order === "top" ? "DESC" : "ASC";
   const prodParams: unknown[] = [periodStart, periodEnd];
@@ -199,6 +212,8 @@ export async function getProfitByProduct(
     prodParams.push(branchId);
     prodBranchCondition = `AND t."branchId" = $${prodParams.length}`;
   }
+  prodParams.push(companyId);
+  const companyProdCondition = `AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${prodParams.length})`;
   prodParams.push(limit);
   const limitIdx = prodParams.length;
 
@@ -218,6 +233,7 @@ export async function getProfitByProduct(
       AND t."createdAt" >= $1
       AND t."createdAt" < $2
       ${prodBranchCondition}
+      ${companyProdCondition}
     GROUP BY ti."productName", ti."productCode"
     ORDER BY (SUM(ti."subtotal") - SUM(ti."quantity" * p."purchasePrice")) ${sortDir}
     LIMIT $${limitIdx}
@@ -235,6 +251,7 @@ export async function getProfitByProduct(
 }
 
 export async function getProfitByBranch(period: Period) {
+  const companyId = await getCurrentCompanyId();
   const { periodStart, periodEnd } = getPeriodDates(period);
 
   const rows = await prisma.$queryRawUnsafe<
@@ -253,9 +270,10 @@ export async function getProfitByBranch(period: Period) {
     LEFT JOIN transaction_items ti ON ti."transactionId" = t."id"
     LEFT JOIN products p ON p."id" = ti."productId"
     WHERE b."isActive" = true
+      AND b."companyId" = $3
     GROUP BY b."id", b."name"
     ORDER BY SUM(ti."subtotal") DESC NULLS LAST
-  `, periodStart, periodEnd);
+  `, periodStart, periodEnd, companyId);
 
   // Get expenses per branch
   const expenseRows = await prisma.$queryRawUnsafe<
@@ -264,8 +282,9 @@ export async function getProfitByBranch(period: Period) {
     SELECT "branchId" AS branch_id, COALESCE(SUM("amount"), 0)::float AS total
     FROM expenses
     WHERE "date" >= $1 AND "date" < $2 AND "branchId" IS NOT NULL
+      AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $3)
     GROUP BY "branchId"
-  `, periodStart, periodEnd);
+  `, periodStart, periodEnd, companyId);
 
   const expenseMap = new Map(expenseRows.map((e) => [e.branch_id, e.total]));
   const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
@@ -290,6 +309,7 @@ export async function getProfitByBranch(period: Period) {
 }
 
 export async function getProfitTrend(days: number = 30, branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - (days - 1));
   startDate.setHours(0, 0, 0, 0);
@@ -309,9 +329,10 @@ export async function getProfitTrend(days: number = 30, branchId?: string) {
     WHERE t."status" = 'COMPLETED'
       AND t."createdAt" >= $1
       ${bc.condition}
+      AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${2 + bc.params.length})
     GROUP BY DATE_TRUNC('day', t."createdAt")
     ORDER BY d ASC
-  `, startDate, ...bc.params);
+  `, startDate, ...bc.params, companyId);
 
   const dataMap = new Map<string, { revenue: number; cost: number }>();
   for (const row of rows) {
@@ -338,6 +359,7 @@ export async function getProfitTrend(days: number = 30, branchId?: string) {
 }
 
 export async function getMarginDistribution(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const bc = branchClause(branchId, "t", 1);
 
   const rows = await prisma.$queryRawUnsafe<
@@ -352,9 +374,10 @@ export async function getMarginDistribution(branchId?: string) {
     JOIN products p ON p."id" = ti."productId"
     WHERE t."status" = 'COMPLETED'
       ${bc.condition}
+      AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${1 + bc.params.length})
     GROUP BY ti."productName"
     HAVING SUM(ti."subtotal") > 0
-  `, ...bc.params);
+  `, ...bc.params, companyId);
 
   const brackets = [
     { label: "0-10%", min: 0, max: 10, count: 0, revenue: 0 },

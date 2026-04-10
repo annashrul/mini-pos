@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 interface GetStockMovementsParams {
   page?: number;
@@ -36,12 +37,14 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
   const perPage = params.perPage || params.limit || 10;
   const skip = (page - 1) * perPage;
 
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { product: { companyId } };
   if (productId) where.productId = productId;
   if (branchId) where.branchId = branchId;
   if (type && type !== "all") where.type = type;
   if (search) {
     where.product = {
+      companyId,
       OR: [
         { name: { contains: search, mode: "insensitive" } },
         { code: { contains: search, mode: "insensitive" } },
@@ -86,6 +89,7 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
 
 export async function createStockMovement(formData: FormData) {
   await assertMenuActionAccess("stock", "create");
+  const companyId = await getCurrentCompanyId();
   const data = {
     productId: formData.get("productId") as string,
     type: formData.get("type") as string,
@@ -105,7 +109,7 @@ export async function createStockMovement(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: parsed.data.productId } });
+      const product = await tx.product.findFirst({ where: { id: parsed.data.productId, companyId } });
       if (!product) throw new Error("Produk tidak ditemukan");
 
       const stockChange = parsed.data.type === "IN" ? parsed.data.quantity : parsed.data.type === "OUT" ? -parsed.data.quantity : 0;
@@ -169,9 +173,10 @@ export async function createStockMovement(formData: FormData) {
 }
 
 export async function getProductsForSelect() {
+  const companyId = await getCurrentCompanyId();
   return prisma.product.findMany({
     select: { id: true, name: true, code: true, stock: true },
-    where: { isActive: true },
+    where: { isActive: true, companyId },
     orderBy: { name: "asc" },
   });
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getBundles(params?: {
   search?: string;
@@ -13,10 +14,11 @@ export async function getBundles(params?: {
   page?: number;
   perPage?: number;
 }) {
+  const companyId = await getCurrentCompanyId();
   const { search, categoryId, branchId, isActive, page = 1, perPage = 20 } = params || {};
   const skip = (page - 1) * perPage;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -24,7 +26,7 @@ export async function getBundles(params?: {
     ];
   }
   if (categoryId) where.categoryId = categoryId;
-  if (branchId) where.OR = [{ branchId: null }, { branchId }];
+  if (branchId) where.branchId = branchId;
   if (isActive !== undefined) where.isActive = isActive;
 
   const [bundles, total] = await Promise.all([
@@ -50,8 +52,9 @@ export async function getBundles(params?: {
 }
 
 export async function getBundleById(id: string) {
-  return prisma.productBundle.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.productBundle.findFirst({
+    where: { id, branch: { companyId } },
     include: {
       items: {
         include: {
@@ -76,11 +79,17 @@ export async function createBundle(data: {
   items: { productId: string; quantity: number }[];
 }) {
   await assertMenuActionAccess("products", "create");
+  const companyId = await getCurrentCompanyId();
 
   // Calculate total base price
+  if (data.branchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId } });
+    if (!branch) return { error: "Cabang tidak ditemukan" };
+  }
+
   const productIds = data.items.map((i) => i.productId);
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
+    where: { id: { in: productIds }, companyId },
     select: { id: true, sellingPrice: true },
   });
   const priceMap = new Map(products.map((p) => [p.id, p.sellingPrice]));
@@ -128,12 +137,17 @@ export async function updateBundle(id: string, data: {
   items?: { productId: string; quantity: number }[];
 }) {
   await assertMenuActionAccess("products", "update");
+  const companyId = await getCurrentCompanyId();
+
+  // Verify bundle belongs to company
+  const existing = await prisma.productBundle.findFirst({ where: { id, branch: { companyId } }, select: { id: true } });
+  if (!existing) return { error: "Bundle tidak ditemukan" };
 
   let totalBasePrice: number | undefined;
   if (data.items) {
     const productIds = data.items.map((i) => i.productId);
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
+      where: { id: { in: productIds }, companyId },
       select: { id: true, sellingPrice: true },
     });
     const priceMap = new Map(products.map((p) => [p.id, p.sellingPrice]));
@@ -180,6 +194,9 @@ export async function updateBundle(id: string, data: {
 
 export async function deleteBundle(id: string) {
   await assertMenuActionAccess("products", "delete");
+  const companyId = await getCurrentCompanyId();
+  const existing = await prisma.productBundle.findFirst({ where: { id, branch: { companyId } }, select: { id: true } });
+  if (!existing) return { error: "Bundle tidak ditemukan" };
   await prisma.productBundle.delete({ where: { id } });
   createAuditLog({ action: "DELETE", entity: "ProductBundle", entityId: id }).catch(() => {});
   revalidatePath("/products");
@@ -188,10 +205,12 @@ export async function deleteBundle(id: string) {
 
 // Get active bundles for POS
 export async function getActiveBundles(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   return prisma.productBundle.findMany({
     where: {
       isActive: true,
-      ...(branchId ? { OR: [{ branchId: null }, { branchId }] } : {}),
+      branch: { companyId },
+      ...(branchId ? { branchId } : {}),
     },
     include: {
       items: {

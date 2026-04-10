@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +16,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "true";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +52,11 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {justRegistered && (
+              <div className="p-3 text-sm text-green-600 bg-green-50 rounded-xl border border-green-200">
+                Pendaftaran berhasil! Silakan masuk dengan akun Anda.
+              </div>
+            )}
             {error && (
               <div className="p-3 text-sm text-red-600 bg-red-50 rounded-xl border border-red-200">
                 {error}
@@ -88,8 +96,11 @@ export default function LoginPage() {
                 "Masuk"
               )}
             </Button>
-            <div className="text-center text-xs text-muted-foreground mt-4">
-              <p>Demo: admin@pos.com / password123</p>
+            <div className="text-center text-sm text-muted-foreground mt-4">
+              Belum punya akun?{" "}
+              <Link href="/register" className="text-primary font-medium hover:underline">
+                Daftar di sini
+              </Link>
             </div>
           </form>
         </CardContent>

@@ -6,10 +6,12 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getUsers(params?: { search?: string; role?: string; branchId?: string; page?: number; perPage?: number }) {
+  const companyId = await getCurrentCompanyId();
   const { search, role, branchId, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -49,6 +51,7 @@ export async function getUsers(params?: { search?: string; role?: string; branch
 
 export async function createUser(formData: FormData) {
   await assertMenuActionAccess("users", "create");
+  const companyId = await getCurrentCompanyId();
   const branchId = (formData.get("branchId") as string) || null;
   const data = {
     name: formData.get("name") as string,
@@ -76,6 +79,7 @@ export async function createUser(formData: FormData) {
         password: hashedPassword,
         role: parsed.data.role,
         isActive: parsed.data.isActive,
+        companyId,
         branchId,
       },
     });

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 function parseIdList(data: FormData, key: string) {
   const raw = data.get(key);
@@ -25,8 +26,9 @@ export async function getPromotions(params?: {
   sortBy?: string | undefined;
   sortDir?: "asc" | "desc" | undefined;
 }) {
+  const companyId = await getCurrentCompanyId();
   const { search, type, page = 1, perPage = 10, sortBy, sortDir = "desc" } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
 
   if (search) {
     where.OR = [
@@ -63,6 +65,7 @@ export async function getPromotions(params?: {
 }
 
 export async function createPromotion(data: FormData) {
+  const companyId = await getCurrentCompanyId();
   const type = data.get("type") as string;
   const scope = data.get("scope") as string || "all";
   const productIds = parseIdList(data, "productIds");
@@ -70,6 +73,7 @@ export async function createPromotion(data: FormData) {
 
   try {
     const baseData = {
+      companyId,
       name: data.get("name") as string,
       type: type as never,
       value: Number(data.get("value")) || 0,
@@ -107,6 +111,7 @@ export async function createPromotion(data: FormData) {
 }
 
 export async function updatePromotion(id: string, data: FormData) {
+  const companyId = await getCurrentCompanyId();
   const type = data.get("type") as string;
   const scope = data.get("scope") as string || "all";
   const productIds = parseIdList(data, "productIds");
@@ -119,6 +124,7 @@ export async function updatePromotion(id: string, data: FormData) {
     });
 
     const baseData = {
+      companyId,
       name: data.get("name") as string,
       type: type as never,
       value: Number(data.get("value")) || 0,
@@ -171,6 +177,7 @@ export async function updatePromotion(id: string, data: FormData) {
 }
 
 export async function deletePromotion(id: string) {
+  await getCurrentCompanyId();
   try {
     const oldPromo = await prisma.promotion.findUnique({
       where: { id },

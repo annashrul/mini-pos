@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 const REVALIDATE_PATH = "/employee-schedules";
 
@@ -22,8 +23,10 @@ export async function getWeekSchedule(
   start.setHours(0, 0, 0, 0);
   const end = addDays(start, 7);
 
+  const companyId = await getCurrentCompanyId();
   const where: Record<string, unknown> = {
     date: { gte: start, lt: end },
+    user: { companyId },
   };
   if (branchId) where.branchId = branchId;
 
@@ -37,7 +40,7 @@ export async function getWeekSchedule(
   });
 
   // Get all active users for schedule grid
-  const userWhere: Record<string, unknown> = { isActive: true };
+  const userWhere: Record<string, unknown> = { isActive: true, companyId };
   if (branchId) userWhere.branchId = branchId;
 
   const users = await prisma.user.findMany({
@@ -73,11 +76,13 @@ export async function getMonthSchedule(
   month: number,
   branchId?: string,
 ) {
+  const companyId = await getCurrentCompanyId();
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 1);
 
   const where: Record<string, unknown> = {
     date: { gte: start, lt: end },
+    user: { companyId },
   };
   if (branchId) where.branchId = branchId;
 
@@ -360,8 +365,10 @@ export async function getScheduleStats(
   start.setHours(0, 0, 0, 0);
   const end = addDays(start, 7);
 
+  const companyId = await getCurrentCompanyId();
   const where: Record<string, unknown> = {
     date: { gte: start, lt: end },
+    user: { companyId },
   };
   if (branchId) where.branchId = branchId;
 
@@ -370,7 +377,7 @@ export async function getScheduleStats(
     select: { status: true, userId: true },
   });
 
-  const userWhere: Record<string, unknown> = { isActive: true };
+  const userWhere: Record<string, unknown> = { isActive: true, companyId };
   if (branchId) userWhere.branchId = branchId;
   const totalUsers = await prisma.user.count({ where: userWhere });
 
@@ -388,7 +395,8 @@ export async function getScheduleStats(
 }
 
 export async function getUsers(branchId?: string) {
-  const where: Record<string, unknown> = { isActive: true };
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { isActive: true, companyId };
   if (branchId) where.branchId = branchId;
 
   return prisma.user.findMany({

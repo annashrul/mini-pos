@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 interface GetReturnsParams {
   page?: number;
@@ -37,7 +38,8 @@ export async function getReturns(params: GetReturnsParams = {}) {
   const perPage = params.perPage || params.limit || 10;
   const skip = (page - 1) * perPage;
 
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (branchId) where.branchId = branchId;
   if (status && status !== "ALL") where.status = status;
   if (type && type !== "ALL") where.type = type;
@@ -558,8 +560,9 @@ export async function rejectReturn(id: string, reason: string) {
 
 export async function getReturnStats(branchId?: string) {
   await assertMenuActionAccess("returns", "view");
+  const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (branchId) where.branchId = branchId;
 
   const [totalReturns, totalExchanges, pendingCount, refundAgg] = await Promise.all([
@@ -587,9 +590,11 @@ export async function searchTransactionForReturn(invoiceNumber: string) {
     return { error: "Masukkan nomor invoice" };
   }
 
+  const companyId = await getCurrentCompanyId();
   const transaction = await prisma.transaction.findFirst({
     where: {
       invoiceNumber: { equals: invoiceNumber.trim(), mode: "insensitive" },
+      branch: { companyId },
     },
     include: {
       customer: { select: { id: true, name: true, phone: true } },
@@ -650,9 +655,11 @@ export async function searchProductsForExchange(query: string, branchId?: string
     return { products: [] };
   }
 
+  const companyId = await getCurrentCompanyId();
   const where: Record<string, unknown> = {
     isActive: true,
     deletedAt: null,
+    companyId,
     OR: [
       { name: { contains: query, mode: "insensitive" } },
       { code: { contains: query, mode: "insensitive" } },

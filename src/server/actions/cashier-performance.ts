@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // Helper: format tenure from a date to now
 function formatTenure(joinDate: Date): string {
@@ -32,6 +33,7 @@ export async function getCashierPerformanceList(params?: {
 }) {
     const period = params?.period || "month";
     const branchId = params?.branchId;
+    const companyId = await getCurrentCompanyId();
 
     // Calculate current and previous date ranges based on period
     const now = new Date();
@@ -58,7 +60,14 @@ export async function getCashierPerformanceList(params?: {
     const baseWhere: Record<string, unknown> = { status: "COMPLETED" };
     if (branchId) baseWhere.branchId = branchId;
 
-    const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+    const currentCostParams: unknown[] = [currentStart, currentEnd];
+    const prevCostParams: unknown[] = [prevStart, prevEnd];
+    let costBranchCondition = "";
+    if (branchId) {
+        currentCostParams.push(branchId);
+        costBranchCondition = `AND t."branchId" = $${currentCostParams.length}`;
+        prevCostParams.push(branchId);
+    }
     const hourlyParams: unknown[] = [currentStart, currentEnd];
     const hourlyBranchCondition = branchId ? `AND t."branchId" = $3` : "";
     if (branchId) hourlyParams.push(branchId);
@@ -93,9 +102,9 @@ export async function getCashierPerformanceList(params?: {
             JOIN products p ON p.id = ti."productId"
             WHERE t.status = 'COMPLETED'
               AND t."createdAt" >= $1 AND t."createdAt" <= $2
-              ${branchCondition}
+              ${costBranchCondition}
             GROUP BY t."userId"
-        `, currentStart, currentEnd),
+        `, ...currentCostParams),
         // Previous period: cost + itemsSold
         prisma.$queryRawUnsafe<{ userId: string; cost: bigint; itemsSold: bigint }[]>(`
             SELECT t."userId",
@@ -106,11 +115,11 @@ export async function getCashierPerformanceList(params?: {
             JOIN products p ON p.id = ti."productId"
             WHERE t.status = 'COMPLETED'
               AND t."createdAt" >= $1 AND t."createdAt" <= $2
-              ${branchCondition}
+              ${costBranchCondition}
             GROUP BY t."userId"
-        `, prevStart, prevEnd),
+        `, ...prevCostParams),
         prisma.user.findMany({
-            where: { role: { in: ["CASHIER", "SUPER_ADMIN", "ADMIN", "MANAGER"] }, isActive: true },
+            where: { role: { in: ["CASHIER", "SUPER_ADMIN", "ADMIN", "MANAGER"] }, isActive: true, companyId },
             select: {
                 id: true, name: true, email: true, role: true, branchId: true, createdAt: true,
                 branch: { select: { name: true } },
@@ -334,10 +343,12 @@ export async function getCashierPerformanceList(params?: {
 
 // Get daily trend for a specific cashier
 export async function getCashierDailyTrend(userId: string, days: number = 14, branchId?: string) {
+    const companyId = await getCurrentCompanyId();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
     const where: Record<string, unknown> = {
+        branch: { companyId },
         userId,
         status: "COMPLETED",
         createdAt: { gte: startDate },
@@ -381,7 +392,9 @@ export async function getCashierDailyTrend(userId: string, days: number = 14, br
 
 // Get comprehensive detail stats for a single cashier (for detail dialog)
 export async function getCashierDetailStats(userId: string, branchId?: string) {
-    const branchFilter = branchId ? { branchId } : {};
+    const companyId = await getCurrentCompanyId();
+    const branchFilter: Record<string, unknown> = { branch: { companyId } };
+    if (branchId) branchFilter.branchId = branchId;
 
     // Date for last 6 months
     const sixMonthsAgo = new Date();

@@ -108,12 +108,39 @@ enum CashMovementType {
 // CORE
 // ===========================
 
+model Company {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique // URL-friendly identifier
+  address     String?
+  phone       String?
+  email       String?
+  logo        String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       User[]
+  branches    Branch[]
+  categories  Category[]
+  brands      Brand[]
+  products    Product[]
+  suppliers   Supplier[]
+  customers   Customer[]
+  promotions  Promotion[]
+  accountCategories AccountCategory[]
+
+  @@index([slug])
+  @@map("companies")
+}
+
 model User {
   id             String          @id @default(uuid())
   name           String
   email          String          @unique
   password       String
   role           String          @default("CASHIER")
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
   branchId       String?
   branch         Branch?         @relation(fields: [branchId], references: [id])
   isActive       Boolean         @default(true)
@@ -139,6 +166,7 @@ model User {
 
   @@index([email])
   @@index([role])
+  @@index([companyId])
   @@index([branchId])
   @@map("users")
 }
@@ -213,10 +241,12 @@ model RoleActionPermission {
 
 model Branch {
   id              String          @id @default(uuid())
-  name            String          @unique
-  code            String?         @unique
+  name            String
+  code            String?
   address         String?
   phone           String?
+  companyId       String
+  company         Company         @relation(fields: [companyId], references: [id])
   isActive        Boolean         @default(true)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -246,6 +276,9 @@ model Branch {
   restaurantTables RestaurantTable[]
   productBundles ProductBundle[]
 
+  @@unique([companyId, name])
+  @@unique([companyId, code])
+  @@index([companyId])
   @@map("branches")
 }
 
@@ -289,34 +322,42 @@ model BranchStock {
 
 model Category {
   id          String        @id @default(uuid())
-  name        String        @unique
+  name        String
   description String?
   parentId    String?
   parent      Category?     @relation("SubCategories", fields: [parentId], references: [id])
   children    Category[]    @relation("SubCategories")
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   products    Product[]
   promotions  Promotion[]
   bundles     ProductBundle[]
 
+  @@unique([companyId, name])
   @@index([parentId])
+  @@index([companyId])
   @@map("categories")
 }
 
 model Brand {
   id        String    @id @default(uuid())
-  name      String    @unique
+  name      String
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]
 
+  @@unique([companyId, name])
+  @@index([companyId])
   @@map("brands")
 }
 
 model Product {
   id               String              @id @default(uuid())
-  code             String              @unique
+  code             String
   name             String
   categoryId       String
   category         Category            @relation(fields: [categoryId], references: [id])
@@ -324,11 +365,13 @@ model Product {
   brand            Brand?              @relation(fields: [brandId], references: [id])
   supplierId       String?
   supplier         Supplier?           @relation(fields: [supplierId], references: [id])
+  companyId        String
+  company          Company             @relation(fields: [companyId], references: [id])
   purchasePrice    Float
   sellingPrice     Float
   stock            Int                 @default(0)
   minStock         Int                 @default(5)
-  barcode          String?             @unique
+  barcode          String?
   unit             String              @default("pcs")
   isActive         Boolean             @default(true)
   description      String?
@@ -354,6 +397,9 @@ model Product {
   cashierFavorites CashierFavorite[]
   bundleItems     ProductBundleItem[]
 
+  @@unique([companyId, code])
+  @@unique([companyId, barcode])
+  @@index([companyId])
   @@index([categoryId])
   @@index([brandId])
   @@index([supplierId])
@@ -438,6 +484,8 @@ model Supplier {
   contact         String?
   address         String?
   email           String?
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
   isActive        Boolean           @default(true)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -445,6 +493,7 @@ model Supplier {
   purchaseOrders  PurchaseOrder[]
   supplierPayments SupplierPayment[]
 
+  @@index([companyId])
   @@map("suppliers")
 }
 
@@ -472,13 +521,15 @@ model SupplierPayment {
 model Customer {
   id              String           @id @default(uuid())
   name            String
-  phone           String?          @unique
+  phone           String?
   email           String?
   address         String?
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id])
   memberLevel     MemberLevel      @default(REGULAR)
   totalSpending   Float            @default(0)
   points          Int              @default(0)
-  memberCardCode  String?          @unique
+  memberCardCode  String?
   dateOfBirth     DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -488,6 +539,9 @@ model Customer {
   returns         ReturnExchange[]
   giftCards       GiftCard[]
 
+  @@unique([companyId, phone])
+  @@unique([companyId, memberCardCode])
+  @@index([companyId])
   @@index([phone])
   @@index([memberCardCode])
   @@index([memberLevel])
@@ -873,6 +927,8 @@ model Promotion {
   category      Category? @relation(fields: [categoryId], references: [id])
   productId     String?
   product       Product?  @relation(fields: [productId], references: [id])
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
   buyQty        Int?      // BUY_X_GET_Y: buy this many
   getQty        Int?      // BUY_X_GET_Y: get this many free
   getProductId  String?   // BUY_X_GET_Y: free product id (null = same product)
@@ -887,6 +943,7 @@ model Promotion {
   updatedAt     DateTime  @updatedAt
   vouchers      Voucher[]
 
+  @@index([companyId])
   @@index([isActive, startDate, endDate])
   @@index([voucherCode])
   @@index([type])
@@ -1359,10 +1416,13 @@ model AccountCategory {
     type        String    // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
     normalSide  String    // DEBIT, CREDIT
     sortOrder   Int       @default(0)
+    companyId   String
+    company     Company   @relation(fields: [companyId], references: [id])
     accounts    Account[]
     createdAt   DateTime  @default(now())
 
-    @@unique([type])
+    @@unique([companyId, type])
+    @@index([companyId])
     @@map("account_categories")
 }
 

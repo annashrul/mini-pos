@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,7 @@ interface ForecastParams {
 }
 
 export async function getInventoryForecast(params: ForecastParams = {}): Promise<ForecastProduct[]> {
+  const companyId = await getCurrentCompanyId();
   const {
     branchId,
     riskLevel,
@@ -115,8 +117,21 @@ export async function getInventoryForecast(params: ForecastParams = {}): Promise
   const fifteenDaysAgo = new Date(now);
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
 
-  // Build branch filter for SQL
-  const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+  // Build branch filter for SQL (parameterized)
+  const salesParams1: unknown[] = [thirtyDaysAgo];
+  const salesParams2: unknown[] = [fifteenDaysAgo];
+  const salesParams3: unknown[] = [thirtyDaysAgo, fifteenDaysAgo];
+  let branchCondition1 = "";
+  let branchCondition2 = "";
+  let branchCondition3 = "";
+  if (branchId) {
+    salesParams1.push(branchId);
+    branchCondition1 = `AND t."branchId" = $${salesParams1.length}`;
+    salesParams2.push(branchId);
+    branchCondition2 = `AND t."branchId" = $${salesParams2.length}`;
+    salesParams3.push(branchId);
+    branchCondition3 = `AND t."branchId" = $${salesParams3.length}`;
+  }
 
   // 1) Sales data for last 30 days
   const salesData = await prisma.$queryRawUnsafe<
@@ -129,9 +144,9 @@ export async function getInventoryForecast(params: ForecastParams = {}): Promise
     JOIN transactions t ON t.id = ti."transactionId"
     WHERE t.status = 'COMPLETED'
       AND t."createdAt" >= $1
-      ${branchCondition}
+      ${branchCondition1}
     GROUP BY ti."productId"
-  `, thirtyDaysAgo);
+  `, ...salesParams1);
 
   // 2) Sales for recent 15 days (for trend)
   const recentSalesData = await prisma.$queryRawUnsafe<
@@ -143,9 +158,9 @@ export async function getInventoryForecast(params: ForecastParams = {}): Promise
     JOIN transactions t ON t.id = ti."transactionId"
     WHERE t.status = 'COMPLETED'
       AND t."createdAt" >= $1
-      ${branchCondition}
+      ${branchCondition2}
     GROUP BY ti."productId"
-  `, fifteenDaysAgo);
+  `, ...salesParams2);
 
   // 3) Sales for prior 15 days (day -30 to day -15)
   const priorSalesData = await prisma.$queryRawUnsafe<
@@ -158,9 +173,9 @@ export async function getInventoryForecast(params: ForecastParams = {}): Promise
     WHERE t.status = 'COMPLETED'
       AND t."createdAt" >= $1
       AND t."createdAt" < $2
-      ${branchCondition}
+      ${branchCondition3}
     GROUP BY ti."productId"
-  `, thirtyDaysAgo, fifteenDaysAgo);
+  `, ...salesParams3);
 
   // Build maps
   const salesMap = new Map(salesData.map(r => [r.productId, { totalSold: Number(r.total_sold), activeDays: Number(r.active_days) }]));
@@ -168,7 +183,7 @@ export async function getInventoryForecast(params: ForecastParams = {}): Promise
   const priorMap = new Map(priorSalesData.map(r => [r.productId, Number(r.total_sold)]));
 
   // 4) All active products
-  const productWhere: Record<string, unknown> = { isActive: true, deletedAt: null };
+  const productWhere: Record<string, unknown> = { isActive: true, deletedAt: null, companyId };
   if (categoryId) productWhere.categoryId = categoryId;
   if (supplierId) productWhere.supplierId = supplierId;
   if (search) {
@@ -284,10 +299,16 @@ export async function getProductSalesTrend(
   days: number = 30,
   branchId?: string | undefined,
 ): Promise<DailySalesPoint[]> {
+  await getCurrentCompanyId();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const branchCondition = branchId ? `AND t."branchId" = '${branchId}'` : "";
+  const trendParams: unknown[] = [productId, startDate];
+  let trendBranchCondition = "";
+  if (branchId) {
+    trendParams.push(branchId);
+    trendBranchCondition = `AND t."branchId" = $${trendParams.length}`;
+  }
 
   const rows = await prisma.$queryRawUnsafe<
     { sale_date: Date; daily_qty: bigint }[]
@@ -299,10 +320,10 @@ export async function getProductSalesTrend(
     WHERE t.status = 'COMPLETED'
       AND ti."productId" = $1
       AND t."createdAt" >= $2
-      ${branchCondition}
+      ${trendBranchCondition}
     GROUP BY DATE_TRUNC('day', t."createdAt")
     ORDER BY sale_date ASC
-  `, productId, startDate);
+  `, ...trendParams);
 
   // Fill all days
   const result: DailySalesPoint[] = [];
@@ -326,6 +347,7 @@ export async function getProductSalesTrend(
 // ─── Auto Reorder List ────────────────────────────────────────────────────────
 
 export async function generateAutoReorderList(branchId?: string | undefined): Promise<SupplierReorderGroup[]> {
+  const companyId = await getCurrentCompanyId();
   const all = await getInventoryForecast({ branchId, sortBy: "daysLeft", sortDir: "asc" });
 
   // Only products needing reorder (critical + warning + products below reorder point)
@@ -337,7 +359,7 @@ export async function generateAutoReorderList(branchId?: string | undefined): Pr
   // Fetch supplier details for items with suppliers
   const supplierIds = [...new Set(needsReorder.filter(p => p.supplierId).map(p => p.supplierId!))];
   const suppliers = await prisma.supplier.findMany({
-    where: { id: { in: supplierIds } },
+    where: { id: { in: supplierIds }, companyId },
     select: { id: true, name: true, contact: true, email: true },
   });
   const supplierMap = new Map(suppliers.map(s => [s.id, s]));

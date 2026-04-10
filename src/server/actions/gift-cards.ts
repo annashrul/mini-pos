@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { getCurrentCompanyId } from "@/lib/company";
 
 function generateGiftCardCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -39,7 +40,8 @@ export async function getGiftCards(params?: {
     sortDir = "desc",
   } = params || {};
 
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
 
   if (search) {
     where.OR = [
@@ -322,7 +324,8 @@ export async function disableGiftCard(id: string) {
 }
 
 export async function getGiftCardStats(branchId?: string) {
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (branchId && branchId !== "ALL") {
     where.branchId = branchId;
   }

@@ -7,6 +7,7 @@ import { RECEIPT_DEFAULTS, type ReceiptConfig } from "@/lib/receipt-config";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
+// getCurrentCompanyId available for future company-scoped settings
 
 type PrimitiveSettingValue = string | number | boolean;
 

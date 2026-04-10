@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getPurchaseOrders(params?: {
   search?: string;
@@ -28,7 +29,8 @@ export async function getPurchaseOrders(params?: {
     dateTo,
     branchId,
   } = params || {};
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
 
   if (search) {
     where.OR = [
@@ -76,8 +78,9 @@ export async function getPurchaseOrders(params?: {
 }
 
 export async function getPurchaseOrderById(id: string) {
-  return prisma.purchaseOrder.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.purchaseOrder.findFirst({
+    where: { id, branch: { companyId } },
     include: {
       supplier: true,
       items: {
@@ -104,13 +107,20 @@ export async function createPurchaseOrder(data: {
   items: POItem[];
 }) {
   await assertMenuActionAccess("purchases", "create");
+  const companyId = await getCurrentCompanyId();
   if (!data.supplierId) return { error: "Supplier wajib dipilih" };
   if (!data.items.length) return { error: "Minimal 1 item" };
+
+  const targetBranchId = data.branchIds?.[0] ?? data.branchId;
+  if (targetBranchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: targetBranchId, companyId } });
+    if (!branch) return { error: "Cabang tidak ditemukan" };
+  }
 
   const today = new Date();
   const prefix = `PO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
   const last = await prisma.purchaseOrder.findFirst({
-    where: { orderNumber: { startsWith: prefix } },
+    where: { orderNumber: { startsWith: prefix }, branch: { companyId } },
     orderBy: { orderNumber: "desc" },
   });
   let seq = 1;
@@ -159,7 +169,12 @@ export async function receivePurchaseOrder(
   paidAmount?: number,
 ) {
   await assertMenuActionAccess("purchases", "receive");
+  const companyId = await getCurrentCompanyId();
   try {
+    // Verify PO belongs to company
+    const poCheck = await prisma.purchaseOrder.findFirst({ where: { id, branch: { companyId } }, select: { id: true } });
+    if (!poCheck) return { error: "PO tidak ditemukan" };
+
     const result = await prisma.$transaction(async (tx) => {
       const po = await tx.purchaseOrder.findUnique({
         where: { id },
@@ -287,8 +302,9 @@ export async function updatePurchaseOrderStatus(
   status: "ORDERED" | "CANCELLED",
 ) {
   await assertMenuActionAccess("purchases", "approve");
+  const companyId = await getCurrentCompanyId();
   try {
-    const po = await prisma.purchaseOrder.findUnique({ where: { id } });
+    const po = await prisma.purchaseOrder.findFirst({ where: { id, branch: { companyId } } });
     if (!po) return { error: "PO tidak ditemukan" };
 
     if (

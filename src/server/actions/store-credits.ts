@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { createAuditLog } from "@/lib/audit";
 import { assertMenuActionAccess } from "@/lib/access-control";
+import { getCurrentCompanyId } from "@/lib/company";
 
 function generateGiftCardCode(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -29,8 +30,9 @@ export async function issueStoreCredit(data: {
         return { error: "Jumlah store credit harus lebih dari 0" };
     }
 
+    const companyId = await getCurrentCompanyId();
     const customer = await prisma.customer.findUnique({
-        where: { id: data.customerId },
+        where: { id: data.customerId, companyId },
         select: { id: true, name: true },
     });
     if (!customer) {
@@ -88,8 +90,9 @@ export async function issueStoreCredit(data: {
 }
 
 export async function getStoreCredits(customerId: string) {
+    const companyId = await getCurrentCompanyId();
     const credits = await prisma.storeCredit.findMany({
-        where: { customerId },
+        where: { customerId, customer: { companyId } },
         include: {
             issuer: { select: { name: true } },
             usages: {

@@ -5,10 +5,12 @@ import { branchSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getBranches(params?: { search?: string; page?: number; perPage?: number }) {
+  const companyId = await getCurrentCompanyId();
   const { search, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }
@@ -27,13 +29,16 @@ export async function getBranches(params?: { search?: string; page?: number; per
 }
 
 export async function getAllBranches() {
+  const companyId = await getCurrentCompanyId();
   return prisma.branch.findMany({
+    where: { companyId },
     orderBy: { name: "asc" },
   });
 }
 
 export async function createBranch(data: FormData) {
   await assertMenuActionAccess("branches", "create");
+  const companyId = await getCurrentCompanyId();
   const parsed = branchSchema.safeParse({
     name: data.get("name"),
     address: data.get("address") || null,
@@ -43,7 +48,7 @@ export async function createBranch(data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
-    const result = await prisma.branch.create({ data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } });
+    const result = await prisma.branch.create({ data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive, companyId } });
     revalidatePath("/branches");
     createAuditLog({ action: "CREATE", entity: "Branch", entityId: result.id, details: { data: { name: parsed.data.name, address: parsed.data.address ?? null, phone: parsed.data.phone ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
     return { success: true };

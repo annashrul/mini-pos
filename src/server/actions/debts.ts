@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { auth } from "@/lib/auth";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ===========================
 // GET DEBTS (list with filters)
@@ -38,7 +39,8 @@ export async function getDebts(params?: {
     sortDir = "desc",
   } = params || {};
 
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
 
   if (type) where.type = type;
   if (status) where.status = status;
@@ -103,8 +105,9 @@ export async function getDebts(params?: {
 // ===========================
 
 export async function getDebtById(id: string) {
-  const debt = await prisma.debt.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  const debt = await prisma.debt.findFirst({
+    where: { id, branch: { companyId } },
     include: {
       branch: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
@@ -138,6 +141,7 @@ export async function createDebt(data: {
   branchId?: string | undefined;
 }) {
   await assertMenuActionAccess("debts", "create");
+  const companyId = await getCurrentCompanyId();
 
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
@@ -150,6 +154,10 @@ export async function createDebt(data: {
   }
 
   try {
+    if (data.branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId } });
+      if (!branch) return { error: "Cabang tidak ditemukan" };
+    }
     const debt = await prisma.debt.create({
       data: {
         type: data.type,
@@ -209,9 +217,10 @@ export async function updateDebt(
   }
 ) {
   await assertMenuActionAccess("debts", "update");
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const existing = await prisma.debt.findUnique({ where: { id } });
+    const existing = await prisma.debt.findFirst({ where: { id, branch: { companyId } } });
     if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
 
     // Recalculate remaining amount if totalAmount changed
@@ -286,9 +295,10 @@ export async function updateDebt(
 
 export async function deleteDebt(id: string) {
   await assertMenuActionAccess("debts", "delete");
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const existing = await prisma.debt.findUnique({ where: { id } });
+    const existing = await prisma.debt.findFirst({ where: { id, branch: { companyId } } });
     if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
 
     if (existing.status !== "UNPAID") {
@@ -333,6 +343,7 @@ export async function addDebtPayment(params: {
   notes?: string | undefined;
 }) {
   await assertMenuActionAccess("debts", "create");
+  const companyId = await getCurrentCompanyId();
 
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
@@ -344,7 +355,7 @@ export async function addDebtPayment(params: {
   }
 
   try {
-    const debt = await prisma.debt.findUnique({ where: { id: debtId } });
+    const debt = await prisma.debt.findFirst({ where: { id: debtId, branch: { companyId } } });
     if (!debt) return { error: "Data hutang/piutang tidak ditemukan" };
 
     if (debt.status === "PAID") {
@@ -422,7 +433,8 @@ export async function addDebtPayment(params: {
 // ===========================
 
 export async function getDebtSummary(branchId?: string) {
-  const branchFilter = branchId ? { branchId } : {};
+  const companyId = await getCurrentCompanyId();
+  const branchFilter = branchId ? { branchId } : { branch: { companyId } };
 
   const [
     totalPayable,
@@ -472,7 +484,7 @@ export async function getDebtSummary(branchId?: string) {
     }),
     // Recent payments
     prisma.debtPayment.findMany({
-      where: branchId ? { debt: { branchId } } : {},
+      where: branchId ? { debt: { branchId } } : { debt: { branch: { companyId } } },
       include: {
         debt: { select: { type: true, partyName: true } },
         payer: { select: { name: true } },

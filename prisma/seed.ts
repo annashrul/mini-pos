@@ -367,12 +367,25 @@ async function main() {
   await prisma.customer.deleteMany();
   await prisma.branch.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.company.deleteMany();
   await prisma.setting.deleteMany();
   await prisma.roleActionPermission.deleteMany();
   await prisma.roleMenuPermission.deleteMany();
   await prisma.menuAction.deleteMany();
   await prisma.appMenu.deleteMany();
   await prisma.appRole.deleteMany();
+
+  // Create Demo Company
+  const company = await prisma.company.create({
+    data: {
+      name: "Demo Store",
+      slug: "demo-store",
+      email: "admin@pos.com",
+      phone: "021-1234567",
+      address: "Jakarta, Indonesia",
+    },
+  });
+  const companyId = company.id;
 
   // Create Users
   const hashedPassword = await bcrypt.hash("password123", 10);
@@ -383,6 +396,7 @@ async function main() {
       email: "admin@pos.com",
       password: hashedPassword,
       role: Role.SUPER_ADMIN,
+      companyId,
     },
   });
 
@@ -392,6 +406,7 @@ async function main() {
       email: "manager@pos.com",
       password: hashedPassword,
       role: Role.MANAGER,
+      companyId,
     },
   });
 
@@ -401,6 +416,7 @@ async function main() {
       email: "kasir1@pos.com",
       password: hashedPassword,
       role: Role.CASHIER,
+      companyId,
     },
   });
 
@@ -410,6 +426,7 @@ async function main() {
       email: "kasir2@pos.com",
       password: hashedPassword,
       role: Role.CASHIER,
+      companyId,
     },
   });
 
@@ -461,36 +478,36 @@ async function main() {
 
   // Create Brands
   const brands = await Promise.all([
-    prisma.brand.create({ data: { name: "Indofood" } }),
-    prisma.brand.create({ data: { name: "Coca-Cola" } }),
-    prisma.brand.create({ data: { name: "Unilever" } }),
-    prisma.brand.create({ data: { name: "Faber-Castell" } }),
-    prisma.brand.create({ data: { name: "Wings" } }),
-    prisma.brand.create({ data: { name: "Aqua" } }),       // 5
-    prisma.brand.create({ data: { name: "Mayora" } }),      // 6
-    prisma.brand.create({ data: { name: "Mondelez" } }),    // 7
-    prisma.brand.create({ data: { name: "Glico" } }),       // 8
-    prisma.brand.create({ data: { name: "SC Johnson" } }),  // 9
-    prisma.brand.create({ data: { name: "P&G" } }),         // 10
-    prisma.brand.create({ data: { name: "Sidu" } }),        // 11
-    prisma.brand.create({ data: { name: "Staedtler" } }),   // 12
-    prisma.brand.create({ data: { name: "Sosro" } }),       // 13
-    prisma.brand.create({ data: { name: "Garudafood" } }),  // 14
-    prisma.brand.create({ data: { name: "ABC" } }),         // 15
-    prisma.brand.create({ data: { name: "Frisian Flag" } }),// 16
-    prisma.brand.create({ data: { name: "Kapal Api" } }),   // 17
-    prisma.brand.create({ data: { name: "Nestle" } }),      // 18
-    prisma.brand.create({ data: { name: "Kalbe" } }),       // 19
-    prisma.brand.create({ data: { name: "Kimia Farma" } }), // 20
-    prisma.brand.create({ data: { name: "Sasa" } }),        // 21
-    prisma.brand.create({ data: { name: "Bimoli" } }),      // 22
-    prisma.brand.create({ data: { name: "So Good" } }),     // 23
-    prisma.brand.create({ data: { name: "Orang Tua" } }),   // 24
-    prisma.brand.create({ data: { name: "Ajinomoto" } }),   // 25
-    prisma.brand.create({ data: { name: "Wardah" } }),      // 26
-    prisma.brand.create({ data: { name: "Mie Sedaap" } }),  // 27
-    prisma.brand.create({ data: { name: "Sari Roti" } }),   // 28
-    prisma.brand.create({ data: { name: "Ultramilk" } }),   // 29
+    prisma.brand.create({ data: { name: "Indofood", companyId } }),
+    prisma.brand.create({ data: { name: "Coca-Cola", companyId } }),
+    prisma.brand.create({ data: { name: "Unilever", companyId } }),
+    prisma.brand.create({ data: { name: "Faber-Castell", companyId } }),
+    prisma.brand.create({ data: { name: "Wings", companyId } }),
+    prisma.brand.create({ data: { name: "Aqua", companyId } }),       // 5
+    prisma.brand.create({ data: { name: "Mayora", companyId } }),      // 6
+    prisma.brand.create({ data: { name: "Mondelez", companyId } }),    // 7
+    prisma.brand.create({ data: { name: "Glico", companyId } }),       // 8
+    prisma.brand.create({ data: { name: "SC Johnson", companyId } }),  // 9
+    prisma.brand.create({ data: { name: "P&G", companyId } }),         // 10
+    prisma.brand.create({ data: { name: "Sidu", companyId } }),        // 11
+    prisma.brand.create({ data: { name: "Staedtler", companyId } }),   // 12
+    prisma.brand.create({ data: { name: "Sosro", companyId } }),       // 13
+    prisma.brand.create({ data: { name: "Garudafood", companyId } }),  // 14
+    prisma.brand.create({ data: { name: "ABC", companyId } }),         // 15
+    prisma.brand.create({ data: { name: "Frisian Flag", companyId } }),// 16
+    prisma.brand.create({ data: { name: "Kapal Api", companyId } }),   // 17
+    prisma.brand.create({ data: { name: "Nestle", companyId } }),      // 18
+    prisma.brand.create({ data: { name: "Kalbe", companyId } }),       // 19
+    prisma.brand.create({ data: { name: "Kimia Farma", companyId } }), // 20
+    prisma.brand.create({ data: { name: "Sasa", companyId } }),        // 21
+    prisma.brand.create({ data: { name: "Bimoli", companyId } }),      // 22
+    prisma.brand.create({ data: { name: "So Good", companyId } }),     // 23
+    prisma.brand.create({ data: { name: "Orang Tua", companyId } }),   // 24
+    prisma.brand.create({ data: { name: "Ajinomoto", companyId } }),   // 25
+    prisma.brand.create({ data: { name: "Wardah", companyId } }),      // 26
+    prisma.brand.create({ data: { name: "Mie Sedaap", companyId } }),  // 27
+    prisma.brand.create({ data: { name: "Sari Roti", companyId } }),   // 28
+    prisma.brand.create({ data: { name: "Ultramilk", companyId } }),   // 29
   ]);
 
   // Create Suppliers
@@ -501,6 +518,7 @@ async function main() {
         contact: "021-5555-1234",
         email: "order@indofood.co.id",
         address: "Jakarta",
+        companyId,
       },
     }),
     prisma.supplier.create({
@@ -509,6 +527,7 @@ async function main() {
         contact: "021-5555-5678",
         email: "order@coca-cola.co.id",
         address: "Bekasi",
+        companyId,
       },
     }),
     prisma.supplier.create({
@@ -517,6 +536,7 @@ async function main() {
         contact: "021-5555-9012",
         email: "order@unilever.co.id",
         address: "Tangerang",
+        companyId,
       },
     }),
   ]);
@@ -531,6 +551,7 @@ async function main() {
         memberLevel: "GOLD",
         totalSpending: 2500000,
         points: 250,
+        companyId,
       },
     }),
     prisma.customer.create({
@@ -541,6 +562,7 @@ async function main() {
         memberLevel: "SILVER",
         totalSpending: 1200000,
         points: 120,
+        companyId,
       },
     }),
     prisma.customer.create({
@@ -550,6 +572,7 @@ async function main() {
         memberLevel: "REGULAR",
         totalSpending: 350000,
         points: 35,
+        companyId,
       },
     }),
   ]);
@@ -561,6 +584,7 @@ async function main() {
         name: "Pusat - Jakarta",
         address: "Jl. Sudirman No. 1, Jakarta",
         phone: "021-1234567",
+        companyId,
       },
     }),
     prisma.branch.create({
@@ -568,6 +592,7 @@ async function main() {
         name: "Cabang Bandung",
         address: "Jl. Asia Afrika No. 10, Bandung",
         phone: "022-1234567",
+        companyId,
       },
     }),
     prisma.branch.create({
@@ -575,6 +600,7 @@ async function main() {
         name: "Cabang Surabaya",
         address: "Jl. Tunjungan No. 5, Surabaya",
         phone: "031-1234567",
+        companyId,
       },
     }),
   ]);
@@ -582,66 +608,55 @@ async function main() {
   // Create Categories
   const categories = await Promise.all([
     prisma.category.create({
-      data: { name: "Makanan", description: "Produk makanan ringan dan berat" },
+      data: { name: "Makanan", description: "Produk makanan ringan dan berat", companyId },
     }),
     prisma.category.create({
-      data: {
-        name: "Minuman",
-        description: "Produk minuman kemasan dan segar",
-      },
+      data: { name: "Minuman", description: "Produk minuman kemasan dan segar", companyId },
     }),
     prisma.category.create({
-      data: { name: "Snack", description: "Makanan ringan dan cemilan" },
+      data: { name: "Snack", description: "Makanan ringan dan cemilan", companyId },
     }),
     prisma.category.create({
-      data: {
-        name: "Kebersihan",
-        description: "Produk kebersihan rumah tangga",
-      },
+      data: { name: "Kebersihan", description: "Produk kebersihan rumah tangga", companyId },
     }),
     prisma.category.create({
-      data: {
-        name: "Perawatan Tubuh",
-        description: "Sabun, shampoo, dan lainnya",
-      },
+      data: { name: "Perawatan Tubuh", description: "Sabun, shampoo, dan lainnya", companyId },
     }),
     prisma.category.create({
-      data: {
-        name: "Alat Tulis",
-        description: "Perlengkapan alat tulis kantor",
-      },
+      data: { name: "Alat Tulis", description: "Perlengkapan alat tulis kantor", companyId },
     }),
     prisma.category.create({
-      data: { name: "Rokok", description: "Produk tembakau dan rokok" },
+      data: { name: "Rokok", description: "Produk tembakau dan rokok", companyId },
     }),
     prisma.category.create({
-      data: { name: "Bumbu & Dapur", description: "Bumbu masak dan kebutuhan dapur" },
+      data: { name: "Bumbu & Dapur", description: "Bumbu masak dan kebutuhan dapur", companyId },
     }),
     prisma.category.create({
-      data: { name: "Susu & Olahan", description: "Susu, keju, yogurt" },
+      data: { name: "Susu & Olahan", description: "Susu, keju, yogurt", companyId },
     }),
     prisma.category.create({
-      data: { name: "Frozen Food", description: "Makanan beku siap saji" },
+      data: { name: "Frozen Food", description: "Makanan beku siap saji", companyId },
     }),
     prisma.category.create({
-      data: { name: "Obat & Kesehatan", description: "Obat-obatan dan suplemen" },
+      data: { name: "Obat & Kesehatan", description: "Obat-obatan dan suplemen", companyId },
     }),
   ]);
 
   // Extra brands & suppliers for tobacco
   const brandSampoerna = await prisma.brand.create({
-    data: { name: "Sampoerna" },
+    data: { name: "Sampoerna", companyId },
   });
   const brandGudangGaram = await prisma.brand.create({
-    data: { name: "Gudang Garam" },
+    data: { name: "Gudang Garam", companyId },
   });
-  const brandDjarum = await prisma.brand.create({ data: { name: "Djarum" } });
+  const brandDjarum = await prisma.brand.create({ data: { name: "Djarum", companyId } });
   const supplierTobacco = await prisma.supplier.create({
     data: {
       name: "PT Distributor Tembakau Nusantara",
       contact: "021-7777-1234",
       email: "order@dtn.co.id",
       address: "Jakarta",
+      companyId,
     },
   });
 
@@ -994,7 +1009,7 @@ async function main() {
   ];
 
   const products = await Promise.all(
-    productsData.map((p) => prisma.product.create({ data: p })),
+    productsData.map((p) => prisma.product.create({ data: { ...p, companyId } })),
   );
 
   // Create stock movements for initial stock
@@ -1036,6 +1051,7 @@ async function main() {
     data: {
       code: "RKK001",
       name: "Sampoerna A Mild 16",
+      companyId,
       categoryId: rokokCategory.id,
       brandId: brandSampoerna.id,
       supplierId: supplierTobacco.id,
@@ -1076,6 +1092,7 @@ async function main() {
     data: {
       code: "RKK002",
       name: "Gudang Garam Surya 16",
+      companyId,
       categoryId: rokokCategory.id,
       brandId: brandGudangGaram.id,
       supplierId: supplierTobacco.id,
@@ -1116,6 +1133,7 @@ async function main() {
     data: {
       code: "RKK003",
       name: "Djarum Super 12",
+      companyId,
       categoryId: rokokCategory.id,
       brandId: brandDjarum.id,
       supplierId: supplierTobacco.id,
@@ -1156,6 +1174,7 @@ async function main() {
     data: {
       code: "RKK004",
       name: "Sampoerna Kretek 12",
+      companyId,
       categoryId: rokokCategory.id,
       brandId: brandSampoerna.id,
       supplierId: supplierTobacco.id,
@@ -1205,6 +1224,7 @@ async function main() {
     data: {
       code: "RKK005",
       name: "Gudang Garam International",
+      companyId,
       categoryId: rokokCategory.id,
       brandId: brandGudangGaram.id,
       supplierId: supplierTobacco.id,
@@ -1431,6 +1451,7 @@ async function main() {
     prisma.promotion.create({
       data: {
         name: "Diskon Minuman 10%",
+        companyId,
         type: "DISCOUNT_PERCENT",
         value: 10,
         categoryId: categories[1].id,
@@ -1442,6 +1463,7 @@ async function main() {
     prisma.promotion.create({
       data: {
         name: "Potongan Rp 5.000",
+        companyId,
         type: "DISCOUNT_AMOUNT",
         value: 5000,
         minPurchase: 50000,
@@ -1453,6 +1475,7 @@ async function main() {
     prisma.promotion.create({
       data: {
         name: "Voucher HEMAT20",
+        companyId,
         type: "VOUCHER",
         value: 20000,
         voucherCode: "HEMAT20",
@@ -1591,11 +1614,11 @@ async function main() {
 
   // Create Account Categories
   const accountCategories = await Promise.all([
-    prisma.accountCategory.create({ data: { name: "Aset", type: "ASSET", normalSide: "DEBIT", sortOrder: 1 } }),
-    prisma.accountCategory.create({ data: { name: "Kewajiban", type: "LIABILITY", normalSide: "CREDIT", sortOrder: 2 } }),
-    prisma.accountCategory.create({ data: { name: "Modal", type: "EQUITY", normalSide: "CREDIT", sortOrder: 3 } }),
-    prisma.accountCategory.create({ data: { name: "Pendapatan", type: "REVENUE", normalSide: "CREDIT", sortOrder: 4 } }),
-    prisma.accountCategory.create({ data: { name: "Beban", type: "EXPENSE", normalSide: "DEBIT", sortOrder: 5 } }),
+    prisma.accountCategory.create({ data: { name: "Aset", type: "ASSET", normalSide: "DEBIT", sortOrder: 1, companyId } }),
+    prisma.accountCategory.create({ data: { name: "Kewajiban", type: "LIABILITY", normalSide: "CREDIT", sortOrder: 2, companyId } }),
+    prisma.accountCategory.create({ data: { name: "Modal", type: "EQUITY", normalSide: "CREDIT", sortOrder: 3, companyId } }),
+    prisma.accountCategory.create({ data: { name: "Pendapatan", type: "REVENUE", normalSide: "CREDIT", sortOrder: 4, companyId } }),
+    prisma.accountCategory.create({ data: { name: "Beban", type: "EXPENSE", normalSide: "DEBIT", sortOrder: 5, companyId } }),
   ]);
 
   const catAsset = accountCategories[0].id;

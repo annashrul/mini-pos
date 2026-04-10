@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ---------------------------------------------------------------------------
 // List approval requests with pagination & filters
@@ -16,8 +17,9 @@ export async function getApprovalRequests(params?: {
   perPage?: number;
 }) {
   const { status, type, branchId, page = 1, perPage = 10 } = params || {};
+  const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (status) where.status = status;
   if (type) where.type = type;
   if (branchId) where.branchId = branchId;
@@ -240,7 +242,8 @@ export async function rejectRequest(id: string, note?: string) {
 // Count pending approvals (for notification badge)
 // ---------------------------------------------------------------------------
 export async function getPendingApprovalsCount(branchId?: string) {
-  const where: Record<string, unknown> = { status: "PENDING" };
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { status: "PENDING", branch: { companyId } };
   if (branchId) where.branchId = branchId;
 
   const count = await prisma.approvalRequest.count({ where });

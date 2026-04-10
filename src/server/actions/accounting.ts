@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 import type { Prisma } from "@prisma/client";
 
 // ============================================================
@@ -38,9 +39,9 @@ async function resolveSessionUserId() {
   return { userId: user.id };
 }
 
-async function getSystemAccounts(codes: string[]) {
+async function getSystemAccounts(codes: string[], companyId: string) {
   const accounts = await prisma.account.findMany({
-    where: { code: { in: codes } },
+    where: { code: { in: codes }, category: { companyId } },
   });
 
   const map = new Map(accounts.map((a) => [a.code, a]));
@@ -68,7 +69,9 @@ function generateEntryNumber(date: Date, sequence: number): string {
 // ============================================================
 
 export async function getAccountCategories() {
+  const companyId = await getCurrentCompanyId();
   const categories = await prisma.accountCategory.findMany({
+    where: { companyId },
     orderBy: { sortOrder: "asc" },
     include: {
       _count: { select: { accounts: true } },
@@ -94,6 +97,7 @@ interface GetAccountsParams {
 }
 
 export async function getAccounts(params: GetAccountsParams = {}) {
+  const companyId = await getCurrentCompanyId();
   const {
     page = 1,
     search,
@@ -107,7 +111,7 @@ export async function getAccounts(params: GetAccountsParams = {}) {
   const perPage = params.perPage || 20;
   const skip = (page - 1) * perPage;
 
-  const where: Prisma.AccountWhereInput = {};
+  const where: Prisma.AccountWhereInput = { category: { companyId } };
   const and: Prisma.AccountWhereInput[] = [];
 
   if (search) {
@@ -160,13 +164,15 @@ export async function getAccounts(params: GetAccountsParams = {}) {
 }
 
 export async function getAccountTree() {
+  const companyId = await getCurrentCompanyId();
   // Parallelkan 2 query yang independen
   const [categories, accounts] = await Promise.all([
     prisma.accountCategory.findMany({
+      where: { companyId },
       orderBy: { sortOrder: "asc" },
     }),
     prisma.account.findMany({
-      where: { isActive: true },
+      where: { isActive: true, category: { companyId } },
       include: {
         category: {
           select: { id: true, name: true, type: true, normalSide: true },
@@ -205,8 +211,9 @@ export async function getAccountTree() {
 }
 
 export async function getAccountById(id: string) {
-  const account = await prisma.account.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  const account = await prisma.account.findFirst({
+    where: { id, category: { companyId } },
     include: {
       category: true,
       parent: { select: { id: true, code: true, name: true } },
@@ -237,15 +244,16 @@ interface CreateAccountInput {
 
 export async function createAccount(data: CreateAccountInput) {
   await assertMenuActionAccess("accounting-coa", "create");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
 
   // Wave 1: category + parent sekaligus (independen)
   const [category, parent] = await Promise.all([
-    prisma.accountCategory.findUnique({ where: { id: data.categoryId } }),
+    prisma.accountCategory.findUnique({ where: { id: data.categoryId, companyId } }),
     data.parentId
-      ? prisma.account.findUnique({
-          where: { id: data.parentId },
+      ? prisma.account.findFirst({
+          where: { id: data.parentId, category: { companyId } },
           select: { id: true, categoryId: true },
         })
       : Promise.resolve(null),
@@ -272,7 +280,7 @@ export async function createAccount(data: CreateAccountInput) {
     const prefix = prefixMap[category.type] || "9";
 
     const lastAccount = await prisma.account.findFirst({
-      where: { code: { startsWith: `${prefix}-` } },
+      where: { code: { startsWith: `${prefix}-` }, category: { companyId } },
       orderBy: { code: "desc" },
       select: { code: true },
     });
@@ -287,7 +295,7 @@ export async function createAccount(data: CreateAccountInput) {
   }
 
   // Wave 2: cek uniqueness code (hanya jika code sudah diketahui)
-  const existing = await prisma.account.findUnique({ where: { code } });
+  const existing = await prisma.account.findFirst({ where: { code, category: { companyId } } });
   if (existing) return { error: `Kode akun "${code}" sudah digunakan` };
 
   const account = await prisma.account.create({
@@ -335,21 +343,22 @@ interface UpdateAccountInput {
 
 export async function updateAccount(id: string, data: UpdateAccountInput) {
   await assertMenuActionAccess("accounting-coa", "update");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
 
   // Wave 1: existing + code uniqueness + parent — semua parallel
   const [existing, codeConflict, parent] = await Promise.all([
-    prisma.account.findUnique({ where: { id }, include: { category: true } }),
+    prisma.account.findFirst({ where: { id, category: { companyId } }, include: { category: true } }),
     data.code
-      ? prisma.account.findUnique({
-          where: { code: data.code },
+      ? prisma.account.findFirst({
+          where: { code: data.code, category: { companyId } },
           select: { id: true },
         })
       : Promise.resolve(null),
     data.parentId && data.parentId !== id
-      ? prisma.account.findUnique({
-          where: { id: data.parentId },
+      ? prisma.account.findFirst({
+          where: { id: data.parentId, category: { companyId } },
           select: { id: true, categoryId: true },
         })
       : Promise.resolve(null),
@@ -413,11 +422,12 @@ export async function updateAccount(id: string, data: UpdateAccountInput) {
 
 export async function deleteAccount(id: string) {
   await assertMenuActionAccess("accounting-coa", "delete");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
 
-  const account = await prisma.account.findUnique({
-    where: { id },
+  const account = await prisma.account.findFirst({
+    where: { id, category: { companyId } },
     include: {
       _count: { select: { journalLines: true, children: true } },
     },
@@ -460,10 +470,11 @@ export async function deleteAccount(id: string) {
 }
 
 export async function getAccountsByType(type: string) {
+  const companyId = await getCurrentCompanyId();
   const accounts = await prisma.account.findMany({
     where: {
       isActive: true,
-      category: { type },
+      category: { type, companyId },
     },
     include: {
       category: { select: { name: true, type: true, normalSide: true } },
@@ -491,6 +502,7 @@ interface GetJournalEntriesParams {
 }
 
 export async function getJournalEntries(params: GetJournalEntriesParams = {}) {
+  const companyId = await getCurrentCompanyId();
   const {
     page = 1,
     search,
@@ -505,7 +517,7 @@ export async function getJournalEntries(params: GetJournalEntriesParams = {}) {
   const perPage = params.perPage || 20;
   const skip = (page - 1) * perPage;
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { branch: { companyId } };
 
   if (search) {
     where.OR = [
@@ -563,8 +575,9 @@ export async function getJournalEntries(params: GetJournalEntriesParams = {}) {
 }
 
 export async function getJournalEntryById(id: string) {
-  const entry = await prisma.journalEntry.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
     include: {
       lines: {
         include: {
@@ -610,6 +623,7 @@ interface CreateJournalEntryInput {
 
 export async function createJournalEntry(data: CreateJournalEntryInput) {
   await assertMenuActionAccess("accounting-journals", "create");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
@@ -648,7 +662,7 @@ export async function createJournalEntry(data: CreateJournalEntryInput) {
   // Validate all accounts exist
   const accountIds = [...new Set(data.lines.map((l) => l.accountId))];
   const accounts = await prisma.account.findMany({
-    where: { id: { in: accountIds } },
+    where: { id: { in: accountIds }, category: { companyId } },
     select: { id: true, isActive: true },
   });
   if (accounts.length !== accountIds.length) {
@@ -751,12 +765,13 @@ export async function updateJournalEntry(
   data: UpdateJournalEntryInput,
 ) {
   await assertMenuActionAccess("accounting-journals", "update");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
 
-  const existing = await prisma.journalEntry.findUnique({
-    where: { id },
+  const existing = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
     select: { id: true, status: true, entryNumber: true },
   });
   if (!existing) {
@@ -825,7 +840,7 @@ export async function updateJournalEntry(
     // Validate accounts
     const accountIds = [...new Set(data.lines.map((l) => l.accountId))];
     const accounts = await prisma.account.findMany({
-      where: { id: { in: accountIds } },
+      where: { id: { in: accountIds }, category: { companyId } },
       select: { id: true, isActive: true },
     });
     if (accounts.length !== accountIds.length) {
@@ -887,12 +902,13 @@ export async function updateJournalEntry(
 
 export async function postJournalEntry(id: string) {
   await assertMenuActionAccess("accounting-journals", "update");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
 
-  const entry = await prisma.journalEntry.findUnique({
-    where: { id },
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
     select: {
       id: true,
       status: true,
@@ -929,6 +945,7 @@ export async function postJournalEntry(id: string) {
 
 export async function voidJournalEntry(id: string, reason: string) {
   await assertMenuActionAccess("accounting-journals", "void");
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
@@ -936,8 +953,8 @@ export async function voidJournalEntry(id: string, reason: string) {
   if (!reason?.trim()) return { error: "Alasan void wajib diisi" };
 
   // Fetch entry + period check + last entry number — parallel
-  const entry = await prisma.journalEntry.findUnique({
-    where: { id },
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
     select: {
       id: true,
       status: true,
@@ -1073,6 +1090,7 @@ interface CreateAutoJournalParams {
 }
 
 export async function createAutoJournal(params: CreateAutoJournalParams) {
+  const companyId = await getCurrentCompanyId();
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
@@ -1108,7 +1126,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             "1-1004",
             "4-1001",
             "5-1001",
-          ]),
+          ], companyId),
         ]);
         if (!txn) return { error: "Transaksi tidak ditemukan" };
 
@@ -1188,7 +1206,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             where: { id: referenceId },
             include: { supplier: { select: { name: true } } },
           }),
-          getSystemAccounts(["1-1001", "1-1004", "2-1001"]),
+          getSystemAccounts(["1-1001", "1-1004", "2-1001"], companyId),
         ]);
         if (!po) return { error: "Purchase order tidak ditemukan" };
 
@@ -1234,7 +1252,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
               transaction: { select: { invoiceNumber: true } },
             },
           }),
-          getSystemAccounts(["1-1001", "1-1002", "1-1004", "4-1002", "5-1001"]),
+          getSystemAccounts(["1-1001", "1-1002", "1-1004", "4-1002", "5-1001"], companyId),
         ]);
         if (!ret) return { error: "Return tidak ditemukan" };
 
@@ -1301,7 +1319,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
               },
             },
           }),
-          getSystemAccounts(["1-1001", "1-1003", "2-1001"]),
+          getSystemAccounts(["1-1001", "1-1003", "2-1001"], companyId),
         ]);
         if (!payment)
           return { error: "Pembayaran hutang/piutang tidak ditemukan" };
@@ -1360,7 +1378,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             : "5-1002";
 
         // Fetch cash + expense account sekaligus
-        const accs = await getSystemAccounts(["1-1001", expenseAccountCode]);
+        const accs = await getSystemAccounts(["1-1001", expenseAccountCode], companyId);
         const cashAccount = accs.get("1-1001")!;
         const expenseAccount = accs.get(expenseAccountCode)!;
 
@@ -1660,7 +1678,10 @@ export async function lockPeriod(id: string) {
 // ============================================================
 
 export async function seedDefaultCOA() {
-  const existingCategories = await prisma.accountCategory.count();
+  const companyId = await getCurrentCompanyId();
+  const existingCategories = await prisma.accountCategory.count({
+    where: { companyId },
+  });
   if (existingCategories > 0) {
     return { message: "Default COA already exists. Skipping seed." };
   }
@@ -1679,7 +1700,7 @@ export async function seedDefaultCOA() {
   ];
 
   const createdCategories = await prisma.$transaction(
-    categories.map((cat) => prisma.accountCategory.create({ data: cat })),
+    categories.map((cat) => prisma.accountCategory.create({ data: { ...cat, companyId } })),
   );
 
   const categoryMap = new Map(createdCategories.map((c) => [c.type, c.id]));

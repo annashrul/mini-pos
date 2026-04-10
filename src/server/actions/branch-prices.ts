@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // Get all branch prices for a specific branch
 export async function getBranchPrices(params: {
@@ -12,8 +13,9 @@ export async function getBranchPrices(params: {
   perPage?: number;
 }) {
   const { branchId, search, page = 1, perPage = 20 } = params;
+  const companyId = await getCurrentCompanyId();
 
-  const productWhere: Record<string, unknown> = { isActive: true };
+  const productWhere: Record<string, unknown> = { isActive: true, companyId };
   if (search) {
     productWhere.OR = [
       { name: { contains: search, mode: "insensitive" } },

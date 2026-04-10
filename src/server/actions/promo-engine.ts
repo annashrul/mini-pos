@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 interface CartItem {
   productId: string;
@@ -25,10 +26,12 @@ interface AppliedPromo {
 }
 
 export async function getActivePromotions() {
+  const companyId = await getCurrentCompanyId();
   const now = new Date();
   return prisma.promotion.findMany({
     where: {
       isActive: true,
+      companyId,
       startDate: { lte: now },
       endDate: { gte: now },
     },
@@ -43,10 +46,12 @@ export async function calculateAutoPromo(
   items: CartItem[],
   subtotal: number,
 ): Promise<{ promos: AppliedPromo[]; totalDiscount: number }> {
+  const companyId = await getCurrentCompanyId();
   const now = new Date();
   const promotions = await prisma.promotion.findMany({
     where: {
       isActive: true,
+      companyId,
       startDate: { lte: now },
       endDate: { gte: now },
       type: { notIn: ["VOUCHER", "BUNDLE"] },
@@ -157,11 +162,13 @@ export async function calculateAutoPromo(
 }
 
 export async function validateVoucher(code: string, subtotal: number) {
+  const companyId = await getCurrentCompanyId();
   const now = new Date();
   const promo = await prisma.promotion.findFirst({
     where: {
       voucherCode: code.toUpperCase(),
       isActive: true,
+      companyId,
       startDate: { lte: now },
       endDate: { gte: now },
       type: "VOUCHER",
@@ -192,9 +199,11 @@ export async function validateVoucher(code: string, subtotal: number) {
 
 export async function findCustomerByPhone(phone: string) {
   if (!phone || phone.length < 4) return null;
+  const companyId = await getCurrentCompanyId();
 
   return prisma.customer.findFirst({
     where: {
+      companyId,
       OR: [{ phone: { contains: phone } }, { memberCardCode: phone }],
     },
     select: {
@@ -214,10 +223,12 @@ export async function getTebusMurahOptions(
   subtotal: number,
   selections: TebusSelection[] = [],
 ) {
+  const companyId = await getCurrentCompanyId();
   const now = new Date();
   const promos = await prisma.promotion.findMany({
     where: {
       isActive: true,
+      companyId,
       startDate: { lte: now },
       endDate: { gte: now },
       type: "BUNDLE",

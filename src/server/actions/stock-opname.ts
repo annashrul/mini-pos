@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 interface GetStockOpnamesParams {
   page?: number;
@@ -32,7 +33,8 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
   } = params;
   const skip = (page - 1) * limit;
 
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (search) {
     where.OR = [
       { opnameNumber: { contains: search, mode: "insensitive" } },
@@ -101,6 +103,7 @@ export async function createStockOpname(
 ) {
   const branchId = Array.isArray(branchIdOrIds) ? (branchIdOrIds[0] ?? null) : branchIdOrIds;
   await assertMenuActionAccess("stock-opname", "create");
+  const companyId = await getCurrentCompanyId();
   try {
     const today = new Date();
     const prefix = `SO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
@@ -117,7 +120,7 @@ export async function createStockOpname(
 
     // Load all active products with their current stock
     const products = await prisma.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, companyId },
       select: { id: true, stock: true },
       orderBy: { name: "asc" },
     });

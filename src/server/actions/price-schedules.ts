@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAuditLog } from "@/lib/audit";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { auth } from "@/lib/auth";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // ─────────────────────────────────────────────
 // List with pagination, search, filters
@@ -18,9 +19,10 @@ export async function getPriceSchedules(params?: {
   perPage?: number;
 }) {
   const { search, status, branchId, page = 1, perPage = 10 } = params || {};
+  const companyId = await getCurrentCompanyId();
 
   const now = new Date();
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { product: { companyId } };
 
   if (search) {
     where.product = { name: { contains: search, mode: "insensitive" } };
@@ -65,17 +67,19 @@ export async function getPriceSchedules(params?: {
 // ─────────────────────────────────────────────
 
 export async function getPriceScheduleStats() {
+  const companyId = await getCurrentCompanyId();
   const now = new Date();
+  const companyFilter = { product: { companyId } };
 
   const [active, upcoming, expired, productsAffected] = await Promise.all([
     prisma.priceSchedule.count({
-      where: { appliedAt: { not: null }, revertedAt: null, endDate: { gt: now } },
+      where: { appliedAt: { not: null }, revertedAt: null, endDate: { gt: now }, ...companyFilter },
     }),
     prisma.priceSchedule.count({
-      where: { appliedAt: null, startDate: { gt: now } },
+      where: { appliedAt: null, startDate: { gt: now }, ...companyFilter },
     }),
     prisma.priceSchedule.count({
-      where: { revertedAt: { not: null } },
+      where: { revertedAt: { not: null }, ...companyFilter },
     }),
     prisma.priceSchedule.groupBy({
       by: ["productId"],
@@ -101,11 +105,12 @@ export async function createPriceSchedule(data: {
   await assertMenuActionAccess("price-schedules", "create");
   const session = await auth();
   if (!session?.user?.id) return { error: "Unauthorized" };
+  const companyId = await getCurrentCompanyId();
 
   try {
     // Get current product price
     const product = await prisma.product.findUnique({
-      where: { id: data.productId },
+      where: { id: data.productId, companyId },
       select: { sellingPrice: true, name: true },
     });
 

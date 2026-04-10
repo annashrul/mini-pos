@@ -1,11 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // Margin analyzer per product
 export async function getMarginAnalysis(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const products = await prisma.product.findMany({
-    where: { isActive: true },
+    where: { isActive: true, companyId },
     select: {
       id: true,
       name: true,
@@ -30,7 +32,9 @@ export async function getMarginAnalysis(_branchId?: string) {
 
 // Margin analyzer per category
 export async function getCategoryMarginAnalysis(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const categories = await prisma.category.findMany({
+    where: { companyId },
     include: {
       products: {
         where: { isActive: true },
@@ -66,11 +70,12 @@ export async function getCategoryMarginAnalysis(_branchId?: string) {
 
 // Dead stock detection (no sales in 30 days)
 export async function getDeadStock(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const allProducts = await prisma.product.findMany({
-    where: { isActive: true, stock: { gt: 0 } },
+    where: { isActive: true, stock: { gt: 0 }, companyId },
     select: {
       id: true,
       name: true,
@@ -82,7 +87,7 @@ export async function getDeadStock(_branchId?: string) {
   });
 
   const recentSales = await prisma.transactionItem.findMany({
-    where: { createdAt: { gte: thirtyDaysAgo } },
+    where: { createdAt: { gte: thirtyDaysAgo }, transaction: { branch: { companyId } } },
     select: { productId: true },
     distinct: ["productId"],
   });
@@ -99,8 +104,13 @@ export async function getDeadStock(_branchId?: string) {
 
 // Slow moving products (sold < 5 in 30 days)
 export async function getSlowMoving(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const params: unknown[] = [thirtyDaysAgo];
+  const branchCond = branchId ? `AND t."branchId" = $${params.push(branchId)}` : "";
+  const companyCond = `AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`;
 
   const slowRows = await prisma.$queryRawUnsafe<
     { productId: string; soldQty: number }[]
@@ -113,14 +123,14 @@ export async function getSlowMoving(branchId?: string) {
     JOIN transactions t ON t.id = ti."transactionId"
     WHERE t.status = 'COMPLETED'
       AND t."createdAt" >= $1
-      ${branchId ? `AND t."branchId" = $2` : ""}
+      ${branchCond}
+      ${companyCond}
     GROUP BY ti."productId"
     HAVING COALESCE(SUM(ti.quantity), 0) < 5
     ORDER BY "soldQty" ASC
     LIMIT 50
     `,
-    thirtyDaysAgo,
-    ...(branchId ? [branchId] : []),
+    ...params,
   );
 
   const slowIds = slowRows.map((r) => r.productId);
@@ -147,6 +157,7 @@ export async function getSlowMoving(branchId?: string) {
 
 // Peak hours analysis
 export async function getPeakHours(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -154,6 +165,7 @@ export async function getPeakHours(branchId?: string) {
   const branchCond = branchId
     ? `AND "branchId" = $${params.push(branchId)}`
     : "";
+  const companyCond = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`;
 
   const rows = await prisma.$queryRawUnsafe<
     { h: number; count: bigint; revenue: bigint }[]
@@ -161,7 +173,7 @@ export async function getPeakHours(branchId?: string) {
     `
     SELECT EXTRACT(HOUR FROM "createdAt")::int as h, COUNT(*)::bigint as count,COALESCE(SUM("grandTotal"), 0) as revenue
     FROM transactions
-    WHERE status = 'COMPLETED' AND "createdAt" >= $1 ${branchCond}
+    WHERE status = 'COMPLETED' AND "createdAt" >= $1 ${branchCond} ${companyCond}
     GROUP BY EXTRACT(HOUR FROM "createdAt")
     ORDER BY h
     `,
@@ -187,7 +199,8 @@ export async function getPeakHours(branchId?: string) {
 
 // Smart reorder alerts
 export async function getReorderAlerts(_branchId?: string) {
-  return prisma.$queryRaw<
+  const companyId = await getCurrentCompanyId();
+  return prisma.$queryRawUnsafe<
     {
       id: string;
       name: string;
@@ -196,19 +209,21 @@ export async function getReorderAlerts(_branchId?: string) {
       minStock: number;
       supplierName: string | null;
     }[]
-  >`
+  >(`
     SELECT p.id, p.name, p.code, p.stock, p."minStock",
            s.name as "supplierName"
     FROM products p
     LEFT JOIN suppliers s ON p."supplierId" = s.id
     WHERE p."isActive" = true AND p.stock <= p."minStock"
+      AND p."companyId" = $1
     ORDER BY (p.stock::float / NULLIF(p."minStock", 0)) ASC
     LIMIT 20
-  `;
+  `, companyId);
 }
 
 // Fraud detection - void abuse
 export async function getVoidAbuseDetection(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -220,10 +235,12 @@ export async function getVoidAbuseDetection(_branchId?: string) {
       FROM transactions t
       JOIN users u ON u.id = t."userId"
       WHERE t.status = 'VOIDED' AND t."createdAt" >= $1
+        AND u."companyId" = $2
       GROUP BY u.id, u.name, u.role
       ORDER BY "voidCount" DESC
       `,
     sevenDaysAgo,
+    companyId,
   );
 
   return rows.map((r) => ({
@@ -236,6 +253,7 @@ export async function getVoidAbuseDetection(_branchId?: string) {
 
 // Daily profit (last 30 days)
 export async function getDailyProfit(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -250,10 +268,12 @@ export async function getDailyProfit(_branchId?: string) {
     JOIN transaction_items ti ON ti."transactionId" = t.id
     JOIN products p ON p.id = ti."productId"
     WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1
+      AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $2)
     GROUP BY DATE_TRUNC('day', t."createdAt")
     ORDER BY d ASC
   `,
     thirtyDaysAgo,
+    companyId,
   );
 
   return rows.map((r) => ({
@@ -266,8 +286,9 @@ export async function getDailyProfit(_branchId?: string) {
 
 // Profit per shift
 export async function getShiftProfit(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const shifts = await prisma.cashierShift.findMany({
-    where: { isOpen: false, closedAt: { not: null } },
+    where: { isOpen: false, closedAt: { not: null }, branch: { companyId } },
     include: { user: { select: { name: true } } },
     orderBy: { closedAt: "desc" },
     take: 30,
@@ -299,34 +320,36 @@ export async function getShiftProfit(_branchId?: string) {
 
 // Supplier ranking
 export async function getSupplierRanking(_branchId?: string) {
-  return prisma.$queryRaw<
+  const companyId = await getCurrentCompanyId();
+  return prisma.$queryRawUnsafe<
     {
       name: string;
       productCount: number;
       totalPOValue: number;
       poCount: number;
     }[]
-  >`
+  >(`
     SELECT s.name,COUNT(DISTINCT p.id)::int AS "productCount",COALESCE(SUM(po."totalAmount"), 0)::float AS "totalPOValue",COUNT(DISTINCT po.id)::int AS "poCount"
     FROM suppliers s
     LEFT JOIN products p ON p."supplierId" = s.id AND p."isActive" = true
     LEFT JOIN purchase_orders po ON po."supplierId" = s.id
-    WHERE s."isActive" = true
+    WHERE s."isActive" = true AND s."companyId" = $1
     GROUP BY s.id, s.name
     ORDER BY "totalPOValue" DESC
-  `;
+  `, companyId);
 }
 
 // Supplier debt tracking
 export async function getSupplierDebt(_branchId?: string) {
-  return prisma.$queryRaw<
+  const companyId = await getCurrentCompanyId();
+  return prisma.$queryRawUnsafe<
     {
       supplierName: string;
       totalPO: number;
       totalPaid: number;
       debt: number;
     }[]
-  >`
+  >(`
     SELECT
       s.name as "supplierName",
       COALESCE((
@@ -354,13 +377,14 @@ export async function getSupplierDebt(_branchId?: string) {
         ), 0)
       )::float as debt
     FROM suppliers s
-    WHERE s."isActive" = true
+    WHERE s."isActive" = true AND s."companyId" = $1
     ORDER BY debt DESC
-  `;
+  `, companyId);
 }
 
 // Unusual discount detection
 export async function getUnusualDiscounts(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -381,9 +405,11 @@ export async function getUnusualDiscounts(_branchId?: string) {
     FROM transactions t
     JOIN users u ON u.id = t."userId"
     WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1 AND t."discountAmount" > 0 AND t.subtotal > 0 AND (t."discountAmount" / t.subtotal) * 100 > 20
+      AND u."companyId" = $2
     ORDER BY t."discountAmount" DESC
     `,
     sevenDaysAgo,
+    companyId,
   );
 
   return transactions.map((tx) => ({
@@ -400,8 +426,9 @@ export async function getUnusualDiscounts(_branchId?: string) {
 
 // Promo effectiveness report
 export async function getPromoEffectiveness(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const [promotions, txAgg] = await Promise.all([
-    prisma.promotion.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.promotion.findMany({ where: { companyId }, orderBy: { createdAt: "desc" }, take: 50 }),
     prisma.$queryRaw<
       { promoApplied: string; usageCount: number; totalDiscount: number }[]
     >`
@@ -432,11 +459,12 @@ export async function getPromoEffectiveness(_branchId?: string) {
 
 // Auto reorder recommendation
 export async function getReorderRecommendations(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   // Use raw query for the stock <= minStock filter since Prisma doesn't support field-to-field comparison
-  const lowStockProducts = await prisma.$queryRaw<
+  const lowStockProducts = await prisma.$queryRawUnsafe<
     {
       id: string;
       name: string;
@@ -445,14 +473,15 @@ export async function getReorderRecommendations(_branchId?: string) {
       minStock: number;
       supplierName: string | null;
     }[]
-  >`
+  >(`
     SELECT p.id, p.name, p.code, p.stock, p."minStock",
            s.name as "supplierName"
     FROM products p
     LEFT JOIN suppliers s ON p."supplierId" = s.id
     WHERE p."isActive" = true AND p.stock <= p."minStock"
+      AND p."companyId" = $1
     ORDER BY (p.stock::float / NULLIF(p."minStock", 0)) ASC
-  `;
+  `, companyId);
 
   // Get avg daily sales for ALL low stock products in a single query
   const productIds = lowStockProducts.map((p) => p.id);
@@ -501,6 +530,7 @@ export async function getReorderRecommendations(_branchId?: string) {
 
 // Cashier performance
 export async function getCashierPerformance(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -520,9 +550,11 @@ export async function getCashierPerformance(_branchId?: string) {
     FROM transactions t
     JOIN users u ON u.id = t."userId"
     WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1
+      AND u."companyId" = $2
     GROUP BY u.id, u.name
     ORDER BY revenue DESC
     `,
     thirtyDaysAgo,
+    companyId,
   );
 }

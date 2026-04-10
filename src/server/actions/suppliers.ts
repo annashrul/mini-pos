@@ -5,10 +5,12 @@ import { supplierSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getSuppliers(params?: { search?: string; status?: string; page?: number; perPage?: number }) {
+  const companyId = await getCurrentCompanyId();
   const { search, status, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }
@@ -30,7 +32,9 @@ export async function getSuppliers(params?: { search?: string; status?: string; 
 }
 
 export async function getAllSuppliers() {
+  const companyId = await getCurrentCompanyId();
   return prisma.supplier.findMany({
+    where: { companyId },
     include: { _count: { select: { products: true } } },
     orderBy: { name: "asc" },
   });
@@ -47,6 +51,7 @@ export async function createSupplier(data: FormData) {
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Data supplier tidak valid" };
 
+  const companyId = await getCurrentCompanyId();
   try {
     await prisma.supplier.create({
       data: {
@@ -55,6 +60,7 @@ export async function createSupplier(data: FormData) {
         address: parsed.data.address ?? null,
         email: parsed.data.email ?? null,
         isActive: parsed.data.isActive,
+        companyId,
       },
     });
     createAuditLog({ action: "CREATE", entity: "Supplier", details: { data: { name: parsed.data.name, contact: parsed.data.contact ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
@@ -67,6 +73,7 @@ export async function createSupplier(data: FormData) {
 
 export async function updateSupplier(id: string, data: FormData) {
   await assertMenuActionAccess("suppliers", "update");
+  await getCurrentCompanyId();
   const parsed = supplierSchema.safeParse({
     name: data.get("name"),
     contact: data.get("contact") || null,
@@ -98,6 +105,7 @@ export async function updateSupplier(id: string, data: FormData) {
 
 export async function deleteSupplier(id: string) {
   await assertMenuActionAccess("suppliers", "delete");
+  await getCurrentCompanyId();
   try {
     const productsCount = await prisma.product.count({ where: { supplierId: id } });
     if (productsCount > 0) {

@@ -2,11 +2,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getTables(branchId?: string, search?: string, section?: string) {
+  const companyId = await getCurrentCompanyId();
   return prisma.restaurantTable.findMany({
     where: {
       isActive: true,
+      branch: { companyId },
       // Show global tables (branchId null) OR branch-specific tables
       ...(branchId ? { OR: [{ branchId: null }, { branchId }] } : {}),
       ...(search ? {
@@ -66,7 +69,8 @@ export async function releaseTable(id: string) {
 }
 
 export async function getTableSections(branchId?: string) {
-  const where: Record<string, unknown> = { isActive: true };
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { isActive: true, branch: { companyId } };
   if (branchId) where.branchId = branchId;
 
   const tables = await prisma.restaurantTable.findMany({
@@ -107,7 +111,8 @@ export async function deleteTable(id: string) {
 }
 
 export async function getTableStats(branchId?: string) {
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (branchId) where.OR = [{ branchId: null }, { branchId }];
 
   const tables = await prisma.restaurantTable.findMany({ where, select: { status: true, isActive: true } });

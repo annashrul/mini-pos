@@ -16,7 +16,7 @@ export const authConfig: NextAuthConfig = {
       const pathname = request.nextUrl.pathname;
 
       // Public routes
-      if (pathname === "/login") {
+      if (pathname === "/login" || pathname === "/register") {
         if (isLoggedIn) {
           return Response.redirect(new URL("/dashboard", request.nextUrl));
         }
@@ -42,6 +42,7 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.id = user.id;
         token.role = (user as Record<string, unknown>).role;
+        token.companyId = (user as Record<string, unknown>).companyId;
         token.branchId = (user as Record<string, unknown>).branchId ?? null;
       }
       return token;
@@ -50,6 +51,8 @@ export const authConfig: NextAuthConfig = {
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as unknown as Record<string, unknown>).role = token.role;
+        (session.user as unknown as Record<string, unknown>).companyId =
+          token.companyId;
         (session.user as unknown as Record<string, unknown>).branchId =
           token.branchId;
       }

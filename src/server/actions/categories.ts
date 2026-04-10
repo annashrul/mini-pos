@@ -5,14 +5,16 @@ import { categorySchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getCategories(params?: {
   search?: string;
   page?: number;
   perPage?: number;
 }) {
+  const companyId = await getCurrentCompanyId();
   const { search, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }
@@ -32,7 +34,9 @@ export async function getCategories(params?: {
 }
 
 export async function getAllCategories() {
+  const companyId = await getCurrentCompanyId();
   return prisma.category.findMany({
+    where: { companyId },
     include: { _count: { select: { products: true } } },
     orderBy: { name: "asc" },
   });
@@ -49,11 +53,13 @@ export async function createCategory(data: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
   }
 
+  const companyId = await getCurrentCompanyId();
   try {
     const category = await prisma.category.create({
       data: {
         name: parsed.data.name,
         description: parsed.data.description ?? null,
+        companyId,
       },
     });
     revalidatePath("/categories");
@@ -66,6 +72,7 @@ export async function createCategory(data: FormData) {
 
 export async function updateCategory(id: string, data: FormData) {
   await assertMenuActionAccess("categories", "update");
+  const companyId = await getCurrentCompanyId();
   const parsed = categorySchema.safeParse({
     name: data.get("name"),
     description: data.get("description"),
@@ -76,9 +83,9 @@ export async function updateCategory(id: string, data: FormData) {
   }
 
   try {
-    const oldCategory = await prisma.category.findUniqueOrThrow({ where: { id } });
+    const oldCategory = await prisma.category.findUniqueOrThrow({ where: { id, companyId } });
     await prisma.category.update({
-      where: { id },
+      where: { id, companyId },
       data: {
         name: parsed.data.name,
         description: parsed.data.description ?? null,
@@ -94,15 +101,16 @@ export async function updateCategory(id: string, data: FormData) {
 
 export async function deleteCategory(id: string) {
   await assertMenuActionAccess("categories", "delete");
+  const companyId = await getCurrentCompanyId();
   try {
     const productsCount = await prisma.product.count({
-      where: { categoryId: id },
+      where: { categoryId: id, companyId },
     });
     if (productsCount > 0) {
       return { error: `Kategori masih memiliki ${productsCount} produk` };
     }
-    const category = await prisma.category.findUniqueOrThrow({ where: { id } });
-    await prisma.category.delete({ where: { id } });
+    const category = await prisma.category.findUniqueOrThrow({ where: { id, companyId } });
+    await prisma.category.delete({ where: { id, companyId } });
     revalidatePath("/categories");
     createAuditLog({ action: "DELETE", entity: "Category", entityId: id, details: { deleted: { name: category.name } } }).catch(() => {});
     return { success: true };

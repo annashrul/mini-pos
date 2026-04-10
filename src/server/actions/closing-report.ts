@@ -3,8 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getClosingReport(shiftId: string) {
+  await getCurrentCompanyId();
   const shift = await prisma.cashierShift.findUnique({
     where: { id: shiftId },
     include: { user: { select: { name: true, email: true } } },
@@ -159,7 +161,8 @@ export async function getClosingReportList(params?: {
     dateTo,
     branchId,
   } = params || {};
-  const where: Record<string, unknown> = { isOpen: false };
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { isOpen: false, branch: { companyId } };
   if (branchId) where.branchId = branchId;
 
   if (search) {

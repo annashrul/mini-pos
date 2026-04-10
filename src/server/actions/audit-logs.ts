@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { getCurrentCompanyId } from "@/lib/company";
 
 type AuditLogListItem = Prisma.AuditLogGetPayload<{
   include: {
@@ -34,7 +35,8 @@ export async function getAuditLogs(params?: {
     dateFrom,
     dateTo,
   } = params || {};
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { user: { companyId } };
   if (branchId) where.branchId = branchId;
 
   if (search) {

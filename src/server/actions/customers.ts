@@ -6,6 +6,7 @@ import { customerSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 export async function getCustomers(params?: {
   search?: string;
@@ -15,8 +16,9 @@ export async function getCustomers(params?: {
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }) {
+  const companyId = await getCurrentCompanyId();
   const { search, memberLevel, page = 1, perPage = 10, sortBy, sortDir = "desc" } = params || {};
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { companyId };
 
   if (search) {
     where.OR = [
@@ -61,6 +63,7 @@ export async function getCustomers(params?: {
 
 export async function createCustomer(data: FormData) {
   await assertMenuActionAccess("customers", "create");
+  const companyId = await getCurrentCompanyId();
   const rawDob = data.get("dateOfBirth");
   const parsed = customerSchema.safeParse({
     name: data.get("name"),
@@ -75,6 +78,7 @@ export async function createCustomer(data: FormData) {
   try {
     await prisma.customer.create({
       data: {
+        companyId,
         name: parsed.data.name,
         phone: parsed.data.phone ?? null,
         email: parsed.data.email ?? null,
@@ -93,6 +97,7 @@ export async function createCustomer(data: FormData) {
 
 export async function updateCustomer(id: string, data: FormData) {
   await assertMenuActionAccess("customers", "update");
+  const companyId = await getCurrentCompanyId();
   const rawDob = data.get("dateOfBirth");
   const parsed = customerSchema.safeParse({
     name: data.get("name"),
@@ -105,9 +110,9 @@ export async function updateCustomer(id: string, data: FormData) {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
 
   try {
-    const old = await prisma.customer.findUnique({ where: { id }, select: { name: true, phone: true, email: true, address: true, memberLevel: true } });
+    const old = await prisma.customer.findUnique({ where: { id, companyId }, select: { name: true, phone: true, email: true, address: true, memberLevel: true } });
     await prisma.customer.update({
-      where: { id },
+      where: { id, companyId },
       data: {
         name: parsed.data.name,
         phone: parsed.data.phone ?? null,
@@ -128,8 +133,9 @@ export async function updateCustomer(id: string, data: FormData) {
 }
 
 export async function getUpcomingBirthdays() {
+  const companyId = await getCurrentCompanyId();
   const customers = await prisma.customer.findMany({
-    where: { dateOfBirth: { not: null } },
+    where: { companyId, dateOfBirth: { not: null } },
     select: { id: true, name: true, phone: true, dateOfBirth: true, memberLevel: true },
   });
 
@@ -147,13 +153,14 @@ export async function getUpcomingBirthdays() {
 
 export async function deleteCustomer(id: string) {
   await assertMenuActionAccess("customers", "delete");
+  const companyId = await getCurrentCompanyId();
   try {
-    const txCount = await prisma.transaction.count({ where: { customerId: id } });
+    const txCount = await prisma.transaction.count({ where: { customerId: id, companyId } });
     if (txCount > 0) {
       return { error: `Customer masih memiliki ${txCount} transaksi` };
     }
-    const old = await prisma.customer.findUnique({ where: { id } });
-    await prisma.customer.delete({ where: { id } });
+    const old = await prisma.customer.findUnique({ where: { id, companyId } });
+    await prisma.customer.delete({ where: { id, companyId } });
     createAuditLog({ action: "DELETE", entity: "Customer", entityId: id, details: { deleted: { name: old?.name, email: old?.email } } }).catch(() => {});
     revalidatePath("/customers");
     return { success: true };
@@ -163,11 +170,12 @@ export async function deleteCustomer(id: string) {
 }
 
 export async function quickRegisterCustomer(name: string, phone: string) {
+  const companyId = await getCurrentCompanyId();
   if (!name?.trim() || !phone?.trim()) return null;
 
   // Check if phone already exists
   const existing = await prisma.customer.findFirst({
-    where: { phone },
+    where: { companyId, phone },
     select: { id: true, name: true, phone: true, memberLevel: true, points: true, totalSpending: true, memberCardCode: true },
   });
   if (existing) return existing;
@@ -175,6 +183,7 @@ export async function quickRegisterCustomer(name: string, phone: string) {
   // Auto-create
   const customer = await prisma.customer.create({
     data: {
+      companyId,
       name: name.trim(),
       phone: phone.trim(),
       memberLevel: "REGULAR",
@@ -186,9 +195,10 @@ export async function quickRegisterCustomer(name: string, phone: string) {
 }
 
 export async function getCustomerPurchaseHistory(customerId: string, page: number = 1, perPage: number = 10) {
+    const companyId = await getCurrentCompanyId();
     const [transactions, total] = await Promise.all([
         prisma.transaction.findMany({
-            where: { customerId, status: "COMPLETED" },
+            where: { companyId, customerId, status: "COMPLETED" },
             include: {
                 items: { select: { productName: true, quantity: true, unitPrice: true, subtotal: true, unitName: true } },
                 payments: { select: { method: true, amount: true } },
@@ -197,12 +207,12 @@ export async function getCustomerPurchaseHistory(customerId: string, page: numbe
             skip: (page - 1) * perPage,
             take: perPage,
         }),
-        prisma.transaction.count({ where: { customerId, status: "COMPLETED" } }),
+        prisma.transaction.count({ where: { companyId, customerId, status: "COMPLETED" } }),
     ]);
 
     // Also get customer stats
     const stats = await prisma.transaction.aggregate({
-        where: { customerId, status: "COMPLETED" },
+        where: { companyId, customerId, status: "COMPLETED" },
         _sum: { grandTotal: true },
         _count: true,
         _avg: { grandTotal: true },
@@ -221,10 +231,11 @@ export async function getCustomerPurchaseHistory(customerId: string, page: numbe
 }
 
 export async function getCustomerFavoriteProducts(customerId: string) {
+    const companyId = await getCurrentCompanyId();
     const items = await prisma.transactionItem.groupBy({
         by: ["productName"],
         _sum: { quantity: true, subtotal: true },
-        where: { transaction: { customerId, status: "COMPLETED" } },
+        where: { transaction: { companyId, customerId, status: "COMPLETED" } },
         orderBy: { _sum: { quantity: "desc" } },
         take: 10,
     });

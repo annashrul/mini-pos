@@ -1,10 +1,13 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { getCurrentCompanyId } from "@/lib/company";
 
 // Repeat customer detection
 export async function getRepeatCustomers(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const customers = await prisma.customer.findMany({
+    where: { companyId },
     include: {
       _count: { select: { transactions: true } },
     },
@@ -49,11 +52,13 @@ export async function getCustomerFavorites(customerId: string, _branchId?: strin
 
 // Shopping frequency analysis
 export async function getShoppingFrequency(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const customers = await prisma.customer.findMany({
     where: {
+      companyId,
       transactions: { some: { createdAt: { gte: thirtyDaysAgo } } },
     },
     include: {
@@ -92,8 +97,10 @@ export async function getShoppingFrequency(_branchId?: string) {
 
 // Loyalty points summary
 export async function getLoyaltySummary(_branchId?: string) {
+  const companyId = await getCurrentCompanyId();
   const levels = await prisma.customer.groupBy({
     by: ["memberLevel"],
+    where: { companyId },
     _count: true,
     _sum: { totalSpending: true, points: true },
   });

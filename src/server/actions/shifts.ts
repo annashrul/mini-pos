@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
+import { getCurrentCompanyId } from "@/lib/company";
 
 async function resolveSessionUserId(
   session: { user?: { id?: string; email?: string } } | null,
@@ -49,7 +50,8 @@ export async function getShifts(params?: {
     sortBy,
     sortDir = "desc",
   } = params || {};
-  const where: Record<string, unknown> = {};
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { branch: { companyId } };
   if (branchId) where.branchId = branchId;
   if (search) {
     where.user = {
