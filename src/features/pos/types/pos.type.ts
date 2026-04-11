@@ -47,6 +47,7 @@ export type HeldTransaction = {
   id: number;
   cart: CartItem[];
   time: string;
+  label: string;
 };
 
 export type PosHistoryItem = {

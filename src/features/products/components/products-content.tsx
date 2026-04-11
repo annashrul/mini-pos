@@ -16,7 +16,8 @@ import {
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Package, Upload, PackageCheck, AlertTriangle, PackageX, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Upload, PackageCheck, AlertTriangle, PackageX, Layers, Crown } from "lucide-react";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { toast } from "sonner";
 import type { Product, Category, Branch } from "@/types";
 import { ProductFormDialog } from "./product-form-dialog";
@@ -45,6 +46,7 @@ export function ProductsContent() {
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("products");
+    const { canAction: canPlanAction } = usePlanAccess();
     const canCreate = canAction("create");
     const canUpdate = canAction("update");
     const canDelete = canAction("delete");
@@ -311,11 +313,17 @@ export function ProductsContent() {
                     </div>
                 </div>
                 <div className="hidden sm:flex gap-2">
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                        <Button disabled={!canCreate} variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
-                            <Upload className="w-4 h-4 mr-2" /> Import
+                    {canPlanAction("products", "import") ? (
+                        <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                            <Button disabled={!canCreate} variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                                <Upload className="w-4 h-4 mr-2" /> Import
+                            </Button>
+                        </DisabledActionTooltip>
+                    ) : (
+                        <Button variant="outline" className="rounded-xl border-dashed opacity-60" asChild>
+                            <a href="/plan"><Upload className="w-4 h-4 mr-2" /> Import <Crown className="w-3 h-3 ml-1 text-amber-500" /></a>
                         </Button>
-                    </DisabledActionTooltip>
+                    )}
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
                         <Button disabled={!canCreate} className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md shadow-indigo-500/20 text-white" onClick={openCreateDialog}>
                             <Plus className="w-4 h-4 mr-2" /> Tambah Produk
@@ -417,7 +425,7 @@ export function ProductsContent() {
                 bulkActions={[
                     { label: "Hapus", variant: "destructive", icon: <Trash2 className="w-3 h-3" />, onClick: handleBulkDelete },
                 ]}
-                exportFilename="produk"
+                planMenuKey="products" exportFilename="produk"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 mx-auto">
                         <Package className="w-8 h-8 text-indigo-400" />

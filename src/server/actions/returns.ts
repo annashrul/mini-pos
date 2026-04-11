@@ -380,22 +380,12 @@ export async function approveReturn(id: string) {
 
         // Update branch stock if applicable
         if (branchId) {
-          await tx.branchStock.upsert({
-            where: {
-              branchId_productId: {
-                branchId,
-                productId: item.productId,
-              },
-            },
-            create: {
-              branchId,
-              productId: item.productId,
-              quantity: item.quantity,
-            },
-            update: {
-              quantity: { increment: item.quantity },
-            },
-          });
+          const existingBs = await tx.branchStock.findFirst({ where: { branchId, productId: item.productId } });
+          if (existingBs) {
+            await tx.branchStock.update({ where: { id: existingBs.id }, data: { quantity: { increment: item.quantity } } });
+          } else {
+            await tx.branchStock.create({ data: { branchId, productId: item.productId, quantity: item.quantity } });
+          }
         }
 
         // Create stock movement record

@@ -276,7 +276,7 @@ export function ShiftsContent() {
                 sortDir={sortDir}
                 onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
                 rowKey={(row) => row.id}
-                exportFilename="shifts"
+                planMenuKey="shifts" exportFilename="shifts"
                 emptyIcon={<Clock className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Belum ada riwayat shift"
             />

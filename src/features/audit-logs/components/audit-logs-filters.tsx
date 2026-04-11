@@ -23,6 +23,7 @@ const entityOptions = [
     { value: "Promotion", label: "Promo" },
     { value: "Expense", label: "Pengeluaran" },
     { value: "StockMovement", label: "Stok" },
+    { value: "Session", label: "Login/Logout" },
 ];
 
 const actionOptions = [
@@ -33,6 +34,14 @@ const actionOptions = [
     { value: "VOID", label: "Void" },
     { value: "REFUND", label: "Refund" },
     { value: "LOGIN", label: "Login" },
+    { value: "LOGOUT", label: "Logout" },
+    { value: "HOLD", label: "Hold Transaksi" },
+    { value: "RESUME", label: "Resume Transaksi" },
+    { value: "REPRINT", label: "Cetak Ulang" },
+    { value: "CLEAR_CART", label: "Hapus Keranjang" },
+    { value: "APPLY_VOUCHER", label: "Pakai Voucher" },
+    { value: "REDEEM_POINTS", label: "Tukar Poin" },
+    { value: "QUICK_REGISTER", label: "Registrasi Cepat" },
 ];
 
 export function AuditLogsFilters(props: {

@@ -247,7 +247,7 @@ export function CategoriesContent() {
                         </div>
                     </div>
                 }
-                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} exportFilename="kategori"
+                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} planMenuKey="categories" exportFilename="kategori"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-green-100 mx-auto">
                         <FolderTree className="w-8 h-8 text-emerald-400" />

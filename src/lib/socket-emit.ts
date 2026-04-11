@@ -15,6 +15,8 @@ export const EVENTS = {
   CONFIG_POS_UPDATED: "config:pos-updated",
   CONFIG_RECEIPT_UPDATED: "config:receipt-updated",
   CONFIG_KITCHEN_UPDATED: "config:kitchen-updated",
+  SUBSCRIPTION_UPDATED: "subscription:updated",
+  COMPANY_REGISTERED: "company:registered",
 } as const;
 
 let pusherClient: {

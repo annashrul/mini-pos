@@ -19,6 +19,10 @@ type PosUiStateContextValue = {
   setShowPaymentDialog: React.Dispatch<React.SetStateAction<boolean>>;
   showClosingDialog: boolean;
   setShowClosingDialog: React.Dispatch<React.SetStateAction<boolean>>;
+  showHoldInputDialog: boolean;
+  setShowHoldInputDialog: React.Dispatch<React.SetStateAction<boolean>>;
+  holdInputLabel: string;
+  setHoldInputLabel: React.Dispatch<React.SetStateAction<string>>;
 };
 
 const PosUiStateContext = createContext<PosUiStateContextValue | null>(null);
@@ -32,6 +36,8 @@ export function PosUiStateProvider({ children }: { children: React.ReactNode }) 
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showClosingDialog, setShowClosingDialog] = useState(false);
+  const [showHoldInputDialog, setShowHoldInputDialog] = useState(false);
+  const [holdInputLabel, setHoldInputLabel] = useState("");
 
   const value = useMemo(
     () => ({
@@ -51,6 +57,10 @@ export function PosUiStateProvider({ children }: { children: React.ReactNode }) 
       setShowPaymentDialog,
       showClosingDialog,
       setShowClosingDialog,
+      showHoldInputDialog,
+      setShowHoldInputDialog,
+      holdInputLabel,
+      setHoldInputLabel,
     }),
     [
       showHistoryDialog,
@@ -61,6 +71,8 @@ export function PosUiStateProvider({ children }: { children: React.ReactNode }) 
       showShortcutsDialog,
       showPaymentDialog,
       showClosingDialog,
+      showHoldInputDialog,
+      holdInputLabel,
     ]
   );
 

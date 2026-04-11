@@ -60,80 +60,34 @@ function branchClause(
 export async function getProfitOverview(period: Period, branchId?: string) {
   const companyId = await getCurrentCompanyId();
   const { periodStart, prevPeriodStart, prevPeriodEnd, periodEnd } = getPeriodDates(period);
-  const bc = branchClause(branchId, "t", 3);
-  const bcNextIdx = 3 + bc.params.length;
-  const companyClause = `AND t."branchId" IN (SELECT id FROM branches WHERE "companyId" = $${bcNextIdx})`;
-  const bcExpense = branchClause(branchId, undefined, 3);
-  const bcExpNextIdx = 3 + bcExpense.params.length;
-  const companyExpenseClause = `AND "branchId" IN (SELECT id FROM branches WHERE "companyId" = $${bcExpNextIdx})`;
 
-  // Current period: revenue, COGS
-  const [currentData] = await prisma.$queryRawUnsafe<
-    { revenue: number; cogs: number; tx_count: number }[]
-  >(`
-    SELECT
-      COALESCE(SUM(ti."subtotal"), 0)::float AS revenue,
-      COALESCE(SUM(ti."quantity" * p."purchasePrice"), 0)::float AS cogs,
-      COUNT(DISTINCT t."id")::int AS tx_count
-    FROM transactions t
-    JOIN transaction_items ti ON ti."transactionId" = t."id"
-    JOIN products p ON p."id" = ti."productId"
-    WHERE t."status" = 'COMPLETED'
-      AND t."createdAt" >= $1
-      AND t."createdAt" < $2
-      ${bc.condition}
-      ${companyClause}
-  `, periodStart, periodEnd, ...bc.params, companyId);
+  type ProfitRow = { revenue: number; cogs: number; gross_profit: number; discount: number; tax: number; expense: number; net_profit: number; transaction_count: number; items_sold: number };
 
-  // Previous period: revenue, COGS
-  const [prevData] = await prisma.$queryRawUnsafe<
-    { revenue: number; cogs: number; tx_count: number }[]
-  >(`
-    SELECT
-      COALESCE(SUM(ti."subtotal"), 0)::float AS revenue,
-      COALESCE(SUM(ti."quantity" * p."purchasePrice"), 0)::float AS cogs,
-      COUNT(DISTINCT t."id")::int AS tx_count
-    FROM transactions t
-    JOIN transaction_items ti ON ti."transactionId" = t."id"
-    JOIN products p ON p."id" = ti."productId"
-    WHERE t."status" = 'COMPLETED'
-      AND t."createdAt" >= $1
-      AND t."createdAt" < $2
-      ${bc.condition}
-      ${companyClause}
-  `, prevPeriodStart, prevPeriodEnd, ...bc.params, companyId);
+  // 2 function calls instead of 4 raw queries
+  const [[current], [prev]] = await Promise.all([
+    prisma.$queryRawUnsafe<ProfitRow[]>(
+      `SELECT * FROM fn_get_profit_metrics($1, $2, $3, $4)`,
+      periodStart, periodEnd, branchId || null, companyId,
+    ),
+    prisma.$queryRawUnsafe<ProfitRow[]>(
+      `SELECT * FROM fn_get_profit_metrics($1, $2, $3, $4)`,
+      prevPeriodStart, prevPeriodEnd, branchId || null, companyId,
+    ),
+  ]);
 
-  // Current period expenses
-  const [currentExpenses] = await prisma.$queryRawUnsafe<{ total: number }[]>(`
-    SELECT COALESCE(SUM("amount"), 0)::float AS total
-    FROM expenses
-    WHERE "date" >= $1 AND "date" < $2
-    ${bcExpense.condition}
-    ${companyExpenseClause}
-  `, periodStart, periodEnd, ...bcExpense.params, companyId);
-
-  // Previous period expenses
-  const [prevExpenses] = await prisma.$queryRawUnsafe<{ total: number }[]>(`
-    SELECT COALESCE(SUM("amount"), 0)::float AS total
-    FROM expenses
-    WHERE "date" >= $1 AND "date" < $2
-    ${bcExpense.condition}
-    ${companyExpenseClause}
-  `, prevPeriodStart, prevPeriodEnd, ...bcExpense.params, companyId);
-
-  const revenue = currentData?.revenue ?? 0;
-  const cogs = currentData?.cogs ?? 0;
-  const grossProfit = revenue - cogs;
+  const revenue = current?.revenue ?? 0;
+  const cogs = current?.cogs ?? 0;
+  const grossProfit = current?.gross_profit ?? 0;
   const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-  const expenses = currentExpenses?.total ?? 0;
-  const netProfit = grossProfit - expenses;
+  const expenses = current?.expense ?? 0;
+  const netProfit = current?.net_profit ?? 0;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
-  const prevRevenue = prevData?.revenue ?? 0;
-  const prevCogs = prevData?.cogs ?? 0;
-  const prevGrossProfit = prevRevenue - prevCogs;
-  const prevExpensesTotal = prevExpenses?.total ?? 0;
-  const prevNetProfit = prevGrossProfit - prevExpensesTotal;
+  const prevRevenue = prev?.revenue ?? 0;
+  const prevCogs = prev?.cogs ?? 0;
+  const prevGrossProfit = prev?.gross_profit ?? 0;
+  const prevExpensesTotal = prev?.expense ?? 0;
+  const prevNetProfit = prev?.net_profit ?? 0;
 
   const revenueGrowth = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0;
   const grossProfitGrowth = prevGrossProfit > 0 ? ((grossProfit - prevGrossProfit) / prevGrossProfit) * 100 : 0;
@@ -154,7 +108,7 @@ export async function getProfitOverview(period: Period, branchId?: string) {
     netProfitGrowth: Math.round(netProfitGrowth * 10) / 10,
     cogsGrowth: Math.round(cogsGrowth * 10) / 10,
     expensesGrowth: Math.round(expensesGrowth * 10) / 10,
-    transactionCount: currentData?.tx_count ?? 0,
+    transactionCount: Number(current?.transaction_count ?? 0),
   };
 }
 

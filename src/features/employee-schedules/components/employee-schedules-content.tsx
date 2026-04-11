@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useTransition, useCallback, useRef } from "react";
 import {
     getWeekSchedule,
@@ -105,8 +106,9 @@ export function EmployeeSchedulesContent() {
     const [fabOpen, setFabOpen] = useState(false);
 
     const { canAction } = useMenuActionAccess("employee-schedules");
-    const canCreate = canAction("create");
-    const canDelete = canAction("delete");
+    const { canAction: canPlanAction } = usePlanAccess();
+    const canCreate = canAction("create") && canPlanAction("employee-schedules", "create");
+    const canDelete = canAction("delete") && canPlanAction("employee-schedules", "delete");
 
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);

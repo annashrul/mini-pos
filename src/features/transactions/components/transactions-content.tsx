@@ -385,7 +385,7 @@ export function TransactionsContent() {
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
-                exportFilename="transaksi"
+                planMenuKey="transactions" exportFilename="transaksi"
                 emptyIcon={<Receipt className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Tidak ada transaksi ditemukan"
                 mobileRender={(row) => {

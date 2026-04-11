@@ -14,6 +14,7 @@ datasource db {
 
 // Role enum kept for type reference / seed - actual field uses String
 enum Role {
+  PLATFORM_OWNER
   SUPER_ADMIN
   ADMIN
   MANAGER
@@ -109,25 +110,28 @@ enum CashMovementType {
 // ===========================
 
 model Company {
-  id          String    @id @default(uuid())
-  name        String
-  slug        String    @unique // URL-friendly identifier
-  address     String?
-  phone       String?
-  email       String?
-  logo        String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  users       User[]
-  branches    Branch[]
-  categories  Category[]
-  brands      Brand[]
-  products    Product[]
-  suppliers   Supplier[]
-  customers   Customer[]
-  promotions  Promotion[]
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique // URL-friendly identifier
+  address       String?
+  phone         String?
+  email         String?
+  logo          String?
+  plan          String    @default("FREE") // FREE, PRO, ENTERPRISE
+  planExpiresAt DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  users         User[]
+  branches      Branch[]
+  categories    Category[]
+  brands        Brand[]
+  products      Product[]
+  suppliers     Supplier[]
+  customers     Customer[]
+  promotions    Promotion[]
   accountCategories AccountCategory[]
+  subscriptionPayments SubscriptionPayment[]
 
   @@index([slug])
   @@map("companies")
@@ -139,11 +143,12 @@ model User {
   email          String          @unique
   password       String
   role           String          @default("CASHIER")
-  companyId      String
-  company        Company         @relation(fields: [companyId], references: [id])
+  companyId      String?
+  company        Company?        @relation(fields: [companyId], references: [id])
   branchId       String?
   branch         Branch?         @relation(fields: [branchId], references: [id])
   isActive       Boolean         @default(true)
+  emailVerified  Boolean         @default(false)
   deletedAt      DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -1428,7 +1433,7 @@ model AccountCategory {
 
 model Account {
     id              String           @id @default(uuid())
-    code            String           @unique // e.g. 1-1001
+    code            String           // e.g. 1-1001
     name            String
     description     String?
     categoryId      String
@@ -1512,12 +1517,14 @@ model AccountingPeriod {
     status      String         @default("OPEN") // OPEN, CLOSED, LOCKED
     closedBy    String?
     closedAt    DateTime?
+    companyId   String?
     journals    JournalEntry[]
     createdAt   DateTime       @default(now())
     updatedAt   DateTime       @updatedAt
 
-    @@unique([startDate, endDate])
+    @@unique([startDate, endDate, companyId])
     @@index([status])
+    @@index([companyId])
     @@map("accounting_periods")
 }
 
@@ -1588,4 +1595,60 @@ model RestaurantTable {
   @@index([branchId, status])
   @@index([section])
   @@map("restaurant_tables")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@map("email_verification_tokens")
+}
+
+model SubscriptionPayment {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  plan          String   // PRO, ENTERPRISE
+  amount        Float
+  durationMonths Int
+  billingType   String   @default("MONTHLY") // MONTHLY, YEARLY
+  status        String   @default("PAID") // PAID, PENDING, REFUNDED, CANCELLED
+  planStartDate DateTime
+  planEndDate   DateTime
+  notes         String?
+  approvedBy    String?
+  approvedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([companyId])
+  @@index([status])
+  @@map("subscription_payments")
+}
+
+model PlanMenuAccess {
+  id        String  @id @default(uuid())
+  plan      String  // FREE, PRO, ENTERPRISE
+  menuKey   String  // references AppMenu.key
+  allowed   Boolean @default(false)
+
+  @@unique([plan, menuKey])
+  @@index([plan])
+  @@map("plan_menu_access")
+}
+
+model PlanActionAccess {
+  id        String  @id @default(uuid())
+  plan      String  // FREE, PRO, ENTERPRISE
+  menuKey   String
+  actionKey String
+  allowed   Boolean @default(false)
+
+  @@unique([plan, menuKey, actionKey])
+  @@index([plan])
+  @@map("plan_action_access")
 }

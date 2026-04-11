@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createBranch, updateBranch, deleteBranch, getBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -26,9 +27,11 @@ export function BranchesContent() {
     const [formIsActive, setFormIsActive] = useState(true);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { canAction, cannotMessage } = useMenuActionAccess("branches");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
+    const canCreate = canAction("create") && canPlanAction("branches", "create");
+    const canUpdate = canAction("update") && canPlanAction("branches", "update");
+    const canDelete = canAction("delete") && canPlanAction("branches", "delete");
+    const getMessage = (ak: string) => getPlanBlockMessage("branches", ak) ?? cannotMessage(ak);
 
     // --- Stats ---
     const stats = useMemo(() => {
@@ -54,7 +57,7 @@ export function BranchesContent() {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleSubmit = async (formData: FormData) => {
-        if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
+        if (editing ? !canUpdate : !canCreate) { toast.error(getMessage(editing ? "update" : "create")); return; }
         formData.set("isActive", String(formIsActive));
         const result = editing ? await updateBranch(editing.id, formData) : await createBranch(formData);
         if (result.error) { toast.error(result.error); }
@@ -62,13 +65,13 @@ export function BranchesContent() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
+        if (!canDelete) { toast.error(getMessage("delete")); return; }
         setPendingDeleteId(id);
         setConfirmOpen(true);
     };
 
     const confirmDelete = async () => {
-        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
+        if (!canDelete) { toast.error(getMessage("delete")); return; }
         if (!pendingDeleteId) return;
         const id = pendingDeleteId;
         setPendingDeleteId(null);
@@ -133,7 +136,7 @@ export function BranchesContent() {
                 formIsActive={formIsActive}
                 onFormIsActiveChange={setFormIsActive}
                 canSubmit={editing ? canUpdate : canCreate}
-                cannotMessage={cannotMessage(editing ? "update" : "create")}
+                cannotMessage={getMessage(editing ? "update" : "create")}
                 onCancel={() => { setOpen(false); setEditing(null); }}
                 onSubmit={handleSubmit}
             />
@@ -142,7 +145,7 @@ export function BranchesContent() {
                 open={confirmOpen}
                 onOpenChange={setConfirmOpen}
                 canDelete={canDelete}
-                cannotMessage={cannotMessage("delete")}
+                cannotMessage={getMessage("delete")}
                 onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
                 onConfirm={confirmDelete}
             />

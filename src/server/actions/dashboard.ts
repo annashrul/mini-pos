@@ -171,7 +171,7 @@ async function getDashboardStatsUncached(
   let lowStockCompanyCond = "";
   if (companyId) {
     lowStockParams.push(companyId);
-    lowStockCompanyCond = `AND p."companyId" = $${lowStockParams.length}`;
+    lowStockCompanyCond = `WHERE "companyId" = $${lowStockParams.length}`;
   }
 
   const [profitRows, lowStockProducts] = await Promise.all([
@@ -183,13 +183,8 @@ async function getDashboardStatsUncached(
       WHERE t.status = 'COMPLETED' AND t."createdAt" >= $1 AND t."createdAt" < $2
         ${profitBranchCond}
     `, ...profitParams),
-    prisma.$queryRawUnsafe<{ id: string; name: string; code: string; stock: number; minStock: number; categoryId: string; categoryName: string }[]>(`
-      SELECT p.id, p.name, p.code, p.stock, p."minStock", p."categoryId", c.name as "categoryName"
-      FROM products p
-      LEFT JOIN categories c ON c.id = p."categoryId"
-      WHERE p."isActive" = true AND p.stock <= p."minStock"
-        ${lowStockCompanyCond}
-      ORDER BY p.stock ASC LIMIT 10
+    prisma.$queryRawUnsafe<{ id: string; name: string; code: string; stock: number; minStock: number; categoryId: string; category_name: string; stock_status: string }[]>(`
+      SELECT * FROM vw_low_stock_products ${lowStockCompanyCond} LIMIT 10
     `, ...lowStockParams),
   ]);
 
@@ -198,7 +193,7 @@ async function getDashboardStatsUncached(
     name: p.name,
     stock: p.stock,
     minStock: p.minStock,
-    category: { name: p.categoryName || "Uncategorized" },
+    category: { name: p.category_name || "Uncategorized" },
   }));
 
   // Branch performance — single query with GROUP BY instead of per-branch loops

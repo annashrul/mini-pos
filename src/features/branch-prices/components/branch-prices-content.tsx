@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { getBranchPrices, setBranchPrice, removeBranchPrice, copyBranchPrices } from "@/features/branch-prices";
 import { getAllBranches } from "@/features/branches";
@@ -46,9 +47,11 @@ export function BranchPricesContent() {
     const [copyOpen, setCopyOpen] = useState(false);
     const [copyTarget, setCopyTarget] = useState("");
     const { canAction, cannotMessage } = useMenuActionAccess("branch-prices");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
+    const canCreate = canAction("create") && canPlanAction("branch-prices", "create");
+    const canUpdate = canAction("update") && canPlanAction("branch-prices", "update");
+    const canDelete = canAction("delete") && canPlanAction("branch-prices", "delete");
+    const getMessage = (ak: string) => getPlanBlockMessage("branch-prices", ak) ?? cannotMessage(ak);
 
     const { selectedBranchId, selectedBranchName } = useBranch();
     const activeBranchId = selectedBranchId || fallbackBranchId;
@@ -122,7 +125,7 @@ export function BranchPricesContent() {
     };
 
     const handleSavePrice = async () => {
-        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        if (!canUpdate) { toast.error(getMessage("update")); return; }
         if (!editItem || !activeBranchId) return;
         const result = await setBranchPrice(activeBranchId, editItem.productId, editSellPrice, editBuyPrice);
         if (result.error) { toast.error(result.error); return; }
@@ -132,7 +135,7 @@ export function BranchPricesContent() {
     };
 
     const handleRemovePrice = async (productId: string) => {
-        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
+        if (!canDelete) { toast.error(getMessage("delete")); return; }
         if (!activeBranchId) return;
         await removeBranchPrice(activeBranchId, productId);
         toast.success("Harga cabang dihapus, kembali ke default");
@@ -140,7 +143,7 @@ export function BranchPricesContent() {
     };
 
     const handleCopy = async () => {
-        if (!canCreate) { toast.error(cannotMessage("create")); return; }
+        if (!canCreate) { toast.error(getMessage("create")); return; }
         if (!activeBranchId || !copyTarget) return;
         const result = await copyBranchPrices(activeBranchId, copyTarget);
         if (result.error) { toast.error(result.error); return; }

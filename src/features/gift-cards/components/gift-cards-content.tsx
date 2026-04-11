@@ -580,7 +580,7 @@ export function GiftCardsContent() {
           fetchData({ filters: f, page: 1 });
         }}
         rowKey={(row) => row.id}
-        exportFilename="gift-cards"
+        planMenuKey="gift-cards" exportFilename="gift-cards"
         emptyIcon={
           <CreditCard className="w-10 h-10 text-muted-foreground/30" />
         }

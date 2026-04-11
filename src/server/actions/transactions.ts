@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit";
 import { redisDelByPrefix } from "@/lib/redis";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { randomBytes } from "crypto";
 
 async function invalidateAccelerate(tags: string[]) {
   const accelerate = (
@@ -137,7 +138,39 @@ async function resolveSessionUserId() {
   return { userId: user.id };
 }
 
-export async function createTransaction(input: CreateTransactionInput) {
+function isInvoiceNumberConflict(err: unknown) {
+  if (!err || typeof err !== "object") return false;
+  const e = err as {
+    code?: string;
+    meta?: { target?: unknown };
+    message?: string;
+  };
+  if (e.code === "P2002") {
+    const target = e.meta?.target;
+    if (Array.isArray(target) && target.includes("invoiceNumber")) return true;
+  }
+  return e.message?.includes("invoiceNumber") ?? false;
+}
+
+function normalizeCodePart(value: string | null | undefined, fallback: string) {
+  const clean = (value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 8);
+  return clean || fallback;
+}
+
+function randomInvoicePart(length = 8) {
+  return randomBytes(Math.ceil(length / 2))
+    .toString("hex")
+    .toUpperCase()
+    .slice(0, length);
+}
+
+export async function createTransaction(
+  input: CreateTransactionInput,
+  retryCount = 0,
+) {
   await assertMenuActionAccess("pos", "create");
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) {
@@ -145,22 +178,24 @@ export async function createTransaction(input: CreateTransactionInput) {
   }
   const userId = authResult.userId;
   const companyId = await getCurrentCompanyId();
-
-  // Generate invoice number
-  const today = new Date();
-  const prefix = `INV-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
-
-  const lastInvoice = await prisma.transaction.findFirst({
-    where: { invoiceNumber: { startsWith: prefix }, user: { companyId } },
-    orderBy: { invoiceNumber: "desc" },
-  });
-
-  let sequence = 1;
-  if (lastInvoice) {
-    const lastSeq = parseInt(lastInvoice.invoiceNumber.split("-").pop() || "0");
-    sequence = lastSeq + 1;
-  }
-  const invoiceNumber = `${prefix}-${String(sequence).padStart(4, "0")}`;
+  const [company, branch] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { slug: true, name: true },
+    }),
+    input.branchId
+      ? prisma.branch.findUnique({
+          where: { id: input.branchId },
+          select: { code: true, name: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const companyCode = normalizeCodePart(
+    company?.slug || company?.name,
+    "COMPANY",
+  );
+  const branchCode = normalizeCodePart(branch?.code || branch?.name, "MAIN");
+  const invoiceNumber = `${companyCode}-${branchCode}-${randomInvoicePart(8)}`;
 
   // Check if stock validation is enabled (branch-specific first, then global)
   let validateStockSetting = input.branchId
@@ -406,9 +441,29 @@ export async function createTransaction(input: CreateTransactionInput) {
           }),
         );
 
+        if (input.branchId) {
+          await tx.$executeRaw`
+            select
+              set_config('app.stock_note', ${`Penjualan ${invoiceNumber}`}, true),
+              set_config('app.stock_reference', ${invoiceNumber}, true)
+          `;
+        }
+
         await Promise.all(
           uniqueDeductions.map(async (deduction) => {
-            const ops: Promise<unknown>[] = [
+            if (input.branchId) {
+              return tx.branchStock.update({
+                where: {
+                  branchId_productId: {
+                    branchId: input.branchId,
+                    productId: deduction.productId,
+                  },
+                },
+                data: { quantity: { decrement: deduction.quantity } },
+              });
+            }
+
+            return Promise.all([
               tx.product.update({
                 where: { id: deduction.productId },
                 data: { stock: { decrement: deduction.quantity } },
@@ -416,30 +471,14 @@ export async function createTransaction(input: CreateTransactionInput) {
               tx.stockMovement.create({
                 data: {
                   productId: deduction.productId,
-                  branchId: input.branchId || null,
+                  branchId: null,
                   type: "OUT",
                   quantity: deduction.quantity,
                   note: deduction.note,
                   reference: invoiceNumber,
                 },
               }),
-            ];
-
-            if (input.branchId) {
-              ops.push(
-                tx.branchStock.update({
-                  where: {
-                    branchId_productId: {
-                      branchId: input.branchId,
-                      productId: deduction.productId,
-                    },
-                  },
-                  data: { quantity: { decrement: deduction.quantity } },
-                }),
-              );
-            }
-
-            return Promise.all(ops);
+            ]);
           }),
         );
 
@@ -580,6 +619,9 @@ export async function createTransaction(input: CreateTransactionInput) {
       pointsEarned,
     };
   } catch (err) {
+    if (isInvoiceNumberConflict(err) && retryCount < 3) {
+      return createTransaction(input, retryCount + 1);
+    }
     return {
       error: err instanceof Error ? err.message : "Gagal menyimpan transaksi",
     };
@@ -717,11 +759,37 @@ export async function voidTransaction(id: string, reason: string) {
       if (transaction.status !== "COMPLETED")
         throw new Error("Hanya transaksi COMPLETED yang bisa di-void");
 
+      if (transaction.branchId) {
+        await tx.$executeRaw`
+          select
+            set_config('app.stock_note', ${`Void transaksi ${transaction.invoiceNumber}`}, true),
+            set_config('app.stock_reference', ${transaction.invoiceNumber}, true)
+        `;
+      }
+
       // Restore stock (use baseQty which accounts for unit conversion)
       await Promise.all(
         transaction.items.map(async (item) => {
           const restoreQty =
             item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
+          if (transaction.branchId) {
+            return tx.branchStock.upsert({
+              where: {
+                branchId_productId: {
+                  branchId: transaction.branchId,
+                  productId: item.productId,
+                },
+              },
+              create: {
+                branchId: transaction.branchId,
+                productId: item.productId,
+                quantity: restoreQty,
+              },
+              update: {
+                quantity: { increment: restoreQty },
+              },
+            });
+          }
           return Promise.all([
             tx.product.update({
               where: { id: item.productId },
@@ -730,6 +798,7 @@ export async function voidTransaction(id: string, reason: string) {
             tx.stockMovement.create({
               data: {
                 productId: item.productId,
+                branchId: null,
                 type: "IN",
                 quantity: restoreQty,
                 note: `Void transaksi ${transaction.invoiceNumber}`,
@@ -802,11 +871,10 @@ export async function refundTransaction(id: string, reason: string) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
-  const companyId = await getCurrentCompanyId();
 
   try {
-    const tx0 = await prisma.transaction.findFirst({
-      where: { id, user: { companyId } },
+    const tx0 = await prisma.transaction.findUnique({
+      where: { id },
       select: { invoiceNumber: true, grandTotal: true, branchId: true },
     });
 
@@ -820,11 +888,37 @@ export async function refundTransaction(id: string, reason: string) {
       if (transaction.status !== "COMPLETED")
         throw new Error("Hanya transaksi COMPLETED yang bisa di-refund");
 
+      if (transaction.branchId) {
+        await tx.$executeRaw`
+          select
+            set_config('app.stock_note', ${`Refund transaksi ${transaction.invoiceNumber}`}, true),
+            set_config('app.stock_reference', ${transaction.invoiceNumber}, true)
+        `;
+      }
+
       // Restore stock (use baseQty which accounts for unit conversion)
       await Promise.all(
         transaction.items.map(async (item) => {
           const restoreQty =
             item.baseQty ?? item.quantity * (item.conversionQty ?? 1);
+          if (transaction.branchId) {
+            return tx.branchStock.upsert({
+              where: {
+                branchId_productId: {
+                  branchId: transaction.branchId,
+                  productId: item.productId,
+                },
+              },
+              create: {
+                branchId: transaction.branchId,
+                productId: item.productId,
+                quantity: restoreQty,
+              },
+              update: {
+                quantity: { increment: restoreQty },
+              },
+            });
+          }
           return Promise.all([
             tx.product.update({
               where: { id: item.productId },
@@ -833,6 +927,7 @@ export async function refundTransaction(id: string, reason: string) {
             tx.stockMovement.create({
               data: {
                 productId: item.productId,
+                branchId: null,
                 type: "IN",
                 quantity: restoreQty,
                 note: `Refund transaksi ${transaction.invoiceNumber}`,

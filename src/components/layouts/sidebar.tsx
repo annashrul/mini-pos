@@ -7,6 +7,9 @@ import { useSession, signOut } from "next-auth/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSidebarMenuAccess } from "@/features/access-control";
 import { getAllBranches } from "@/server/actions/branches";
+import { getCompanyPlan, getCurrentCompanyInfo } from "@/server/actions/plan";
+import { type PlanKey } from "@/lib/plan-config";
+import { getPlanMenuAccessMap, getAllPlanAccessData } from "@/server/actions/plan-access";
 import { useBranch } from "@/components/providers/branch-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,7 +21,7 @@ import {
     Wallet, Clock, ScrollText, Percent, Building2, ClipboardList,
     BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
     ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
-    RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays, Armchair,
+    RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays, Armchair, Crown,
     Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine,
 } from "lucide-react";
 import {
@@ -32,6 +35,8 @@ type MenuItem = {
     href: string;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
+    locked?: boolean;
+    lockedBadge?: string | undefined;
 };
 
 const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -61,6 +66,10 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     "accounting-reports": Layers,
     "accounting-periods": LockKeyhole,
     tables: Armchair,
+    "subscription-admin": Crown,
+    tenants: Building2,
+    "platform-activity": ScrollText,
+    "plan-management": Settings,
 };
 
 interface SidebarProps {
@@ -75,6 +84,8 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
     const currentRole = (session?.user?.role || "") as string;
     const [dynamicMenuGroups, setDynamicMenuGroups] = useState<{ title: string; items: MenuItem[] }[]>([]);
     const [roleColor, setRoleColor] = useState<string>(DEFAULT_ROLE_COLOR);
+    const [, setCompanyPlan] = useState<PlanKey>("FREE");
+    const [companyName, setCompanyName] = useState<string>("-");
     const { branches, selectedBranchId, setBranches, setSelectedBranchId } = useBranch();
 
     // Load branches based on user role
@@ -99,13 +110,23 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
         }
     }, [session?.user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const buildGroups = useCallback((menus: AccessMenu[], role: string) => {
+    const buildGroups = useCallback((menus: AccessMenu[], role: string, planAccess: Record<string, boolean>, allMenuPlans: Record<string, Record<string, boolean>>) => {
+        const planOrder: PlanKey[] = ["FREE", "PRO", "ENTERPRISE"];
         const grouped = new Map<string, MenuItem[]>();
         for (const menu of menus) {
             if (!menu.permissions[role]) continue;
             const icon = iconByMenuKey[menu.key] ?? LayoutDashboard;
+            const locked = Object.keys(planAccess).length > 0 ? (planAccess[menu.key] === false) : false;
+            let lockedBadge: string | undefined;
+            if (locked && allMenuPlans[menu.key]) {
+                const menuPlans = allMenuPlans[menu.key]!;
+                const enabling = planOrder.find((p) => menuPlans[p] === true);
+                lockedBadge = enabling || "SOON";
+            } else if (locked) {
+                lockedBadge = "SOON";
+            }
             const list = grouped.get(menu.group) ?? [];
-            list.push({ key: menu.key, href: menu.path, label: menu.name, icon });
+            list.push({ key: menu.key, href: menu.path, label: menu.name, icon, locked, lockedBadge });
             grouped.set(menu.group, list);
         }
         return Array.from(grouped.entries()).map(([title, items]) => ({ title, items }));
@@ -123,8 +144,7 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
             if (cached) {
                 const parsed = JSON.parse(cached) as { role: string; menus: AccessMenu[]; roleColor?: string };
                 if (parsed.role === currentRole) {
-                    console.log("[Sidebar] Using cached menus, count:", parsed.menus.length);
-                    setDynamicMenuGroups(buildGroups(parsed.menus, parsed.role));
+                    setDynamicMenuGroups(buildGroups(parsed.menus, parsed.role, {}, {}));
                     if (parsed.roleColor) setRoleColor(parsed.roleColor);
                 }
             }
@@ -135,7 +155,25 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
             try {
                 const result = await getSidebarMenuAccess();
                 if (!active) return;
-                setDynamicMenuGroups(buildGroups(result.menus as AccessMenu[], result.role));
+                let planAccess: Record<string, boolean> = {};
+                let allMenuPlans: Record<string, Record<string, boolean>> = {};
+                let plan: PlanKey = "PRO";
+                if (result.role !== "PLATFORM_OWNER") {
+                    try {
+                        const [planResult, accessMap, allData, companyInfo] = await Promise.all([
+                            getCompanyPlan(),
+                            getPlanMenuAccessMap(),
+                            getAllPlanAccessData(),
+                            getCurrentCompanyInfo(),
+                        ]);
+                        plan = planResult.plan as PlanKey;
+                        planAccess = accessMap;
+                        allMenuPlans = allData.menus;
+                        setCompanyName(companyInfo.name || "-");
+                    } catch { /* no company context */ }
+                }
+                setCompanyPlan(plan);
+                setDynamicMenuGroups(buildGroups(result.menus as AccessMenu[], result.role, planAccess, allMenuPlans));
                 if (result.roleColor) setRoleColor(result.roleColor);
                 try {
                     sessionStorage.removeItem("sidebar-menus");
@@ -196,13 +234,39 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
         const isPosBlocked = item.href === "/pos" && !selectedBranchId;
         const cls = cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150",
-            isActive
-                ? "bg-gradient-to-r from-primary to-primary/90 text-white shadow-md shadow-primary/25"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+            item.locked
+                ? "text-slate-400 hover:bg-slate-50 cursor-pointer"
+                : isActive
+                    ? "bg-gradient-to-r from-primary to-primary/90 text-white shadow-md shadow-primary/25"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
         );
-        const iconCls = cn("h-[18px] w-[18px] shrink-0", isActive ? "text-white" : "text-slate-400");
-        const content = <><item.icon className={iconCls} />{showLabel && <span className="truncate">{item.label}</span>}</>;
+        const iconCls = cn("h-[18px] w-[18px] shrink-0", isActive && !item.locked ? "text-white" : "text-slate-400");
+        const content = (
+            <>
+                <item.icon className={iconCls} />
+                {showLabel && <span className="truncate flex-1">{item.label}</span>}
+                {showLabel && item.locked && (
+                    <span className={cn("ml-auto shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md text-white leading-none bg-gradient-to-r",
+                        item.lockedBadge === "ENTERPRISE" ? "from-purple-500 to-violet-500" :
+                        item.lockedBadge === "SOON" ? "from-slate-400 to-slate-500" :
+                        "from-amber-400 to-orange-400"
+                    )}>
+                        {item.lockedBadge === "SOON" ? "SOON" : item.lockedBadge || "PRO"}
+                    </span>
+                )}
+                {!showLabel && item.locked && (
+                    <span className={cn("absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white",
+                        item.lockedBadge === "ENTERPRISE" ? "bg-purple-500" :
+                        item.lockedBadge === "SOON" ? "bg-slate-400" :
+                        "bg-amber-400"
+                    )} />
+                )}
+            </>
+        );
 
+        if (item.locked) {
+            return <Link key={item.href} href="/plan" onClick={() => onMobileClose?.()} className={cn(cls, "relative")}>{content}</Link>;
+        }
         if (isPosBlocked) {
             return <button key={item.href} type="button" onClick={() => toast.error("Pilih lokasi terlebih dahulu")} className={cn(cls, "w-full")}>{content}</button>;
         }
@@ -315,6 +379,10 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-[13px] font-semibold text-foreground truncate leading-tight">{session?.user?.name}</p>
+                            <p className="text-[11px] text-slate-500 truncate leading-tight mt-0.5 flex items-center gap-1">
+                                <Building2 className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{companyName}</span>
+                            </p>
                             <Badge variant="secondary" className={cn("text-[9px] px-1.5 py-0 mt-0.5", roleColor)}>
                                 {currentRole}
                             </Badge>
@@ -331,7 +399,7 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
                     </div>
                 ) : (
                     <div className="flex flex-col items-center gap-1.5">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-white text-xs font-bold" title={companyName}>
                             {session?.user?.name?.charAt(0) || "U"}
                         </div>
                         <Button

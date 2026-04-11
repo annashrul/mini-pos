@@ -569,7 +569,7 @@ export function BundlesContent() {
                         setConfirmOpen(true);
                     },
                 }]}
-                exportFilename="paket-produk"
+                planMenuKey="bundles" exportFilename="paket-produk"
                 mobileRender={(row) => {
                     const savings = row.totalBasePrice - row.sellingPrice;
                     return (

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { uploadProductImage, deleteProductImage } from "@/server/actions/upload";
 import { toast } from "sonner";
+import { ProGate } from "@/components/ui/pro-gate";
 
 interface ProductFormProps {
     product: Product | null;
@@ -399,6 +400,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 {/* ==================== INFO TAB ==================== */}
                 <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 sm:space-y-5 px-3 sm:px-6 py-3 sm:py-4">
                     {/* Image upload - gradient bordered card */}
+                    <ProGate menuKey="products" actionKey="upload_image">
                     <div className="rounded-[11px] bg-white ">
                         <Label className="text-sm font-semibold mb-3 block text-foreground/80">Foto Produk</Label>
                         {imageUrl ? (
@@ -457,6 +459,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                             </label>
                         )}
                     </div>
+                    </ProGate>
 
                     {/* Code with generate + validate */}
                     <div className="space-y-1.5">
@@ -597,6 +600,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     <Separator />
 
                     {/* Tier Prices */}
+                    <ProGate menuKey="products" actionKey="tier_prices">
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <div>
@@ -642,6 +646,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                             </div>
                         )}
                     </div>
+                    </ProGate>
 
                     <Separator />
 
@@ -658,7 +663,9 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 {/* ==================== UNITS TAB ==================== */}
-                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-3 sm:space-y-4 px-3 sm:px-6 py-3 sm:py-4">
+                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4">
+                <ProGate menuKey="products" actionKey="multi_unit">
+                <div className="space-y-3 sm:space-y-4">
                     <p className="text-sm text-muted-foreground">
                         Tambahkan satuan jual selain <strong>{baseUnitName || "pcs"}</strong>. Stok dihitung dalam satuan dasar.
                     </p>
@@ -746,10 +753,14 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                             <p className="text-xs text-muted-foreground/40 mt-0.5">({baseUnitName || "pcs"})</p>
                         </div>
                     )}
+                </div>
+                </ProGate>
                 </TabsContent>
 
                 {/* ==================== BRANCHES TAB ==================== */}
-                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-3 sm:space-y-4 px-3 sm:px-6 py-3 sm:py-4">
+                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 sm:px-6 py-3 sm:py-4">
+                <ProGate menuKey="products" actionKey="branch_prices">
+                <div className="space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm text-muted-foreground">
                             Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
@@ -862,6 +873,8 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                             <p className="text-xs text-muted-foreground/40 mt-1 max-w-[240px] mx-auto">Tambahkan cabang untuk mengatur stok & harga spesifik per lokasi</p>
                         </div>
                     )}
+                </div>
+                </ProGate>
                 </TabsContent>
             </Tabs>
 

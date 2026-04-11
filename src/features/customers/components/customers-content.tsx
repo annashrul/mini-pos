@@ -387,7 +387,7 @@ export function CustomersContent() {
                 bulkActions={[
                     { label: "Hapus", variant: "destructive", icon: <Trash2 className="w-3 h-3" />, onClick: handleBulkDelete },
                 ]}
-                exportFilename="customer"
+                planMenuKey="customers" exportFilename="customer"
                 emptyIcon={<Users className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Tidak ada customer ditemukan"
                 emptyAction={

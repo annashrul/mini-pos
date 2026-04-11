@@ -235,7 +235,7 @@ export function JournalsContent() {
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
         onRowClick={handleRowClick}
-        exportFilename="jurnal-umum"
+        planMenuKey="accounting-journals" exportFilename="jurnal-umum"
         emptyIcon={<BookOpen className="w-6 h-6 text-muted-foreground/40" />}
         emptyTitle="Belum ada jurnal"
         emptyDescription='Klik "Buat Jurnal" untuk membuat entri pertama'

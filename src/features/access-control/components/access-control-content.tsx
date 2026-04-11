@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
     accessControlService,
@@ -84,7 +85,9 @@ export function AccessControlContent() {
     const [confirmDelete, setConfirmDelete] = useState<AppRoleData | null>(null);
     const effectiveRole = roleKeys.includes(selectedRole) ? selectedRole : (roleKeys[0] ?? "SUPER_ADMIN");
     const { canAction, cannotMessage } = useMenuActionAccess("access-control");
-    const canManage = canAction("manage");
+    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
+    const canManage = canAction("manage") && canPlanAction("access-control", "manage");
+    const getMessage = (ak: string) => getPlanBlockMessage("access-control", ak) ?? cannotMessage(ak);
 
     const didFetchRef = useRef(false);
     useEffect(() => {
@@ -126,7 +129,7 @@ export function AccessControlContent() {
     };
 
     const toggleMenu = (menuId: string, role: string, allowed: boolean) => {
-        if (!canManage) { toast.error(cannotMessage("manage")); return; }
+        if (!canManage) { toast.error(getMessage("manage")); return; }
         startTransition(async () => {
             const result = await updateRoleMenuPermission({ menuId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -138,7 +141,7 @@ export function AccessControlContent() {
     };
 
     const toggleAction = (actionId: string, role: string, allowed: boolean) => {
-        if (!canManage) { toast.error(cannotMessage("manage")); return; }
+        if (!canManage) { toast.error(getMessage("manage")); return; }
         startTransition(async () => {
             const result = await updateRoleActionPermission({ actionId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -154,7 +157,7 @@ export function AccessControlContent() {
 
     // Role CRUD handlers
     const handleCreateRole = async () => {
-        if (!canManage) { toast.error(cannotMessage("manage")); return; }
+        if (!canManage) { toast.error(getMessage("manage")); return; }
         const result = await accessControlService.createRole({
             key: formKey,
             name: formName,
@@ -189,7 +192,7 @@ export function AccessControlContent() {
     };
 
     const handleUpdateRole = async () => {
-        if (!canManage) { toast.error(cannotMessage("manage")); return; }
+        if (!canManage) { toast.error(getMessage("manage")); return; }
         if (!editingRole) return;
         const result = await accessControlService.updateRole(editingRole.id, { name: formName, description: formDesc, color: formColor });
         if (result.error) { toast.error(result.error); return; }
@@ -199,7 +202,7 @@ export function AccessControlContent() {
     };
 
     const handleDeleteRole = async () => {
-        if (!canManage) { toast.error(cannotMessage("manage")); return; }
+        if (!canManage) { toast.error(getMessage("manage")); return; }
         if (!confirmDelete) return;
         const deletingRoleKey = confirmDelete.key;
         const result = await accessControlService.deleteRole(confirmDelete.id);
@@ -360,7 +363,7 @@ export function AccessControlContent() {
                         </div>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                     <Button
                         disabled={!canManage}
                         className="hidden lg:inline-flex rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
@@ -508,13 +511,13 @@ export function AccessControlContent() {
                                         {/* Edit/Delete buttons - show on hover */}
                                         {appRole && (
                                             <div className="flex gap-1 px-3 pb-2 pl-[52px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                                     <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-foreground" onClick={() => openEditRole(appRole)}>
                                                         <Pencil className="w-3 h-3 mr-1" /> Edit
                                                     </Button>
                                                 </DisabledActionTooltip>
                                                 {!appRole.isSystem && (
-                                                    <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                                    <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                                         <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(appRole)}>
                                                             <Trash2 className="w-3 h-3 mr-1" /> Hapus
                                                         </Button>
@@ -539,7 +542,7 @@ export function AccessControlContent() {
 
                         {/* Bottom add button */}
                         <div className="p-2 border-t border-border/20">
-                            <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                            <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                 <Button
                                     disabled={!canManage}
                                     variant="outline"
@@ -787,7 +790,7 @@ export function AccessControlContent() {
 
             {/* Mobile: Sticky bottom "Tambah Role" button */}
             <div className="lg:hidden fixed bottom-4 right-4 z-50">
-                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                     <Button
                         disabled={!canManage}
                         size="lg"
@@ -860,7 +863,7 @@ export function AccessControlContent() {
                             </div>
                             <div className="flex justify-end gap-2 pt-3">
                                 <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                     <Button onClick={handleCreateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80" disabled={!canManage || !formKey || !formName}>Buat Role</Button>
                                 </DisabledActionTooltip>
                             </div>
@@ -902,7 +905,7 @@ export function AccessControlContent() {
                             </div>
                             <div className="flex justify-end gap-2 pt-3">
                                 <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                     <Button disabled={!canManage} onClick={handleUpdateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80">Simpan</Button>
                                 </DisabledActionTooltip>
                             </div>
@@ -922,7 +925,7 @@ export function AccessControlContent() {
                         </p>
                         <div className="flex justify-end gap-2 pt-2">
                             <Button variant="outline" onClick={() => setConfirmDelete(null)} className="rounded-xl">Batal</Button>
-                            <DisabledActionTooltip disabled={!canManage} message={cannotMessage("manage")}>
+                            <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
                                 <Button disabled={!canManage} variant="destructive" onClick={handleDeleteRole} className="rounded-xl">Ya, Hapus</Button>
                             </DisabledActionTooltip>
                         </div>

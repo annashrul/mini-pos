@@ -239,7 +239,7 @@ export function PeriodsContent() {
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); }}
-                exportFilename="tutup-buku"
+                planMenuKey="accounting-periods" exportFilename="tutup-buku"
                 emptyIcon={<Calendar className="w-6 h-6 text-muted-foreground/40" />}
                 emptyTitle={isPending ? "Memuat periode..." : "Belum Ada Periode"}
                 emptyDescription={isPending ? "Mohon tunggu" : "Buat periode baru untuk memulai"}

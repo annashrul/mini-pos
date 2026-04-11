@@ -24,8 +24,10 @@ import { cn } from "@/lib/utils";
 import { exportToCSV } from "@/lib/export";
 import {
     Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    SlidersHorizontal, Columns3, Download, X, ArrowUpDown, ArrowUp, ArrowDown,
+    SlidersHorizontal, Columns3, Download, X, ArrowUpDown, ArrowUp, ArrowDown, Crown,
 } from "lucide-react";
+import Link from "next/link";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 
 // ===========================
 // Types
@@ -109,6 +111,9 @@ export interface SmartTableProps<T> {
 
     // Slot rendered between search/filters and the table content
     afterFilters?: ReactNode;
+
+    // Menu key for plan access check (auto-checks export action)
+    planMenuKey?: string | undefined;
 }
 
 // ===========================
@@ -149,12 +154,16 @@ export function SmartTable<T>({
     onRowClick,
     mobileRender,
     afterFilters,
+    planMenuKey,
 }: SmartTableProps<T>) {
     const [searchValue, setSearchValue] = useState("");
     const [filterModalOpen, setFilterModalOpen] = useState(false);
     const [tempFilters, setTempFilters] = useState<Record<string, string>>(activeFilters);
     const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    const { canAction: canPlanAction } = usePlanAccess();
+    const exportLocked = planMenuKey && exportFilename ? !canPlanAction(planMenuKey, "export") : false;
 
     const columns = allColumns.filter((c) => !hiddenColumns.has(c.key) && c.visible !== false);
     const activeFilterCount = Object.values(activeFilters).filter((v) => v && v !== "ALL").length;
@@ -297,10 +306,19 @@ export function SmartTable<T>({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {exportFilename && (
+                        {exportFilename && !exportLocked && (
                             <Button variant="outline" size="icon" className="rounded-lg h-8 w-auto px-3 gap-1.5" onClick={handleExport}>
                                 <Download className="w-3.5 h-3.5" />
                                 <span className="text-xs">Export</span>
+                            </Button>
+                        )}
+                        {exportFilename && exportLocked && (
+                            <Button variant="outline" size="icon" className="rounded-lg h-8 w-auto px-3 gap-1.5 opacity-60" asChild>
+                                <Link href="/plan">
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span className="text-xs">Export</span>
+                                    <Crown className="w-3 h-3 text-amber-500" />
+                                </Link>
                             </Button>
                         )}
 
@@ -334,9 +352,17 @@ export function SmartTable<T>({
                                 )}
                             </Button>
                         )}
-                        {exportFilename && (
+                        {exportFilename && !exportLocked && (
                             <Button variant="outline" size="icon" className="rounded-lg h-9 w-9" onClick={handleExport}>
                                 <Download className="w-3.5 h-3.5" />
+                            </Button>
+                        )}
+                        {exportFilename && exportLocked && (
+                            <Button variant="outline" size="icon" className="rounded-lg h-9 w-9 opacity-60 relative" asChild>
+                                <Link href="/plan">
+                                    <Download className="w-3.5 h-3.5" />
+                                    <Crown className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1" />
+                                </Link>
                             </Button>
                         )}
                     </div>

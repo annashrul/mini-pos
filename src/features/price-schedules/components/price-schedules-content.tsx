@@ -457,7 +457,7 @@ export function PriceSchedulesContent() {
           setPage(1);
           fetchData({ status: s, branch: b, page: 1 });
         }}
-        exportFilename="jadwal-harga"
+        planMenuKey="price-schedules" exportFilename="jadwal-harga"
         emptyIcon={<CalendarClock className="w-10 h-10 text-muted-foreground/30" />}
         emptyTitle="Belum ada jadwal harga"
         emptyDescription="Buat jadwal harga baru untuk mengubah harga produk secara otomatis"

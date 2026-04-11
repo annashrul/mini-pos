@@ -54,7 +54,7 @@ interface LedgerEntry {
 }
 
 export async function getGeneralLedger(params: GeneralLedgerParams) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const { accountId, dateFrom, dateTo, branchId } = params;
 
   const from = dateFrom ? toDate(dateFrom) : new Date("2000-01-01");
@@ -65,8 +65,8 @@ export async function getGeneralLedger(params: GeneralLedgerParams) {
 
   // Parallelkan semua 3 query sekaligus
   const [account, priorMovements, entries] = await Promise.all([
-    prisma.account.findUnique({
-      where: { id: accountId },
+    prisma.account.findFirst({
+      where: { id: accountId, category: { companyId } },
       include: { category: true },
     }),
 
@@ -192,7 +192,7 @@ interface TrialBalanceRow {
 }
 
 export async function getTrialBalance(params: TrialBalanceParams = {}) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const { date, branchId } = params;
   const upTo = date ? endOfDay(date) : new Date("2099-12-31");
 
@@ -202,6 +202,7 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
     ? `AND (a."branchId" = $${acctBranchIdx} OR a."branchId" IS NULL)`
     : "";
   const acctBranchParams = branchId ? [branchId] : [];
+  const companyIdx = 2 + tbBranch.params.length + acctBranchParams.length;
 
   // 1 query: accounts + movements di-join langsung di DB
   const rows = await prisma.$queryRawUnsafe<
@@ -237,6 +238,7 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
         AND je.date <= $1
         ${tbBranch.condition}
       WHERE a."isActive" = true
+        AND ac."companyId" = $${companyIdx}
         ${acctBranchCondition}
       GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
       ORDER BY a.code ASC
@@ -244,6 +246,7 @@ export async function getTrialBalance(params: TrialBalanceParams = {}) {
     upTo,
     ...tbBranch.params,
     ...acctBranchParams,
+    companyId,
   );
 
   let grandTotalDebit = 0;
@@ -316,11 +319,12 @@ interface IncomeStatementAccount {
 }
 
 export async function getIncomeStatement(params: IncomeStatementParams) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const { dateFrom, dateTo, branchId } = params;
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
   const isBranch = branchSQL(branchId, "je", 3);
+  const companyIdx = 3 + isBranch.params.length;
 
   // Gabungkan revenue + expense jadi 1 query, pivot di JS
   const allRows = await prisma.$queryRawUnsafe<
@@ -352,12 +356,14 @@ export async function getIncomeStatement(params: IncomeStatementParams) {
         ${isBranch.condition}
       WHERE ac.type IN ('REVENUE', 'EXPENSE')
         AND a."isActive" = true
+        AND ac."companyId" = $${companyIdx}
       GROUP BY a.id, a.code, a.name, ac.type
       ORDER BY a.code ASC
       `,
     from,
     to,
     ...isBranch.params,
+    companyId,
   );
 
   const revenues: IncomeStatementAccount[] = allRows
@@ -418,10 +424,11 @@ interface BalanceSheetGroup {
 }
 
 export async function getBalanceSheet(params: BalanceSheetParams) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const { date, branchId } = params;
   const upTo = endOfDay(date);
   const bsBranch = branchSQL(branchId, "je", 2);
+  const companyIdx = 2 + bsBranch.params.length;
 
   // Parallelkan kedua query yang sebelumnya serial
   const [accountBalances, retainedEarningsResult] = await Promise.all([
@@ -458,11 +465,13 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
           ${bsBranch.condition}
         WHERE a."isActive" = true
           AND ac.type IN ('ASSET', 'LIABILITY', 'EQUITY')
+          AND ac."companyId" = $${companyIdx}
         GROUP BY a.id, a.code, a.name, ac.type, ac.name, ac."normalSide", a."openingBalance"
         ORDER BY a.code ASC
         `,
       upTo,
       ...bsBranch.params,
+      companyId,
     ),
 
     prisma.$queryRawUnsafe<{ revenue: number; expense: number }[]>(
@@ -477,10 +486,12 @@ export async function getBalanceSheet(params: BalanceSheetParams) {
         WHERE je.status = 'POSTED'
           AND je.date <= $1
           AND ac.type IN ('REVENUE', 'EXPENSE')
+          AND ac."companyId" = $${companyIdx}
           ${bsBranch.condition}
         `,
       upTo,
       ...bsBranch.params,
+      companyId,
     ),
   ]);
 
@@ -625,13 +636,15 @@ interface CashFlowItem {
 }
 
 export async function getCashFlow(params: CashFlowParams) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const { dateFrom, dateTo, branchId } = params;
   const from = toDate(dateFrom);
   const to = endOfDay(dateTo);
 
   const cfBranch = branchSQL(branchId, "je", 2);
   const cfRangeBranch = branchSQL(branchId, "je", 3);
+  const companyIdxOpening = 2 + cfBranch.params.length;
+  const companyIdxRange = 3 + cfRangeBranch.params.length;
 
   // Parallelkan semua 3 query sekaligus
   const [openingCashResult, cashMovements] = await Promise.all([
@@ -658,9 +671,11 @@ export async function getCashFlow(params: CashFlowParams) {
         WHERE ac.type = 'ASSET'
           AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
           AND a."isActive" = true
+          AND ac."companyId" = $${companyIdxOpening}
         `,
       from,
       ...cfBranch.params,
+      companyId,
     ),
 
     // Gabungkan cashIn + cashOut jadi 1 query dengan kolom "direction"
@@ -687,17 +702,20 @@ export async function getCashFlow(params: CashFlowParams) {
         FROM journal_entry_lines jel
         JOIN journal_entries je ON je.id = jel."journalId"
         JOIN accounts a ON a.id = jel."accountId"
+        JOIN account_categories ac ON ac.id = a."categoryId"
         WHERE je.status = 'POSTED'
           AND je.date >= $1
           AND je.date <= $2
           AND (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
           AND (jel.debit > 0 OR jel.credit > 0)
+          AND ac."companyId" = $${companyIdxRange}
           ${cfRangeBranch.condition}
         ORDER BY je.date ASC, je."createdAt" ASC
         `,
       from,
       to,
       ...cfRangeBranch.params,
+      companyId,
     ),
   ]);
 
@@ -787,7 +805,7 @@ function summarizeCashByType(
 // 6. DASHBOARD AKUNTANSI
 // ===========================
 
-async function getAccountingDashboardUncached(branchId?: string) {
+async function getAccountingDashboardUncached(branchId: string | undefined, companyId: string) {
   const cacheTags = ["accounting_dashboard"];
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -800,6 +818,8 @@ async function getAccountingDashboardUncached(branchId?: string) {
   const branchCond0 = branchSQL(branchId, "je", 1);
   // For queries with 2 positional params ($1, $2), branchId is $3
   const branchCond2 = branchSQL(branchId, "je", 3);
+  const companyIdx0 = 1 + branchCond0.params.length;
+  const companyIdx2 = 3 + branchCond2.params.length;
 
   const recentJournalInclude = {
     lines: {
@@ -840,8 +860,10 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE (a.code LIKE '1-1001%' OR a.code LIKE '1-1002%')
         AND a."isActive" = true
+        AND ac."companyId" = $${companyIdx0}
       `,
       ...branchCond0.params,
+      companyId,
     ),
 
     // Total Piutang (receivable: typically code 1-1003*)
@@ -861,8 +883,10 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE a.code LIKE '1-1003%'
         AND a."isActive" = true
+        AND ac."companyId" = $${companyIdx0}
       `,
       ...branchCond0.params,
+      companyId,
     ),
 
     // Total Hutang (payable: liability accounts code 2-%)
@@ -882,8 +906,10 @@ async function getAccountingDashboardUncached(branchId?: string) {
       ) mv ON mv."accountId" = a.id
       WHERE ac.type = 'LIABILITY'
         AND a."isActive" = true
+        AND ac."companyId" = $${companyIdx0}
       `,
       ...branchCond0.params,
+      companyId,
     ),
 
     // Laba Hari Ini
@@ -899,11 +925,13 @@ async function getAccountingDashboardUncached(branchId?: string) {
       WHERE je.status = 'POSTED'
         AND je.date >= $1 AND je.date < $2
         AND ac.type IN ('REVENUE', 'EXPENSE')
+        AND ac."companyId" = $${companyIdx2}
         ${branchCond2.condition}
       `,
       todayStart,
       todayEnd,
       ...branchCond2.params,
+      companyId,
     ),
 
     // Laba Bulan Ini
@@ -919,11 +947,13 @@ async function getAccountingDashboardUncached(branchId?: string) {
       WHERE je.status = 'POSTED'
         AND je.date >= $1 AND je.date < $2
         AND ac.type IN ('REVENUE', 'EXPENSE')
+        AND ac."companyId" = $${companyIdx2}
         ${branchCond2.condition}
       `,
       monthStart,
       todayEnd,
       ...branchCond2.params,
+      companyId,
     ),
 
     // Revenue trend last 7 days
@@ -940,6 +970,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
         AND ac.type = 'REVENUE'
         AND je.date >= $1
         AND je.date < $2
+        AND ac."companyId" = $${companyIdx2}
         ${branchCond2.condition}
       GROUP BY je.date
       ORDER BY je.date ASC
@@ -951,6 +982,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       })(),
       todayEnd,
       ...branchCond2.params,
+      companyId,
     ),
 
     // Top 5 expense accounts this month
@@ -969,6 +1001,7 @@ async function getAccountingDashboardUncached(branchId?: string) {
       WHERE je.status = 'POSTED'
         AND ac.type = 'EXPENSE'
         AND je.date >= $1 AND je.date < $2
+        AND ac."companyId" = $${companyIdx2}
         ${branchCond2.condition}
       GROUP BY a.id, a.code, a.name
       HAVING SUM(jel.debit - jel.credit) > 0
@@ -978,12 +1011,14 @@ async function getAccountingDashboardUncached(branchId?: string) {
       monthStart,
       todayEnd,
       ...branchCond2.params,
+      companyId,
     ),
 
     // Recent 10 journal entries
     prisma.journalEntry.findMany({
       where: {
         status: "POSTED",
+        createdByUser: { companyId },
         ...(branchId ? { branchId } : {}),
       },
       include: recentJournalInclude,
@@ -1052,14 +1087,14 @@ async function getAccountingDashboardUncached(branchId?: string) {
 }
 
 export async function getAccountingDashboard(branchId?: string) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   const b = branchId || "all";
   const cached = unstable_cache(
-    () => getAccountingDashboardUncached(branchId),
-    ["accounting-dashboard", b],
+    () => getAccountingDashboardUncached(branchId, companyId),
+    ["accounting-dashboard", companyId, b],
     {
       revalidate: 30,
-      tags: ["accounting-dashboard", `accounting-dashboard:${b}`],
+      tags: ["accounting-dashboard", `accounting-dashboard:${companyId}:${b}`],
     },
   );
   return cached();

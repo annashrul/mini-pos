@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AppLayout } from "@/components/layouts";
-import { hasMenuAccessByPath } from "@/lib/access-control";
+import { hasMenuAccessByPath, findMenuKeyByPath } from "@/lib/access-control";
+import { isPlanMenuAllowed } from "@/server/actions/plan-access";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -11,11 +12,19 @@ export default async function DashboardLayout({
 }) {
   const pathname = (await headers()).get("x-pathname") || "/dashboard";
   // Skip access check for the unauthorized page itself and dashboard
-  const skipCheck = pathname === "/unauthorized" || pathname === "/dashboard";
+  const skipCheck = pathname === "/unauthorized" || pathname === "/dashboard" || pathname === "/plan" || pathname.startsWith("/subscription") || pathname === "/tenants" || pathname.startsWith("/platform-") || pathname === "/plan-management";
   if (!skipCheck) {
     const allowed = await hasMenuAccessByPath(pathname, "view");
     if (!allowed) {
       redirect(`/unauthorized?page=${encodeURIComponent(pathname)}`);
+    }
+    // Also check plan access
+    const menuKey = await findMenuKeyByPath(pathname);
+    if (menuKey) {
+      const planAllowed = await isPlanMenuAllowed(menuKey);
+      if (!planAllowed) {
+        redirect("/plan");
+      }
     }
   }
 

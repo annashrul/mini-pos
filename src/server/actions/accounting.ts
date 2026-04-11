@@ -1491,7 +1491,9 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
 // ============================================================
 
 export async function getAccountingPeriods() {
+  const companyId = await getCurrentCompanyId();
   const periods = await prisma.accountingPeriod.findMany({
+    where: { companyId },
     orderBy: { startDate: "desc" },
     include: {
       _count: { select: { journals: true } },
@@ -1524,9 +1526,12 @@ export async function createAccountingPeriod(
     return { error: "Tanggal akhir harus setelah tanggal awal" };
   }
 
+  const companyId = await getCurrentCompanyId();
+
   // Check overlapping periods
   const overlapping = await prisma.accountingPeriod.findFirst({
     where: {
+      companyId,
       OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
     },
   });
@@ -1540,6 +1545,7 @@ export async function createAccountingPeriod(
       startDate,
       endDate,
       status: "OPEN",
+      companyId,
     },
   });
 

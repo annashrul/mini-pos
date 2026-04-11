@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { savePointConfig, saveReceiptConfig, savePosConfig, saveKitchenConfig, getPointConfig, getReceiptConfig, getPosConfig, getKitchenConfig } from "@/features/settings";
@@ -60,7 +61,9 @@ export function SettingsContent() {
     const [hasChanges, setHasChanges] = useState(false);
     const { selectedBranchId, branchReady, selectedBranchName } = useBranch();
     const { canAction, cannotMessage } = useMenuActionAccess("settings");
-    const canUpdate = canAction("update");
+    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
+    const canUpdate = canAction("update") && canPlanAction("settings", "update");
+    const getMessage = (ak: string) => getPlanBlockMessage("settings", ak) ?? cannotMessage(ak);
 
     // Load settings — only after initial hydration is stable
     const mountedRef = useRef(false);
@@ -99,7 +102,7 @@ export function SettingsContent() {
     };
 
     const handleSave = () => {
-        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        if (!canUpdate) { toast.error(getMessage("update")); return; }
         const bid = selectedBranchId || undefined;
         startTransition(async () => {
             await Promise.all([savePointConfig(pointCfg, bid), saveReceiptConfig(receiptCfg, bid), savePosConfig(posCfg, bid), saveKitchenConfig(kitchenCfg, bid)]);
@@ -138,7 +141,7 @@ export function SettingsContent() {
                     </div>
                 </div>
                 {/* Desktop save button */}
-                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                <DisabledActionTooltip disabled={!canUpdate} message={getMessage("update")}>
                     <Button
                         onClick={handleSave}
                         disabled={!canUpdate || isSaving || !hasChanges}

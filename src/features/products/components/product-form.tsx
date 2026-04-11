@@ -24,6 +24,7 @@ import {
     Tag, DollarSign, Layers, Building2, RefreshCw, Check,
     AlertCircle, Loader2, Plus, Trash2, ImagePlus, Box, ScanLine,
 } from "lucide-react";
+import { ProGate } from "@/components/ui/pro-gate";
 import { uploadProductImage, deleteProductImage } from "@/server/actions/upload";
 import { toast } from "sonner";
 
@@ -391,64 +392,66 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 {/* ==================== INFO TAB ==================== */}
                 <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-5 px-6 py-4">
                     {/* Image upload - gradient bordered card */}
-                    <div className="rounded-[11px] bg-white ">
-                        <Label className="text-sm font-semibold mb-3 block text-foreground/80">Foto Produk</Label>
-                        {imageUrl ? (
-                            <div className="flex items-center gap-4">
-                                <div className="relative group shrink-0">
-                                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border/30 bg-muted/10 shadow-sm">
-                                        <Image src={imageUrl} alt="Product" fill className="object-cover" sizes="96px" />
+                    <ProGate menuKey="products" actionKey="upload_image">
+                        <div className="rounded-[11px] bg-white ">
+                            <Label className="text-sm font-semibold mb-3 block text-foreground/80">Foto Produk</Label>
+                            {imageUrl ? (
+                                <div className="flex items-center gap-4">
+                                    <div className="relative group shrink-0">
+                                        <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-border/30 bg-muted/10 shadow-sm">
+                                            <Image src={imageUrl} alt="Product" fill className="object-cover" sizes="96px" />
+                                        </div>
+                                        <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                                            <label className="cursor-pointer bg-white/90 rounded-lg p-1.5 hover:bg-white transition-colors shadow-sm">
+                                                <ImagePlus className="w-3.5 h-3.5 text-foreground" />
+                                                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} className="hidden" disabled={imageUploading} />
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={handleImageRemove}
+                                                className="bg-white/90 rounded-lg p-1.5 hover:bg-red-50 transition-colors shadow-sm"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="absolute inset-0 rounded-xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
-                                        <label className="cursor-pointer bg-white/90 rounded-lg p-1.5 hover:bg-white transition-colors shadow-sm">
-                                            <ImagePlus className="w-3.5 h-3.5 text-foreground" />
-                                            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} className="hidden" disabled={imageUploading} />
-                                        </label>
-                                        <button
-                                            type="button"
-                                            onClick={handleImageRemove}
-                                            className="bg-white/90 rounded-lg p-1.5 hover:bg-red-50 transition-colors shadow-sm"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                        </button>
+                                    <div className="text-xs text-muted-foreground">
+                                        <p className="font-medium text-foreground text-sm mb-1">Foto berhasil diupload</p>
+                                        <p>Hover untuk ganti atau hapus</p>
                                     </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                    <p className="font-medium text-foreground text-sm mb-1">Foto berhasil diupload</p>
-                                    <p>Hover untuk ganti atau hapus</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <label className={cn(
-                                "flex items-center gap-4 rounded-xl border-2 border-dashed p-4 cursor-pointer transition-all",
-                                imageUploading
-                                    ? "border-primary/30 bg-primary/5"
-                                    : "border-border/40 hover:border-primary/40 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent"
-                            )}>
-                                <div className={cn(
-                                    "w-14 h-14 rounded-xl flex items-center justify-center shrink-0",
-                                    imageUploading ? "bg-primary/10" : "bg-muted/30"
+                            ) : (
+                                <label className={cn(
+                                    "flex items-center gap-4 rounded-xl border-2 border-dashed p-4 cursor-pointer transition-all",
+                                    imageUploading
+                                        ? "border-primary/30 bg-primary/5"
+                                        : "border-border/40 hover:border-primary/40 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent"
                                 )}>
-                                    {imageUploading ? (
-                                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                                    ) : (
-                                        <ImagePlus className="w-6 h-6 text-muted-foreground/40" />
-                                    )}
-                                </div>
-                                <div className="text-sm">
-                                    {imageUploading ? (
-                                        <p className="font-medium text-primary">Mengupload...</p>
-                                    ) : (
-                                        <>
-                                            <p className="font-medium text-foreground">Klik untuk upload foto</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP - Maks 5MB</p>
-                                        </>
-                                    )}
-                                </div>
-                                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} className="hidden" disabled={imageUploading} />
-                            </label>
-                        )}
-                    </div>
+                                    <div className={cn(
+                                        "w-14 h-14 rounded-xl flex items-center justify-center shrink-0",
+                                        imageUploading ? "bg-primary/10" : "bg-muted/30"
+                                    )}>
+                                        {imageUploading ? (
+                                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                                        ) : (
+                                            <ImagePlus className="w-6 h-6 text-muted-foreground/40" />
+                                        )}
+                                    </div>
+                                    <div className="text-sm">
+                                        {imageUploading ? (
+                                            <p className="font-medium text-primary">Mengupload...</p>
+                                        ) : (
+                                            <>
+                                                <p className="font-medium text-foreground">Klik untuk upload foto</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WebP - Maks 5MB</p>
+                                            </>
+                                        )}
+                                    </div>
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} className="hidden" disabled={imageUploading} />
+                                </label>
+                            )}
+                        </div>
+                    </ProGate>
 
                     {/* Code with generate + validate */}
                     <div className="space-y-1.5">
@@ -589,51 +592,53 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     <Separator />
 
                     {/* Tier Prices */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Harga Bertingkat</p>
-                                <p className="text-xs text-muted-foreground">Contoh: qty 1 harga 1000, qty 10 harga 800.</p>
+                    <ProGate menuKey="products" actionKey="tier_prices">
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Harga Bertingkat</p>
+                                    <p className="text-xs text-muted-foreground">Contoh: qty 1 harga 1000, qty 10 harga 800.</p>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" className="rounded-xl text-xs" onClick={addTierPrice}>
+                                    <Plus className="w-3 h-3 mr-1" /> Tambah Tier
+                                </Button>
                             </div>
-                            <Button type="button" variant="outline" size="sm" className="rounded-xl text-xs" onClick={addTierPrice}>
-                                <Plus className="w-3 h-3 mr-1" /> Tambah Tier
-                            </Button>
-                        </div>
-                        {tierPrices.length > 0 ? (
-                            <div className="space-y-2">
-                                {tierPrices.map((tier, idx) => {
-                                    const tierError = (errors.tierPrices as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
-                                    return (
-                                        <div key={idx} className={cn(
-                                            "relative group rounded-xl border p-3",
-                                            tierError ? "border-red-300 bg-red-50/30" : "border-border/50"
-                                        )}>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Qty Minimal *</Label>
-                                                    <Input type="number" min={1} value={tier.minQty} onChange={(e) => updateTierPrice(idx, "minQty", Number(e.target.value))} className={cn("h-11 rounded-xl", tierError?.minQty ? "border-red-400" : "")} />
-                                                    {getErrorText(tierError?.minQty?.message) && <p className="text-[11px] text-red-500">{getErrorText(tierError?.minQty?.message)}</p>}
+                            {tierPrices.length > 0 ? (
+                                <div className="space-y-2">
+                                    {tierPrices.map((tier, idx) => {
+                                        const tierError = (errors.tierPrices as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
+                                        return (
+                                            <div key={idx} className={cn(
+                                                "relative group rounded-xl border p-3",
+                                                tierError ? "border-red-300 bg-red-50/30" : "border-border/50"
+                                            )}>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs text-muted-foreground">Qty Minimal *</Label>
+                                                        <Input type="number" min={1} value={tier.minQty} onChange={(e) => updateTierPrice(idx, "minQty", Number(e.target.value))} className={cn("h-11 rounded-xl", tierError?.minQty ? "border-red-400" : "")} />
+                                                        {getErrorText(tierError?.minQty?.message) && <p className="text-[11px] text-red-500">{getErrorText(tierError?.minQty?.message)}</p>}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs text-muted-foreground">Harga Tier *</Label>
+                                                        <Input type="number" min={1} value={tier.price} onChange={(e) => updateTierPrice(idx, "price", Number(e.target.value))} className={cn("h-11 rounded-xl", tierError?.price ? "border-red-400" : "")} />
+                                                        {getErrorText(tierError?.price?.message) && <p className="text-[11px] text-red-500">{getErrorText(tierError?.price?.message)}</p>}
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-xs text-muted-foreground">Harga Tier *</Label>
-                                                    <Input type="number" min={1} value={tier.price} onChange={(e) => updateTierPrice(idx, "price", Number(e.target.value))} className={cn("h-11 rounded-xl", tierError?.price ? "border-red-400" : "")} />
-                                                    {getErrorText(tierError?.price?.message) && <p className="text-[11px] text-red-500">{getErrorText(tierError?.price?.message)}</p>}
-                                                </div>
+                                                <button type="button" onClick={() => removeTierPrice(idx)}
+                                                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600">
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
                                             </div>
-                                            <button type="button" onClick={() => removeTierPrice(idx)}
-                                                className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600">
-                                                <Trash2 className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="rounded-xl border border-dashed border-border/60 px-4 py-3 text-xs text-muted-foreground">
-                                Belum ada tier price. Sistem akan pakai harga jual default.
-                            </div>
-                        )}
-                    </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-border/60 px-4 py-3 text-xs text-muted-foreground">
+                                    Belum ada tier price. Sistem akan pakai harga jual default.
+                                </div>
+                            )}
+                        </div>
+                    </ProGate>
 
                     <Separator />
 
@@ -650,210 +655,218 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                 </TabsContent>
 
                 {/* ==================== UNITS TAB ==================== */}
-                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-4">
-                    <p className="text-sm text-muted-foreground">
-                        Tambahkan satuan jual selain <strong>{baseUnitName || "pcs"}</strong>. Stok dihitung dalam satuan dasar.
-                    </p>
+                <TabsContent value="units" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                    <ProGate menuKey="products" actionKey="multi_unit">
+                        <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Tambahkan satuan jual selain <strong>{baseUnitName || "pcs"}</strong>. Stok dihitung dalam satuan dasar.
+                            </p>
 
-                    <div className="bg-gradient-to-r from-muted/40 to-muted/20 rounded-xl p-3.5 text-xs text-muted-foreground space-y-1 border border-border/30">
-                        <p className="font-medium text-foreground/70">Contoh: Rokok</p>
-                        <p>Satuan dasar: <strong>Batang</strong> &rarr; Bungkus = 16 Batang, Slop = 160 Batang</p>
-                    </div>
-
-                    <Button
-                        type="button"
-                        size="sm"
-                        className="rounded-xl text-xs bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-sm"
-                        onClick={() => applyProductUnits([...productUnits, { name: "", conversionQty: 1, sellingPrice: 0, purchasePrice: 0, barcode: "" }])}
-                    >
-                        <Plus className="w-3.5 h-3.5 mr-1.5" /> Tambah Satuan
-                    </Button>
-
-                    {productUnits.map((unit, idx) => {
-                        const unitError = (errors.productUnits as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
-                        const uMargin = unit.purchasePrice > 0 ? Math.round((unit.sellingPrice - unit.purchasePrice) / unit.purchasePrice * 100) : 0;
-                        const pricePerBase = unit.conversionQty > 0 ? Math.round(unit.sellingPrice / unit.conversionQty) : 0;
-                        return (
-                            <div key={idx} className={cn(
-                                "relative border rounded-xl p-4 space-y-3 group transition-all",
-                                unitError ? "border-red-300 bg-red-50/30" : "border-border/40 hover:border-border/60 hover:shadow-sm"
-                            )}>
-                                <button type="button" onClick={() => applyProductUnits(productUnits.filter((_, i) => i !== idx))}
-                                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600">
-                                    <Trash2 className="w-3 h-3" />
-                                </button>
-                                <div className="flex items-center gap-2">
-                                    <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{idx + 1}</span>
-                                    <span className="text-xs font-semibold text-muted-foreground">Satuan</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Nama Satuan *</Label>
-                                        <Input value={unit.name} onChange={(e) => updateUnit(idx, "name", e.target.value)} className={cn("h-11 rounded-xl", unitError?.name ? "border-red-400" : "")} placeholder="cth: Bungkus" />
-                                        {getErrorText(unitError?.name?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.name?.message)}</p>}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Isi per Satuan *</Label>
-                                        <div className="flex items-center gap-1.5">
-                                            <Input type="number" value={unit.conversionQty} onChange={(e) => updateUnit(idx, "conversionQty", Number(e.target.value))} className={cn("h-11 rounded-xl flex-1", unitError?.conversionQty ? "border-red-400" : "")} min={1} />
-                                            <span className="text-xs text-muted-foreground whitespace-nowrap px-2 py-1 bg-muted/30 rounded-lg">{baseUnitName || "pcs"}</span>
-                                        </div>
-                                        {getErrorText(unitError?.conversionQty?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.conversionQty?.message)}</p>}
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Harga Beli</Label>
-                                        <Input type="number" value={unit.purchasePrice} onChange={(e) => updateUnit(idx, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", unitError?.purchasePrice ? "border-red-400" : "")} min={0} />
-                                        {getErrorText(unitError?.purchasePrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.purchasePrice?.message)}</p>}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Harga Jual *</Label>
-                                        <Input type="number" value={unit.sellingPrice} onChange={(e) => updateUnit(idx, "sellingPrice", Number(e.target.value))} className={cn("h-11 rounded-xl", unitError?.sellingPrice ? "border-red-400" : "")} min={0} />
-                                        {getErrorText(unitError?.sellingPrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.sellingPrice?.message)}</p>}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Barcode</Label>
-                                        <Input value={unit.barcode} onChange={(e) => updateUnit(idx, "barcode", e.target.value)} className={cn("h-11 rounded-xl", unitError?.barcode ? "border-red-400" : "")} />
-                                        {getErrorText(unitError?.barcode?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.barcode?.message)}</p>}
-                                    </div>
-                                </div>
-                                {unit.conversionQty > 0 && unit.sellingPrice > 0 && (
-                                    <div className="flex items-center gap-3 text-xs flex-wrap pt-1 border-t border-border/20 mt-1">
-                                        <span className="text-muted-foreground">1 {unit.name} = {unit.conversionQty} {baseUnitName || "pcs"}</span>
-                                        <span className="text-muted-foreground">&middot; Per {baseUnitName || "pcs"}: <strong>{formatCurrency(pricePerBase)}</strong></span>
-                                        {unit.purchasePrice > 0 && <Badge className={cn("text-[10px] border-0", uMargin > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{uMargin > 0 ? "+" : ""}{uMargin}%</Badge>}
-                                    </div>
-                                )}
+                            <div className="bg-gradient-to-r from-muted/40 to-muted/20 rounded-xl p-3.5 text-xs text-muted-foreground space-y-1 border border-border/30">
+                                <p className="font-medium text-foreground/70">Contoh: Rokok</p>
+                                <p>Satuan dasar: <strong>Batang</strong> &rarr; Bungkus = 16 Batang, Slop = 160 Batang</p>
                             </div>
-                        );
-                    })}
 
-                    {productUnits.length === 0 && (
-                        <div className="text-center py-10">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-indigo-500/10 flex items-center justify-center mx-auto mb-3">
-                                <Layers className="w-7 h-7 text-primary/40" />
-                            </div>
-                            <p className="text-sm font-medium text-muted-foreground/60">Dijual dalam satuan dasar</p>
-                            <p className="text-xs text-muted-foreground/40 mt-0.5">({baseUnitName || "pcs"})</p>
-                        </div>
-                    )}
-                </TabsContent>
-
-                {/* ==================== BRANCHES TAB ==================== */}
-                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto space-y-4 px-6 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm text-muted-foreground">
-                            Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
-                        </p>
-                        {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
                             <Button
                                 type="button"
                                 size="sm"
-                                className="rounded-xl text-xs shrink-0 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-sm"
-                                onClick={addAllBranches}
+                                className="rounded-xl text-xs bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-sm"
+                                onClick={() => applyProductUnits([...productUnits, { name: "", conversionQty: 1, sellingPrice: 0, purchasePrice: 0, barcode: "" }])}
                             >
-                                <Plus className="w-3.5 h-3.5 mr-1" /> Semua Cabang
+                                <Plus className="w-3.5 h-3.5 mr-1.5" /> Tambah Satuan
                             </Button>
-                        )}
-                    </div>
 
-                    {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                            {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).map((b) => (
-                                <button key={b.id} type="button" onClick={() => addBranchPrice(b.id)}
-                                    className="text-xs px-3.5 py-2 rounded-full border border-dashed border-border/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center gap-1.5 group">
-                                    <Building2 className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                                    {b.name}
-                                    <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </button>
-                            ))}
+                            {productUnits.map((unit, idx) => {
+                                const unitError = (errors.productUnits as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
+                                const uMargin = unit.purchasePrice > 0 ? Math.round((unit.sellingPrice - unit.purchasePrice) / unit.purchasePrice * 100) : 0;
+                                const pricePerBase = unit.conversionQty > 0 ? Math.round(unit.sellingPrice / unit.conversionQty) : 0;
+                                return (
+                                    <div key={idx} className={cn(
+                                        "relative border rounded-xl p-4 space-y-3 group transition-all",
+                                        unitError ? "border-red-300 bg-red-50/30" : "border-border/40 hover:border-border/60 hover:shadow-sm"
+                                    )}>
+                                        <button type="button" onClick={() => applyProductUnits(productUnits.filter((_, i) => i !== idx))}
+                                            className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600">
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{idx + 1}</span>
+                                            <span className="text-xs font-semibold text-muted-foreground">Satuan</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Nama Satuan *</Label>
+                                                <Input value={unit.name} onChange={(e) => updateUnit(idx, "name", e.target.value)} className={cn("h-11 rounded-xl", unitError?.name ? "border-red-400" : "")} placeholder="cth: Bungkus" />
+                                                {getErrorText(unitError?.name?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.name?.message)}</p>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Isi per Satuan *</Label>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Input type="number" value={unit.conversionQty} onChange={(e) => updateUnit(idx, "conversionQty", Number(e.target.value))} className={cn("h-11 rounded-xl flex-1", unitError?.conversionQty ? "border-red-400" : "")} min={1} />
+                                                    <span className="text-xs text-muted-foreground whitespace-nowrap px-2 py-1 bg-muted/30 rounded-lg">{baseUnitName || "pcs"}</span>
+                                                </div>
+                                                {getErrorText(unitError?.conversionQty?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.conversionQty?.message)}</p>}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Harga Beli</Label>
+                                                <Input type="number" value={unit.purchasePrice} onChange={(e) => updateUnit(idx, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", unitError?.purchasePrice ? "border-red-400" : "")} min={0} />
+                                                {getErrorText(unitError?.purchasePrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.purchasePrice?.message)}</p>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Harga Jual *</Label>
+                                                <Input type="number" value={unit.sellingPrice} onChange={(e) => updateUnit(idx, "sellingPrice", Number(e.target.value))} className={cn("h-11 rounded-xl", unitError?.sellingPrice ? "border-red-400" : "")} min={0} />
+                                                {getErrorText(unitError?.sellingPrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.sellingPrice?.message)}</p>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Barcode</Label>
+                                                <Input value={unit.barcode} onChange={(e) => updateUnit(idx, "barcode", e.target.value)} className={cn("h-11 rounded-xl", unitError?.barcode ? "border-red-400" : "")} />
+                                                {getErrorText(unitError?.barcode?.message) && <p className="text-[11px] text-red-500">{getErrorText(unitError?.barcode?.message)}</p>}
+                                            </div>
+                                        </div>
+                                        {unit.conversionQty > 0 && unit.sellingPrice > 0 && (
+                                            <div className="flex items-center gap-3 text-xs flex-wrap pt-1 border-t border-border/20 mt-1">
+                                                <span className="text-muted-foreground">1 {unit.name} = {unit.conversionQty} {baseUnitName || "pcs"}</span>
+                                                <span className="text-muted-foreground">&middot; Per {baseUnitName || "pcs"}: <strong>{formatCurrency(pricePerBase)}</strong></span>
+                                                {unit.purchasePrice > 0 && <Badge className={cn("text-[10px] border-0", uMargin > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{uMargin > 0 ? "+" : ""}{uMargin}%</Badge>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {productUnits.length === 0 && (
+                                <div className="text-center py-10">
+                                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-indigo-500/10 flex items-center justify-center mx-auto mb-3">
+                                        <Layers className="w-7 h-7 text-primary/40" />
+                                    </div>
+                                    <p className="text-sm font-medium text-muted-foreground/60">Dijual dalam satuan dasar</p>
+                                    <p className="text-xs text-muted-foreground/40 mt-0.5">({baseUnitName || "pcs"})</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </ProGate>
+                </TabsContent>
 
-                    {branchPrices.map((bp, idx) => {
-                        const currentBranchError = (errors.branchPrices as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
-                        const bMargin = bp.purchasePrice > 0 ? Math.round((bp.sellingPrice - bp.purchasePrice) / bp.purchasePrice * 100) : 0;
-                        const bProfit = bp.sellingPrice - bp.purchasePrice;
-                        const diff = bp.sellingPrice - sellingPrice;
-                        const borderColor = branchBorderColors[idx % branchBorderColors.length];
-                        return (
-                            <div key={bp.branchId} className={cn(
-                                "relative border rounded-xl p-4 space-y-3 group transition-all border-l-[3px]",
-                                borderColor,
-                                currentBranchError ? "border-t-red-300 border-r-red-300 border-b-red-300 bg-red-50/30" : "border-t-border/40 border-r-border/40 border-b-border/40 hover:shadow-sm"
-                            )}>
-                                <button type="button" onClick={() => applyBranchPrices(branchPrices.filter((x) => x.branchId !== bp.branchId))}
-                                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600 z-10">
-                                    <Trash2 className="w-3 h-3" />
-                                </button>
-                                <div className="flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-primary/60" />
-                                    <span className="text-sm font-semibold">{bp.branchName}</span>
-                                </div>
-                                {getErrorText(currentBranchError?.branchId?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.branchId?.message)}</p>}
-
-                                {/* Price fields */}
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Harga Beli</Label>
-                                        <Input type="number" value={bp.purchasePrice} onChange={(e) => updateBranchPrice(bp.branchId, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", currentBranchError?.purchasePrice ? "border-red-400" : "")} min={0} />
-                                        {getErrorText(currentBranchError?.purchasePrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.purchasePrice?.message)}</p>}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Margin (%)</Label>
-                                        <Input type="number" value={bMargin} onChange={(e) => updateBranchPrice(bp.branchId, "margin", Number(e.target.value))} className="h-11 rounded-xl" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs text-muted-foreground">Harga Jual</Label>
-                                        <Input type="number" value={bp.sellingPrice} onChange={(e) => updateBranchPrice(bp.branchId, "sellingPrice", Number(e.target.value))} className={cn("h-11 rounded-xl", currentBranchError?.sellingPrice ? "border-red-400" : "")} min={0} />
-                                        {getErrorText(currentBranchError?.sellingPrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.sellingPrice?.message)}</p>}
-                                    </div>
-                                </div>
-
-                                {/* Stock fields in a styled sub-card */}
-                                <div className="rounded-xl bg-muted/20 p-3">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground flex items-center gap-1"><Box className="w-3 h-3" /> Stok</Label>
-                                            <Input type="number" value={bp.stock ?? 0} onChange={(e) => updateBranchPrice(bp.branchId, "stock", Number(e.target.value))} className="h-11 rounded-xl" min={0} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-muted-foreground">Stok Minimum</Label>
-                                            <Input type="number" value={bp.minStock ?? 5} onChange={(e) => updateBranchPrice(bp.branchId, "minStock", Number(e.target.value))} className="h-11 rounded-xl" min={0} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Profit display */}
-                                {bp.purchasePrice > 0 && bp.sellingPrice > 0 && (
-                                    <div className="flex items-center gap-3 text-xs flex-wrap">
-                                        <span className="text-muted-foreground">Profit:</span>
-                                        <span className={cn(
-                                            "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-semibold",
-                                            bProfit > 0
-                                                ? "bg-green-50 text-green-700 border border-green-200/50"
-                                                : "bg-red-50 text-red-700 border border-red-200/50"
-                                        )}>
-                                            {formatCurrency(bProfit)}
-                                        </span>
-                                        <Badge className={cn("text-[10px] border-0", bMargin > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{bMargin > 0 ? "+" : ""}{bMargin}%</Badge>
-                                        {diff !== 0 && <span className={cn("text-[11px]", diff > 0 ? "text-blue-500" : "text-orange-500")}>({diff > 0 ? "+" : ""}{formatCurrency(diff)} vs default)</span>}
-                                    </div>
+                {/* ==================== BRANCHES TAB ==================== */}
+                <TabsContent value="branches" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+                    <ProGate menuKey="products" actionKey="branch_prices">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm text-muted-foreground">
+                                    Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
+                                </p>
+                                {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="rounded-xl text-xs shrink-0 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-600/90 text-white shadow-sm"
+                                        onClick={addAllBranches}
+                                    >
+                                        <Plus className="w-3.5 h-3.5 mr-1" /> Semua Cabang
+                                    </Button>
                                 )}
                             </div>
-                        );
-                    })}
 
-                    {branchPrices.length === 0 && (
-                        <div className="text-center py-10">
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 via-indigo-500/10 to-violet-500/10 flex items-center justify-center mx-auto mb-3">
-                                <Building2 className="w-8 h-8 text-primary/30" />
-                            </div>
-                            <p className="text-sm font-medium text-muted-foreground/60">Belum ada cabang ditambahkan</p>
-                            <p className="text-xs text-muted-foreground/40 mt-1 max-w-[240px] mx-auto">Tambahkan cabang untuk mengatur stok & harga spesifik per lokasi</p>
+                            {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                    {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).map((b) => (
+                                        <button key={b.id} type="button" onClick={() => addBranchPrice(b.id)}
+                                            className="text-xs px-3.5 py-2 rounded-full border border-dashed border-border/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center gap-1.5 group">
+                                            <Building2 className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                                            {b.name}
+                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {branchPrices.map((bp, idx) => {
+                                const currentBranchError = (errors.branchPrices as Array<Record<string, { message?: string }> | undefined> | undefined)?.[idx];
+                                const bMargin = bp.purchasePrice > 0 ? Math.round((bp.sellingPrice - bp.purchasePrice) / bp.purchasePrice * 100) : 0;
+                                const bProfit = bp.sellingPrice - bp.purchasePrice;
+                                const diff = bp.sellingPrice - sellingPrice;
+                                const borderColor = branchBorderColors[idx % branchBorderColors.length];
+                                return (
+                                    <div key={bp.branchId} className={cn(
+                                        "relative border rounded-xl p-4 space-y-3 group transition-all border-l-[3px]",
+                                        borderColor,
+                                        currentBranchError ? "border-t-red-300 border-r-red-300 border-b-red-300 bg-red-50/30" : "border-t-border/40 border-r-border/40 border-b-border/40 hover:shadow-sm"
+                                    )}>
+                                        <button type="button" onClick={() => applyBranchPrices(branchPrices.filter((x) => x.branchId !== bp.branchId))}
+                                            className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600 z-10">
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <Building2 className="w-4 h-4 text-primary/60" />
+                                            <span className="text-sm font-semibold">{bp.branchName}</span>
+                                        </div>
+                                        {getErrorText(currentBranchError?.branchId?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.branchId?.message)}</p>}
+
+                                        {/* Price fields */}
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Harga Beli</Label>
+                                                <Input type="number" value={bp.purchasePrice} onChange={(e) => updateBranchPrice(bp.branchId, "purchasePrice", Number(e.target.value))} className={cn("h-11 rounded-xl", currentBranchError?.purchasePrice ? "border-red-400" : "")} min={0} />
+                                                {getErrorText(currentBranchError?.purchasePrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.purchasePrice?.message)}</p>}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Margin (%)</Label>
+                                                <Input type="number" value={bMargin} onChange={(e) => updateBranchPrice(bp.branchId, "margin", Number(e.target.value))} className="h-11 rounded-xl" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-muted-foreground">Harga Jual</Label>
+                                                <Input type="number" value={bp.sellingPrice} onChange={(e) => updateBranchPrice(bp.branchId, "sellingPrice", Number(e.target.value))} className={cn("h-11 rounded-xl", currentBranchError?.sellingPrice ? "border-red-400" : "")} min={0} />
+                                                {getErrorText(currentBranchError?.sellingPrice?.message) && <p className="text-[11px] text-red-500">{getErrorText(currentBranchError?.sellingPrice?.message)}</p>}
+                                            </div>
+                                        </div>
+
+                                        {/* Stock fields in a styled sub-card */}
+                                        <div className="rounded-xl bg-muted/20 p-3">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-muted-foreground flex items-center gap-1"><Box className="w-3 h-3" /> Stok</Label>
+                                                    <Input type="number" value={bp.stock ?? 0} onChange={(e) => updateBranchPrice(bp.branchId, "stock", Number(e.target.value))} className="h-11 rounded-xl" min={0} />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-muted-foreground">Stok Minimum</Label>
+                                                    <Input type="number" value={bp.minStock ?? 5} onChange={(e) => updateBranchPrice(bp.branchId, "minStock", Number(e.target.value))} className="h-11 rounded-xl" min={0} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Profit display */}
+                                        {bp.purchasePrice > 0 && bp.sellingPrice > 0 && (
+                                            <div className="flex items-center gap-3 text-xs flex-wrap">
+                                                <span className="text-muted-foreground">Profit:</span>
+                                                <span className={cn(
+                                                    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-semibold",
+                                                    bProfit > 0
+                                                        ? "bg-green-50 text-green-700 border border-green-200/50"
+                                                        : "bg-red-50 text-red-700 border border-red-200/50"
+                                                )}>
+                                                    {formatCurrency(bProfit)}
+                                                </span>
+                                                <Badge className={cn("text-[10px] border-0", bMargin > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>{bMargin > 0 ? "+" : ""}{bMargin}%</Badge>
+                                                {diff !== 0 && <span className={cn("text-[11px]", diff > 0 ? "text-blue-500" : "text-orange-500")}>({diff > 0 ? "+" : ""}{formatCurrency(diff)} vs default)</span>}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {branchPrices.length === 0 && (
+                                <div className="text-center py-10">
+                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 via-indigo-500/10 to-violet-500/10 flex items-center justify-center mx-auto mb-3">
+                                        <Building2 className="w-8 h-8 text-primary/30" />
+                                    </div>
+                                    <p className="text-sm font-medium text-muted-foreground/60">Belum ada cabang ditambahkan</p>
+                                    <p className="text-xs text-muted-foreground/40 mt-1 max-w-[240px] mx-auto">Tambahkan cabang untuk mengatur stok & harga spesifik per lokasi</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </ProGate>
                 </TabsContent>
             </Tabs>
 

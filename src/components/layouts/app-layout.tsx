@@ -6,6 +6,9 @@ import { useSession } from "next-auth/react";
 import { useBranch } from "@/components/providers/branch-provider";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
+import { PlatformNotificationBell } from "./platform-notification-bell";
+import { PlanExpiryBanner } from "./plan-expiry-banner";
+import { PlanProvider } from "@/components/providers/plan-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Menu, Search, MapPin } from "lucide-react";
@@ -63,6 +66,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isPOS = pathname === "/pos";
     const { data: session } = useSession();
+    const currentRole = (session?.user as Record<string, unknown> | undefined)?.role as string;
     const { selectedBranchName } = useBranch();
 
     if (isPOS) {
@@ -76,6 +80,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const pageTitle = pageTitles[pathname] || "";
 
     return (
+        <PlanProvider>
         <div className="flex h-screen bg-[#F8FAFC]">
             {/* Mobile overlay */}
             {mobileOpen && (
@@ -132,7 +137,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         </div>
 
                         {/* Notification */}
-                        <NotificationBell />
+                        {currentRole === "PLATFORM_OWNER" ? <PlatformNotificationBell /> : <NotificationBell />}
 
                         {/* User avatar (mobile) */}
                         <div className="flex items-center gap-2 lg:hidden">
@@ -143,12 +148,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </header>
 
+                <PlanExpiryBanner />
+
                 <main className="flex-1 overflow-auto">
                     <div className="p-4 lg:p-6 max-w-[1600px]">{children}</div>
                 </main>
             </div>
 
         </div>
+        </PlanProvider>
     );
 }
 

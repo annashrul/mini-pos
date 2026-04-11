@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { checkActionAccess } from "@/server/actions/plan";
 import {
   branchPriceSchema,
   productUnitSchema,
@@ -118,6 +119,23 @@ export async function getProductById(id: string) {
   });
 }
 
+async function checkProductPlanFeatures(formData: FormData): Promise<string | null> {
+  const branchPrices = formData.get("branchPrices") as string | null;
+  const productUnits = formData.get("productUnits") as string | null;
+  const tierPrices = formData.get("tierPrices") as string | null;
+  const imageUrl = formData.get("imageUrl") as string | null;
+
+  if (branchPrices && branchPrices !== "[]" && !(await checkActionAccess("products", "branch_prices")))
+    return "Fitur Harga Per Cabang memerlukan upgrade ke plan PRO";
+  if (productUnits && productUnits !== "[]" && !(await checkActionAccess("products", "multi_unit")))
+    return "Fitur Multi Satuan memerlukan upgrade ke plan PRO";
+  if (tierPrices && tierPrices !== "[]" && !(await checkActionAccess("products", "tier_prices")))
+    return "Fitur Harga Bertingkat memerlukan upgrade ke plan PRO";
+  if (imageUrl && !(await checkActionAccess("products", "upload_image")))
+    return "Fitur Upload Gambar memerlukan upgrade ke plan PRO";
+  return null;
+}
+
 export async function createProduct(formData: FormData) {
   await assertMenuActionAccess("products", "create");
   const companyId = await getCurrentCompanyId();
@@ -163,6 +181,9 @@ export async function createProduct(formData: FormData) {
   );
   if (tierPricesResult.error)
     return { error: `Harga bertingkat tidak valid: ${tierPricesResult.error}` };
+
+  const planError = await checkProductPlanFeatures(formData);
+  if (planError) return { error: planError };
 
   try {
     const data = {
@@ -323,6 +344,9 @@ export async function updateProduct(id: string, formData: FormData) {
   if (tierPricesResult.error)
     return { error: `Harga bertingkat tidak valid: ${tierPricesResult.error}` };
 
+  const planError2 = await checkProductPlanFeatures(formData);
+  if (planError2) return { error: planError2 };
+
   try {
     const oldProduct = await prisma.product.findFirst({
       where: { id, companyId },
@@ -360,11 +384,19 @@ export async function updateProduct(id: string, formData: FormData) {
 
       // Upsert branch stock for each branch
       for (const bp of branchPricesResult.data) {
-        await prisma.branchStock.upsert({
-          where: { branchId_productId: { branchId: bp.branchId, productId: id } },
-          create: { branchId: bp.branchId, productId: id, quantity: bp.stock ?? parsed.data.stock, minStock: bp.minStock ?? parsed.data.minStock },
-          update: { minStock: bp.minStock ?? parsed.data.minStock },
+        const existing = await prisma.branchStock.findFirst({
+          where: { branchId: bp.branchId, productId: id },
         });
+        if (existing) {
+          await prisma.branchStock.update({
+            where: { id: existing.id },
+            data: { minStock: bp.minStock ?? parsed.data.minStock },
+          });
+        } else {
+          await prisma.branchStock.create({
+            data: { branchId: bp.branchId, productId: id, quantity: bp.stock ?? parsed.data.stock, minStock: bp.minStock ?? parsed.data.minStock },
+          });
+        }
       }
 
       // Remove branch stock for branches no longer in the list
@@ -405,8 +437,10 @@ export async function updateProduct(id: string, formData: FormData) {
     createAuditLog({ action: "UPDATE", entity: "Product", entityId: id, details: { before: oldProduct, after: { name: parsed.data.name, code: parsed.data.code, sellingPrice: parsed.data.sellingPrice, purchasePrice: parsed.data.purchasePrice, unit: parsed.data.unit, stock: parsed.data.stock, minStock: parsed.data.minStock, barcode: parsed.data.barcode ?? null, isActive: parsed.data.isActive, categoryId: parsed.data.categoryId ?? null, brandId: brandIdRaw || null, description: parsed.data.description ?? null } } }).catch(() => {});
 
     return { success: true };
-  } catch {
-    return { error: "Gagal mengupdate produk" };
+  } catch (err) {
+    console.error("[updateProduct] Error:", err);
+    const message = err instanceof Error ? err.message : "Gagal mengupdate produk";
+    return { error: message };
   }
 }
 
@@ -750,6 +784,8 @@ interface ImportProductRow {
 
 export async function importProducts(rows: ImportProductRow[]) {
   await assertMenuActionAccess("products", "create");
+  if (!(await checkActionAccess("products", "import")))
+    return { results: [{ row: 1, success: false, name: "", error: "Fitur Import memerlukan upgrade ke plan PRO" }], successCount: 0, failedCount: rows.length };
   const companyId = await getCurrentCompanyId();
 
   const results: {

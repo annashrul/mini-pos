@@ -71,7 +71,10 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
   const [movements, total] = await Promise.all([
     prisma.stockMovement.findMany({
       where,
-      include: { product: { select: { name: true, code: true, stock: true } }, branch: { select: { name: true } } },
+      include: {
+        product: { select: { name: true, code: true, stock: true } },
+        branch: { select: { name: true } },
+      },
       orderBy,
       skip,
       take: perPage,
@@ -108,56 +111,142 @@ export async function createStockMovement(formData: FormData) {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({ where: { id: parsed.data.productId, companyId } });
-      if (!product) throw new Error("Produk tidak ditemukan");
+    await prisma.$transaction(
+      async (tx) => {
+        const product = await tx.product.findFirst({
+          where: { id: parsed.data.productId, companyId },
+        });
+        if (!product) throw new Error("Produk tidak ditemukan");
 
-      const stockChange = parsed.data.type === "IN" ? parsed.data.quantity : parsed.data.type === "OUT" ? -parsed.data.quantity : 0;
+        const stockChange =
+          parsed.data.type === "IN"
+            ? parsed.data.quantity
+            : parsed.data.type === "OUT"
+              ? -parsed.data.quantity
+              : 0;
 
-      if (branchIds.length > 0) {
-        // Per-branch operation
-        for (const bid of branchIds) {
-          const bs = await tx.branchStock.findUnique({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } } });
-          if (parsed.data.type === "OUT" && (bs?.quantity ?? 0) < parsed.data.quantity) {
-            const branchName = (await tx.branch.findUnique({ where: { id: bid }, select: { name: true } }))?.name ?? bid;
-            throw new Error(`Stok di ${branchName} tidak mencukupi (sisa: ${bs?.quantity ?? 0})`);
+        if (branchIds.length > 0) {
+          await tx.$executeRaw`
+            select
+              set_config('app.stock_note', ${parsed.data.note ?? `Manual ${parsed.data.type} stok`}, true),
+              set_config('app.stock_reference', ${"MANUAL_STOCK"}, true)
+          `;
+          // Per-branch operation
+          for (const bid of branchIds) {
+            const bs = await tx.branchStock.findFirst({
+              where: {
+                branchId: bid,
+                productId: parsed.data.productId,
+              },
+            });
+            if (
+              parsed.data.type === "OUT" &&
+              (bs?.quantity ?? 0) < parsed.data.quantity
+            ) {
+              const branchName =
+                (
+                  await tx.branch.findUnique({
+                    where: { id: bid },
+                    select: { name: true },
+                  })
+                )?.name ?? bid;
+              throw new Error(
+                `Stok di ${branchName} tidak mencukupi (sisa: ${bs?.quantity ?? 0})`,
+              );
+            }
+
+            if (parsed.data.type === "ADJUSTMENT") {
+              const existingBs = await tx.branchStock.findFirst({
+                where: { branchId: bid, productId: parsed.data.productId },
+              });
+              if (existingBs) {
+                await tx.branchStock.update({
+                  where: { id: existingBs.id },
+                  data: { quantity: parsed.data.quantity },
+                });
+              } else {
+                await tx.branchStock.create({
+                  data: {
+                    branchId: bid,
+                    productId: parsed.data.productId,
+                    quantity: parsed.data.quantity,
+                  },
+                });
+              }
+            } else if (bs) {
+              await tx.branchStock.update({
+                where: { id: bs.id },
+                data: { quantity: { increment: stockChange } },
+              });
+            } else if (stockChange > 0) {
+              await tx.branchStock.create({
+                data: {
+                  branchId: bid,
+                  productId: parsed.data.productId,
+                  quantity: stockChange,
+                },
+              });
+            }
           }
-
-          await tx.stockMovement.create({ data: { productId: parsed.data.productId, branchId: bid, type: parsed.data.type, quantity: parsed.data.quantity, note: parsed.data.note ?? null } });
-
+        } else {
+          // Global operation (no branch)
+          if (
+            parsed.data.type === "OUT" &&
+            product.stock < parsed.data.quantity
+          ) {
+            throw new Error(`Stok tidak mencukupi (sisa: ${product.stock})`);
+          }
+          await tx.stockMovement.create({
+            data: {
+              productId: parsed.data.productId,
+              type: parsed.data.type,
+              quantity: parsed.data.quantity,
+              note: parsed.data.note ?? null,
+            },
+          });
           if (parsed.data.type === "ADJUSTMENT") {
-            await tx.branchStock.upsert({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } }, create: { branchId: bid, productId: parsed.data.productId, quantity: parsed.data.quantity }, update: { quantity: parsed.data.quantity } });
-          } else if (bs) {
-            await tx.branchStock.update({ where: { branchId_productId: { branchId: bid, productId: parsed.data.productId } }, data: { quantity: { increment: stockChange } } });
-          } else if (stockChange > 0) {
-            await tx.branchStock.create({ data: { branchId: bid, productId: parsed.data.productId, quantity: stockChange } });
+            await tx.product.update({
+              where: { id: parsed.data.productId },
+              data: { stock: parsed.data.quantity },
+            });
+          } else {
+            await tx.product.update({
+              where: { id: parsed.data.productId },
+              data: { stock: { increment: stockChange } },
+            });
           }
         }
-      } else {
-        // Global operation (no branch)
-        if (parsed.data.type === "OUT" && product.stock < parsed.data.quantity) {
-          throw new Error(`Stok tidak mencukupi (sisa: ${product.stock})`);
-        }
-        await tx.stockMovement.create({ data: { productId: parsed.data.productId, type: parsed.data.type, quantity: parsed.data.quantity, note: parsed.data.note ?? null } });
-      }
-
-      // Update global stock
-      if (parsed.data.type === "ADJUSTMENT") {
-        await tx.product.update({ where: { id: parsed.data.productId }, data: { stock: parsed.data.quantity } });
-      } else {
-        await tx.product.update({ where: { id: parsed.data.productId }, data: { stock: { increment: stockChange } } });
-      }
-    }, { timeout: 15000 });
+      },
+      { timeout: 15000 },
+    );
 
     revalidatePath("/stock");
     revalidatePath("/products");
 
-    createAuditLog({ action: "CREATE", entity: "StockMovement", details: { data: { type: parsed.data.type, productId: parsed.data.productId, quantity: parsed.data.quantity, notes: parsed.data.note, ...(branchIds.length > 0 ? { branchId: branchIds.length === 1 ? branchIds[0] : branchIds } : {}) } } }).catch(() => {});
+    createAuditLog({
+      action: "CREATE",
+      entity: "StockMovement",
+      details: {
+        data: {
+          type: parsed.data.type,
+          productId: parsed.data.productId,
+          quantity: parsed.data.quantity,
+          notes: parsed.data.note,
+          ...(branchIds.length > 0
+            ? { branchId: branchIds.length === 1 ? branchIds[0] : branchIds }
+            : {}),
+        },
+      },
+    }).catch(() => {});
 
     // Emit stock updated event for each branch, or globally
     if (branchIds.length > 0) {
       for (const bid of branchIds) {
-        emitEvent(EVENTS.STOCK_UPDATED, { productId: parsed.data.productId }, bid);
+        emitEvent(
+          EVENTS.STOCK_UPDATED,
+          { productId: parsed.data.productId },
+          bid,
+        );
       }
     } else {
       emitEvent(EVENTS.STOCK_UPDATED, { productId: parsed.data.productId });

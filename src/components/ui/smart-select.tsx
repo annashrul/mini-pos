@@ -91,12 +91,15 @@ export function SmartSelect({
         }
     }, [multiple, value, options, initialOptions]);
 
+    const onSearchRef = useRef(onSearch);
+    onSearchRef.current = onSearch;
+
     const loadOptions = useCallback(async (query: string, nextPage = 1, append = false) => {
         const currentRequestId = ++requestIdRef.current;
         if (append) setLoadingMore(true);
         else setLoading(true);
         try {
-            const result = await onSearch(query, nextPage);
+            const result = await onSearchRef.current(query, nextPage);
             if (currentRequestId !== requestIdRef.current) return;
 
             const items = Array.isArray(result) ? result : result.items;
@@ -125,7 +128,7 @@ export function SmartSelect({
                 setLoadingMore(false);
             }
         }
-    }, [onSearch]);
+    }, []);
     // Load initial options
     useEffect(() => {
         if (open) {
@@ -150,6 +153,11 @@ export function SmartSelect({
         }
     };
 
+    const searchQueryRef = useRef(searchQuery);
+    searchQueryRef.current = searchQuery;
+    const pageRef = useRef(page);
+    pageRef.current = page;
+
     useEffect(() => {
         if (!open || !hasMore || loading || loadingMore) return;
         const root = listContainerRef.current;
@@ -159,13 +167,13 @@ export function SmartSelect({
             (entries) => {
                 const entry = entries[0];
                 if (!entry?.isIntersecting) return;
-                void loadOptions(searchQuery, page + 1, true);
+                void loadOptions(searchQueryRef.current, pageRef.current + 1, true);
             },
             { root, rootMargin: "48px", threshold: 0.1 }
         );
         observer.observe(target);
         return () => observer.disconnect();
-    }, [open, hasMore, loading, loadingMore, loadOptions, page, searchQuery]);
+    }, [open, hasMore, loading, loadingMore, loadOptions]);
 
     const handleSelect = (opt: SmartSelectOption) => {
         if (multiple) {

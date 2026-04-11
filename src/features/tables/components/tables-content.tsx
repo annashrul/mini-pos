@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useTransition, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -148,9 +149,11 @@ export function TablesContent() {
     const [loading, startTransition] = useTransition();
     const { selectedBranchId } = useBranch();
     const { canAction, cannotMessage } = useMenuActionAccess("tables");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
+    const canCreate = canAction("create") && canPlanAction("tables", "create");
+    const canUpdate = canAction("update") && canPlanAction("tables", "update");
+    const canDelete = canAction("delete") && canPlanAction("tables", "delete");
+    const getMessage = (ak: string) => getPlanBlockMessage("tables", ak) ?? cannotMessage(ak);
     const didFetchRef = useRef(false);
 
     const form = useForm({
@@ -214,14 +217,14 @@ export function TablesContent() {
     }, [selectedBranchId, fetchData]);
 
     const openCreateDialog = () => {
-        if (!canCreate) { toast.error(cannotMessage("create")); return; }
+        if (!canCreate) { toast.error(getMessage("create")); return; }
         setEditing(null);
         form.reset({ number: (tables.length > 0 ? Math.max(...tables.map(t => t.number)) + 1 : 1), name: "", capacity: 4, section: "", status: "AVAILABLE", isActive: true });
         setDialogOpen(true);
     };
 
     const openEditDialog = (table: TableRecord) => {
-        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        if (!canUpdate) { toast.error(getMessage("update")); return; }
         setEditing(table);
         form.reset({
             number: table.number,
@@ -267,7 +270,7 @@ export function TablesContent() {
     };
 
     const handleStatusChange = async (tableId: string, newStatus: string) => {
-        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        if (!canUpdate) { toast.error(getMessage("update")); return; }
         try {
             await updateTableStatus(tableId, newStatus);
             toast.success(`Status meja diubah ke ${STATUS_CONFIG[newStatus]?.label || newStatus}`);
@@ -278,7 +281,7 @@ export function TablesContent() {
     };
 
     const handleDelete = (id: string) => {
-        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
+        if (!canDelete) { toast.error(getMessage("delete")); return; }
         setPendingDeleteId(id);
         setDeleteDialogOpen(true);
     };

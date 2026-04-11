@@ -432,7 +432,7 @@ export function InventoryForecastContent() {
           activeFilters={activeFilters}
           onFilterChange={handleFilterChange}
           onRowClick={setSelectedProduct}
-          exportFilename="prediksi-stok"
+          planMenuKey="inventory-forecast" exportFilename="prediksi-stok"
           mobileRender={(row) => {
             return (
               <div className="space-y-1.5">

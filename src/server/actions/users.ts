@@ -79,6 +79,7 @@ export async function createUser(formData: FormData) {
         password: hashedPassword,
         role: parsed.data.role,
         isActive: parsed.data.isActive,
+        emailVerified: true,
         companyId,
         branchId,
       },

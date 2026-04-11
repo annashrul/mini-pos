@@ -217,7 +217,7 @@ export function BrandsContent() {
                         setConfirmOpen(true);
                     },
                 }]}
-                exportFilename="brand"
+                planMenuKey="brands" exportFilename="brand"
                 emptyIcon={<Tag className="w-10 h-10 text-muted-foreground/30" />} emptyTitle="Belum ada brand"
                 emptyAction={
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>

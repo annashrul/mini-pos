@@ -13,12 +13,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Zap, Loader2 } from "lucide-react";
-import { registerCompany } from "@/server/actions/register";
+import { Zap, Loader2, Mail, RefreshCw } from "lucide-react";
+import { registerCompany, resendVerificationEmail } from "@/server/actions/register";
 
 export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -41,10 +44,56 @@ export default function RegisterPage() {
     if (result.error) {
       setError(result.error);
       setLoading(false);
+    } else if ("needsVerification" in result && result.needsVerification) {
+      setVerificationEmail(result.email || "");
+      setLoading(false);
     } else {
       router.push("/login?registered=true");
     }
   };
+
+  const handleResend = async () => {
+    if (!verificationEmail || resending) return;
+    setResending(true);
+    setResendSuccess(false);
+    const result = await resendVerificationEmail(verificationEmail);
+    setResending(false);
+    if (result.success) setResendSuccess(true);
+    else if (result.error) setError(result.error);
+  };
+
+  if (verificationEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <Card className="w-full max-w-sm shadow-xl rounded-2xl text-center">
+          <CardContent className="pt-8 pb-6 px-6 space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <Mail className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-xl font-bold">Cek Email Anda</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Kami telah mengirim OTP verifikasi ke <strong className="text-foreground">{verificationEmail}</strong>.
+              Cek inbox (atau folder spam), lalu masukkan OTP di halaman verifikasi.
+            </p>
+            {resendSuccess && (
+              <p className="text-sm text-emerald-600 bg-emerald-50 rounded-lg py-2 px-3">Email verifikasi berhasil dikirim ulang!</p>
+            )}
+            <div className="space-y-2 pt-2">
+              <Button variant="outline" className="w-full rounded-xl text-sm" onClick={handleResend} disabled={resending}>
+                {resending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Kirim Ulang Email
+              </Button>
+              <Button asChild variant="ghost" className="w-full rounded-xl text-sm">
+                <Link href={`/verify-email?email=${encodeURIComponent(verificationEmail)}`}>
+                  Masukkan OTP
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">

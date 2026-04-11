@@ -16,7 +16,7 @@ export const authConfig: NextAuthConfig = {
       const pathname = request.nextUrl.pathname;
 
       // Public routes
-      if (pathname === "/login" || pathname === "/register") {
+      if (pathname === "/login" || pathname === "/register" || pathname === "/verify-email") {
         if (isLoggedIn) {
           return Response.redirect(new URL("/dashboard", request.nextUrl));
         }

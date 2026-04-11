@@ -368,30 +368,16 @@ export async function addDebtPayment(params: {
       };
     }
 
-    const newPaidAmount = debt.paidAmount + amount;
-    const newRemainingAmount = debt.totalAmount - newPaidAmount;
-    const newStatus: DebtStatus =
-      newRemainingAmount <= 0 ? "PAID" : "PARTIAL";
-
-    const [payment] = await prisma.$transaction([
-      prisma.debtPayment.create({
-        data: {
-          debtId,
-          amount,
-          method,
-          notes: notes || null,
-          paidBy: session.user.id,
-        },
-      }),
-      prisma.debt.update({
-        where: { id: debtId },
-        data: {
-          paidAmount: newPaidAmount,
-          remainingAmount: newRemainingAmount,
-          status: newStatus,
-        },
-      }),
-    ]);
+    // Just create payment — trigger auto-updates debt status, paidAmount, remainingAmount
+    const payment = await prisma.debtPayment.create({
+      data: {
+        debtId,
+        amount,
+        method,
+        notes: notes || null,
+        paidBy: session.user.id,
+      },
+    });
 
     createAuditLog({
       action: "CREATE",
@@ -401,9 +387,6 @@ export async function addDebtPayment(params: {
         debtId,
         amount,
         method,
-        newPaidAmount,
-        newRemainingAmount,
-        newStatus,
         partyName: debt.partyName,
         type: debt.type,
       },

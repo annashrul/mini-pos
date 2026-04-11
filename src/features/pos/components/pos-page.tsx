@@ -14,9 +14,12 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useConfigRealtime } from "@/hooks/use-config-socket";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import {
-    WifiOff, Wifi, RefreshCw
+    Pause, WifiOff, Wifi, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ProductSearchResult } from "@/types";
@@ -35,6 +38,9 @@ import {
     toProductSearchResult,
     writePosProductCache,
 } from "../utils";
+import { logPosActivity } from "@/server/actions/pos-activity";
+import { PlanProvider } from "@/components/providers/plan-provider";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { DiscountDialog, ShortcutsDialog, VoidDialog } from "./pos-page-dialogs";
 import { POSPageMainDialogs } from "./pos-page-main-dialogs";
 import { POSPagePanels } from "./pos-page-panels";
@@ -61,9 +67,11 @@ const {
 
 export default function POSPage() {
     return (
-        <PosUiStateProvider>
-            <POSPageContent />
-        </PosUiStateProvider>
+        <PlanProvider>
+            <PosUiStateProvider>
+                <POSPageContent />
+            </PosUiStateProvider>
+        </PlanProvider>
     );
 }
 
@@ -94,6 +102,10 @@ function POSPageContent() {
         setShowPaymentDialog,
         showClosingDialog,
         setShowClosingDialog,
+        showHoldInputDialog,
+        setShowHoldInputDialog,
+        holdInputLabel,
+        setHoldInputLabel,
     } = usePosUiState();
     const {
         register: setupRegister,
@@ -273,7 +285,12 @@ function POSPageContent() {
         roundToStep(grandTotal + quickStep),
         roundToStep(grandTotal + quickStep * 3),
     ])).filter((amount) => amount > 0);
-    const canPosAction = useCallback((actionKey: string) => posActionAccess?.[actionKey] ?? true, [posActionAccess]);
+    const { canAction: canPlanAction } = usePlanAccess();
+    const canPosAction = useCallback((actionKey: string) => {
+        const roleAllowed = posActionAccess?.[actionKey] ?? true;
+        if (!roleAllowed) return false;
+        return canPlanAction("pos", actionKey);
+    }, [posActionAccess, canPlanAction]);
 
     // Load shift summary when closing dialog opens
     useEffect(() => {
@@ -335,12 +352,12 @@ function POSPageContent() {
     useEffect(() => { if (cart.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(cart)); else localStorage.removeItem(STORAGE_KEY); }, [cart]);
 
     // Handlers
-    const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); if (!customerName.trim()) setCustomerName(c.name); toast.success(`Member: ${c.name}`); } else if (phone.length >= 10 && customerName.trim()) { try { const { quickRegisterCustomer } = await import("@/server/actions/customers"); const newCustomer = await quickRegisterCustomer(customerName.trim(), phone); if (newCustomer) { setDetectedCustomer(newCustomer); toast.success(`Member baru terdaftar: ${newCustomer.name}`); } } catch { /* silent */ } } else { setDetectedCustomer(null); } } else { setDetectedCustomer(null); } };
+    const handleCustomerPhoneChange = async (phone: string) => { setCustomerPhone(phone); if (phone.length >= 4) { const c = await findCustomerByPhone(phone); if (c) { setDetectedCustomer(c); if (!customerName.trim()) setCustomerName(c.name); toast.success(`Member: ${c.name}`); } else if (phone.length >= 10 && customerName.trim()) { try { const { quickRegisterCustomer } = await import("@/server/actions/customers"); const newCustomer = await quickRegisterCustomer(customerName.trim(), phone); if (newCustomer) { setDetectedCustomer(newCustomer); logPosActivity({ action: "QUICK_REGISTER", entity: "Customer", entityId: newCustomer.id, details: { name: newCustomer.name, phone }, branchId: activeBranchId || undefined }); toast.success(`Member baru terdaftar: ${newCustomer.name}`); } } catch { /* silent */ } } else { setDetectedCustomer(null); } } else { setDetectedCustomer(null); } };
     const handleApplyVoucher = async () => {
         if (!canPosAction("voucher")) { toast.error("Tidak punya akses voucher"); return; }
         if (!voucherCode) return;
         const r = await validateVoucher(voucherCode, subtotal);
-        if (r.error) { setVoucherPromoId(""); toast.error(r.error); } else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); setVoucherPromoId(r.promoId!); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); }
+        if (r.error) { setVoucherPromoId(""); toast.error(r.error); } else { setVoucherDiscount(r.discount!); setVoucherApplied(r.promoName!); setVoucherPromoId(r.promoId!); logPosActivity({ action: "APPLY_VOUCHER", entity: "Promotion", entityId: r.promoId!, details: { voucherCode, discount: r.discount!, promoName: r.promoName! }, branchId: activeBranchId || undefined }); toast.success(`Voucher: -${formatCurrency(r.discount!)}`); }
     };
 
     const handleRedeemPoints = async () => {
@@ -349,6 +366,7 @@ function POSPageContent() {
         const r = await redeemPoints(detectedCustomer.id, redeemPointsInput);
         if (r.error) { toast.error(r.error); return; }
         setRedeemDiscount(r.discountValue!);
+        logPosActivity({ action: "REDEEM_POINTS", entity: "Points", details: { customerId: detectedCustomer.id, customerName: detectedCustomer.name, points: redeemPointsInput, discountValue: r.discountValue! }, branchId: activeBranchId || undefined });
         toast.success(`${redeemPointsInput} poin ditukar = diskon ${formatCurrency(r.discountValue!)}`);
     };
 
@@ -510,15 +528,17 @@ function POSPageContent() {
         setCart((prev) => [...prev, bundleItem]);
         toast.success(`Paket "${bundle.name}" ditambahkan`);
     }, [setCart, shouldValidateStock]);
-    const holdTransaction = useCallback(() => {
+    const holdTransaction = useCallback((label?: string) => {
         if (!canPosAction("hold")) { toast.error("Tidak punya akses hold transaksi"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
-        setHeldTransactions((p) => [...p, { id: Date.now(), cart: [...cart], time: new Date().toLocaleTimeString("id-ID") }]);
+        const holdLabel = label?.trim() || customerName.trim() || `Hold ${new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}`;
+        setHeldTransactions((p) => [...p, { id: Date.now(), cart: [...cart], time: new Date().toLocaleTimeString("id-ID"), label: holdLabel }]);
+        logPosActivity({ action: "HOLD", entity: "Transaction", details: { label: holdLabel, itemCount: cart.length, total: cart.reduce((s, i) => s + i.subtotal, 0) }, branchId: activeBranchId || undefined });
         setCart([]);
         localStorage.removeItem(STORAGE_KEY);
-        toast.success("Transaksi ditahan");
-    }, [canPosAction, cart]);
-    const resumeTransaction = (id: number) => { const h = heldTransactions.find((x) => x.id === id); if (!h) return; if (cart.length > 0) holdTransaction(); setCart(h.cart); setHeldTransactions((p) => p.filter((x) => x.id !== id)); setShowHeldDialog(false); toast.success("Dilanjutkan"); };
+        toast.success(`Ditahan: ${holdLabel}`);
+    }, [canPosAction, cart, customerName, activeBranchId]);
+    const resumeTransaction = (id: number) => { const h = heldTransactions.find((x) => x.id === id); if (!h) return; if (cart.length > 0) holdTransaction(); setCart(h.cart); setHeldTransactions((p) => p.filter((x) => x.id !== id)); setShowHeldDialog(false); logPosActivity({ action: "RESUME", entity: "Transaction", details: { itemCount: h.cart.length }, branchId: activeBranchId || undefined }); toast.success("Dilanjutkan"); };
     const openPaymentDialog = useCallback(() => {
         if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
@@ -635,7 +655,7 @@ function POSPageContent() {
         }
     };
 
-    const resetPOS = useCallback(() => { setCart([]); setDiscountPercent(0); setDiscountFixed(0); setDiscountType("percent"); setPaymentAmount(""); setPaymentEntries([]); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerName(""); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setTebusMurahOptions([]); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); setSelectedTables([]); setLeftPanelTab("products"); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, []);
+    const resetPOS = useCallback(() => { logPosActivity({ action: "CLEAR_CART", entity: "Transaction", branchId: activeBranchId || undefined }); setCart([]); setDiscountPercent(0); setDiscountFixed(0); setDiscountType("percent"); setPaymentAmount(""); setPaymentEntries([]); setSuccess(null); setSearchQuery(""); setSearchResults([]); setCustomerName(""); setCustomerPhone(""); setDetectedCustomer(null); setAppliedPromos([]); setPromoDiscount(0); setVoucherCode(""); setVoucherDiscount(0); setVoucherApplied(""); setVoucherPromoId(""); setTebusMurahOptions([]); setRedeemPointsInput(0); setRedeemDiscount(0); setPointsEarnedResult(0); setSelectedTables([]); setLeftPanelTab("products"); localStorage.removeItem(STORAGE_KEY); barcodeInputRef.current?.focus(); }, [activeBranchId]);
 
     // Transaction history for current cashier only
     const loadHistory = useCallback(async () => {
@@ -676,6 +696,7 @@ function POSPageContent() {
 
     const reprintReceipt = (tx: (typeof historyData)[number]) => {
         if (!canPosAction("reprint")) { toast.error("Tidak punya akses reprint"); return; }
+        logPosActivity({ action: "REPRINT", entity: "Transaction", entityId: tx.id, details: { invoiceNumber: tx.invoiceNumber, grandTotal: tx.grandTotal }, branchId: activeBranchId || undefined });
         const payments = tx.payments && tx.payments.length > 1 ? tx.payments.map((p) => ({ method: p.method, amount: p.amount })) : undefined;
         printThermalReceipt({
             invoiceNumber: tx.invoiceNumber,
@@ -999,11 +1020,11 @@ function POSPageContent() {
             }
             switch (e.key) {
                 case "F1": e.preventDefault(); setShowSearchDialog(true); break;
-                case "F2": e.preventDefault(); holdTransaction(); break;
+                case "F2": e.preventDefault(); if (!canPosAction("hold")) { toast.error("Fitur Hold memerlukan upgrade plan"); return; } if (cart.length === 0) { toast.error("Keranjang kosong"); } else { setHoldInputLabel(customerName.trim()); setShowHoldInputDialog(true); } break;
                 case "F3": e.preventDefault(); openPaymentDialog(); break;
                 case "F4": e.preventDefault(); resetPOS(); break;
-                case "F5": e.preventDefault(); if (!canPosAction("discount")) { toast.error("Tidak punya akses diskon"); return; } setShowDiscountDialog(true); break;
-                case "F6": e.preventDefault(); loadHistory(); break;
+                case "F5": e.preventDefault(); if (!canPosAction("discount")) { toast.error("Fitur Diskon memerlukan upgrade plan"); return; } setShowDiscountDialog(true); break;
+                case "F6": e.preventDefault(); if (!canPosAction("history")) { toast.error("Fitur Riwayat memerlukan upgrade plan"); return; } loadHistory(); break;
             }
         };
         window.addEventListener("keydown", handler);
@@ -1244,7 +1265,7 @@ function POSPageContent() {
                 browseLoading,
                 heldTransactions,
                 setShowHeldDialog,
-                holdTransaction,
+                holdTransaction: () => { if (cart.length === 0) { toast.error("Keranjang kosong"); return; } setHoldInputLabel(customerName.trim()); setShowHoldInputDialog(true); },
                 canPosAction,
                 setShowDiscountDialog,
                 setShowSearchDialog,
@@ -1313,7 +1334,7 @@ function POSPageContent() {
                         });
                     }).catch(() => toast.error("Gagal mengosongkan meja"));
                 },
-                showTableNumber: posConfig?.showTableNumber ?? false,
+                showTableNumber: (posConfig?.showTableNumber ?? false) && canPlanAction("pos", "table_select"),
                 leftPanelTab,
                 setLeftPanelTab,
                 bundles,
@@ -1396,6 +1417,33 @@ function POSPageContent() {
                 <DiscountDialog />
                 <VoidDialog />
                 <ShortcutsDialog />
+                {/* Hold Input Dialog */}
+                <Dialog open={showHoldInputDialog} onOpenChange={setShowHoldInputDialog}>
+                    <DialogContent className="rounded-2xl max-w-xs p-0 overflow-hidden">
+                        <div className="px-5 pt-5 pb-4 space-y-3">
+                            <DialogHeader>
+                                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                                    <Pause className="w-4 h-4 text-orange-500" /> Hold Transaksi
+                                </DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-medium text-muted-foreground">Atas nama</Label>
+                                <Input
+                                    value={holdInputLabel}
+                                    onChange={(e) => setHoldInputLabel(e.target.value)}
+                                    placeholder="Nama customer / keterangan"
+                                    className="rounded-xl h-10"
+                                    autoFocus
+                                    onKeyDown={(e) => { if (e.key === "Enter") { holdTransaction(holdInputLabel); setShowHoldInputDialog(false); setHoldInputLabel(""); } }}
+                                />
+                            </div>
+                            <div className="flex gap-2">
+                                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowHoldInputDialog(false)}>Batal</Button>
+                                <Button className="flex-1 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={() => { holdTransaction(holdInputLabel); setShowHoldInputDialog(false); setHoldInputLabel(""); }}>Hold</Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </PosDialogsProvider>
         </div>
     );

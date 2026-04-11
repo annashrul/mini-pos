@@ -448,7 +448,7 @@ export function ReturnsContent() {
                 activeFilters={activeFilters}
                 onFilterChange={handleFilterChange}
                 onRowClick={(row) => openDetail(row.id)}
-                exportFilename="returns"
+                planMenuKey="returns" exportFilename="returns"
                 emptyIcon={<RotateCcw className="h-10 w-10 opacity-30" />}
                 emptyTitle="Belum ada data return"
                 emptyDescription="Return & exchange akan muncul di sini"

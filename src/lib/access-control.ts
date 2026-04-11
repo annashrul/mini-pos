@@ -34,6 +34,8 @@ const menuDefinitions = [
       "reprint",
       "voucher",
       "redeem_points",
+      "split_bill",
+      "table_select",
     ],
   },
   {
@@ -42,7 +44,7 @@ const menuDefinitions = [
     path: "/transactions",
     group: "Utama",
     sortOrder: 3,
-    actions: ["view", "export", "void", "refund"],
+    actions: ["view", "export", "void", "refund", "reprint"],
   },
   {
     key: "shifts",
@@ -66,7 +68,7 @@ const menuDefinitions = [
     path: "/products",
     group: "Master Data",
     sortOrder: 1,
-    actions: ["view", "create", "update", "delete", "export"],
+    actions: ["view", "create", "update", "delete", "export", "import", "upload_image", "branch_prices", "multi_unit", "tier_prices"],
   },
   {
     key: "bundles",
@@ -106,7 +108,7 @@ const menuDefinitions = [
     path: "/customers",
     group: "Master Data",
     sortOrder: 5,
-    actions: ["view", "create", "update", "delete", "export"],
+    actions: ["view", "create", "update", "delete", "export", "import", "points"],
   },
   {
     key: "stock",
@@ -114,7 +116,7 @@ const menuDefinitions = [
     path: "/stock",
     group: "Inventori",
     sortOrder: 1,
-    actions: ["view", "create", "update", "export"],
+    actions: ["view", "create", "update", "export", "import"],
   },
   {
     key: "purchases",
@@ -357,12 +359,47 @@ const menuDefinitions = [
     sortOrder: 6,
     actions: ["view", "create", "update"],
   },
+  // Platform
+  {
+    key: "subscription-admin",
+    name: "Manajemen Subscription",
+    path: "/subscription-admin",
+    group: "Platform",
+    sortOrder: 1,
+    actions: ["view", "create", "update"],
+  },
+  {
+    key: "tenants",
+    name: "Daftar Tenant",
+    path: "/tenants",
+    group: "Platform",
+    sortOrder: 2,
+    actions: ["view"],
+  },
+  {
+    key: "platform-activity",
+    name: "Activity Log",
+    path: "/platform-activity",
+    group: "Platform",
+    sortOrder: 3,
+    actions: ["view"],
+  },
+  {
+    key: "plan-management",
+    name: "Kelola Fitur Plan",
+    path: "/plan-management",
+    group: "Platform",
+    sortOrder: 4,
+    actions: ["view", "update"],
+  },
 ] as const;
+const PLATFORM_ONLY_MENUS = new Set(["subscription-admin", "tenants", "platform-activity", "plan-management"]);
+const tenantMenus = menuDefinitions.map((m) => m.key).filter((k) => !PLATFORM_ONLY_MENUS.has(k));
+
 const menuAccessByRole: Record<Role, string[]> = {
-  SUPER_ADMIN: menuDefinitions.map((menu) => menu.key),
-  ADMIN: menuDefinitions
-    .map((menu) => menu.key)
-    .filter((key) => key !== "audit-logs"),
+  PLATFORM_OWNER: ["dashboard", "subscription-admin", "tenants", "platform-activity", "plan-management"],
+  SUPER_ADMIN: tenantMenus,
+  ADMIN: tenantMenus.filter((key) => key !== "audit-logs"),
   MANAGER: [
     "dashboard",
     "pos",
@@ -403,6 +440,15 @@ const menuAccessByRole: Record<Role, string[]> = {
   ],
   CASHIER: ["dashboard", "pos", "transactions", "returns", "shifts", "kitchen-display", "sales-targets"],
 };
+
+/**
+ * Find the menu key for a given pathname.
+ */
+export async function findMenuKeyByPath(pathname: string): Promise<string | null> {
+  const normalized = normalizePath(pathname);
+  const menu = menuDefinitions.find((m) => m.path === normalized);
+  return menu?.key ?? null;
+}
 
 function normalizePath(pathname: string) {
   if (!pathname || pathname === "/") return "/dashboard";

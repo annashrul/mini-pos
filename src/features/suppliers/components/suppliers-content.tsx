@@ -328,7 +328,7 @@ export function SuppliersContent() {
                     </div>
                 }
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
-                exportFilename="supplier"
+                planMenuKey="suppliers" exportFilename="supplier"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 mx-auto">
                         <Truck className="w-8 h-8 text-amber-400" />
