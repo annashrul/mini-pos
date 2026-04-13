@@ -8,6 +8,8 @@ import {
 } from "@/server/actions/inventory-forecast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { CreatePODialog } from "@/features/purchases/components/create-po-dialog";
 import {
   Building2,
@@ -26,6 +28,8 @@ export function AutoReorderList({ branchId }: Props) {
   const [groups, setGroups] = useState<SupplierReorderGroup[]>([]);
   const [isPending, startTransition] = useTransition();
   const [poDialogOpen, setPODialogOpen] = useState(false);
+  const { canAction: canPlan } = usePlanAccess();
+  const canCreatePO = canPlan("purchases", "create");
 
   useEffect(() => {
     startTransition(async () => {
@@ -97,10 +101,12 @@ export function AutoReorderList({ branchId }: Props) {
                 </div>
               </div>
             </div>
-            <Button size="sm" className="gap-1.5 shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-sm rounded-lg sm:rounded-xl" onClick={() => setPODialogOpen(true)}>
-              <FileText className="w-3.5 h-3.5" />
-              <span className="text-xs">Buat PO</span>
-            </Button>
+            <DisabledActionTooltip disabled={!canCreatePO} message="Anda tidak memiliki akses" menuKey="purchases" actionKey="create">
+              <Button size="sm" disabled={!canCreatePO} className="gap-1.5 shrink-0 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-sm rounded-lg sm:rounded-xl" onClick={() => setPODialogOpen(true)}>
+                <FileText className="w-3.5 h-3.5" />
+                <span className="text-xs">Buat PO</span>
+              </Button>
+            </DisabledActionTooltip>
           </div>
 
           {/* Items */}

@@ -164,7 +164,7 @@ const menuDefinitions = [
     path: "/debts",
     group: "Keuangan",
     sortOrder: 3,
-    actions: ["view", "create", "update", "delete"],
+    actions: ["view", "create", "update", "delete", "payment"],
   },
   {
     key: "price-schedules",
@@ -180,7 +180,7 @@ const menuDefinitions = [
     path: "/gift-cards",
     group: "Keuangan",
     sortOrder: 5,
-    actions: ["view", "create", "update"],
+    actions: ["view", "create", "update", "disable"],
   },
   {
     key: "reports",
@@ -220,7 +220,7 @@ const menuDefinitions = [
     path: "/branch-prices",
     group: "Admin",
     sortOrder: 2,
-    actions: ["view", "create", "update", "delete"],
+    actions: ["view", "copy", "update", "delete"],
   },
   {
     key: "audit-logs",
@@ -244,7 +244,7 @@ const menuDefinitions = [
     path: "/settings",
     group: "Admin",
     sortOrder: 5,
-    actions: ["view", "update"],
+    actions: ["view", "update", "settings_store", "settings_earn", "settings_redeem", "settings_levels"],
   },
   {
     key: "returns",
@@ -260,7 +260,7 @@ const menuDefinitions = [
     path: "/access-control",
     group: "Admin",
     sortOrder: 6,
-    actions: ["view", "manage"],
+    actions: ["view", "create_role", "update_role", "delete_role", "manage_menu", "manage_action"],
   },
   {
     key: "tables",
@@ -268,7 +268,7 @@ const menuDefinitions = [
     path: "/tables",
     group: "Admin",
     sortOrder: 7,
-    actions: ["view", "create", "update", "delete"],
+    actions: ["view", "create", "update", "delete", "update_status"],
   },
   {
     key: "kitchen-display",
@@ -276,7 +276,7 @@ const menuDefinitions = [
     path: "/kitchen-display",
     group: "Utama",
     sortOrder: 7,
-    actions: ["view", "create", "update"],
+    actions: ["view", "update_status", "reset"],
   },
   {
     key: "employee-schedules",
@@ -333,7 +333,7 @@ const menuDefinitions = [
     path: "/accounting/journals",
     group: "Akuntansi",
     sortOrder: 3,
-    actions: ["view", "create", "update", "void"],
+    actions: ["view", "create"],
   },
   {
     key: "accounting-ledger",
@@ -357,7 +357,7 @@ const menuDefinitions = [
     path: "/accounting/periods",
     group: "Akuntansi",
     sortOrder: 6,
-    actions: ["view", "create", "update"],
+    actions: ["view", "create", "update", "close", "reopen", "lock"],
   },
   // Platform
   {
@@ -495,6 +495,103 @@ export async function ensureAccessSeeded() {
   await seedMenus(menuDefinitions);
 }
 
+/** Human-readable Indonesian action labels for display in plan management UI */
+const ACTION_LABELS: Record<string, Record<string, string>> = {
+  _default: {
+    view: "Lihat",
+    create: "Tambah",
+    update: "Ubah",
+    delete: "Hapus",
+    export: "Ekspor",
+    import: "Impor",
+  },
+  products: {
+    upload_image: "Upload Gambar",
+    branch_prices: "Harga per Cabang",
+    multi_unit: "Multi Satuan",
+    tier_prices: "Harga Bertingkat",
+  },
+  customers: {
+    points: "Kelola Poin",
+  },
+  transactions: {
+    void: "Void Transaksi",
+    refund: "Refund Transaksi",
+    reprint: "Cetak Ulang Struk",
+  },
+  shifts: {
+    close_shift: "Tutup Shift",
+  },
+  "closing-reports": {
+    reclosing: "Reclosing",
+  },
+  returns: {
+    approve: "Setujui Return",
+    reject: "Tolak Return",
+  },
+  purchases: {
+    approve: "Setujui PO",
+    receive: "Terima Barang",
+  },
+  "stock-opname": {
+    approve: "Setujui Opname",
+  },
+  "stock-transfers": {
+    approve: "Setujui Transfer",
+    receive: "Terima Transfer",
+  },
+  stock: {
+    create: "Penyesuaian Stok",
+  },
+  debts: {
+    payment: "Bayar Hutang/Piutang",
+  },
+  "gift-cards": {
+    create: "Terbitkan Gift Card",
+    update: "Top Up Saldo",
+    disable: "Nonaktifkan",
+  },
+  "branch-prices": {
+    copy: "Salin Harga",
+  },
+  "access-control": {
+    create_role: "Buat Role",
+    update_role: "Ubah Role",
+    delete_role: "Hapus Role",
+    manage_menu: "Kelola Menu",
+    manage_action: "Kelola Aksi",
+  },
+  tables: {
+    update_status: "Ubah Status Meja",
+  },
+  "kitchen-display": {
+    update_status: "Ubah Status Order",
+    reset: "Reset Antrian",
+  },
+  settings: {
+    settings_store: "Pengaturan Toko",
+    settings_earn: "Aturan Poin Earn",
+    settings_redeem: "Aturan Poin Redeem",
+    settings_levels: "Level Member",
+  },
+  expenses: {
+    create: "Tambah Pengeluaran",
+    update: "Ubah Pengeluaran",
+    delete: "Hapus Pengeluaran",
+  },
+  promotions: {
+    create: "Tambah Promo",
+    update: "Ubah Promo",
+    delete: "Hapus Promo",
+  },
+};
+
+function getActionLabel(menuKey: string, actionKey: string): string {
+  return ACTION_LABELS[menuKey]?.[actionKey]
+    ?? ACTION_LABELS["_default"]?.[actionKey]
+    ?? actionKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 async function seedMenus(menus: readonly { key: string; name: string; path: string; group: string; sortOrder: number; actions: readonly string[] }[]) {
   for (const menu of menus) {
     const appMenu = await prisma.appMenu.upsert({
@@ -531,8 +628,8 @@ async function seedMenus(menus: readonly { key: string; name: string; path: stri
       menu.actions.map(async (actionKey, index) => {
         const action = await prisma.menuAction.upsert({
           where: { menuId_key: { menuId: appMenu.id, key: actionKey } },
-          create: { menuId: appMenu.id, key: actionKey, name: actionKey.toUpperCase(), sortOrder: index + 1, isActive: true },
-          update: { name: actionKey.toUpperCase(), sortOrder: index + 1, isActive: true },
+          create: { menuId: appMenu.id, key: actionKey, name: getActionLabel(menu.key, actionKey), sortOrder: index + 1, isActive: true },
+          update: { name: getActionLabel(menu.key, actionKey), sortOrder: index + 1, isActive: true },
         });
         await Promise.all(
           Object.values(Role).map((role) =>

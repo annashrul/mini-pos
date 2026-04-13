@@ -54,6 +54,7 @@ const {
     getAllBranches,
     createTransaction,
     getActiveShift,
+    hasClosedShiftToday,
     openShift,
     closeShift,
     calculateAutoPromo,
@@ -156,6 +157,7 @@ function POSPageContent() {
         openingCash, setOpeningCash,
         startingShift, setStartingShift,
         activeShift, setActiveShift,
+        closedToday, setClosedToday,
         closingCash, setClosingCash,
         closingNotes, setClosingNotes,
         shiftSummary, setShiftSummary,
@@ -865,17 +867,19 @@ function POSPageContent() {
 
           try {
             // Critical data — load in parallel, needed before UI is usable
-            const [categoryData, branchData, shiftData, posCfg] = await Promise.all([
+            const [categoryData, branchData, shiftData, posCfg, alreadyClosed] = await Promise.all([
                 getAllCategories(),
                 getAllBranches(),
                 getActiveShift(),
                 getPosConfig(),
+                hasClosedShiftToday(),
             ]);
             const activeBranches = branchData.filter((branch) => branch.isActive);
             const mappedCategories = categoryData.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
             setCategories(mappedCategories);
             setBranches(activeBranches);
             setPosConfig(posCfg);
+            setClosedToday(alreadyClosed);
             if (posCfg.defaultTaxPercent !== undefined) setTaxPercent(posCfg.defaultTaxPercent);
             if (shiftData) {
                 setActiveShift({ id: shiftData.id, openingCash: shiftData.openingCash, openedAt: shiftData.openedAt });
@@ -997,15 +1001,15 @@ function POSPageContent() {
     useEffect(() => {
         const sentinel = productSentinelRef.current;
         const scrollRoot = productScrollRef.current;
-        if (!sentinel || !scrollRoot) return;
+        if (!sentinel || !scrollRoot || !browseHasMore || browseLoading) return;
         const observer = new IntersectionObserver(
             (entries) => {
                 const entry = entries[0];
-                if (entry && entry.isIntersecting && browseHasMore && !browseLoading) {
+                if (entry && entry.isIntersecting) {
                     loadProducts(productTab, selectedCategory || undefined, browsePage + 1, false);
                 }
             },
-            { root: scrollRoot, threshold: 0.1 }
+            { root: scrollRoot, rootMargin: "100px", threshold: 0.1 }
         );
         observer.observe(sentinel);
         return () => observer.disconnect();
@@ -1164,6 +1168,7 @@ function POSPageContent() {
                 setupErrors,
                 setSelectedRegister,
                 activeShift,
+                closedToday,
                 openingCash,
                 setOpeningCash,
                 onBack: () => router.push("/dashboard"),

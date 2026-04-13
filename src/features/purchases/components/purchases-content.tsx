@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,14 +12,15 @@ import {
     updatePurchaseOrderStatus,
 } from "@/features/purchases";
 import { createPurchaseOrderSchema, type CreatePurchaseOrderInput } from "@/features/purchases/schemas/purchases.schema";
-import { getProducts } from "@/features/products";
 import { getSuppliers } from "@/features/suppliers";
-import { getCategories } from "@/features/categories";
 import { getBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
+import { ProductPicker } from "@/components/ui/product-picker";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
@@ -35,8 +37,8 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
     Plus, Eye, ShoppingBasket,
-    Send, XCircle, PackageCheck, Trash2,
-    Minus, FileText, Truck,
+    Send, XCircle, PackageCheck,
+    FileText, Truck,
     DollarSign, MapPin, Package,
     Search, Loader2,
     CalendarDays,
@@ -47,19 +49,11 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import type { Supplier, PurchaseOrderDetail, Category, Branch } from "@/types";
+import type { Supplier, PurchaseOrderDetail, Branch } from "@/types";
 import { useBranch } from "@/components/providers/branch-provider";
-import { ProductFormDialog } from "@/features/products";
 import { PaginationControl } from "@/components/ui/pagination-control";
 
-interface CreatedProductResult {
-    id: string;
-    name: string;
-    code: string;
-    purchasePrice: number;
-    unit: string;
-    stock: number;
-}
+
 
 type PurchaseOrdersData = Awaited<ReturnType<typeof getPurchaseOrders>>;
 
@@ -115,7 +109,6 @@ const statusFilterPills = [
 export function PurchasesContent() {
     const [data, setData] = useState<PurchaseOrdersData>({ orders: [], total: 0, totalPages: 0 });
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -124,7 +117,7 @@ export function PurchasesContent() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-    const [confirmRequiredAction, setConfirmRequiredAction] = useState<null | "approve" | "update">(null);
+    const [confirmKind, setConfirmKind] = useState<"approve" | "delete" | "custom">("custom");
     const [selectedPO, setSelectedPO] = useState<PurchaseOrderDetail | null>(null);
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
@@ -134,12 +127,11 @@ export function PurchasesContent() {
     const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("purchases");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canApprove = canAction("approve");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("purchases", "create");
+    const canUpdate = canAction("update") && canPlan("purchases", "update");
+    const canApprove = canAction("approve") && canPlan("purchases", "approve");
     const canReceive = canAction("receive");
-    const { canAction: canProductAction, cannotMessage: cannotProductMessage } = useMenuActionAccess("products");
-    const canCreateProduct = canProductAction("create");
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
@@ -150,19 +142,11 @@ export function PurchasesContent() {
     });
     const watchedItems = poForm.watch("items");
     const cartTotal = watchedItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
-
-    const [productOptions, setProductOptions] = useState<Array<{
-        id: string;
-        name: string;
-        code: string;
-        purchasePrice: number;
-        unit: string;
-        stock: number;
-    }>>([]);
-    const [selectedProductId, setSelectedProductId] = useState("");
-    const [newQty, setNewQty] = useState(1);
-    const [newPrice, setNewPrice] = useState(0);
-    const [productModalOpen, setProductModalOpen] = useState(false);
+    const watchedBranchIds = poForm.watch("branchIds");
+    // Effective branchIds for ProductPicker: sidebar filter > form selection > null
+    const effectiveBranchIds: string[] = selectedBranchId
+        ? [selectedBranchId]
+        : (watchedBranchIds ?? []).filter(Boolean);
 
     // Receive state
     const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
@@ -188,22 +172,11 @@ export function PurchasesContent() {
     useEffect(() => {
         if (!createOpen) return;
         startTransition(async () => {
-            const [suppliersData, categoriesData, productsData, branchesData] = await Promise.all([
+            const [suppliersData, branchesData] = await Promise.all([
                 getSuppliers({ page: 1, perPage: 500 }),
-                getCategories({ page: 1, perPage: 500 }),
-                getProducts({ page: 1, limit: 500 }),
                 getBranches({ page: 1, perPage: 500 }),
             ]);
             setSuppliers(suppliersData.suppliers);
-            setCategories(categoriesData.categories);
-            setProductOptions(productsData.products.map((item) => ({
-                id: item.id,
-                name: item.name,
-                code: item.code,
-                purchasePrice: item.purchasePrice,
-                unit: item.unit,
-                stock: item.stock,
-            })));
             setBranches(branchesData.branches);
         });
     }, [createOpen]);
@@ -217,7 +190,7 @@ export function PurchasesContent() {
         } else {
             fetchData({});
         }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleViewDetail = async (id: string) => {
         const po = await getPurchaseOrderById(id);
@@ -236,78 +209,19 @@ export function PurchasesContent() {
         setReceiveOpen(true);
     };
 
-    const addCartItem = () => {
-        if (!selectedProductId || newQty < 1 || newPrice < 0) {
-            toast.error("Lengkapi data item");
-            return;
-        }
-        const selectedProduct = productOptions.find((item) => item.id === selectedProductId);
-        if (!selectedProduct) {
-            toast.error("Produk tidak ditemukan");
-            return;
-        }
-        const currentItems = poForm.getValues("items");
-        const existing = currentItems.find((item) => item.productId === selectedProductId);
-        if (existing) {
-            poForm.setValue("items", currentItems.map((item) =>
-                item.productId === selectedProductId
-                    ? { ...item, quantity: item.quantity + newQty, unitPrice: newPrice }
-                    : item
-            ), { shouldValidate: true });
-        } else {
-            poForm.setValue("items", [...currentItems, {
-                productId: selectedProduct.id,
-                productName: selectedProduct.name,
-                quantity: newQty,
-                unitPrice: newPrice,
-            }], { shouldValidate: true });
-        }
-        setSelectedProductId("");
-        setNewQty(1);
-        setNewPrice(0);
-    };
 
-    const removeCartItem = (index: number) => {
-        const currentItems = poForm.getValues("items");
-        poForm.setValue("items", currentItems.filter((_, i) => i !== index), { shouldValidate: true });
-    };
+    const [poConfirmOpen, setPOConfirmOpen] = useState(false);
 
-    const openProductModal = () => {
-        if (!canCreateProduct) { toast.error(cannotProductMessage("create")); return; }
-        setProductModalOpen(true);
-    };
-
-    const handleProductCreated = async (_mode: "create" | "update", createdProduct?: CreatedProductResult) => {
-        if (createdProduct) {
-            setProductOptions((prev) => {
-                if (prev.some((item) => item.id === createdProduct.id)) return prev;
-                return [...prev, createdProduct];
-            });
-            setSelectedProductId(createdProduct.id);
-            setNewPrice(createdProduct.purchasePrice);
-            setProductModalOpen(false);
-            return;
-        }
-        const latest = await getProducts({ page: 1, limit: 300 });
-        setProductOptions(
-            latest.products.map((item) => ({
-                id: item.id,
-                name: item.name,
-                code: item.code,
-                purchasePrice: item.purchasePrice,
-                unit: item.unit,
-                stock: item.stock,
-            }))
-        );
-        setProductModalOpen(false);
-    };
-
-    const handleCreatePO = async (formData: CreatePurchaseOrderInput) => {
+    const handleCreatePO = (_formData: CreatePurchaseOrderInput) => {
         if (!canCreate) { toast.error(cannotMessage("create")); return; }
+        setPOConfirmOpen(true);
+    };
 
+    const executeCreatePO = async () => {
+        const formData = poForm.getValues();
         const payload = {
             supplierId: formData.supplierId,
-            ...(formData.branchIds.length > 0 ? { branchIds: formData.branchIds } : {}),
+            ...(selectedBranchId ? { branchId: selectedBranchId } : formData.branchIds.length > 0 ? { branchIds: formData.branchIds } : {}),
             items: formData.items.map((item) => ({
                 productId: item.productId,
                 quantity: item.quantity,
@@ -325,19 +239,28 @@ export function PurchasesContent() {
             toast.success("Purchase Order berhasil dibuat");
             setCreateOpen(false);
             poForm.reset();
-            setSelectedProductId("");
             fetchData({});
         }
+        setPOConfirmOpen(false);
     };
 
-    const handleReceive = async () => {
+    const [receiveConfirmOpen, setReceiveConfirmOpen] = useState(false);
+
+    const handleReceive = () => {
         if (!canReceive) { toast.error(cannotMessage("receive")); return; }
         if (!selectedPO) return;
         const items = Object.entries(receiveQtys)
             .filter(([, qty]) => qty > 0)
             .map(([itemId, qty]) => ({ itemId, receivedQty: qty }));
-
         if (items.length === 0) { toast.error("Masukkan qty yang diterima"); return; }
+        setReceiveConfirmOpen(true);
+    };
+
+    const executeReceive = async () => {
+        if (!selectedPO) return;
+        const items = Object.entries(receiveQtys)
+            .filter(([, qty]) => qty > 0)
+            .map(([itemId, qty]) => ({ itemId, receivedQty: qty }));
 
         const result = await receivePurchaseOrder(selectedPO.id, items);
         if (result.error) {
@@ -347,13 +270,14 @@ export function PurchasesContent() {
             setReceiveOpen(false);
             fetchData({});
         }
+        setReceiveConfirmOpen(false);
     };
 
     const handleStatusChange = async (id: string, status: "ORDERED" | "CANCELLED") => {
         if (status === "ORDERED" && !canApprove) { toast.error(cannotMessage("approve")); return; }
         if (status === "CANCELLED" && !canUpdate) { toast.error(cannotMessage("update")); return; }
         const label = status === "ORDERED" ? "mengirim" : "membatalkan";
-        setConfirmRequiredAction(status === "ORDERED" ? "approve" : "update");
+        setConfirmKind(status === "ORDERED" ? "approve" : "delete");
         setConfirmText(`Yakin ingin ${label} PO ini?`);
         setPendingConfirmAction(() => async () => {
             const result = await updatePurchaseOrderStatus(id, status);
@@ -361,7 +285,6 @@ export function PurchasesContent() {
             else { toast.success(`PO berhasil di-${label}`); fetchData({}); }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
-            setConfirmRequiredAction(null);
         });
         setConfirmOpen(true);
     };
@@ -389,6 +312,7 @@ export function PurchasesContent() {
         fetchData({ filters: newFilters, page: 1 });
     };
 
+
     return (
         <div className="space-y-4 sm:space-y-5">
             {/* Header */}
@@ -407,12 +331,15 @@ export function PurchasesContent() {
                         </div>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Buat PO
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="purchases" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="purchases" actionKey="create">
+                        <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Buat PO
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
                 {/* Mobile: Floating button */}
                 {canCreate && (
                     <div className="sm:hidden fixed bottom-4 right-4 z-50">
@@ -421,7 +348,7 @@ export function PurchasesContent() {
                         </Button>
                     </div>
                 )}
-                <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); setSelectedProductId(""); setNewQty(1); setNewPrice(0); } }}>
+                <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); } }}>
                     <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
                         <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
                         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
@@ -432,7 +359,7 @@ export function PurchasesContent() {
                             {/* Supplier, Location, Date — inline */}
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Supplier</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Supplier <span className="text-red-400">*</span></Label>
                                     <Controller name="supplierId" control={poForm.control} render={({ field }) => (
                                         <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih supplier"
                                             onSearch={async (query) => suppliers.filter((s) => s.isActive && s.name.toLowerCase().includes(query.toLowerCase())).map((s) => ({ value: s.id, label: s.name }))} />
@@ -440,11 +367,20 @@ export function PurchasesContent() {
                                     {poForm.formState.errors.supplierId && <p className="text-xs text-red-500">{poForm.formState.errors.supplierId.message}</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Lokasi</Label>
-                                    <Controller name="branchIds" control={poForm.control} render={({ field }) => (
-                                        <BranchMultiSelect branches={branches.filter((b) => b.isActive)} value={field.value} onChange={field.onChange} placeholder="Pilih lokasi" />
-                                    )} />
-                                    {poForm.formState.errors.branchIds && <p className="text-xs text-red-500">{poForm.formState.errors.branchIds.message}</p>}
+                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                    {selectedBranchId ? (
+                                        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                                            <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                            <span className="font-medium">{branches.find((b) => b.id === selectedBranchId)?.name ?? "—"}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Controller name="branchIds" control={poForm.control} render={({ field }) => (
+                                                <BranchMultiSelect branches={branches.filter((b) => b.isActive)} value={field.value} onChange={(v) => { field.onChange(v); poForm.setValue("items", []); }} placeholder="Pilih lokasi" />
+                                            )} />
+                                            {poForm.formState.errors.branchIds && <p className="text-xs text-red-500">{poForm.formState.errors.branchIds.message}</p>}
+                                        </>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs sm:text-sm font-medium">Tgl Diharapkan</Label>
@@ -460,83 +396,34 @@ export function PurchasesContent() {
                                 <Input {...poForm.register("notes")} className="rounded-xl h-9 sm:h-10" placeholder="Catatan tambahan..." />
                             </div>
 
-                            {/* Sticky add item form */}
-                            <div className="sticky top-0 z-10 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200/60">
-                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-2 sm:p-3 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Package className="w-4 h-4 text-emerald-600" />
-                                            <Label className="font-semibold text-xs sm:text-sm">Tambah Produk</Label>
-                                        </div>
-                                        <DisabledActionTooltip disabled={!canCreateProduct} message={cannotProductMessage("create")}>
-                                            <Button disabled={!canCreateProduct} variant="outline" size="sm" className="rounded-xl text-xs h-7" onClick={openProductModal}>
-                                                <Plus className="w-3 h-3 mr-1" /> Produk Baru
-                                            </Button>
-                                        </DisabledActionTooltip>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                                        <div className="sm:col-span-5">
-                                            <SmartSelect value={selectedProductId} onChange={(value) => { setSelectedProductId(value); const selected = productOptions.find((item) => item.id === value); if (selected) setNewPrice(selected.purchasePrice); }} placeholder="Pilih produk"
-                                                onSearch={async (query) => productOptions.filter((item) => { if (!query) return true; const q = query.toLowerCase(); return item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q); }).map((item) => ({ value: item.id, label: item.name, description: `${item.code} • Stok ${item.stock} • ${item.unit}` }))} />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 sm:contents">
-                                            <div className="sm:col-span-2">
-                                                <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
-                                            </div>
-                                            <div className="sm:col-span-3">
-                                                <Input type="number" value={newPrice} onChange={(e) => setNewPrice(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={0} placeholder="Harga beli" />
-                                            </div>
-                                        </div>
-                                        <div className="sm:col-span-2">
-                                            <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white" size={'lg'}>
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Cart items */}
+                            {/* Product items */}
                             {poForm.formState.errors.items?.root && <p className="text-xs text-red-500">{poForm.formState.errors.items.root.message}</p>}
                             {poForm.formState.errors.items?.message && <p className="text-xs text-red-500">{poForm.formState.errors.items.message}</p>}
-                            {watchedItems.length > 0 ? (
-                                <div className="space-y-2">
-                                    {watchedItems.map((item, i) => (
-                                        <div key={i} className="flex items-center gap-2 sm:gap-3 rounded-xl border border-slate-200 bg-white p-2 sm:p-3 group hover:shadow-sm transition-shadow">
-                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center shrink-0">
-                                                <Package className="w-4 h-4 text-emerald-600" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-foreground truncate">{item.productName}</p>
-                                                <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} / unit</p>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => { const items = poForm.getValues("items"); poForm.setValue("items", items.map((ci, idx) => idx === i && ci.quantity > 1 ? { ...ci, quantity: ci.quantity - 1 } : ci), { shouldValidate: true }); }}>
-                                                    <Minus className="w-3 h-3" />
-                                                </Button>
-                                                <span className="w-8 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
-                                                <Button variant="outline" size="icon" className="h-7 w-7 rounded-lg" onClick={() => { const items = poForm.getValues("items"); poForm.setValue("items", items.map((ci, idx) => idx === i ? { ...ci, quantity: ci.quantity + 1 } : ci), { shouldValidate: true }); }}>
-                                                    <Plus className="w-3 h-3" />
-                                                </Button>
-                                            </div>
-                                            <div className="text-right min-w-[70px] sm:min-w-[100px]">
-                                                <p className="text-xs sm:text-sm font-semibold tabular-nums">{formatCurrency(item.quantity * item.unitPrice)}</p>
-                                            </div>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg lg:opacity-0 lg:group-hover:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all" onClick={() => removeCartItem(i)}>
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
-                                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-slate-400" />
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">Belum ada item</p>
-                                    <p className="text-xs text-muted-foreground/70">Pilih produk di atas untuk menambahkan</p>
-                                </div>
-                            )}
+                            <ProductPicker
+                                stickySearch
+                                items={watchedItems.map((item) => ({
+                                    productId: item.productId,
+                                    productName: item.productName || "",
+                                    productCode: "",
+                                    productPrice: item.unitPrice,
+                                    quantity: item.quantity,
+                                }))}
+                                onChange={(pickerItems) => {
+                                    poForm.setValue("items", pickerItems.map((pi) => ({
+                                        productId: pi.productId,
+                                        productName: pi.productName,
+                                        quantity: pi.quantity,
+                                        unitPrice: pi.productPrice,
+                                    })), { shouldValidate: true });
+                                }}
+                                branchId={selectedBranchId || undefined}
+                                branchIds={effectiveBranchIds.length > 0 ? effectiveBranchIds : undefined}
+                                label="Item PO"
+                                required
+                                usePurchasePrice
+                                editablePrice
+                                emptyText="Pilih produk untuk ditambahkan ke PO"
+                            />
                         </DialogBody>
 
                         <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0 border-t">
@@ -554,10 +441,10 @@ export function PurchasesContent() {
                                 {/* Right: buttons */}
                                 <div className="flex items-center gap-2 shrink-0">
                                     <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
-                                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                                        <Button disabled={!canCreate} onClick={poForm.handleSubmit(handleCreatePO)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50">
-                                            <ShoppingBasket className="w-4 h-4 sm:mr-2" />
-                                            <span >Buat PO</span>
+                                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="purchases" actionKey="create">
+                                        <Button disabled={!canCreate || poForm.formState.isSubmitting} onClick={poForm.handleSubmit(handleCreatePO)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50">
+                                            {poForm.formState.isSubmitting ? <Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /> : <ShoppingBasket className="w-4 h-4 sm:mr-2" />}
+                                            <span>{poForm.formState.isSubmitting ? "Menyimpan..." : "Buat PO"}</span>
                                         </Button>
                                     </DisabledActionTooltip>
                                 </div>
@@ -565,14 +452,6 @@ export function PurchasesContent() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-                <ProductFormDialog
-                    open={productModalOpen}
-                    onOpenChange={setProductModalOpen}
-                    editingProduct={null}
-                    categories={categories}
-                    branches={branches}
-                    onSubmitted={() => handleProductCreated("create")}
-                />
             </div>
 
             {/* Mobile: search + filter button + stats below */}
@@ -769,14 +648,14 @@ export function PurchasesContent() {
                                                 </DisabledActionTooltip>
                                             )}
                                             {row.status === "DRAFT" && (
-                                                <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")}>
+                                                <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")} menuKey="purchases" actionKey="approve">
                                                     <Button disabled={!canApprove} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-blue-500 hover:bg-blue-50" onClick={() => handleStatusChange(row.id, "ORDERED")}>
                                                         <Send className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </DisabledActionTooltip>
                                             )}
                                             {(row.status === "DRAFT" || row.status === "ORDERED") && (
-                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="purchases" actionKey="update">
                                                     <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleStatusChange(row.id, "CANCELLED")}>
                                                         <XCircle className="w-3.5 h-3.5" />
                                                     </Button>
@@ -890,7 +769,7 @@ export function PurchasesContent() {
                                     </DisabledActionTooltip>
                                 )}
                                 {(selectedPO.status === "DRAFT" || selectedPO.status === "ORDERED") && (
-                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="purchases" actionKey="update">
                                         <Button
                                             disabled={!canUpdate}
                                             variant="outline"
@@ -978,32 +857,31 @@ export function PurchasesContent() {
             </Dialog>
 
             {/* Confirm Dialog */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl p-0 gap-0">
-                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
-                        <DialogTitle className="text-base sm:text-lg font-bold">Konfirmasi</DialogTitle>
-                    </DialogHeader>
-                    <div className="px-4 sm:px-6 pb-4 sm:pb-6">
-                        <p className="text-sm text-muted-foreground">{confirmText}</p>
-                        <div className="flex justify-end gap-2 mt-4">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
-                            <DisabledActionTooltip
-                                disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                                message={cannotMessage(confirmRequiredAction === "approve" ? "approve" : "update")}
-                            >
-                                <Button
-                                    disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                                    variant="destructive"
-                                    onClick={async () => { await pendingConfirmAction?.(); }}
-                                    className="rounded-xl"
-                                >
-                                    Ya, Lanjutkan
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind={confirmKind}
+                description={confirmText}
+                confirmLabel="Ya, Lanjutkan"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                size="sm"
+            />
+            <ActionConfirmDialog
+                open={poConfirmOpen}
+                onOpenChange={setPOConfirmOpen}
+                kind="submit"
+                description="Yakin ingin membuat Purchase Order ini?"
+                onConfirm={executeCreatePO}
+            />
+            <ActionConfirmDialog
+                open={receiveConfirmOpen}
+                onOpenChange={setReceiveConfirmOpen}
+                kind="approve"
+                title="Konfirmasi Penerimaan"
+                description="Yakin ingin menerima barang? Stok produk akan diperbarui."
+                confirmLabel="Ya, Terima"
+                onConfirm={executeReceive}
+            />
         </div>
     );
 }

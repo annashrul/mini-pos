@@ -1,6 +1,5 @@
 "use client";
 
-import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { getBranchPrices, setBranchPrice, removeBranchPrice, copyBranchPrices } from "@/features/branch-prices";
 import { getAllBranches } from "@/features/branches";
@@ -15,6 +14,7 @@ import { BranchPricesHeader } from "./branch-prices-header";
 import { BranchPricesList } from "./branch-prices-list";
 import { BranchPricesSearch } from "./branch-prices-search";
 import { BranchPricesStatsBar } from "./branch-prices-stats-bar";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 
 interface BranchPriceItem {
     productId: string;
@@ -46,12 +46,15 @@ export function BranchPricesContent() {
     const [editMargin, setEditMargin] = useState(0);
     const [copyOpen, setCopyOpen] = useState(false);
     const [copyTarget, setCopyTarget] = useState("");
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmKind, setConfirmKind] = useState<"submit" | "delete">("submit");
+    const [confirmTitle, setConfirmTitle] = useState("Konfirmasi");
+    const [confirmText, setConfirmText] = useState("");
+    const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
     const { canAction, cannotMessage } = useMenuActionAccess("branch-prices");
-    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
-    const canCreate = canAction("create") && canPlanAction("branch-prices", "create");
-    const canUpdate = canAction("update") && canPlanAction("branch-prices", "update");
-    const canDelete = canAction("delete") && canPlanAction("branch-prices", "delete");
-    const getMessage = (ak: string) => getPlanBlockMessage("branch-prices", ak) ?? cannotMessage(ak);
+    const canCreate = canAction("copy");
+    const canUpdate = canAction("update");
+    const canDelete = canAction("delete");
 
     const { selectedBranchId, selectedBranchName } = useBranch();
     const activeBranchId = selectedBranchId || fallbackBranchId;
@@ -125,30 +128,54 @@ export function BranchPricesContent() {
     };
 
     const handleSavePrice = async () => {
-        if (!canUpdate) { toast.error(getMessage("update")); return; }
+        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         if (!editItem || !activeBranchId) return;
-        const result = await setBranchPrice(activeBranchId, editItem.productId, editSellPrice, editBuyPrice);
-        if (result.error) { toast.error(result.error); return; }
-        toast.success("Harga berhasil disimpan");
-        setEditOpen(false);
-        fetchData({});
+        setConfirmKind("submit");
+        setConfirmTitle("Simpan Harga Cabang?");
+        setConfirmText("Perubahan harga beli/jual akan disimpan untuk cabang ini.");
+        setPendingConfirmAction(() => async () => {
+            const result = await setBranchPrice(activeBranchId, editItem.productId, editSellPrice, editBuyPrice);
+            if (result.error) { toast.error(result.error); return; }
+            toast.success("Harga berhasil disimpan");
+            setEditOpen(false);
+            fetchData({});
+            setConfirmOpen(false);
+            setPendingConfirmAction(null);
+        });
+        setConfirmOpen(true);
     };
 
     const handleRemovePrice = async (productId: string) => {
-        if (!canDelete) { toast.error(getMessage("delete")); return; }
+        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
         if (!activeBranchId) return;
-        await removeBranchPrice(activeBranchId, productId);
-        toast.success("Harga cabang dihapus, kembali ke default");
-        fetchData({});
+        setConfirmKind("delete");
+        setConfirmTitle("Hapus Harga Cabang?");
+        setConfirmText("Harga khusus cabang akan dihapus dan kembali ke harga default.");
+        setPendingConfirmAction(() => async () => {
+            await removeBranchPrice(activeBranchId, productId);
+            toast.success("Harga cabang dihapus, kembali ke default");
+            fetchData({});
+            setConfirmOpen(false);
+            setPendingConfirmAction(null);
+        });
+        setConfirmOpen(true);
     };
 
     const handleCopy = async () => {
-        if (!canCreate) { toast.error(getMessage("create")); return; }
+        if (!canCreate) { toast.error(cannotMessage("create")); return; }
         if (!activeBranchId || !copyTarget) return;
-        const result = await copyBranchPrices(activeBranchId, copyTarget);
-        if (result.error) { toast.error(result.error); return; }
-        toast.success(`${result.count ?? 0} harga berhasil disalin`);
-        setCopyOpen(false); setCopyTarget("");
+        setConfirmKind("submit");
+        setConfirmTitle("Salin Harga Cabang?");
+        setConfirmText("Harga khusus akan disalin ke cabang tujuan dan menimpa harga yang sudah ada.");
+        setPendingConfirmAction(() => async () => {
+            const result = await copyBranchPrices(activeBranchId, copyTarget);
+            if (result.error) { toast.error(result.error); return; }
+            toast.success(`${result.count ?? 0} harga berhasil disalin`);
+            setCopyOpen(false); setCopyTarget("");
+            setConfirmOpen(false);
+            setPendingConfirmAction(null);
+        });
+        setConfirmOpen(true);
     };
 
     // No branch selected
@@ -258,6 +285,17 @@ export function BranchPricesContent() {
                 cannotMessage={cannotMessage}
                 onCancel={() => setCopyOpen(false)}
                 onConfirm={handleCopy}
+            />
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind={confirmKind}
+                title={confirmTitle}
+                description={confirmText}
+                confirmLabel={confirmKind === "delete" ? "Ya, Hapus" : "Ya, Lanjutkan"}
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                confirmDisabled={confirmKind === "delete" ? !canDelete : !canUpdate && !canCreate}
+                size="sm"
             />
         </div>
     );

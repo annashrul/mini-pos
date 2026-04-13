@@ -1,7 +1,10 @@
 "use client";
 
-import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useTransition, useCallback, useRef } from "react";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { ProButton } from "@/components/ui/pro-gate";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,16 +34,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import {
     Select,
     SelectContent,
@@ -146,14 +140,17 @@ export function TablesContent() {
     const [editing, setEditing] = useState<TableRecord | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [pendingSubmitValues, setPendingSubmitValues] = useState<TableFormValues | null>(null);
+    const [confirmLoading, setConfirmLoading] = useState(false);
     const [loading, startTransition] = useTransition();
     const { selectedBranchId } = useBranch();
     const { canAction, cannotMessage } = useMenuActionAccess("tables");
-    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
-    const canCreate = canAction("create") && canPlanAction("tables", "create");
-    const canUpdate = canAction("update") && canPlanAction("tables", "update");
-    const canDelete = canAction("delete") && canPlanAction("tables", "delete");
-    const getMessage = (ak: string) => getPlanBlockMessage("tables", ak) ?? cannotMessage(ak);
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("tables", "create");
+    const canUpdate = canAction("update") && canPlan("tables", "update");
+    const canDelete = canAction("delete") && canPlan("tables", "delete");
+    const canUpdateStatus = canAction("update_status") && canPlan("tables", "update_status");
     const didFetchRef = useRef(false);
 
     const form = useForm({
@@ -217,14 +214,14 @@ export function TablesContent() {
     }, [selectedBranchId, fetchData]);
 
     const openCreateDialog = () => {
-        if (!canCreate) { toast.error(getMessage("create")); return; }
+        if (!canCreate) { toast.error(cannotMessage("create")); return; }
         setEditing(null);
         form.reset({ number: (tables.length > 0 ? Math.max(...tables.map(t => t.number)) + 1 : 1), name: "", capacity: 4, section: "", status: "AVAILABLE", isActive: true });
         setDialogOpen(true);
     };
 
     const openEditDialog = (table: TableRecord) => {
-        if (!canUpdate) { toast.error(getMessage("update")); return; }
+        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         setEditing(table);
         form.reset({
             number: table.number,
@@ -238,8 +235,8 @@ export function TablesContent() {
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleSubmit = async (raw: any) => {
-        const values = raw as TableFormValues;
+    const executeSubmit = async (raw: TableFormValues) => {
+        const values = raw;
         try {
             if (editing) {
                 await updateTable(editing.id, {
@@ -269,8 +266,13 @@ export function TablesContent() {
         }
     };
 
+    const handleSubmit = async (raw: TableFormValues) => {
+        setPendingSubmitValues(raw);
+        setSubmitConfirmOpen(true);
+    };
+
     const handleStatusChange = async (tableId: string, newStatus: string) => {
-        if (!canUpdate) { toast.error(getMessage("update")); return; }
+        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         try {
             await updateTableStatus(tableId, newStatus);
             toast.success(`Status meja diubah ke ${STATUS_CONFIG[newStatus]?.label || newStatus}`);
@@ -281,7 +283,7 @@ export function TablesContent() {
     };
 
     const handleDelete = (id: string) => {
-        if (!canDelete) { toast.error(getMessage("delete")); return; }
+        if (!canDelete) { toast.error(cannotMessage("delete")); return; }
         setPendingDeleteId(id);
         setDeleteDialogOpen(true);
     };
@@ -323,24 +325,31 @@ export function TablesContent() {
                         <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">Kelola meja, status, dan kapasitas</p>
                     </div>
                 </div>
-                <Button
-                    onClick={openCreateDialog}
-                    className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-md shadow-violet-200/50 gap-2"
-                >
-                    <Plus className="w-4 h-4" />
-                    Tambah Meja
-                </Button>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="tables" branchId={selectedBranchId || undefined} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="tables" actionKey="create">
+                        <Button
+                            onClick={openCreateDialog}
+                            disabled={!canCreate}
+                            className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 shadow-md shadow-violet-200/50 gap-2"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Tambah Meja
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* Mobile: Floating button */}
             <div className="sm:hidden fixed bottom-4 right-4 z-50">
-                <Button
+                <ProButton
+                    menuKey="tables"
+                    actionKey="create"
                     onClick={openCreateDialog}
-                    size="icon"
-                    className="h-12 w-12 rounded-full shadow-xl shadow-violet-300/50 bg-gradient-to-br from-violet-500 to-purple-600"
+                    className="h-12 w-12 rounded-full shadow-xl shadow-violet-300/50 bg-gradient-to-br from-violet-500 to-purple-600 inline-flex items-center justify-center text-white"
                 >
                     <Plus className="w-5 h-5" />
-                </Button>
+                </ProButton>
             </div>
 
             {/* Stats Cards */}
@@ -490,6 +499,7 @@ export function TablesContent() {
                                 table={table}
                                 canUpdate={canUpdate}
                                 canDelete={canDelete}
+                                canUpdateStatus={canUpdateStatus}
                                 onEdit={() => openEditDialog(table)}
                                 onDelete={() => handleDelete(table.id)}
                                 onStatusChange={(status) => handleStatusChange(table.id, status)}
@@ -618,28 +628,32 @@ export function TablesContent() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Confirmation */}
-            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                <AlertDialogContent className="rounded-2xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Hapus Meja</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Apakah Anda yakin ingin menghapus meja ini? Tindakan ini tidak dapat dibatalkan.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl" onClick={() => setPendingDeleteId(null)}>
-                            Batal
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmDelete}
-                            className="rounded-xl bg-red-500 hover:bg-red-600"
-                        >
-                            Hapus
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ActionConfirmDialog
+                open={deleteDialogOpen}
+                onOpenChange={(v) => { setDeleteDialogOpen(v); if (!v) setPendingDeleteId(null); }}
+                kind="delete"
+                title="Hapus Meja"
+                description="Apakah Anda yakin ingin menghapus meja ini? Tindakan ini tidak dapat dibatalkan."
+                confirmLabel="Hapus"
+                onConfirm={confirmDelete}
+            />
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) setPendingSubmitValues(null); }}
+                kind="submit"
+                title={editing ? "Simpan Perubahan Meja?" : "Tambah Meja Baru?"}
+                description={editing ? "Perubahan data meja akan disimpan." : "Meja baru akan ditambahkan ke daftar."}
+                confirmLabel={editing ? "Simpan" : "Tambah"}
+                loading={confirmLoading}
+                onConfirm={async () => {
+                    if (!pendingSubmitValues) return;
+                    setConfirmLoading(true);
+                    await executeSubmit(pendingSubmitValues);
+                    setConfirmLoading(false);
+                    setSubmitConfirmOpen(false);
+                    setPendingSubmitValues(null);
+                }}
+            />
         </div>
     );
 }
@@ -668,6 +682,7 @@ function TableCard({
     table,
     canUpdate,
     canDelete,
+    canUpdateStatus = true,
     onEdit,
     onDelete,
     onStatusChange,
@@ -675,6 +690,7 @@ function TableCard({
     table: TableRecord;
     canUpdate: boolean;
     canDelete: boolean;
+    canUpdateStatus?: boolean;
     onEdit: () => void;
     onDelete: () => void;
     onStatusChange: (status: string) => void;
@@ -690,9 +706,9 @@ function TableCard({
             !table.isActive && "opacity-50",
             statusCfg.borderColor,
             table.status === "AVAILABLE" ? "bg-gradient-to-br from-white to-emerald-50/30" :
-            table.status === "OCCUPIED" ? "bg-gradient-to-br from-white to-red-50/40" :
-            table.status === "RESERVED" ? "bg-gradient-to-br from-white to-amber-50/40" :
-            "bg-gradient-to-br from-white to-gray-50/40"
+                table.status === "OCCUPIED" ? "bg-gradient-to-br from-white to-red-50/40" :
+                    table.status === "RESERVED" ? "bg-gradient-to-br from-white to-amber-50/40" :
+                        "bg-gradient-to-br from-white to-gray-50/40"
         )}>
             {/* Dropdown trigger */}
             <DropdownMenu>
@@ -702,22 +718,24 @@ function TableCard({
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-xl w-44">
-                    {canUpdate && (
-                        <DropdownMenuItem onClick={onEdit} className="text-xs gap-2">
+                    <DisabledActionTooltip disabled={!canUpdate} message="Anda tidak memiliki akses" menuKey="tables" actionKey="update">
+                        <DropdownMenuItem onClick={onEdit} disabled={!canUpdate} className="text-xs gap-2">
                             <Pencil className="w-3.5 h-3.5" /> Edit Meja
                         </DropdownMenuItem>
-                    )}
-                    {canUpdate && Object.entries(STATUS_CONFIG).filter(([key]) => key !== table.status).map(([key, cfg]) => (
-                        <DropdownMenuItem key={key} onClick={() => onStatusChange(key)} className="text-xs gap-2">
-                            <Sparkles className={cn("w-3.5 h-3.5", cfg.iconColor)} />
-                            <span>{cfg.label}</span>
-                        </DropdownMenuItem>
+                    </DisabledActionTooltip>
+                    {Object.entries(STATUS_CONFIG).filter(([key]) => key !== table.status).map(([key, cfg]) => (
+                        <DisabledActionTooltip key={key} disabled={!canUpdateStatus} message="Anda tidak memiliki akses" menuKey="tables" actionKey="update_status">
+                            <DropdownMenuItem onClick={() => onStatusChange(key)} disabled={!canUpdateStatus} className="text-xs gap-2">
+                                <Sparkles className={cn("w-3.5 h-3.5", cfg.iconColor)} />
+                                <span>{cfg.label}</span>
+                            </DropdownMenuItem>
+                        </DisabledActionTooltip>
                     ))}
-                    {canDelete && (
-                        <DropdownMenuItem onClick={onDelete} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                    <DisabledActionTooltip disabled={!canDelete} message="Anda tidak memiliki akses" menuKey="tables" actionKey="delete">
+                        <DropdownMenuItem onClick={onDelete} disabled={!canDelete} className="text-xs gap-2 text-red-600 focus:text-red-600">
                             <Trash2 className="w-3.5 h-3.5" /> Hapus
                         </DropdownMenuItem>
-                    )}
+                    </DisabledActionTooltip>
                 </DropdownMenuContent>
             </DropdownMenu>
 

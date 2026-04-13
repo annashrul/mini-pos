@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin } from "lucide-react";
+import { MapPin, AlertTriangle } from "lucide-react";
 import { usePosScreenContext } from "../hooks";
 import type { PosReadyScreenContextValue } from "../hooks/use-pos-screen-context";
 
@@ -15,12 +15,39 @@ export function PosReadySection() {
         setupErrors,
         setSelectedRegister,
         activeShift,
+        closedToday,
         openingCash,
         setOpeningCash,
         onBack,
         onStartSession,
         startingShift,
     } = usePosScreenContext<PosReadyScreenContextValue>();
+
+    // Block if already closed today and no active shift
+    if (closedToday && !activeShift) {
+        return (
+            <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-6">
+                <div className="w-full max-w-md bg-white rounded-2xl border border-border/40 shadow-sm p-6 space-y-5 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto">
+                        <AlertTriangle className="w-7 h-7 text-amber-500" />
+                    </div>
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-bold text-slate-800">Shift Sudah Ditutup</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Anda sudah melakukan closing hari ini. Tidak dapat membuka shift baru di hari yang sama.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Hubungi admin untuk melakukan reclosing jika diperlukan, atau kembali besok untuk memulai shift baru.
+                        </p>
+                    </div>
+                    <Button variant="outline" onClick={onBack} className="rounded-lg">
+                        Kembali ke Dashboard
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-[#F1F5F9] flex items-center justify-center p-6">
             <div className="w-full max-w-xl bg-white rounded-2xl border border-border/40 shadow-sm p-6 space-y-5">

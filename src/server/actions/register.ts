@@ -88,7 +88,7 @@ export async function registerCompany(formData: FormData) {
           role: "SUPER_ADMIN",
           companyId: company.id,
           branchId: branch.id,
-          emailVerified: false,
+          emailVerified: true,
         },
       });
 
@@ -161,13 +161,9 @@ export async function registerCompany(formData: FormData) {
         })),
       });
     });
-
-    // Send verification email (outside transaction)
-    await sendNewVerificationToken(parsed.data.email);
-
     emitEvent(EVENTS.COMPANY_REGISTERED, { companyName: parsed.data.companyName, email: parsed.data.email });
 
-    return { needsVerification: true, email: parsed.data.email };
+    return { success: true };
   } catch (err) {
     console.error("[registerCompany] Error:", err);
     return { error: "Gagal membuat akun. Silakan coba lagi." };

@@ -5,16 +5,16 @@ import { categorySchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
-import { getCurrentCompanyId } from "@/lib/company";
+import { getCurrentCompanyId, getCurrentCompanyIdOrNull } from "@/lib/company";
 
 export async function getCategories(params?: {
   search?: string;
   page?: number;
   perPage?: number;
 }) {
-  const companyId = await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyIdOrNull();
   const { search, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = { companyId };
+  const where: Record<string, unknown> = companyId ? { companyId } : {};
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }
@@ -34,9 +34,15 @@ export async function getCategories(params?: {
 }
 
 export async function getAllCategories() {
-  const companyId = await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyIdOrNull();
+  if (companyId) {
+    return prisma.category.findMany({
+      where: { companyId },
+      include: { _count: { select: { products: true } } },
+      orderBy: { name: "asc" },
+    });
+  }
   return prisma.category.findMany({
-    where: { companyId },
     include: { _count: { select: { products: true } } },
     orderBy: { name: "asc" },
   });
@@ -63,7 +69,17 @@ export async function createCategory(data: FormData) {
       },
     });
     revalidatePath("/categories");
-    createAuditLog({ action: "CREATE", entity: "Category", entityId: category.id, details: { data: { name: parsed.data.name, description: parsed.data.description ?? null } } }).catch(() => {});
+    createAuditLog({
+      action: "CREATE",
+      entity: "Category",
+      entityId: category.id,
+      details: {
+        data: {
+          name: parsed.data.name,
+          description: parsed.data.description ?? null,
+        },
+      },
+    }).catch(() => {});
     return { success: true, id: category.id, name: category.name };
   } catch {
     return { error: "Kategori dengan nama tersebut sudah ada" };
@@ -83,7 +99,9 @@ export async function updateCategory(id: string, data: FormData) {
   }
 
   try {
-    const oldCategory = await prisma.category.findUniqueOrThrow({ where: { id, companyId } });
+    const oldCategory = await prisma.category.findUniqueOrThrow({
+      where: { id, companyId },
+    });
     await prisma.category.update({
       where: { id, companyId },
       data: {
@@ -92,7 +110,21 @@ export async function updateCategory(id: string, data: FormData) {
       },
     });
     revalidatePath("/categories");
-    createAuditLog({ action: "UPDATE", entity: "Category", entityId: id, details: { before: { name: oldCategory.name, description: oldCategory.description }, after: { name: parsed.data.name, description: parsed.data.description ?? null } } }).catch(() => {});
+    createAuditLog({
+      action: "UPDATE",
+      entity: "Category",
+      entityId: id,
+      details: {
+        before: {
+          name: oldCategory.name,
+          description: oldCategory.description,
+        },
+        after: {
+          name: parsed.data.name,
+          description: parsed.data.description ?? null,
+        },
+      },
+    }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal mengupdate kategori" };
@@ -109,10 +141,17 @@ export async function deleteCategory(id: string) {
     if (productsCount > 0) {
       return { error: `Kategori masih memiliki ${productsCount} produk` };
     }
-    const category = await prisma.category.findUniqueOrThrow({ where: { id, companyId } });
+    const category = await prisma.category.findUniqueOrThrow({
+      where: { id, companyId },
+    });
     await prisma.category.delete({ where: { id, companyId } });
     revalidatePath("/categories");
-    createAuditLog({ action: "DELETE", entity: "Category", entityId: id, details: { deleted: { name: category.name } } }).catch(() => {});
+    createAuditLog({
+      action: "DELETE",
+      entity: "Category",
+      entityId: id,
+      details: { deleted: { name: category.name } },
+    }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menghapus kategori" };

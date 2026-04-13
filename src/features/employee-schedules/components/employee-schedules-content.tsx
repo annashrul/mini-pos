@@ -23,15 +23,8 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+    ActionConfirmDialog,
+} from "@/components/ui/action-confirm-dialog";
 import {
     ChevronLeft,
     ChevronRight,
@@ -49,6 +42,9 @@ import { toast } from "sonner";
 import { format, addDays, startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { ProButton } from "@/components/ui/pro-gate";
 
 type WeekData = Awaited<ReturnType<typeof getWeekSchedule>>;
 type MonthData = Awaited<ReturnType<typeof getMonthSchedule>>;
@@ -108,7 +104,9 @@ export function EmployeeSchedulesContent() {
     const { canAction } = useMenuActionAccess("employee-schedules");
     const { canAction: canPlanAction } = usePlanAccess();
     const canCreate = canAction("create") && canPlanAction("employee-schedules", "create");
+    const canUpdate = canAction("update") && canPlanAction("employee-schedules", "update");
     const canDelete = canAction("delete") && canPlanAction("employee-schedules", "delete");
+    const canEdit = canCreate || canUpdate;
 
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
@@ -349,18 +347,21 @@ export function EmployeeSchedulesContent() {
                     )}
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
-                    {view === "week" && canCreate && (
-                        <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} className="gap-1.5 h-9 px-3 text-sm rounded-xl">
-                            <Copy className="h-4 w-4" />
-                            Salin Minggu
-                        </Button>
+                    {view === "week" && (
+                        <DisabledActionTooltip disabled={!canCreate} message="Anda tidak memiliki akses" menuKey="employee-schedules" actionKey="create">
+                            <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)} disabled={!canCreate} className="gap-1.5 h-9 px-3 text-sm rounded-xl">
+                                <Copy className="h-4 w-4" />
+                                Salin Minggu
+                            </Button>
+                        </DisabledActionTooltip>
                     )}
-                    {canCreate && (
-                        <Button size="sm" onClick={handleAddNew} className="gap-1.5 h-9 px-3 text-sm rounded-xl shadow-md shadow-primary/20">
+                    <ExportMenu module="employee-schedules" branchId={selectedBranchId || undefined} />
+                    <DisabledActionTooltip disabled={!canCreate} message="Anda tidak memiliki akses" menuKey="employee-schedules" actionKey="create">
+                        <Button size="sm" onClick={handleAddNew} disabled={!canCreate} className="gap-1.5 h-9 px-3 text-sm rounded-xl shadow-md shadow-primary/20">
                             <Plus className="h-4 w-4" />
                             Tambah Jadwal
                         </Button>
-                    )}
+                    </DisabledActionTooltip>
                 </div>
             </div>
 
@@ -403,7 +404,7 @@ export function EmployeeSchedulesContent() {
                     data={weekData}
                     dayHeaders={dayHeaders}
                     onCellClick={handleCellClick}
-                    canCreate={canCreate}
+                    canEdit={canEdit}
                     loading={loading}
                 />
             ) : (
@@ -433,72 +434,57 @@ export function EmployeeSchedulesContent() {
                 branchId={selectedBranchId || undefined}
             />
 
-            {/* Copy Week Confirmation */}
-            <AlertDialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Salin Jadwal Minggu Ini?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Semua jadwal dari minggu{" "}
-                            <strong>
-                                {format(currentWeekStart, "d MMM", { locale: idLocale })} -{" "}
-                                {format(addDays(currentWeekStart, 6), "d MMM", { locale: idLocale })}
-                            </strong>{" "}
-                            akan disalin ke minggu{" "}
-                            <strong>
-                                {format(addWeeks(currentWeekStart, 1), "d MMM", { locale: idLocale })} -{" "}
-                                {format(addDays(addWeeks(currentWeekStart, 1), 6), "d MMM", { locale: idLocale })}
-                            </strong>.
-                            Jadwal yang sudah ada pada minggu tujuan akan ditimpa.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Batal</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleCopyWeek}>Salin Jadwal</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ActionConfirmDialog
+                open={copyDialogOpen}
+                onOpenChange={setCopyDialogOpen}
+                kind="submit"
+                title="Salin Jadwal Minggu Ini?"
+                description={`Semua jadwal dari minggu ${format(currentWeekStart, "d MMM", { locale: idLocale })} - ${format(addDays(currentWeekStart, 6), "d MMM", { locale: idLocale })} akan disalin ke minggu ${format(addWeeks(currentWeekStart, 1), "d MMM", { locale: idLocale })} - ${format(addDays(addWeeks(currentWeekStart, 1), 6), "d MMM", { locale: idLocale })}. Jadwal pada minggu tujuan akan ditimpa.`}
+                confirmLabel="Salin Jadwal"
+                confirmDisabled={!canCreate}
+                onConfirm={handleCopyWeek}
+                size="sm"
+            />
 
             {/* Mobile: Expandable FAB */}
-            {canCreate && (
-                <div className="sm:hidden fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
-                    {/* Expanded options */}
-                    {fabOpen && (
-                        <>
-                            {/* Backdrop */}
-                            <div className="fixed inset-0 bg-black/20 -z-10" onClick={() => setFabOpen(false)} />
-                            {view === "week" && (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => { setFabOpen(false); setCopyDialogOpen(true); }}
-                                    className="rounded-full shadow-lg bg-white gap-1.5 h-10 px-4 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
-                                >
-                                    <Copy className="w-3.5 h-3.5" />
-                                    Salin Minggu
-                                </Button>
-                            )}
+            <div className="sm:hidden fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+                {/* Expanded options */}
+                {fabOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <div className="fixed inset-0 bg-black/20 -z-10" onClick={() => setFabOpen(false)} />
+                        {view === "week" && (
                             <Button
-                                onClick={() => { setFabOpen(false); handleAddNew(); }}
-                                className="rounded-full shadow-lg gap-1.5 h-10 px-4 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
+                                variant="outline"
+                                onClick={() => { setFabOpen(false); setCopyDialogOpen(true); }}
+                                className="rounded-full shadow-lg bg-white gap-1.5 h-10 px-4 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
                             >
-                                <Plus className="w-3.5 h-3.5" />
-                                Tambah Jadwal
+                                <Copy className="w-3.5 h-3.5" />
+                                Salin Minggu
                             </Button>
-                        </>
-                    )}
-                    {/* Main FAB */}
-                    <Button
-                        onClick={() => setFabOpen(!fabOpen)}
-                        size="icon"
-                        className={cn(
-                            "h-12 w-12 rounded-full shadow-xl shadow-primary/30 bg-gradient-to-br from-primary to-primary/80 transition-transform duration-200",
-                            fabOpen && "rotate-45"
                         )}
-                    >
-                        <Plus className="w-5 h-5" />
-                    </Button>
-                </div>
-            )}
+                        <Button
+                            onClick={() => { setFabOpen(false); handleAddNew(); }}
+                            className="rounded-full shadow-lg gap-1.5 h-10 px-4 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Tambah Jadwal
+                        </Button>
+                    </>
+                )}
+                {/* Main FAB */}
+                <ProButton
+                    menuKey="employee-schedules"
+                    actionKey="create"
+                    onClick={() => setFabOpen(!fabOpen)}
+                    className={cn(
+                        "h-12 w-12 rounded-full shadow-xl shadow-primary/30 bg-gradient-to-br from-primary to-primary/80 transition-transform duration-200 inline-flex items-center justify-center text-white",
+                        fabOpen && "rotate-45"
+                    )}
+                >
+                    <Plus className="w-5 h-5" />
+                </ProButton>
+            </div>
         </div>
     );
 }
@@ -508,13 +494,13 @@ function WeeklyGrid({
     data,
     dayHeaders,
     onCellClick,
-    canCreate,
+    canEdit,
     loading,
 }: {
     data: WeekData | null;
     dayHeaders: { dateStr: string; dayName: string; dayNum: string; monthName: string; isToday: boolean }[];
     onCellClick: (userId: string, dateStr: string, slot: ScheduleSlot) => void;
-    canCreate: boolean;
+    canEdit: boolean;
     loading: boolean;
 }) {
     if (!data) return <ScheduleSkeleton />;
@@ -573,7 +559,7 @@ function WeeklyGrid({
                                     weekDays={data.weekDays}
                                     dayHeaders={dayHeaders}
                                     onCellClick={onCellClick}
-                                    canCreate={canCreate}
+                                    canEdit={canEdit}
                                 />
                             ))
                         )}
@@ -590,14 +576,14 @@ function EmployeeRow({
     weekDays,
     dayHeaders,
     onCellClick,
-    canCreate,
+    canEdit,
 }: {
     user: { id: string; name: string | null; email: string; role: string };
     slots: ScheduleSlot[];
     weekDays: string[];
     dayHeaders: { dateStr: string; isToday: boolean }[];
     onCellClick: (userId: string, dateStr: string, slot: ScheduleSlot) => void;
-    canCreate: boolean;
+    canEdit: boolean;
 }) {
     return (
         <>
@@ -625,13 +611,13 @@ function EmployeeRow({
                         className={cn(
                             "border-b px-0.5 sm:px-1.5 py-1 sm:py-1.5 min-h-[48px] sm:min-h-[64px] flex items-center justify-center transition-colors",
                             isToday ? "bg-indigo-50/40" : "bg-white",
-                            (canCreate || slot) && "cursor-pointer hover:bg-gray-50",
+                            (canEdit) && "cursor-pointer hover:bg-gray-50",
                         )}
-                        onClick={() => dateStr && (canCreate || slot) && onCellClick(user.id, dateStr, slot)}
+                        onClick={() => dateStr && (canEdit) && onCellClick(user.id, dateStr, slot)}
                     >
                         {slot ? (
                             <ScheduleCell slot={slot} />
-                        ) : canCreate ? (
+                        ) : canEdit ? (
                             <div className="flex items-center justify-center w-full h-full opacity-0 hover:opacity-100 transition-opacity">
                                 <div className="flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-md sm:rounded-lg border-2 border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
                                     <Plus className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />

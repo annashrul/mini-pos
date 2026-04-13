@@ -1,5 +1,9 @@
 "use client";
 
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useMenuActionAccess } from "@/features/access-control";
 import { useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -48,11 +52,15 @@ function AccountRow({
   depth = 0,
   onEdit,
   onDelete,
+  canUpdate = true,
+  canDelete = true,
 }: {
   account: Account;
   depth?: number;
   onEdit: (account: Account) => void;
   onDelete: (account: Account) => void;
+  canUpdate?: boolean;
+  canDelete?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = account.children && account.children.length > 0;
@@ -100,22 +108,28 @@ function AccountRow({
         </span>
 
         <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg hover:bg-blue-50"
-            onClick={() => onEdit(account)}
-          >
-            <Pencil className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-lg hover:bg-red-50"
-            onClick={() => onDelete(account)}
+          <DisabledActionTooltip disabled={!canUpdate} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="update">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg hover:bg-blue-50"
+              onClick={() => onEdit(account)}
+              disabled={!canUpdate}
+            >
+              <Pencil className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500" />
+            </Button>
+          </DisabledActionTooltip>
+          <DisabledActionTooltip disabled={!canDelete} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="delete">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg hover:bg-red-50"
+              onClick={() => onDelete(account)}
+              disabled={!canDelete}
           >
             <Trash2 className="w-3.5 h-3.5 text-gray-400 group-hover:text-red-500" />
           </Button>
+          </DisabledActionTooltip>
         </div>
       </div>
 
@@ -152,6 +166,12 @@ export function COAContent() {
     handleDialogClose,
     handleOpenCreate,
   } = useCoa();
+
+  const { canAction, cannotMessage } = useMenuActionAccess("accounting-coa");
+  const { canAction: canPlan } = usePlanAccess();
+  const canCreate = canAction("create") && canPlan("accounting-coa", "create");
+  const canUpdate = canAction("update") && canPlan("accounting-coa", "update");
+  const canDelete = canAction("delete") && canPlan("accounting-coa", "delete");
 
   const statsCards = [
     {
@@ -244,13 +264,19 @@ export function COAContent() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={handleOpenCreate}
-          className="hidden sm:inline-flex bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 gap-2 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Tambah Akun
-        </Button>
+        <div className="hidden sm:flex items-center gap-2">
+          <ExportMenu module="coa" />
+          <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="accounting-coa" actionKey="create">
+            <Button
+              onClick={handleOpenCreate}
+              disabled={!canCreate}
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-500/20 gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Tambah Akun
+            </Button>
+          </DisabledActionTooltip>
+        </div>
       </div>
 
       {/* Mobile: Floating button */}
@@ -403,6 +429,8 @@ export function COAContent() {
                           account={account}
                           onEdit={handleEdit}
                           onDelete={handleDelete}
+                          canUpdate={canUpdate}
+                          canDelete={canDelete}
                         />
                       ))}
                     </div>

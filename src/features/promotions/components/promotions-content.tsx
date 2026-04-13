@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo , useRef } from "react";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useEffect, useState, useTransition, useMemo, useRef } from "react";
 import { deletePromotion, getPromotions } from "@/features/promotions";
 import { useMenuActionAccess } from "@/features/access-control";
+import { useBranch } from "@/components/providers/branch-provider";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -13,13 +16,14 @@ import {
     Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2, SlidersHorizontal, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2, SlidersHorizontal, Check, MapPin } from "lucide-react";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Promotion } from "@/types";
 import { PromotionForm } from "./promotion-form";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const typeLabels: Record<string, { label: string; icon: typeof Percent; color: string; gradient: string; iconBg: string; borderColor: string }> = {
@@ -51,10 +55,16 @@ export function PromotionsContent() {
     const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [confirmText, setConfirmText] = useState("");
+    const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
     const { canAction, cannotMessage } = useMenuActionAccess("promotions");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("promotions", "create");
+    const canUpdate = canAction("update") && canPlan("promotions", "update");
+    const canDelete = canAction("delete") && canPlan("promotions", "delete");
+    const { selectedBranchId, branchReady } = useBranch();
+    const prevBranchRef = useRef(selectedBranchId);
 
     const stats = useMemo(() => {
         const now = new Date();
@@ -75,6 +85,7 @@ export function PromotionsContent() {
             const result = await getPromotions({
                 search: params.search ?? search,
                 ...(f.type !== "ALL" ? { type: f.type } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
                 page: params.page ?? page,
                 perPage: params.pageSize ?? pageSize,
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
@@ -85,10 +96,12 @@ export function PromotionsContent() {
 
     const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
+        if (!branchReady) return;
+        if (didFetchRef.current && prevBranchRef.current === selectedBranchId) return;
         didFetchRef.current = true;
+        prevBranchRef.current = selectedBranchId;
         fetchData({});
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const openForm = (promo: Promotion | null) => {
         if (promo ? !canUpdate : !canCreate) { toast.error(cannotMessage(promo ? "update" : "create")); return; }
@@ -98,10 +111,15 @@ export function PromotionsContent() {
 
     const handleDelete = async (id: string) => {
         if (!canDelete) { toast.error(cannotMessage("delete")); return; }
-        if (!confirm("Hapus promo ini?")) return;
-        const result = await deletePromotion(id);
-        if (result.error) toast.error(result.error);
-        else { toast.success("Promo dihapus"); fetchData({}); }
+        setConfirmText("Hapus promo ini?");
+        setPendingConfirmAction(() => async () => {
+            const result = await deletePromotion(id);
+            if (result.error) toast.error(result.error);
+            else { toast.success("Promo dihapus"); fetchData({}); }
+            setConfirmOpen(false);
+            setPendingConfirmAction(null);
+        });
+        setConfirmOpen(true);
     };
 
     const handleSearch = (value: string) => {
@@ -178,11 +196,14 @@ export function PromotionsContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola promosi, diskon, voucher, dan bundle</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 text-sm" onClick={() => openForm(null)}>
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Promo
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="promotions" branchId={selectedBranchId || undefined} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="promotions" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 text-sm" onClick={() => openForm(null)}>
+                            <Plus className="w-4 h-4 mr-2" /> Tambah Promo
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
             {/* Mobile: Floating button */}
             {canCreate && (
@@ -196,64 +217,64 @@ export function PromotionsContent() {
             {/* Search + Filter Bar */}
             {/* Mobile: search + filter button + stats below */}
             <div className="sm:hidden space-y-2">
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
-                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
+                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span className="text-xs">Filter</span>
+                        {activeFilters.type !== "ALL" && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center">1</span>
+                        )}
+                    </Button>
+                    <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+                        <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-6 pt-0" showCloseButton={false}>
+                            <div className="flex justify-center pt-3 pb-2">
+                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
+                            </div>
+                            <SheetHeader className="p-0 pb-4">
+                                <SheetTitle className="text-base font-bold">Filter Tipe Promo</SheetTitle>
+                            </SheetHeader>
+                            <div className="space-y-1">
+                                {typeFilterOptions.map((opt) => {
+                                    const isActive = activeFilters.type === opt.value;
+                                    return (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => { handleFilterType(opt.value); setFilterSheetOpen(false); }}
+                                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
+                                        >
+                                            <span>{opt.label}</span>
+                                            {isActive && <Check className="w-4 h-4" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </SheetContent>
+                    </Sheet>
                 </div>
-                <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
-                    <SlidersHorizontal className="w-3.5 h-3.5" />
-                    <span className="text-xs">Filter</span>
-                    {activeFilters.type !== "ALL" && (
-                        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center">1</span>
-                    )}
-                </Button>
-                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-                    <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-6 pt-0" showCloseButton={false}>
-                        <div className="flex justify-center pt-3 pb-2">
-                            <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-                        </div>
-                        <SheetHeader className="p-0 pb-4">
-                            <SheetTitle className="text-base font-bold">Filter Tipe Promo</SheetTitle>
-                        </SheetHeader>
-                        <div className="space-y-1">
-                            {typeFilterOptions.map((opt) => {
-                                const isActive = activeFilters.type === opt.value;
-                                return (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => { handleFilterType(opt.value); setFilterSheetOpen(false); }}
-                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
-                                    >
-                                        <span>{opt.label}</span>
-                                        {isActive && <Check className="w-4 h-4" />}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </SheetContent>
-                </Sheet>
-            </div>
-            {/* Mobile: Stats below search */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-                <div className="inline-flex items-center gap-1 bg-slate-100/80 text-slate-600 rounded-full px-2 py-1 text-[11px] font-medium shrink-0">
-                    <Package className="w-3 h-3" />
-                    <span className="font-mono tabular-nums">{stats.total}</span> Total
+                {/* Mobile: Stats below search */}
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+                    <div className="inline-flex items-center gap-1 bg-slate-100/80 text-slate-600 rounded-full px-2 py-1 text-[11px] font-medium shrink-0">
+                        <Package className="w-3 h-3" />
+                        <span className="font-mono tabular-nums">{stats.total}</span> Total
+                    </div>
+                    <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-emerald-100 shrink-0">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span className="font-mono tabular-nums">{stats.active}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 bg-red-50 text-red-500 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-red-100 shrink-0">
+                        <XCircle className="w-3 h-3" />
+                        <span className="font-mono tabular-nums">{stats.expired}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-orange-100 shrink-0">
+                        <Ticket className="w-3 h-3" />
+                        <span className="font-mono tabular-nums">{stats.vouchers}</span>
+                    </div>
                 </div>
-                <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-emerald-100 shrink-0">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span className="font-mono tabular-nums">{stats.active}</span>
-                </div>
-                <div className="inline-flex items-center gap-1 bg-red-50 text-red-500 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-red-100 shrink-0">
-                    <XCircle className="w-3 h-3" />
-                    <span className="font-mono tabular-nums">{stats.expired}</span>
-                </div>
-                <div className="inline-flex items-center gap-1 bg-orange-50 text-orange-600 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-orange-100 shrink-0">
-                    <Ticket className="w-3 h-3" />
-                    <span className="font-mono tabular-nums">{stats.vouchers}</span>
-                </div>
-            </div>
             </div>
 
             {/* Desktop: search left + pills right, 1 row */}
@@ -325,76 +346,94 @@ export function PromotionsContent() {
                     </div>
                 ) : (
                     <div className={loading ? "space-y-2 sm:space-y-3 opacity-50 pointer-events-none transition-opacity" : "space-y-2 sm:space-y-3"}>
-                    {data.promotions.map((row) => {
-                        const t = typeLabels[row.type];
-                        const TypeIcon = t?.icon || Percent;
-                        const isExpired = new Date(row.endDate) < new Date();
+                        {data.promotions.map((row) => {
+                            const t = typeLabels[row.type];
+                            const TypeIcon = t?.icon || Percent;
+                            const isExpired = new Date(row.endDate) < new Date();
 
-                        return (
-                            <div key={row.id} className={`rounded-lg sm:rounded-xl border bg-white hover:shadow-md transition-all group border-l-4 ${t?.borderColor || "border-l-slate-300"}`}>
-                                {/* Mobile */}
-                                <div className="sm:hidden px-2.5 py-2 space-y-1">
-                                    <div className="flex items-center justify-between gap-1">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            <TypeIcon className={`w-3.5 h-3.5 shrink-0 ${t?.iconBg ? t.iconBg.split(" ")[1] : "text-slate-500"}`} />
-                                            <p className="text-xs font-bold text-foreground truncate">{row.name}</p>
+                            return (
+                                <div key={row.id} className={`rounded-lg sm:rounded-xl border bg-white hover:shadow-md transition-all group border-l-4 ${t?.borderColor || "border-l-slate-300"}`}>
+                                    {/* Mobile */}
+                                    <div className="sm:hidden px-2.5 py-2 space-y-1">
+                                        <div className="flex items-center justify-between gap-1">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <TypeIcon className={`w-3.5 h-3.5 shrink-0 ${t?.iconBg ? t.iconBg.split(" ")[1] : "text-slate-500"}`} />
+                                                <p className="text-xs font-bold text-foreground truncate">{row.name}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                {renderStatus(row)}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            {renderStatus(row)}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
+                                                <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
+                                                    {t?.label || row.type}
+                                                </Badge>
+                                                {row.branch && (
+                                                    <span className="flex items-center gap-0.5 text-[10px] text-blue-600">
+                                                        <MapPin className="w-2.5 h-2.5" />{row.branch.name}
+                                                    </span>
+                                                )}
+                                                <span className="font-mono tabular-nums">
+                                                    {format(new Date(row.startDate), "dd/MM")} → {format(new Date(row.endDate), "dd/MM")}
+                                                </span>
+                                                {isExpired && <span className="text-[8px] font-medium text-red-500 bg-red-50 px-1 rounded">Exp</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <div className="text-[11px]">{renderValue(row)}</div>
+                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="promotions" actionKey="update">
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
+                                                        <Pencil className="w-3 h-3" />
+                                                    </Button>
+                                                </DisabledActionTooltip>
+                                                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="promotions" actionKey="delete">
+                                                    <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </Button>
+                                                </DisabledActionTooltip>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                                            <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
-                                                {t?.label || row.type}
-                                            </Badge>
-                                            <span className="font-mono tabular-nums">
-                                                {format(new Date(row.startDate), "dd/MM")} → {format(new Date(row.endDate), "dd/MM")}
-                                            </span>
-                                            {isExpired && <span className="text-[8px] font-medium text-red-500 bg-red-50 px-1 rounded">Exp</span>}
+                                    {/* Desktop */}
+                                    <div className="hidden sm:flex items-center gap-4 p-4">
+                                        <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
+                                            <TypeIcon className="w-5 h-5" />
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <div className="text-[11px]">{renderValue(row)}</div>
-                                            <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
-                                                <Pencil className="w-3 h-3" />
-                                            </Button>
-                                            <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
-                                                <Trash2 className="w-3 h-3" />
-                                            </Button>
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
+                                                <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>{t?.label || row.type}</Badge>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground truncate flex items-center gap-2">
+                                                <span>{row.product ? `Produk: ${row.product.name}` : row.category ? `Kategori: ${row.category.name}` : "Semua produk"}</span>
+                                                {row.branch && (
+                                                    <span className="inline-flex items-center gap-0.5 text-blue-600 shrink-0">
+                                                        <MapPin className="w-3 h-3" />{row.branch.name}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
+                                                <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
+                                                <span className="font-mono tabular-nums text-xs">{format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}</span>
+                                                {isExpired && <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded">Expired</span>}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            <div className="text-right">{renderValue(row)}</div>
+                                            <div>{renderStatus(row)}</div>
+                                            <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="promotions" actionKey="update">
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}><Pencil className="w-3.5 h-3.5" /></Button>
+                                                </DisabledActionTooltip>
+                                                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="promotions" actionKey="delete">
+                                                    <Button disabled={!canDelete} variant="ghost" size="icon-sm" className="rounded-lg text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                                </DisabledActionTooltip>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                                {/* Desktop */}
-                                <div className="hidden sm:flex items-center gap-4 p-4">
-                                    <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
-                                        <TypeIcon className="w-5 h-5" />
-                                    </div>
-                                    <div className="flex-1 min-w-0 space-y-1">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-sm font-bold text-foreground truncate">{row.name}</p>
-                                            <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${t?.gradient || "bg-slate-500 text-white"}`}>{t?.label || row.type}</Badge>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground truncate">
-                                            {row.product ? `Produk: ${row.product.name}` : row.category ? `Kategori: ${row.category.name}` : "Semua produk"}
-                                        </p>
-                                        <div className={`flex items-center gap-1.5 text-xs ${isExpired ? "text-red-400" : "text-muted-foreground"}`}>
-                                            <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isExpired ? "text-red-400" : "text-muted-foreground/60"}`} />
-                                            <span className="font-mono tabular-nums text-xs">{format(new Date(row.startDate), "dd/MM/yy")} → {format(new Date(row.endDate), "dd/MM/yy")}</span>
-                                            {isExpired && <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded">Expired</span>}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 shrink-0">
-                                        <div className="text-right">{renderValue(row)}</div>
-                                        <div>{renderStatus(row)}</div>
-                                        <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                            <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}><Pencil className="w-3.5 h-3.5" /></Button>
-                                            <Button disabled={!canDelete} variant="ghost" size="icon-sm" className="rounded-lg text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -418,12 +457,24 @@ export function PromotionsContent() {
                         <PromotionForm
                             key={editing?.id ?? "new"}
                             editing={editing}
+                            branchId={selectedBranchId || undefined}
                             onSuccess={() => { setOpen(false); setEditing(null); fetchData({}); }}
                             onCancel={() => { setOpen(false); setEditing(null); }}
                         />
                     )}
                 </DialogContent>
             </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind="delete"
+                title="Konfirmasi Hapus"
+                description={confirmText}
+                confirmLabel="Ya, Hapus"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                confirmDisabled={!canDelete}
+                size="sm"
+            />
         </div>
     );
 }

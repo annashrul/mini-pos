@@ -131,6 +131,29 @@ export async function createStockMovement(formData: FormData) {
               set_config('app.stock_note', ${parsed.data.note ?? `Manual ${parsed.data.type} stok`}, true),
               set_config('app.stock_reference', ${"MANUAL_STOCK"}, true)
           `;
+
+          // Ensure ALL company branches have branchStock records for this product
+          // Branches without a record get initialized from product.stock
+          const allCompanyBranches = await tx.branch.findMany({
+            where: { companyId, isActive: true },
+            select: { id: true },
+          });
+          const existingStocks = await tx.branchStock.findMany({
+            where: { productId: parsed.data.productId, branchId: { in: allCompanyBranches.map((b) => b.id) } },
+            select: { branchId: true },
+          });
+          const existingSet = new Set(existingStocks.map((s) => s.branchId));
+          const missingBranches = allCompanyBranches.filter((b) => !existingSet.has(b.id));
+          if (missingBranches.length > 0) {
+            await tx.branchStock.createMany({
+              data: missingBranches.map((b) => ({
+                branchId: b.id,
+                productId: parsed.data.productId,
+                quantity: product.stock, // Initialize from global product stock
+              })),
+            });
+          }
+
           // Per-branch operation
           for (const bid of branchIds) {
             const bs = await tx.branchStock.findFirst({
@@ -139,6 +162,7 @@ export async function createStockMovement(formData: FormData) {
                 productId: parsed.data.productId,
               },
             });
+            // bs is guaranteed to exist now (created above if missing)
             if (
               parsed.data.type === "OUT" &&
               (bs?.quantity ?? 0) < parsed.data.quantity
@@ -156,35 +180,14 @@ export async function createStockMovement(formData: FormData) {
             }
 
             if (parsed.data.type === "ADJUSTMENT") {
-              const existingBs = await tx.branchStock.findFirst({
-                where: { branchId: bid, productId: parsed.data.productId },
-              });
-              if (existingBs) {
-                await tx.branchStock.update({
-                  where: { id: existingBs.id },
-                  data: { quantity: parsed.data.quantity },
-                });
-              } else {
-                await tx.branchStock.create({
-                  data: {
-                    branchId: bid,
-                    productId: parsed.data.productId,
-                    quantity: parsed.data.quantity,
-                  },
-                });
-              }
-            } else if (bs) {
               await tx.branchStock.update({
-                where: { id: bs.id },
-                data: { quantity: { increment: stockChange } },
+                where: { id: bs!.id },
+                data: { quantity: parsed.data.quantity },
               });
-            } else if (stockChange > 0) {
-              await tx.branchStock.create({
-                data: {
-                  branchId: bid,
-                  productId: parsed.data.productId,
-                  quantity: stockChange,
-                },
+            } else {
+              await tx.branchStock.update({
+                where: { id: bs!.id },
+                data: { quantity: { increment: stockChange } },
               });
             }
           }
@@ -202,6 +205,7 @@ export async function createStockMovement(formData: FormData) {
               type: parsed.data.type,
               quantity: parsed.data.quantity,
               note: parsed.data.note ?? null,
+              companyId,
             },
           });
           if (parsed.data.type === "ADJUSTMENT") {
@@ -261,11 +265,67 @@ export async function createStockMovement(formData: FormData) {
   }
 }
 
-export async function getProductsForSelect() {
+export async function getProductsForSelect(params?: {
+  branchIds?: string[];
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
   const companyId = await getCurrentCompanyId();
-  return prisma.product.findMany({
-    select: { id: true, name: true, code: true, stock: true },
-    where: { isActive: true, companyId },
-    orderBy: { name: "asc" },
-  });
+  const { branchIds, search, page = 1, limit = 20 } = params ?? {};
+  const offset = (page - 1) * limit;
+  const hasBranch = branchIds && branchIds.length > 0;
+
+  // Single branch — use view for clean query
+  if (hasBranch && branchIds.length === 1) {
+    const { queryProductsByBranch } = await import("@/server/actions/products");
+    const result = await queryProductsByBranch({
+      companyId,
+      branchId: branchIds[0],
+      search,
+      isActive: true,
+      limit,
+      offset,
+      onlyWithStock: true,
+    });
+    return {
+      items: result.rows.map((r) => ({ id: r.product_id, name: r.product_name, code: r.product_code, stock: r.stock })),
+      hasMore: page < Math.ceil(result.total / limit),
+    };
+  }
+
+  // Multiple branches or no branch — use Prisma ORM
+  const where: Record<string, unknown> = { isActive: true, companyId };
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { code: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (hasBranch) {
+    where.branchStocks = { some: { branchId: { in: branchIds } } };
+  }
+
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      select: {
+        id: true, name: true, code: true, stock: true,
+        ...(hasBranch ? { branchStocks: { where: { branchId: { in: branchIds } }, select: { quantity: true } } } : {}),
+      },
+      where,
+      orderBy: { name: "asc" },
+      skip: offset,
+      take: limit,
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  const items = hasBranch
+    ? products.map((p) => {
+        const stocks = (p as Record<string, unknown>).branchStocks as Array<{ quantity: number }>;
+        return { id: p.id, name: p.name, code: p.code, stock: stocks.reduce((s, bs) => s + bs.quantity, 0) };
+      })
+    : products.map((p) => ({ id: p.id, name: p.name, code: p.code, stock: p.stock }));
+
+  return { items, hasMore: page < Math.ceil(total / limit) };
 }

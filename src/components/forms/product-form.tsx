@@ -5,9 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { productFullFormSchema, type ProductUnitFormValues, type BranchPriceFormValues, type TierPriceFormValues, type ProductFullFormValues } from "@/shared/schemas/product";
-import { createProduct, updateProduct, getProductBranchPrices, generateProductCode, checkProductCodeExists, getProductTierPrices } from "@/features/products";
+import { createProduct, updateProduct, getProductBranchPrices, checkProductCodeExists, getProductTierPrices } from "@/features/products";
 import { createCategory, getCategories } from "@/features/categories";
 import { createBrand, getBrands } from "@/features/brands";
+import { createSupplier, getSuppliers } from "@/features/suppliers";
 import { getProductUnits } from "@/features/product-units";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useFormSubmit } from "@/hooks/useFormSubmit";
@@ -19,9 +20,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import type { Product, Category, Branch } from "@/types";
 import {
-    Tag, DollarSign, Layers, Building2, RefreshCw, Check,
+    Tag, DollarSign, Layers, Building2, Check,
     AlertCircle, Loader2, Plus, Trash2, ImagePlus, Box, ScanLine,
 } from "lucide-react";
 import { uploadProductImage, deleteProductImage } from "@/server/actions/upload";
@@ -32,17 +34,26 @@ interface ProductFormProps {
     product: Product | null;
     categories: Category[];
     brands: { id: string; name: string }[];
+    suppliers: { id: string; name: string }[];
     branches: Branch[];
+    selectedBranchId?: string | undefined;
     onSuccess: () => void;
     onCancel: () => void;
 }
 
-export function ProductForm({ product, categories, brands, branches, onSuccess, onCancel }: ProductFormProps) {
+export function ProductForm({ product, categories, brands, suppliers, branches, selectedBranchId, onSuccess, onCancel }: ProductFormProps) {
     const isEditing = !!product;
+    // If a specific branch is selected, only show that branch in the tab
+    const availableBranches = useMemo(
+        () => selectedBranchId ? branches.filter((b) => b.id === selectedBranchId) : branches,
+        [branches, selectedBranchId],
+    );
     const [activeTab, setActiveTab] = useState("info");
     const [imageUrl, setImageUrl] = useState<string>(product?.imageUrl || "");
     const [imagePublicId, setImagePublicId] = useState<string>("");
     const [imageUploading, setImageUploading] = useState(false);
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [pendingSubmitValues, setPendingSubmitValues] = useState<ProductFullFormValues | null>(null);
 
     // React Hook Form
     const form = useForm<ProductFullFormValues>({
@@ -52,6 +63,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
             name: product?.name || "",
             categoryId: product?.categoryId || "",
             brandId: product?.brandId || "",
+            supplierId: product?.supplierId || "",
             unit: product?.unit || "pcs",
             purchasePrice: product?.purchasePrice || 0,
             sellingPrice: product?.sellingPrice || 0,
@@ -73,13 +85,14 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     const marginPercent = useWatch({ control, name: "marginPercent" }) || 0;
     const code = useWatch({ control, name: "code" });
     const baseUnitName = useWatch({ control, name: "unit" });
+    const stockValue = useWatch({ control, name: "stock" });
+    const minStockValue = useWatch({ control, name: "minStock" });
 
     // Dirty form guard
     useDirtyFormGuard(isDirty);
 
     // Code validation state
     const [codeStatus, setCodeStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
-    const [codeGenLoading, setCodeGenLoading] = useState(false);
 
     // Branch prices & product units (managed separately)
     const [branchPrices, setBranchPrices] = useState<BranchPriceFormValues[]>([]);
@@ -99,21 +112,48 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
         setValue("tierPrices", next, { shouldDirty, shouldValidate: true });
     }, [setValue]);
 
-    // Auto-generate code for new product
+    // Sync default price tab values → branch tab (create mode only)
     useEffect(() => {
-        if (!isEditing && !code) {
-            generateProductCode().then((c) => {
-                setValue("code", c);
-                setCodeStatus("available");
-            });
+        if (isEditing || branchPrices.length === 0) return;
+        const updated = branchPrices.map((bp) => ({
+            ...bp,
+            purchasePrice: purchasePrice || 0,
+            sellingPrice: sellingPrice || 0,
+            stock: stockValue ?? 0,
+            minStock: minStockValue ?? 5,
+        }));
+        applyBranchPrices(updated, false);
+    }, [purchasePrice, sellingPrice, stockValue, minStockValue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Code is auto-generated by DB trigger if left empty
+
+    // Auto-add branch for specific location filter (create mode)
+    useEffect(() => {
+        if (!isEditing && selectedBranchId) {
+            const branch = branches.find((b) => b.id === selectedBranchId);
+            if (branch && !branchPrices.some((bp) => bp.branchId === selectedBranchId)) {
+                const stock = form.getValues("stock");
+                const mStock = form.getValues("minStock");
+                applyBranchPrices([{
+                    branchId: selectedBranchId,
+                    branchName: branch.name,
+                    sellingPrice: form.getValues("sellingPrice") || 0,
+                    purchasePrice: form.getValues("purchasePrice") || 0,
+                    stock: stock || 0,
+                    minStock: mStock || 5,
+                }], false);
+            }
         }
-    }, [code, isEditing, setValue]);
+    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load branch prices + units for editing
     useEffect(() => {
         if (product) {
             getProductBranchPrices(product.id).then((bps) => {
-                applyBranchPrices(bps.map((bp: { branchId: string; branch: { name: string }; sellingPrice: number; purchasePrice: number | null; stock?: number; minStock?: number }) => ({
+                const filtered = selectedBranchId
+                    ? bps.filter((bp: { branchId: string }) => bp.branchId === selectedBranchId)
+                    : bps;
+                applyBranchPrices(filtered.map((bp: { branchId: string; branch: { name: string }; sellingPrice: number; purchasePrice: number | null; stock?: number; minStock?: number }) => ({
                     branchId: bp.branchId,
                     branchName: bp.branch.name,
                     sellingPrice: bp.sellingPrice,
@@ -144,13 +184,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     // Code handlers
     // ===========================
 
-    const handleGenerateCode = async () => {
-        setCodeGenLoading(true);
-        const c = await generateProductCode();
-        setValue("code", c, { shouldDirty: true });
-        setCodeStatus("available");
-        setCodeGenLoading(false);
-    };
+    // Code auto-generated by DB trigger — no manual generation needed
 
     const handleCodeBlur = async () => {
         const val = form.getValues("code");
@@ -195,7 +229,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     };
 
     const addBranchPrice = (branchId: string) => {
-        const branch = branches.find((b) => b.id === branchId);
+        const branch = availableBranches.find((b) => b.id === branchId);
         if (!branch || branchPrices.some((bp) => bp.branchId === branchId)) return;
         const stock = form.getValues("stock");
         const mStock = form.getValues("minStock");
@@ -206,7 +240,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     const addAllBranches = () => {
         const stock = form.getValues("stock");
         const mStock = form.getValues("minStock");
-        const newItems = branches
+        const newItems = availableBranches
             .filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id))
             .map((b) => ({ branchId: b.id, branchName: b.name, sellingPrice: sellingPrice || 0, purchasePrice: purchasePrice || 0, stock: stock || 0, minStock: mStock || 5 }));
         if (newItems.length > 0) applyBranchPrices([...branchPrices, ...newItems]);
@@ -280,6 +314,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
             formData.set("name", values.name);
             formData.set("categoryId", values.categoryId);
             formData.set("brandId", values.brandId || "");
+            formData.set("supplierId", values.supplierId || "");
             formData.set("unit", values.unit);
             formData.set("purchasePrice", String(values.purchasePrice));
             formData.set("sellingPrice", String(values.sellingPrice));
@@ -304,7 +339,8 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
     const onSubmit = rhfHandleSubmit(
         async (values) => {
             if (codeStatus === "taken") { setActiveTab("info"); toast.error("Kode produk sudah digunakan"); return; }
-            await submitForm(values);
+            setPendingSubmitValues(values);
+            setSubmitConfirmOpen(true);
         },
         (formErrors) => {
             const hasInfoError = Boolean(formErrors.code || formErrors.name || formErrors.categoryId || formErrors.unit || formErrors.barcode || formErrors.description);
@@ -461,39 +497,25 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     </div>
                     </ProGate>
 
-                    {/* Code with generate + validate */}
+                    {/* Code — optional, auto-generated by DB if empty */}
                     <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">Kode Produk <span className="text-red-400">*</span></Label>
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <FormInput
-                                    control={control}
-                                    name="code"
-                                    placeholder="PRD0001"
-                                    autoFocus
-                                    onBlur={handleCodeBlur}
-                                    suffix={
-                                        <>
-                                            {codeStatus === "checking" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-                                            {codeStatus === "available" && <Check className="w-3.5 h-3.5 text-green-500" />}
-                                            {codeStatus === "taken" && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
-                                        </>
-                                    }
-                                />
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="rounded-full h-9 px-4 shrink-0 bg-gradient-to-r from-primary/5 to-indigo-500/5 border-primary/20 hover:from-primary/10 hover:to-indigo-500/10 text-primary hover:text-primary"
-                                onClick={handleGenerateCode}
-                                disabled={codeGenLoading}
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${codeGenLoading ? "animate-spin" : ""}`} /> Auto
-                            </Button>
-                        </div>
+                        <Label className="text-sm font-medium">Kode Produk</Label>
+                        <FormInput
+                            control={control}
+                            name="code"
+                            placeholder="Kosongkan untuk auto-generate"
+                            onBlur={handleCodeBlur}
+                            suffix={
+                                <>
+                                    {codeStatus === "checking" && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                                    {codeStatus === "available" && code && <Check className="w-3.5 h-3.5 text-green-500" />}
+                                    {codeStatus === "taken" && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
+                                </>
+                            }
+                        />
+                        {!code && !isEditing && <p className="text-xs text-muted-foreground">Kode akan di-generate otomatis oleh sistem</p>}
                         {codeStatus === "taken" && <p className="text-xs text-red-500">Kode sudah digunakan</p>}
-                        {codeStatus === "available" && <p className="text-xs text-green-500">Kode tersedia</p>}
+                        {codeStatus === "available" && code && <p className="text-xs text-green-500">Kode tersedia</p>}
                     </div>
 
                     {/* Name - larger input */}
@@ -547,6 +569,31 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                                 }}
                             />
                         </div>
+                    </div>
+
+                    {/* Supplier */}
+                    <div className="rounded-xl bg-muted/20 space-y-0">
+                        <FormAsyncSelect
+                            control={control}
+                            name="supplierId"
+                            label="Supplier"
+                            placeholder="Pilih Supplier"
+                            initialOptions={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                            createLabel="Tambah Supplier"
+                            onCreateSubmit={async (fd) => {
+                                const r = await createSupplier(fd);
+                                if (r.error) return { error: r.error };
+                                return { id: r.id ?? "", name: fd.get("name") as string };
+                            }}
+                            createFields={[
+                                { name: "name", label: "Nama Supplier", required: true },
+                                { name: "contact", label: "Kontak" },
+                            ]}
+                            onSearch={async (q, page) => {
+                                const r = await getSuppliers({ search: q, page, perPage: 20 });
+                                return { items: r.suppliers.map((s: { id: string; name: string }) => ({ value: s.id, label: s.name })), hasMore: page < r.totalPages };
+                            }}
+                        />
                     </div>
 
                     {/* Unit + Barcode */}
@@ -765,7 +812,7 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                         <p className="text-sm text-muted-foreground">
                             Set harga & stok per cabang. Cabang tidak terdaftar = <strong>produk tidak tersedia</strong>.
                         </p>
-                        {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
+                        {availableBranches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
                             <Button
                                 type="button"
                                 size="sm"
@@ -777,9 +824,9 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                         )}
                     </div>
 
-                    {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
+                    {availableBranches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                            {branches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).map((b) => (
+                            {availableBranches.filter((b) => b.isActive && !branchPrices.some((bp) => bp.branchId === b.id)).map((b) => (
                                 <button key={b.id} type="button" onClick={() => addBranchPrice(b.id)}
                                     className="text-xs px-3.5 py-2 rounded-full border border-dashed border-border/60 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center gap-1.5 group">
                                     <Building2 className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
@@ -904,6 +951,22 @@ export function ProductForm({ product, categories, brands, branches, onSuccess, 
                     </div>
                 </div>
             </div>
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) setPendingSubmitValues(null); }}
+                kind="submit"
+                title={isEditing ? "Update Produk?" : "Simpan Produk?"}
+                description={isEditing ? "Perubahan produk akan disimpan." : "Produk baru akan ditambahkan."}
+                confirmLabel={isEditing ? "Update Produk" : "Simpan Produk"}
+                loading={isSubmitting}
+                confirmDisabled={codeStatus === "taken"}
+                onConfirm={async () => {
+                    if (!pendingSubmitValues) return;
+                    await submitForm(pendingSubmitValues);
+                    setSubmitConfirmOpen(false);
+                    setPendingSubmitValues(null);
+                }}
+            />
         </form>
     );
 }

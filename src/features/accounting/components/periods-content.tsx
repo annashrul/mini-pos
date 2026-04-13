@@ -1,13 +1,17 @@
 "use client";
 
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SmartTable, type SmartColumn, type SmartFilter } from "@/components/ui/smart-table";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -21,7 +25,6 @@ import {
     ShieldAlert,
     Calendar,
     BookOpenCheck,
-    AlertTriangle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller } from "react-hook-form";
@@ -40,6 +43,13 @@ export function PeriodsContent() {
         handleAction,
         load,
     } = usePeriods();
+
+    const { canAction, cannotMessage } = useMenuActionAccess("accounting-periods");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("accounting-periods", "create");
+    const canClose = canAction("update") && canPlan("accounting-periods", "close");
+    const canReopen = canAction("update") && canPlan("accounting-periods", "reopen");
+    const canLock = canAction("update") && canPlan("accounting-periods", "lock");
 
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
@@ -151,35 +161,44 @@ export function PeriodsContent() {
             render: (p) => (
                 <div className="flex items-center justify-end gap-2">
                     {p.status === "OPEN" && (
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className="rounded-lg gap-1.5 text-xs h-8 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800 hover:border-amber-300 transition-colors"
-                            onClick={() => setConfirmAction({ id: p.id, action: "close" })}
-                        >
-                            <Lock className="w-3 h-3" />
-                            Tutup
-                        </Button>
-                    )}
-                    {p.status === "CLOSED" && (
-                        <>
+                        <DisabledActionTooltip disabled={!canClose} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="close">
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="rounded-lg gap-1.5 text-xs h-8 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition-colors"
-                                onClick={() => setConfirmAction({ id: p.id, action: "reopen" })}
+                                disabled={!canClose}
+                                className="rounded-lg gap-1.5 text-xs h-8 border-amber-200 text-amber-700 hover:bg-amber-50"
+                                onClick={() => setConfirmAction({ id: p.id, action: "close" })}
                             >
-                                <Unlock className="w-3 h-3" />
-                                Buka
+                                <Lock className="w-3 h-3" />
+                                Tutup
                             </Button>
-                            <Button
-                                size="sm"
-                                className="rounded-lg gap-1.5 text-xs h-8 bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-500/20 transition-colors"
-                                onClick={() => setConfirmAction({ id: p.id, action: "lock" })}
-                            >
-                                <ShieldAlert className="w-3 h-3" />
-                                Kunci
-                            </Button>
+                        </DisabledActionTooltip>
+                    )}
+                    {p.status === "CLOSED" && (
+                        <>
+                            <DisabledActionTooltip disabled={!canReopen} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="reopen">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!canReopen}
+                                    className="rounded-lg gap-1.5 text-xs h-8 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                    onClick={() => setConfirmAction({ id: p.id, action: "reopen" })}
+                                >
+                                    <Unlock className="w-3 h-3" />
+                                    Buka
+                                </Button>
+                            </DisabledActionTooltip>
+                            <DisabledActionTooltip disabled={!canLock} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="lock">
+                                <Button
+                                    size="sm"
+                                    disabled={!canLock}
+                                    className="rounded-lg gap-1.5 text-xs h-8 bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                                    onClick={() => setConfirmAction({ id: p.id, action: "lock" })}
+                                >
+                                    <ShieldAlert className="w-3 h-3" />
+                                    Kunci
+                                </Button>
+                            </DisabledActionTooltip>
                         </>
                     )}
                 </div>
@@ -202,13 +221,19 @@ export function PeriodsContent() {
                         </p>
                     </div>
                 </div>
-                <Button
-                    onClick={() => setShowCreate(true)}
-                    className="hidden sm:inline-flex rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20"
-                >
-                    <Plus className="w-4 h-4" />
-                    Buat Periode
-                </Button>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="periods" />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="accounting-periods" actionKey="create">
+                        <Button
+                            onClick={() => setShowCreate(true)}
+                            disabled={!canCreate}
+                            className="rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-md shadow-amber-500/20"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Buat Periode
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* Mobile: Floating button */}
@@ -239,7 +264,7 @@ export function PeriodsContent() {
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => { setActiveFilters(f); setPage(1); }}
-                planMenuKey="accounting-periods" exportFilename="tutup-buku"
+                planMenuKey="accounting-periods" exportModule="periods"
                 emptyIcon={<Calendar className="w-6 h-6 text-muted-foreground/40" />}
                 emptyTitle={isPending ? "Memuat periode..." : "Belum Ada Periode"}
                 emptyDescription={isPending ? "Mohon tunggu" : "Buat periode baru untuk memulai"}
@@ -292,81 +317,35 @@ export function PeriodsContent() {
                 onCreated={load}
             />
 
-            {/* Confirm Action Dialog */}
-            <Dialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
-                <DialogContent className="rounded-2xl max-w-md">
-                    <DialogHeader>
-                        <div className="flex items-center gap-3 mb-1">
-                            <div
-                                className={`w-10 h-10 rounded-xl flex items-center justify-center ${confirmAction?.action === "close"
-                                    ? "bg-amber-100"
-                                    : confirmAction?.action === "reopen"
-                                        ? "bg-emerald-100"
-                                        : "bg-red-100"
-                                    }`}
-                            >
-                                {confirmAction?.action === "close" && (
-                                    <Lock className="w-5 h-5 text-amber-600" />
-                                )}
-                                {confirmAction?.action === "reopen" && (
-                                    <Unlock className="w-5 h-5 text-emerald-600" />
-                                )}
-                                {confirmAction?.action === "lock" && (
-                                    <ShieldAlert className="w-5 h-5 text-red-600" />
-                                )}
-                            </div>
-                            <DialogTitle className="text-lg">
-                                {confirmAction?.action === "close" && "Tutup Periode?"}
-                                {confirmAction?.action === "reopen" && "Buka Kembali Periode?"}
-                                {confirmAction?.action === "lock" && "Kunci Permanen Periode?"}
-                            </DialogTitle>
-                        </div>
-                    </DialogHeader>
-                    <DialogDescription className="text-sm text-gray-500 leading-relaxed">
-                        {confirmAction?.action === "close" &&
-                            "Jurnal dalam periode ini tidak bisa diubah lagi setelah ditutup. Anda masih bisa membuka kembali nanti."}
-                        {confirmAction?.action === "reopen" &&
-                            "Jurnal dalam periode ini akan bisa diubah kembali setelah dibuka."}
-                        {confirmAction?.action === "lock" && (
-                            <span className="flex items-start gap-2">
-                                <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                                <span>
-                                    Periode yang dikunci{" "}
-                                    <strong className="text-red-600">
-                                        TIDAK BISA dibuka kembali
-                                    </strong>
-                                    . Pastikan semua jurnal sudah benar sebelum mengunci.
-                                </span>
-                            </span>
-                        )}
-                    </DialogDescription>
-                    <DialogFooter className="gap-2 mt-2">
-                        <Button
-                            variant="outline"
-                            onClick={() => setConfirmAction(null)}
-                            className="rounded-xl"
-                        >
-                            Batal
-                        </Button>
-                        <Button
-                            onClick={handleAction}
-                            disabled={isPending}
-                            variant={
-                                confirmAction?.action === "lock" ? "destructive" : "default"
-                            }
-                            className={`rounded-xl gap-2 ${confirmAction?.action === "close"
-                                ? "bg-amber-600 hover:bg-amber-700"
-                                : confirmAction?.action === "reopen"
-                                    ? "bg-emerald-600 hover:bg-emerald-700"
-                                    : ""
-                                }`}
-                        >
-                            {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Konfirmasi
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={!!confirmAction}
+                onOpenChange={() => setConfirmAction(null)}
+                kind={confirmAction?.action === "lock" ? "delete" : "approve"}
+                title={
+                    confirmAction?.action === "close"
+                        ? "Tutup Periode?"
+                        : confirmAction?.action === "reopen"
+                            ? "Buka Kembali Periode?"
+                            : "Kunci Permanen Periode?"
+                }
+                description={
+                    confirmAction?.action === "close"
+                        ? "Jurnal dalam periode ini tidak bisa diubah lagi setelah ditutup. Anda masih bisa membuka kembali nanti."
+                        : confirmAction?.action === "reopen"
+                            ? "Jurnal dalam periode ini akan bisa diubah kembali setelah dibuka."
+                            : "Periode yang dikunci tidak bisa dibuka kembali. Pastikan semua jurnal sudah benar sebelum mengunci."
+                }
+                confirmLabel="Konfirmasi"
+                loading={isPending}
+                confirmDisabled={
+                    confirmAction?.action === "close"
+                        ? !canClose
+                        : confirmAction?.action === "reopen"
+                            ? !canReopen
+                            : !canLock
+                }
+                onConfirm={handleAction}
+            />
         </div>
     );
 }

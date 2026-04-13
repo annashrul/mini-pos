@@ -12,6 +12,7 @@ import {
     Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { Download, Printer, CalendarDays, Loader2, SlidersHorizontal, Check, BarChart3 } from "lucide-react";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { exportToCSV, printReport } from "@/lib/export";
 import { useReportsData } from "../hooks";
 import { VALID_REPORT_TABS } from "../types";
@@ -128,9 +129,7 @@ export function ReportsContent() {
                 </div>
                 {/* Desktop: export/print buttons */}
                 <div className="hidden sm:flex gap-2">
-                    <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={handleExportDaily}>
-                        <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
-                    </Button>
+                    <ExportMenu module="reports" />
                     <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={handlePrintProfitLoss}>
                         <Printer className="w-3.5 h-3.5 mr-1.5" /> Print P&L
                     </Button>

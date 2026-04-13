@@ -30,7 +30,7 @@ export async function getPurchaseOrders(params?: {
     branchId,
   } = params || {};
   const companyId = await getCurrentCompanyId();
-  const where: Record<string, unknown> = { branch: { companyId } };
+  const where: Record<string, unknown> = { companyId };
 
   if (search) {
     where.OR = [
@@ -80,7 +80,7 @@ export async function getPurchaseOrders(params?: {
 export async function getPurchaseOrderById(id: string) {
   const companyId = await getCurrentCompanyId();
   return prisma.purchaseOrder.findFirst({
-    where: { id, branch: { companyId } },
+    where: { id, companyId },
     include: {
       supplier: true,
       items: {
@@ -111,24 +111,22 @@ export async function createPurchaseOrder(data: {
   if (!data.supplierId) return { error: "Supplier wajib dipilih" };
   if (!data.items.length) return { error: "Minimal 1 item" };
 
-  const targetBranchId = data.branchIds?.[0] ?? data.branchId;
-  if (targetBranchId) {
-    const branch = await prisma.branch.findFirst({ where: { id: targetBranchId, companyId } });
+  // Determine target branches
+  let targetBranchIds: string[];
+  if (data.branchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId } });
     if (!branch) return { error: "Cabang tidak ditemukan" };
+    targetBranchIds = [data.branchId];
+  } else if (data.branchIds && data.branchIds.length > 0) {
+    // Validate all branches belong to company
+    const branches = await prisma.branch.findMany({ where: { id: { in: data.branchIds }, companyId }, select: { id: true } });
+    if (branches.length !== data.branchIds.length) return { error: "Cabang tidak ditemukan" };
+    targetBranchIds = data.branchIds;
+  } else {
+    const branches = await prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true } });
+    targetBranchIds = branches.map((b) => b.id);
+    if (targetBranchIds.length === 0) return { error: "Tidak ada cabang aktif" };
   }
-
-  const today = new Date();
-  const prefix = `PO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
-  const last = await prisma.purchaseOrder.findFirst({
-    where: { orderNumber: { startsWith: prefix }, branch: { companyId } },
-    orderBy: { orderNumber: "desc" },
-  });
-  let seq = 1;
-  if (last) {
-    const lastSeq = parseInt(last.orderNumber.split("-").pop() || "0");
-    seq = lastSeq + 1;
-  }
-  const orderNumber = `${prefix}-${String(seq).padStart(4, "0")}`;
 
   try {
     const totalAmount = data.items.reduce(
@@ -136,30 +134,49 @@ export async function createPurchaseOrder(data: {
       0,
     );
 
-    await prisma.purchaseOrder.create({
-      data: {
-        orderNumber,
-        supplierId: data.supplierId,
-        branchId: data.branchIds?.[0] ?? data.branchId ?? null,
-        totalAmount,
-        notes: data.notes || null,
-        expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
-        items: {
-          create: data.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            subtotal: item.quantity * item.unitPrice,
-          })),
+    for (const bid of targetBranchIds) {
+      // Generate unique order number per PO
+      const today = new Date();
+      const prefix = `PO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
+      const last = await prisma.purchaseOrder.findFirst({
+        where: { orderNumber: { startsWith: prefix } },
+        orderBy: { orderNumber: "desc" },
+      });
+      let seq = 1;
+      if (last) {
+        const lastSeq = parseInt(last.orderNumber.split("-").pop() || "0");
+        seq = lastSeq + 1;
+      }
+      const orderNumber = `${prefix}-${String(seq).padStart(4, "0")}`;
+
+      await prisma.purchaseOrder.create({
+        data: {
+          orderNumber,
+          supplierId: data.supplierId,
+          branchId: bid,
+          companyId,
+          totalAmount,
+          notes: data.notes || null,
+          expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+          items: {
+            create: data.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.quantity * item.unitPrice,
+            })),
+          },
         },
-      },
-    });
+      });
+
+      createAuditLog({ action: "CREATE", entity: "PurchaseOrder", details: { data: { orderNumber, supplierId: data.supplierId, itemCount: data.items.length } }, branchId: bid }).catch(() => {});
+    }
 
     revalidatePath("/purchases");
-    createAuditLog({ action: "CREATE", entity: "PurchaseOrder", details: { data: { orderNumber, supplierId: data.supplierId, itemCount: data.items.length } }, ...(data.branchIds?.[0] || data.branchId ? { branchId: data.branchIds?.[0] ?? data.branchId! } : {}) }).catch(() => {});
     return { success: true };
-  } catch {
-    return { error: "Gagal membuat purchase order" };
+  } catch (err) {
+    console.error("createPurchaseOrder error:", err);
+    return { error: err instanceof Error ? err.message : "Gagal membuat purchase order" };
   }
 }
 
@@ -172,7 +189,7 @@ export async function receivePurchaseOrder(
   const companyId = await getCurrentCompanyId();
   try {
     // Verify PO belongs to company
-    const poCheck = await prisma.purchaseOrder.findFirst({ where: { id, branch: { companyId } }, select: { id: true } });
+    const poCheck = await prisma.purchaseOrder.findFirst({ where: { id, companyId }, select: { id: true } });
     if (!poCheck) return { error: "PO tidak ditemukan" };
 
     const result = await prisma.$transaction(async (tx) => {
@@ -220,6 +237,8 @@ export async function receivePurchaseOrder(
                 quantity: receiveItem.receivedQty,
                 note: `Penerimaan PO ${po.orderNumber}`,
                 reference: po.orderNumber,
+                branchId: po.branchId,
+                companyId,
               },
             }),
           ]);
@@ -268,6 +287,7 @@ export async function receivePurchaseOrder(
             remainingAmount: unpaidAmount,
             status: "UNPAID",
             branchId: result.po.branchId || null,
+            companyId,
             createdBy,
           },
         });
@@ -304,7 +324,7 @@ export async function updatePurchaseOrderStatus(
   await assertMenuActionAccess("purchases", "approve");
   const companyId = await getCurrentCompanyId();
   try {
-    const po = await prisma.purchaseOrder.findFirst({ where: { id, branch: { companyId } } });
+    const po = await prisma.purchaseOrder.findFirst({ where: { id, companyId } });
     if (!po) return { error: "PO tidak ditemukan" };
 
     if (

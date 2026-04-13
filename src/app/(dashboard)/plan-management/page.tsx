@@ -5,6 +5,7 @@ import { getPlanAccessMatrix, updatePlanMenuAccess, updatePlanActionAccess } fro
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
     ChevronDown, ChevronRight, Crown, Loader2, Search, Settings2, Shield, Zap,
@@ -28,6 +29,7 @@ export default function PlanManagementPage() {
     const [updating, startTransition] = useTransition();
     const [search, setSearch] = useState("");
     const [filterGroup, setFilterGroup] = useState("ALL");
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
     useEffect(() => {
         getPlanAccessMatrix().then((data) => {
@@ -106,12 +108,12 @@ export default function PlanManagementPage() {
     }
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-4 sm:space-y-5">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-                        <Settings2 className="w-5 h-5 text-white" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-2.5 sm:gap-3">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
+                        <Settings2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
                     <div>
                         <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
@@ -121,29 +123,29 @@ export default function PlanManagementPage() {
                         <p className="text-xs sm:text-sm text-muted-foreground">{stats.total} menu terdaftar</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="rounded-lg text-xs h-8" onClick={() => setExpandedMenus(new Set(matrix.filter((m) => m.actions.length > 0).map((m) => m.key)))}>
+                <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                    <Button size="sm" variant="outline" className="rounded-lg text-[11px] sm:text-xs h-8 w-full" onClick={() => setExpandedMenus(new Set(matrix.filter((m) => m.actions.length > 0).map((m) => m.key)))}>
                         Expand All
                     </Button>
-                    <Button size="sm" variant="outline" className="rounded-lg text-xs h-8" onClick={() => setExpandedMenus(new Set())}>
+                    <Button size="sm" variant="outline" className="rounded-lg text-[11px] sm:text-xs h-8 w-full" onClick={() => setExpandedMenus(new Set())}>
                         Collapse All
                     </Button>
                 </div>
             </div>
 
             {/* Plan summary cards */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 {PLANS.map((p) => {
                     const count = p.key === "FREE" ? stats.free : p.key === "PRO" ? stats.pro : stats.enterprise;
                     const Icon = p.icon;
                     return (
-                        <div key={p.key} className={cn("rounded-xl border p-3 sm:p-4", p.bg, p.border)}>
+                        <div key={p.key} className={cn("rounded-xl border p-2.5 sm:p-4", p.bg, p.border)}>
                             <div className="flex items-center gap-2 mb-2">
                                 <Icon className={cn("w-4 h-4", p.color)} />
                                 <span className={cn("text-sm font-bold", p.color)}>{p.name}</span>
                             </div>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-bold">{count}</span>
+                                <span className="text-xl sm:text-2xl font-bold">{count}</span>
                                 <span className="text-xs text-muted-foreground">/ {stats.total} menu</span>
                             </div>
                             <div className="mt-2 h-1.5 bg-white/80 rounded-full overflow-hidden">
@@ -158,11 +160,16 @@ export default function PlanManagementPage() {
 
             {/* Search + group filter */}
             <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari menu..." className="pl-9 rounded-xl h-9 text-sm" />
+                <div className="flex items-center gap-2 flex-1 sm:max-w-sm">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari menu..." className="pl-9 rounded-xl h-9 sm:h-10 text-sm" />
+                    </div>
+                    <Button variant="outline" size="icon" className="sm:hidden rounded-xl shrink-0" onClick={() => setMobileFilterOpen(true)}>
+                        <Filter className="w-4 h-4" />
+                    </Button>
                 </div>
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto pb-1">
                     <Button size="sm" variant={filterGroup === "ALL" ? "default" : "outline"} className="rounded-full h-7 text-[11px] shrink-0" onClick={() => setFilterGroup("ALL")}>
                         <Filter className="w-3 h-3 mr-1" /> Semua
                     </Button>
@@ -176,91 +183,128 @@ export default function PlanManagementPage() {
 
             {/* Matrix table */}
             <div className="rounded-2xl border border-border/50 bg-white overflow-hidden shadow-sm">
-                {/* Sticky header */}
-                <div className="grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-3 bg-muted/40 border-b sticky top-0 z-10">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Menu / Aksi</span>
-                    {PLANS.map((p) => {
-                        const Icon = p.icon;
-                        return (
-                            <div key={p.key} className="flex flex-col items-center gap-0.5">
-                                <Icon className={cn("w-4 h-4", p.color)} />
-                                <span className={cn("text-[10px] font-bold", p.color)}>{p.name}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {filteredMatrix.length === 0 && (
-                    <div className="py-12 text-center text-sm text-muted-foreground">Tidak ada menu ditemukan</div>
-                )}
-
-                {Array.from(groups.entries()).map(([group, menus]) => (
-                    <div key={group}>
-                        {/* Group header */}
-                        <div className="px-4 py-2 bg-muted/20 border-b border-border/30">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{group}</p>
+                <div className="overflow-x-auto">
+                    <div className="min-w-[560px]">
+                        {/* Sticky header */}
+                        <div className="grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-3 bg-muted/40 border-b sticky top-0 z-10">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Menu / Aksi</span>
+                            {PLANS.map((p) => {
+                                const Icon = p.icon;
+                                return (
+                                    <div key={p.key} className="flex flex-col items-center gap-0.5">
+                                        <Icon className={cn("w-4 h-4", p.color)} />
+                                        <span className={cn("text-[10px] font-bold", p.color)}>{p.name}</span>
+                                    </div>
+                                );
+                            })}
                         </div>
 
-                        {menus.map((menu) => {
-                            const hasActions = menu.actions.length > 0;
-                            const isExpanded = expandedMenus.has(menu.key);
-                            return (
-                                <div key={menu.key}>
-                                    {/* Menu row */}
-                                    <div className={cn(
-                                        "grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-2.5 border-b border-border/20 transition-colors",
-                                        isExpanded ? "bg-primary/[0.02]" : "hover:bg-muted/10",
-                                    )}>
-                                        <button onClick={() => hasActions && toggleExpand(menu.key)} className="flex items-center gap-2 min-w-0 text-left group">
-                                            {hasActions ? (
-                                                isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-primary shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground shrink-0" />
-                                            ) : (
-                                                <span className="w-3.5" />
-                                            )}
-                                            <span className="text-sm font-medium truncate">{menu.name}</span>
-                                            {hasActions && (
-                                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 rounded-full shrink-0 font-normal">
-                                                    {menu.actions.length} aksi
-                                                </Badge>
-                                            )}
-                                        </button>
-                                        {PLANS.map((p) => (
-                                            <div key={p.key} className="flex justify-center">
-                                                <PlanToggle checked={menu.plans[p.key]} onChange={(v) => handleMenuToggle(menu.key, p.key, v)} plan={p.key} />
-                                            </div>
-                                        ))}
-                                    </div>
+                        {filteredMatrix.length === 0 && (
+                            <div className="py-12 text-center text-sm text-muted-foreground">Tidak ada menu ditemukan</div>
+                        )}
 
-                                    {/* Action rows */}
-                                    {isExpanded && hasActions && (
-                                        <div >
-                                            {menu.actions.map((action: MenuRow["actions"][number]) => (
-                                                <div key={action.key} className="grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-2 border-b border-border/55 last:border-b-0 hover:bg-muted/5 transition-colors">
-                                                    <div className="flex items-center gap-2 pl-6 min-w-0">
-                                                        <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
-                                                        <span className="text-xs text-muted-foreground truncate">{action.name}</span>
+                        {Array.from(groups.entries()).map(([group, menus]) => (
+                            <div key={group}>
+                                {/* Group header */}
+                                <div className="px-4 py-2 bg-muted/20 border-b border-border/30">
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{group}</p>
+                                </div>
+
+                                {menus.map((menu) => {
+                                    const hasActions = menu.actions.length > 0;
+                                    const isExpanded = expandedMenus.has(menu.key);
+                                    return (
+                                        <div key={menu.key}>
+                                            {/* Menu row */}
+                                            <div className={cn(
+                                                "grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-2.5 border-b border-border/20 transition-colors",
+                                                isExpanded ? "bg-primary/[0.02]" : "hover:bg-muted/10",
+                                            )}>
+                                        <button onClick={() => hasActions && toggleExpand(menu.key)} className="flex items-center gap-1.5 sm:gap-2 min-w-0 text-left group">
+                                                    {hasActions ? (
+                                                        isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-primary shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground shrink-0" />
+                                                    ) : (
+                                                        <span className="w-3.5" />
+                                                    )}
+                                            <span className="text-xs sm:text-sm font-medium truncate">{menu.name}</span>
+                                                    {hasActions && (
+                                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 rounded-full shrink-0 font-normal">
+                                                            {menu.actions.length} aksi
+                                                        </Badge>
+                                                    )}
+                                                </button>
+                                                {PLANS.map((p) => (
+                                                    <div key={p.key} className="flex justify-center">
+                                                        <PlanToggle checked={menu.plans[p.key]} onChange={(v) => handleMenuToggle(menu.key, p.key, v)} plan={p.key} />
                                                     </div>
-                                                    {PLANS.map((p) => (
-                                                        <div key={p.key} className="flex justify-center">
-                                                            <PlanToggle
-                                                                checked={action.plans[p.key]}
-                                                                onChange={(v) => handleActionToggle(menu.key, action.key, p.key, v)}
-                                                                plan={p.key}
-                                                                disabled={!menu.plans[p.key]}
-                                                                small
-                                                            />
+                                                ))}
+                                            </div>
+
+                                            {/* Action rows */}
+                                            {isExpanded && hasActions && (
+                                                <div >
+                                                    {menu.actions.map((action: MenuRow["actions"][number]) => (
+                                                        <div key={action.key} className="grid grid-cols-[1fr_72px_72px_72px] sm:grid-cols-[1fr_100px_100px_100px] items-center px-4 py-2 border-b border-border/55 last:border-b-0 hover:bg-muted/5 transition-colors">
+                                                            <div className="flex items-center gap-2 pl-6 min-w-0">
+                                                                <span className="w-1 h-1 rounded-full bg-muted-foreground/30 shrink-0" />
+                                                                <span className="text-xs text-muted-foreground truncate">{action.name}</span>
+                                                            </div>
+                                                            {PLANS.map((p) => (
+                                                                <div key={p.key} className="flex justify-center">
+                                                                    <PlanToggle
+                                                                        checked={action.plans[p.key]}
+                                                                        onChange={(v) => handleActionToggle(menu.key, action.key, p.key, v)}
+                                                                        plan={p.key}
+                                                                        disabled={!menu.plans[p.key]}
+                                                                        small
+                                                                    />
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                     ))}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </div>
+                        ))}
                     </div>
-                ))}
+                </div>
             </div>
+            <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
+                <SheetContent side="bottom" className="rounded-t-2xl p-0" showCloseButton={false}>
+                    <SheetHeader className="pb-2">
+                        <SheetTitle>Filter Fitur Plan</SheetTitle>
+                    </SheetHeader>
+                    <div className="px-4 pb-4 space-y-3">
+                        <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground">Group Menu</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button size="sm" variant={filterGroup === "ALL" ? "default" : "outline"} className="rounded-xl h-8 text-xs" onClick={() => setFilterGroup("ALL")}>
+                                    Semua
+                                </Button>
+                                {allGroups.map((g) => (
+                                    <Button key={g} size="sm" variant={filterGroup === g ? "default" : "outline"} className="rounded-xl h-8 text-xs" onClick={() => setFilterGroup(g)}>
+                                        {g}
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button size="sm" variant="outline" className="rounded-xl h-9 text-xs" onClick={() => setExpandedMenus(new Set(matrix.filter((m) => m.actions.length > 0).map((m) => m.key)))}>
+                                Expand All
+                            </Button>
+                            <Button size="sm" variant="outline" className="rounded-xl h-9 text-xs" onClick={() => setExpandedMenus(new Set())}>
+                                Collapse All
+                            </Button>
+                        </div>
+                        <Button className="w-full rounded-xl" onClick={() => setMobileFilterOpen(false)}>
+                            Terapkan
+                        </Button>
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

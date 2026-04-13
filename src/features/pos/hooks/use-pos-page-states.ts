@@ -46,6 +46,7 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [openingCash, setOpeningCash] = useState("0");
   const [startingShift, setStartingShift] = useState(false);
   const [activeShift, setActiveShift] = useState<{ id: string; openingCash: number; openedAt: string | Date } | null>(null);
+  const [closedToday, setClosedToday] = useState(false);
   const [closingCash, setClosingCash] = useState("");
   const [closingNotes, setClosingNotes] = useState("");
   const [shiftSummary, setShiftSummary] = useState<ShiftSummary | null>(null);
@@ -112,6 +113,7 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
     openingCash, setOpeningCash,
     startingShift, setStartingShift,
     activeShift, setActiveShift,
+    closedToday, setClosedToday,
     closingCash, setClosingCash,
     closingNotes, setClosingNotes,
     shiftSummary, setShiftSummary,

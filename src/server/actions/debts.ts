@@ -40,7 +40,7 @@ export async function getDebts(params?: {
   } = params || {};
 
   const companyId = await getCurrentCompanyId();
-  const where: Record<string, unknown> = { branch: { companyId } };
+  const where: Record<string, unknown> = { companyId };
 
   if (type) where.type = type;
   if (status) where.status = status;
@@ -107,7 +107,7 @@ export async function getDebts(params?: {
 export async function getDebtById(id: string) {
   const companyId = await getCurrentCompanyId();
   const debt = await prisma.debt.findFirst({
-    where: { id, branch: { companyId } },
+    where: { id, companyId },
     include: {
       branch: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
@@ -154,44 +154,55 @@ export async function createDebt(data: {
   }
 
   try {
+    // Determine target branches
+    let targetBranchIds: string[];
     if (data.branchId) {
       const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId } });
       if (!branch) return { error: "Cabang tidak ditemukan" };
+      targetBranchIds = [data.branchId];
+    } else {
+      const branches = await prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true } });
+      targetBranchIds = branches.map((b) => b.id);
+      if (targetBranchIds.length === 0) return { error: "Tidak ada cabang aktif" };
     }
-    const debt = await prisma.debt.create({
-      data: {
-        type: data.type,
-        referenceType: data.referenceType || null,
-        referenceId: data.referenceId || null,
-        partyType: data.partyType,
-        partyId: data.partyId || null,
-        partyName: data.partyName,
-        description: data.description || null,
-        totalAmount: data.totalAmount,
-        paidAmount: 0,
-        remainingAmount: data.totalAmount,
-        status: "UNPAID",
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        branchId: data.branchId || null,
-        createdBy: session.user.id,
-      },
-    });
 
-    createAuditLog({
-      action: "CREATE",
-      entity: "Debt",
-      entityId: debt.id,
-      details: {
-        type: debt.type,
-        partyName: debt.partyName,
-        partyType: debt.partyType,
-        totalAmount: debt.totalAmount,
-      },
-      ...(data.branchId ? { branchId: data.branchId } : {}),
-    }).catch(() => {});
+    for (const bid of targetBranchIds) {
+      const debt = await prisma.debt.create({
+        data: {
+          type: data.type,
+          referenceType: data.referenceType || null,
+          referenceId: data.referenceId || null,
+          partyType: data.partyType,
+          partyId: data.partyId || null,
+          partyName: data.partyName,
+          description: data.description || null,
+          totalAmount: data.totalAmount,
+          paidAmount: 0,
+          remainingAmount: data.totalAmount,
+          status: "UNPAID",
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          branchId: bid,
+          companyId,
+          createdBy: session.user.id,
+        },
+      });
+
+      createAuditLog({
+        action: "CREATE",
+        entity: "Debt",
+        entityId: debt.id,
+        details: {
+          type: debt.type,
+          partyName: debt.partyName,
+          partyType: debt.partyType,
+          totalAmount: debt.totalAmount,
+        },
+        branchId: bid,
+      }).catch(() => {});
+    }
 
     revalidatePath("/debts");
-    return { success: true, debt };
+    return { success: true };
   } catch (err) {
     console.error("[createDebt]", err);
     return { error: "Gagal membuat data hutang/piutang" };
@@ -220,7 +231,7 @@ export async function updateDebt(
   const companyId = await getCurrentCompanyId();
 
   try {
-    const existing = await prisma.debt.findFirst({ where: { id, branch: { companyId } } });
+    const existing = await prisma.debt.findFirst({ where: { id, companyId } });
     if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
 
     // Recalculate remaining amount if totalAmount changed
@@ -298,7 +309,7 @@ export async function deleteDebt(id: string) {
   const companyId = await getCurrentCompanyId();
 
   try {
-    const existing = await prisma.debt.findFirst({ where: { id, branch: { companyId } } });
+    const existing = await prisma.debt.findFirst({ where: { id, companyId } });
     if (!existing) return { error: "Data hutang/piutang tidak ditemukan" };
 
     if (existing.status !== "UNPAID") {
@@ -355,7 +366,7 @@ export async function addDebtPayment(params: {
   }
 
   try {
-    const debt = await prisma.debt.findFirst({ where: { id: debtId, branch: { companyId } } });
+    const debt = await prisma.debt.findFirst({ where: { id: debtId, companyId } });
     if (!debt) return { error: "Data hutang/piutang tidak ditemukan" };
 
     if (debt.status === "PAID") {
@@ -417,7 +428,7 @@ export async function addDebtPayment(params: {
 
 export async function getDebtSummary(branchId?: string) {
   const companyId = await getCurrentCompanyId();
-  const branchFilter = branchId ? { branchId } : { branch: { companyId } };
+  const branchFilter = branchId ? { branchId, companyId } : { companyId };
 
   const [
     totalPayable,
@@ -467,7 +478,7 @@ export async function getDebtSummary(branchId?: string) {
     }),
     // Recent payments
     prisma.debtPayment.findMany({
-      where: branchId ? { debt: { branchId } } : { debt: { branch: { companyId } } },
+      where: branchId ? { debt: { branchId, companyId } } : { debt: { companyId } },
       include: {
         debt: { select: { type: true, partyName: true } },
         payer: { select: { name: true } },

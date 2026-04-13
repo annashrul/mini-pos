@@ -22,7 +22,7 @@ export async function getPriceSchedules(params?: {
   const companyId = await getCurrentCompanyId();
 
   const now = new Date();
-  const where: Record<string, unknown> = { product: { companyId } };
+  const where: Record<string, unknown> = { companyId };
 
   if (search) {
     where.product = { name: { contains: search, mode: "insensitive" } };
@@ -69,21 +69,20 @@ export async function getPriceSchedules(params?: {
 export async function getPriceScheduleStats() {
   const companyId = await getCurrentCompanyId();
   const now = new Date();
-  const companyFilter = { product: { companyId } };
 
   const [active, upcoming, expired, productsAffected] = await Promise.all([
     prisma.priceSchedule.count({
-      where: { appliedAt: { not: null }, revertedAt: null, endDate: { gt: now }, ...companyFilter },
+      where: { appliedAt: { not: null }, revertedAt: null, endDate: { gt: now }, companyId },
     }),
     prisma.priceSchedule.count({
-      where: { appliedAt: null, startDate: { gt: now }, ...companyFilter },
+      where: { appliedAt: null, startDate: { gt: now }, companyId },
     }),
     prisma.priceSchedule.count({
-      where: { revertedAt: { not: null }, ...companyFilter },
+      where: { revertedAt: { not: null }, companyId },
     }),
     prisma.priceSchedule.groupBy({
       by: ["productId"],
-      where: { appliedAt: { not: null }, revertedAt: null },
+      where: { appliedAt: { not: null }, revertedAt: null, companyId },
     }),
   ]);
 
@@ -108,7 +107,6 @@ export async function createPriceSchedule(data: {
   const companyId = await getCurrentCompanyId();
 
   try {
-    // Get current product price
     const product = await prisma.product.findUnique({
       where: { id: data.productId, companyId },
       select: { sellingPrice: true, name: true },
@@ -123,40 +121,55 @@ export async function createPriceSchedule(data: {
       return { error: "Tanggal selesai harus setelah tanggal mulai" };
     }
 
-    // Check overlapping schedules for same product
-    const overlap = await prisma.priceSchedule.findFirst({
-      where: {
-        productId: data.productId,
-        revertedAt: null,
-        OR: [
-          { startDate: { lte: endDate }, endDate: { gte: startDate } },
-        ],
-        ...(data.branchId ? { branchId: data.branchId } : {}),
-      },
-    });
-
-    if (overlap) {
-      return { error: "Sudah ada jadwal harga yang tumpang tindih untuk produk ini" };
+    // Determine target branches
+    let targetBranchIds: string[];
+    if (data.branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId } });
+      if (!branch) return { error: "Cabang tidak ditemukan" };
+      targetBranchIds = [data.branchId];
+    } else {
+      const branches = await prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true } });
+      targetBranchIds = branches.map((b) => b.id);
+      if (targetBranchIds.length === 0) return { error: "Tidak ada cabang aktif" };
     }
 
-    const schedule = await prisma.priceSchedule.create({
-      data: {
-        productId: data.productId,
-        newPrice: data.newPrice,
-        originalPrice: product.sellingPrice,
-        startDate,
-        endDate,
-        reason: data.reason || null,
-        branchId: data.branchId || null,
-        createdBy: session.user.id,
-        isActive: true,
-      },
-    });
+    // Check overlapping per branch
+    for (const bid of targetBranchIds) {
+      const overlap = await prisma.priceSchedule.findFirst({
+        where: {
+          productId: data.productId,
+          companyId,
+          branchId: bid,
+          revertedAt: null,
+          OR: [{ startDate: { lte: endDate }, endDate: { gte: startDate } }],
+        },
+      });
+      if (overlap) {
+        return { error: "Sudah ada jadwal harga yang tumpang tindih untuk produk ini" };
+      }
+    }
+
+    // Create one schedule per branch
+    for (const bid of targetBranchIds) {
+      await prisma.priceSchedule.create({
+        data: {
+          productId: data.productId,
+          newPrice: data.newPrice,
+          originalPrice: product.sellingPrice,
+          startDate,
+          endDate,
+          reason: data.reason || null,
+          branchId: bid,
+          companyId,
+          createdBy: session.user.id,
+          isActive: true,
+        },
+      });
+    }
 
     await createAuditLog({
       action: "CREATE",
       entity: "PriceSchedule",
-      entityId: schedule.id,
       details: {
         productName: product.name,
         originalPrice: product.sellingPrice,
@@ -167,7 +180,7 @@ export async function createPriceSchedule(data: {
     });
 
     revalidatePath("/price-schedules");
-    return { success: true, schedule };
+    return { success: true };
   } catch (error) {
     console.error("createPriceSchedule error:", error);
     return { error: "Gagal membuat jadwal harga" };
@@ -180,10 +193,11 @@ export async function createPriceSchedule(data: {
 
 export async function deletePriceSchedule(id: string) {
   await assertMenuActionAccess("price-schedules", "delete");
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const schedule = await prisma.priceSchedule.findUnique({
-      where: { id },
+    const schedule = await prisma.priceSchedule.findFirst({
+      where: { id, companyId },
       include: { product: { select: { name: true } } },
     });
 
@@ -218,16 +232,18 @@ export async function deletePriceSchedule(id: string) {
 
 export async function applyDuePriceSchedules() {
   await assertMenuActionAccess("price-schedules", "update");
+  const companyId = await getCurrentCompanyId();
 
   const now = new Date();
 
   try {
-    // Find schedules that should be applied
+    // Find schedules that should be applied (scoped to company)
     const dueSchedules = await prisma.priceSchedule.findMany({
       where: {
         isActive: true,
         appliedAt: null,
         startDate: { lte: now },
+        companyId,
       },
       include: { product: { select: { name: true } } },
     });
@@ -260,13 +276,14 @@ export async function applyDuePriceSchedules() {
       appliedCount++;
     }
 
-    // Also revert expired schedules
+    // Also revert expired schedules (scoped to company)
     const expiredSchedules = await prisma.priceSchedule.findMany({
       where: {
         isActive: true,
         appliedAt: { not: null },
         revertedAt: null,
         endDate: { lte: now },
+        companyId,
       },
       include: { product: { select: { name: true } } },
     });
@@ -312,6 +329,7 @@ export async function applyDuePriceSchedules() {
 
 export async function revertExpiredPriceSchedules() {
   await assertMenuActionAccess("price-schedules", "update");
+  const companyId = await getCurrentCompanyId();
 
   const now = new Date();
 
@@ -322,6 +340,7 @@ export async function revertExpiredPriceSchedules() {
         appliedAt: { not: null },
         revertedAt: null,
         endDate: { lte: now },
+        companyId,
       },
       include: { product: { select: { name: true } } },
     });

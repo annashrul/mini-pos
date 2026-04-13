@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { openShift, closeShift, getShifts, getActiveShift } from "@/features/shifts";
 import { useMenuActionAccess } from "@/features/access-control";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatCurrency } from "@/lib/utils";
 import type { SmartColumn } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
@@ -20,6 +21,8 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { useBranch } from "@/components/providers/branch-provider";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { useClosingRealtime } from "@/hooks/use-closing-socket";
 
 type ShiftsData = Awaited<ReturnType<typeof getShifts>>;
 type ShiftRow = ShiftsData["shifts"][number];
@@ -37,8 +40,9 @@ export function ShiftsContent() {
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("shifts");
-    const canOpenShift = canAction("create");
-    const canCloseShift = canAction("close_shift");
+    const { canAction: canPlan } = usePlanAccess();
+    const canOpenShift = canAction("create") && canPlan("shifts", "create");
+    const canCloseShift = canAction("close_shift") && canPlan("shifts", "close_shift");
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
@@ -57,6 +61,8 @@ export function ShiftsContent() {
             setData(result);
         });
     };
+
+    useClosingRealtime(() => fetchData({}), selectedBranchId || undefined);
 
     useEffect(() => {
         if (!branchReady) return;
@@ -159,11 +165,12 @@ export function ShiftsContent() {
                     <h1 className="text-2xl font-bold text-foreground">Shift Kasir</h1>
                     <p className="text-muted-foreground text-sm">Kelola shift kasir</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                    <ExportMenu module="shifts" branchId={selectedBranchId || undefined} />
                     {!activeShift ? (
                         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
                             <DialogTrigger asChild>
-                                <DisabledActionTooltip disabled={!canOpenShift} message={cannotMessage("create")}>
+                                <DisabledActionTooltip disabled={!canOpenShift} message={cannotMessage("create")} menuKey="shifts" actionKey="create">
                                     <Button disabled={!canOpenShift} className="rounded-lg bg-green-600 hover:bg-green-700">
                                         <PlayCircle className="w-4 h-4 mr-2" />
                                         Buka Shift
@@ -181,7 +188,7 @@ export function ShiftsContent() {
                                     </div>
                                     <div className="flex justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setOpenDialog(false)} className="rounded-xl">Batal</Button>
-                                        <DisabledActionTooltip disabled={!canOpenShift} message={cannotMessage("create")}>
+                                        <DisabledActionTooltip disabled={!canOpenShift} message={cannotMessage("create")} menuKey="shifts" actionKey="create">
                                             <Button disabled={!canOpenShift} type="submit" className="rounded-xl bg-green-600 hover:bg-green-700">Buka Shift</Button>
                                         </DisabledActionTooltip>
                                     </div>
@@ -191,7 +198,7 @@ export function ShiftsContent() {
                     ) : (
                         <Dialog open={closeDialog} onOpenChange={setCloseDialog}>
                             <DialogTrigger asChild>
-                                <DisabledActionTooltip disabled={!canCloseShift} message={cannotMessage("close_shift")}>
+                                <DisabledActionTooltip disabled={!canCloseShift} message={cannotMessage("close_shift")} menuKey="shifts" actionKey="close_shift">
                                     <Button disabled={!canCloseShift} className="rounded-lg bg-red-600 hover:bg-red-700">
                                         <StopCircle className="w-4 h-4 mr-2" />
                                         Tutup Shift
@@ -217,7 +224,7 @@ export function ShiftsContent() {
                                     </div>
                                     <div className="flex justify-end gap-2">
                                         <Button type="button" variant="outline" onClick={() => setCloseDialog(false)} className="rounded-xl">Batal</Button>
-                                        <DisabledActionTooltip disabled={!canCloseShift} message={cannotMessage("close_shift")}>
+                                        <DisabledActionTooltip disabled={!canCloseShift} message={cannotMessage("close_shift")} menuKey="shifts" actionKey="close_shift">
                                             <Button disabled={!canCloseShift} type="submit" className="rounded-xl bg-red-600 hover:bg-red-700">Tutup Shift</Button>
                                         </DisabledActionTooltip>
                                     </div>
@@ -276,7 +283,7 @@ export function ShiftsContent() {
                 sortDir={sortDir}
                 onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
                 rowKey={(row) => row.id}
-                planMenuKey="shifts" exportFilename="shifts"
+                planMenuKey="shifts" exportModule="shifts"
                 emptyIcon={<Clock className="w-10 h-10 text-muted-foreground/30" />}
                 emptyTitle="Belum ada riwayat shift"
             />

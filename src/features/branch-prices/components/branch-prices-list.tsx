@@ -92,13 +92,13 @@ export function BranchPricesList(props: {
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                  <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
                     <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => onEdit(item)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
                   </DisabledActionTooltip>
                   {item.hasCustomPrice && (
-                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branch-prices" actionKey="delete">
                       <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => onRemove(item.productId)}>
                         <X className="w-3.5 h-3.5" />
                       </Button>
@@ -180,7 +180,7 @@ export function BranchPricesList(props: {
               </div>
 
               <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
                   <Button
                     disabled={!canUpdate}
                     variant="ghost"
@@ -192,7 +192,7 @@ export function BranchPricesList(props: {
                   </Button>
                 </DisabledActionTooltip>
                 {item.hasCustomPrice && (
-                  <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                  <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branch-prices" actionKey="delete">
                     <Button
                       disabled={!canDelete}
                       variant="ghost"

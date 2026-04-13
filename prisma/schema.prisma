@@ -280,6 +280,8 @@ model Branch {
   journalEntries   JournalEntry[]
   restaurantTables RestaurantTable[]
   productBundles ProductBundle[]
+  promotions     Promotion[]
+  closingReports ClosingReport[]
 
   @@unique([companyId, name])
   @@unique([companyId, code])
@@ -681,6 +683,7 @@ model StockMovement {
   product   Product           @relation(fields: [productId], references: [id])
   branchId  String?
   branch    Branch?           @relation(fields: [branchId], references: [id])
+  companyId String?
   type      StockMovementType
   quantity  Int
   note      String?
@@ -704,6 +707,7 @@ model StockOpname {
   opnameNumber String           @unique
   branchId    String?
   branch      Branch?           @relation(fields: [branchId], references: [id])
+  companyId   String?
   status      StockOpnameStatus @default(DRAFT)
   notes       String?
   startedAt   DateTime          @default(now())
@@ -742,6 +746,7 @@ model StockTransfer {
   fromBranch      Branch              @relation("TransferFrom", fields: [fromBranchId], references: [id])
   toBranchId      String
   toBranch        Branch              @relation("TransferTo", fields: [toBranchId], references: [id])
+  companyId       String?
   status          StockTransferStatus @default(PENDING)
   notes           String?
   requestedBy     String?
@@ -784,6 +789,7 @@ model PurchaseOrder {
   supplier      Supplier            @relation(fields: [supplierId], references: [id])
   branchId      String?
   branch        Branch?             @relation(fields: [branchId], references: [id])
+  companyId     String?
   status        PurchaseOrderStatus @default(DRAFT)
   totalAmount   Float               @default(0)
   paidAmount    Float               @default(0)
@@ -878,6 +884,44 @@ model CashierShift {
   @@index([isOpen])
   @@index([openedAt])
   @@map("cashier_shifts")
+  closingReport  ClosingReport?
+}
+
+model ClosingReport {
+  id                 String       @id @default(uuid())
+  shiftId            String       @unique
+  shift              CashierShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  cashierUserId      String?      // for finding existing report same day
+  branchId           String?
+  branch             Branch?      @relation(fields: [branchId], references: [id])
+  companyId          String?
+  cashierName        String
+  date               DateTime     @db.Date // closing date
+  openingCash        Float
+  closingCash        Float
+  expectedCash       Float
+  cashDifference     Float
+  totalTransactions  Int          @default(0)
+  totalSales         Float        @default(0)
+  totalDiscount      Float        @default(0)
+  totalTax           Float        @default(0)
+  totalCashSales     Float        @default(0)
+  totalNonCashSales  Float        @default(0)
+  cashMovementIn     Float        @default(0)
+  cashMovementOut    Float        @default(0)
+  voidCount          Int          @default(0)
+  refundCount        Int          @default(0)
+  paymentSummary     Json?        // [{method, count, total}]
+  notes              String?
+  allowReopen        Boolean      @default(false) // admin sets true via reclosing to let cashier open new shift
+  createdAt          DateTime     @default(now())
+
+  @@index([branchId])
+  @@index([companyId])
+  @@index([date])
+  @@index([branchId, date])
+  @@index([cashierUserId, branchId, date])
+  @@map("closing_reports")
 }
 
 model CashMovement {
@@ -904,6 +948,7 @@ model Expense {
   description String
   amount      Float
   date        DateTime @default(now())
+  companyId   String?
   branchId    String?
   branch      Branch?  @relation(fields: [branchId], references: [id])
   createdBy   String?
@@ -912,6 +957,7 @@ model Expense {
 
   @@index([date])
   @@index([category])
+  @@index([companyId])
   @@index([branchId])
   @@map("expenses")
 }
@@ -934,6 +980,8 @@ model Promotion {
   product       Product?  @relation(fields: [productId], references: [id])
   companyId     String
   company       Company   @relation(fields: [companyId], references: [id])
+  branchId      String?
+  branch        Branch?   @relation(fields: [branchId], references: [id])
   buyQty        Int?      // BUY_X_GET_Y: buy this many
   getQty        Int?      // BUY_X_GET_Y: get this many free
   getProductId  String?   // BUY_X_GET_Y: free product id (null = same product)
@@ -949,6 +997,7 @@ model Promotion {
   vouchers      Voucher[]
 
   @@index([companyId])
+  @@index([branchId])
   @@index([isActive, startDate, endDate])
   @@index([voucherCode])
   @@index([type])
@@ -1058,6 +1107,7 @@ model Debt {
   dueDate         DateTime?
   branchId        String?
   branch          Branch?       @relation(fields: [branchId], references: [id])
+  companyId       String?
   createdBy       String
   creator         User          @relation(fields: [createdBy], references: [id])
   createdAt       DateTime      @default(now())
@@ -1235,6 +1285,7 @@ model GiftCard {
     customerId      String?
     customer        Customer?           @relation(fields: [customerId], references: [id])
     expiresAt       DateTime?
+    companyId       String?
     branchId        String?
     branch          Branch?             @relation(fields: [branchId], references: [id])
     createdBy       String
@@ -1244,6 +1295,7 @@ model GiftCard {
     updatedAt       DateTime            @updatedAt
 
     @@index([code])
+    @@index([companyId])
     @@index([customerId])
     @@map("gift_cards")
 }
@@ -1312,6 +1364,7 @@ model PriceSchedule {
     product     Product   @relation(fields: [productId], references: [id])
     branchId    String?
     branch      Branch?   @relation(fields: [branchId], references: [id])
+    companyId   String?
     newPrice    Float
     originalPrice Float
     startDate   DateTime
@@ -1545,6 +1598,7 @@ model ProductBundle {
   isActive        Boolean             @default(true)
   barcode         String?             @unique
   items           ProductBundleItem[]
+  companyId       String?
   branchId        String?
   branch          Branch?             @relation(fields: [branchId], references: [id])
   createdAt       DateTime            @default(now())
@@ -1552,6 +1606,7 @@ model ProductBundle {
 
   @@index([isActive])
   @@index([categoryId])
+  @@index([companyId])
   @@index([branchId])
   @@map("product_bundles")
 }

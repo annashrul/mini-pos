@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -41,6 +43,7 @@ import { id as idLocale } from "date-fns/locale";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useMenuActionAccess } from "@/features/access-control";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { PaginationControl } from "@/components/ui/pagination-control";
 
 // ---- local types ----
@@ -197,9 +200,11 @@ export function DebtsContent() {
 
     // access control
     const { canAction, cannotMessage } = useMenuActionAccess("debts");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("debts", "create");
+    const canUpdate = canAction("update") && canPlan("debts", "update");
+    const canDelete = canAction("delete") && canPlan("debts", "delete");
+    const canPayment = canAction("payment") && canPlan("debts", "payment");
 
     // branch
     const { selectedBranchId, branchReady } = useBranch();
@@ -420,11 +425,14 @@ export function DebtsContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola hutang dan piutang usaha Anda</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-xl shadow-md shadow-amber-200/30 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm" onClick={openCreateDialog}>
-                        <Plus className="w-4 h-4 mr-2" /> Tambah
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="debts" branchId={selectedBranchId || undefined} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="debts" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-amber-200/30 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm" onClick={openCreateDialog}>
+                            <Plus className="w-4 h-4 mr-2" /> Tambah
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
             {/* Mobile: Floating button */}
             {canCreate && (
@@ -642,7 +650,7 @@ export function DebtsContent() {
                         <Wallet className="w-10 h-10 text-muted-foreground/30 mb-3" />
                         <p className="text-sm font-medium">Belum ada data hutang/piutang</p>
                         <p className="text-xs text-muted-foreground/60 mt-1">Tambahkan data pertama Anda</p>
-                        <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                        <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="debts" actionKey="create">
                             <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-full mt-3" onClick={openCreateDialog}>
                                 <Plus className="w-3 h-3 mr-1" /> Tambah
                             </Button>
@@ -785,7 +793,7 @@ export function DebtsContent() {
                                                 >
                                                     <Eye className="w-3.5 h-3.5" />
                                                 </Button>
-                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="debts" actionKey="update">
                                                     <Button
                                                         disabled={!canUpdate}
                                                         variant="ghost"
@@ -796,7 +804,7 @@ export function DebtsContent() {
                                                         <Pencil className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </DisabledActionTooltip>
-                                                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                                                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="debts" actionKey="delete">
                                                     <Button
                                                         disabled={!canDelete}
                                                         variant="ghost"
@@ -900,8 +908,8 @@ export function DebtsContent() {
 
                         <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
                             <Button type="button" variant="outline" onClick={closeFormDialog} className="rounded-xl">Batal</Button>
-                            <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white">
-                                {editing ? "Update" : "Simpan"}
+                            <Button disabled={(editing ? !canUpdate : !canCreate) || debtForm.formState.isSubmitting} type="submit" className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                                {debtForm.formState.isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -968,9 +976,11 @@ export function DebtsContent() {
                                     <div className="flex items-center justify-between mb-2 sm:mb-3">
                                         <h3 className="text-xs sm:text-sm font-bold text-slate-700">Riwayat Pembayaran</h3>
                                         {detailDebt.status !== "PAID" && (
-                                            <Button disabled={!canCreate} size="sm" className="rounded-xl text-xs bg-gradient-to-r from-amber-500 to-orange-600 text-white" onClick={openPaymentForm}>
-                                                <Plus className="w-3 h-3 mr-1" /> Bayar
-                                            </Button>
+                                            <DisabledActionTooltip disabled={!canPayment} message={cannotMessage("payment")} menuKey="debts" actionKey="payment">
+                                                <Button disabled={!canPayment} size="sm" className="rounded-xl text-xs bg-gradient-to-r from-amber-500 to-orange-600 text-white" onClick={openPaymentForm}>
+                                                    <Plus className="w-3 h-3 mr-1" /> Bayar
+                                                </Button>
+                                            </DisabledActionTooltip>
                                         )}
                                     </div>
 
@@ -1047,30 +1057,16 @@ export function DebtsContent() {
                 </DialogContent>
             </Dialog>
 
-            {/* ============ Delete Confirmation Dialog ============ */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-0 gap-0">
-                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 rounded-t-2xl" />
-                    <div className="px-4 sm:px-6 pt-4 sm:pt-6">
-                        <DialogHeader>
-                            <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">Konfirmasi Hapus</DialogTitle>
-                        </DialogHeader>
-                        <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
-                    </div>
-                    <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
-                        <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-full">
-                            Batal
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={async () => { await pendingConfirmAction?.(); }}
-                            className="rounded-full"
-                        >
-                            Ya, Hapus
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind="delete"
+                title="Konfirmasi Hapus"
+                description={confirmText}
+                confirmLabel="Ya, Hapus"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                size="sm"
+            />
         </div>
     );
 }

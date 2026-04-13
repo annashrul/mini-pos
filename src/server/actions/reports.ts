@@ -157,7 +157,9 @@ function buildSalesViewWhere(
     conditions.push(`${alias}.branch_id = $${params.push(branchId)}`);
   }
   if (companyId) {
-    conditions.push(`${alias}.branch_id IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`);
+    conditions.push(
+      `${alias}.branch_id IN (SELECT id FROM branches WHERE "companyId" = $${params.push(companyId)})`,
+    );
   }
   return { where: conditions.join(" AND "), params };
 }
@@ -385,7 +387,12 @@ export async function getProfitLossReport(
   branchId?: string,
 ) {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`profit-loss-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `profit-loss-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<ProfitLossReport>(cacheKey);
   if (cached) return cached;
 
@@ -466,7 +473,12 @@ export async function getPaymentMethodReport(
   branchId?: string,
 ) {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`payment-method-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `payment-method-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<PaymentMethodReportItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -498,7 +510,12 @@ export async function getHourlySalesReport(
   branchId?: string,
 ) {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`hourly-sales-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `hourly-sales-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<HourlySalesReportItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -555,7 +572,12 @@ export async function getCategorySalesReport(
   branchId?: string,
 ) {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`category-sales-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `category-sales-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<CategorySalesReportItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -653,7 +675,12 @@ export async function getSupplierSalesReport(
   branchId?: string,
 ): Promise<SupplierSalesItem[]> {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`supplier-sales-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `supplier-sales-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<SupplierSalesItem[]>(cacheKey);
   if (cached) return cached;
 
@@ -749,7 +776,12 @@ export async function getReportOverview(
   branchId?: string,
 ): Promise<ReportOverview> {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`overview-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `overview-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<ReportOverview>(cacheKey);
   if (cached) return cached;
 
@@ -829,8 +861,8 @@ export async function getReportOverview(
     // Total items sold
     prisma.$queryRawUnsafe<{ total: number }[]>(
       `
-        SELECT COALESCE(SUM(ti.quantity), 0)::int AS total
-        FROM public.vw_sales_item_facts ti
+        SELECT COALESCE(SUM(v.quantity), 0)::int AS total
+        FROM public.vw_sales_item_facts v
         WHERE ${where}
         `,
       ...params,
@@ -863,7 +895,12 @@ export async function getCashierSalesReport(
   branchId?: string,
 ): Promise<CashierSalesItem[]> {
   const companyId = await getCurrentCompanyId();
-  const cacheKey = reportCacheKey(`cashier-sales-${companyId}`, dateFrom, dateTo, branchId);
+  const cacheKey = reportCacheKey(
+    `cashier-sales-${companyId}`,
+    dateFrom,
+    dateTo,
+    branchId,
+  );
   const cached = await redisGetJson<CashierSalesItem[]>(cacheKey);
   if (cached) return cached;
 

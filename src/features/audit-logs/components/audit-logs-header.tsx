@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { ScrollText, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from "lucide-react";
 
 export function AuditLogsHeader(props: {
@@ -22,7 +23,8 @@ export function AuditLogsHeader(props: {
             <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Riwayat aktivitas sistem</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:flex items-center gap-2">
+          <ExportMenu module="audit-logs" />
           <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={onExpandAll}>
             <ChevronDown className="w-3.5 h-3.5 mr-1" /> Buka Semua
           </Button>

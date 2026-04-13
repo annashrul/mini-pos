@@ -703,6 +703,7 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
       include: {
         user: { select: { name: true } },
         branch: { select: { name: true } },
+        customer: { select: { name: true } },
         items: true,
         payments: {
           orderBy: { amount: "desc" },

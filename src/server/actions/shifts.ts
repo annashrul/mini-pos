@@ -95,10 +95,119 @@ export async function getActiveShift() {
   const resolvedUserId = await resolveSessionUserId(session);
   if (!resolvedUserId) return null;
 
-  return prisma.cashierShift.findFirst({
+  const shift = await prisma.cashierShift.findFirst({
     where: { userId: resolvedUserId, isOpen: true },
     include: { user: { select: { name: true } } },
   });
+
+  if (!shift) return null;
+
+  // Auto-close if shift is from a previous day
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (shift.openedAt < today) {
+    try {
+      // Calculate expected cash from transactions
+      const txs = await prisma.transaction.findMany({
+        where: { userId: shift.userId, createdAt: { gte: shift.openedAt }, status: "COMPLETED", paymentMethod: "CASH" },
+        select: { paymentAmount: true, changeAmount: true },
+      });
+      const netCash = txs.reduce((s, tx) => s + tx.paymentAmount - tx.changeAmount, 0);
+      const totalSalesAgg = await prisma.transaction.aggregate({
+        where: { userId: shift.userId, createdAt: { gte: shift.openedAt }, status: "COMPLETED" },
+        _sum: { grandTotal: true }, _count: true,
+      });
+      const expectedCash = shift.openingCash + netCash;
+
+      await prisma.cashierShift.update({
+        where: { id: shift.id },
+        data: {
+          closedAt: new Date(shift.openedAt.getTime() + 24 * 60 * 60 * 1000 - 1), // end of opening day
+          closingCash: expectedCash,
+          expectedCash,
+          cashDifference: 0,
+          totalSales: totalSalesAgg._sum.grandTotal ?? 0,
+          totalTransactions: totalSalesAgg._count,
+          notes: "Auto-closing: shift tidak ditutup pada hari sebelumnya",
+          isOpen: false,
+        },
+      });
+
+      // Generate closing report
+      const companyId = await getCurrentCompanyId();
+      const allTx = await prisma.transaction.findMany({
+        where: { userId: shift.userId, createdAt: { gte: shift.openedAt }, status: "COMPLETED" },
+        select: { grandTotal: true, discountAmount: true, taxAmount: true, paymentMethod: true, paymentAmount: true, changeAmount: true },
+      });
+      let totalSales = 0, totalDiscount = 0, totalTax = 0, totalCashSales = 0, totalNonCashSales = 0;
+      for (const tx of allTx) {
+        totalSales += tx.grandTotal;
+        totalDiscount += tx.discountAmount;
+        totalTax += tx.taxAmount;
+        if (tx.paymentMethod === "CASH") totalCashSales += tx.paymentAmount - tx.changeAmount;
+        else totalNonCashSales += tx.grandTotal;
+      }
+
+      await prisma.closingReport.create({
+        data: {
+          shiftId: shift.id,
+          branchId: shift.branchId,
+          companyId,
+          cashierUserId: shift.userId,
+          cashierName: shift.user.name,
+          date: shift.openedAt,
+          openingCash: shift.openingCash,
+          closingCash: expectedCash,
+          expectedCash,
+          cashDifference: 0,
+          totalTransactions: allTx.length,
+          totalSales, totalDiscount, totalTax,
+          totalCashSales, totalNonCashSales,
+          cashMovementIn: 0, cashMovementOut: 0,
+          voidCount: 0, refundCount: 0,
+          notes: "Auto-closing: shift tidak ditutup pada hari sebelumnya",
+          allowReopen: true, // allow cashier to proceed today
+        },
+      }).catch(() => {}); // ignore if already exists
+
+      revalidatePath("/shifts");
+      revalidatePath("/closing-reports");
+    } catch (e) {
+      console.error("Auto-close shift failed:", e);
+    }
+    return null; // shift is now closed, return null so POS shows setup screen
+  }
+
+  return shift;
+}
+
+/** Check if cashier already closed a shift today — blocks POS access on same day
+ *  Returns false if admin has reclosed (allowReopen flag set via reclosing) */
+export async function hasClosedShiftToday(): Promise<boolean> {
+  const session = await auth();
+  const resolvedUserId = await resolveSessionUserId(session);
+  if (!resolvedUserId) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Check closing report for today
+  const report = await prisma.closingReport.findFirst({
+    where: {
+      cashierUserId: resolvedUserId,
+      date: { gte: today, lt: tomorrow },
+    },
+    select: { allowReopen: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // No report today = can open shift
+  if (!report) return false;
+
+  // If reclosed with allowReopen = true, cashier can open new shift
+  return !report.allowReopen;
 }
 
 export async function openShift(data: FormData) {
@@ -112,6 +221,10 @@ export async function openShift(data: FormData) {
     where: { userId: resolvedUserId, isOpen: true },
   });
   if (existing) return { error: "Anda masih memiliki shift yang aktif" };
+
+  // Check if already closed today
+  const closedToday = await hasClosedShiftToday();
+  if (closedToday) return { error: "Anda sudah melakukan closing hari ini. Hubungi admin untuk reclosing jika diperlukan." };
 
   const parsed = shiftSchema.safeParse({
     openingCash: data.get("openingCash"),
@@ -273,6 +386,7 @@ export async function closeShift(id: string, data: FormData) {
       _count: true,
     });
 
+    const closedAt = new Date();
     await prisma.cashierShift.update({
       where: { id },
       data: {
@@ -282,11 +396,117 @@ export async function closeShift(id: string, data: FormData) {
         totalSales: totalSalesAgg._sum.grandTotal ?? 0,
         totalTransactions: totalSalesAgg._count,
         notes: parsed.data.notes ?? null,
-        closedAt: new Date(),
+        closedAt,
         isOpen: false,
       },
     });
+
+    // Generate closing report snapshot
+    try {
+      const companyId = await getCurrentCompanyId();
+      // All transactions during shift (all payment methods)
+      const allTx = await prisma.transaction.findMany({
+        where: { userId: shift.userId, createdAt: { gte: shift.openedAt, lte: closedAt }, status: "COMPLETED" },
+        select: { grandTotal: true, discountAmount: true, taxAmount: true, paymentMethod: true, paymentAmount: true, changeAmount: true },
+      });
+      const [voidCount, refundCount] = await Promise.all([
+        prisma.transaction.count({ where: { userId: shift.userId, createdAt: { gte: shift.openedAt, lte: closedAt }, status: "VOIDED" } }),
+        prisma.transaction.count({ where: { userId: shift.userId, createdAt: { gte: shift.openedAt, lte: closedAt }, status: "REFUNDED" } }),
+      ]);
+      const cashMovements = await prisma.cashMovement.findMany({ where: { shiftId: id } });
+      const cmIn = cashMovements.filter((m) => m.type === "CASH_IN").reduce((s, m) => s + m.amount, 0);
+      const cmOut = cashMovements.filter((m) => m.type === "CASH_OUT").reduce((s, m) => s + m.amount, 0);
+
+      let totalSales = 0, totalDiscount = 0, totalTax = 0, totalCashSales = 0, totalNonCashSales = 0;
+      const pmSummary: Record<string, { count: number; total: number }> = {};
+      for (const tx of allTx) {
+        totalSales += tx.grandTotal;
+        totalDiscount += tx.discountAmount;
+        totalTax += tx.taxAmount;
+        const m = tx.paymentMethod;
+        if (!pmSummary[m]) pmSummary[m] = { count: 0, total: 0 };
+        pmSummary[m]!.count++;
+        pmSummary[m]!.total += tx.grandTotal;
+        if (m === "CASH") totalCashSales += tx.paymentAmount - tx.changeAmount;
+        else totalNonCashSales += tx.grandTotal;
+      }
+
+      const cashierUser = await prisma.user.findUnique({ where: { id: shift.userId }, select: { name: true } });
+      const paymentData = Object.entries(pmSummary).map(([method, d]) => ({ method, count: d.count, total: d.total }));
+
+      // Check if there's already a closing report for this cashier + branch + today
+      const reportDate = new Date(closedAt);
+      reportDate.setHours(0, 0, 0, 0);
+      const reportDateEnd = new Date(reportDate);
+      reportDateEnd.setDate(reportDateEnd.getDate() + 1);
+
+      const existingReport = await prisma.closingReport.findFirst({
+        where: {
+          cashierUserId: shift.userId,
+          branchId: shift.branchId,
+          date: { gte: reportDate, lt: reportDateEnd },
+        },
+      });
+
+      if (existingReport) {
+        // Update existing report — accumulate data from this shift
+        await prisma.closingReport.update({
+          where: { id: existingReport.id },
+          data: {
+            shiftId: id, // update to latest shift
+            closingCash: parsed.data.closingCash,
+            expectedCash: existingReport.expectedCash + expectedCash - existingReport.openingCash,
+            cashDifference: parsed.data.closingCash - (existingReport.expectedCash + expectedCash - existingReport.openingCash),
+            totalTransactions: existingReport.totalTransactions + allTx.length,
+            totalSales: existingReport.totalSales + totalSales,
+            totalDiscount: existingReport.totalDiscount + totalDiscount,
+            totalTax: existingReport.totalTax + totalTax,
+            totalCashSales: existingReport.totalCashSales + totalCashSales,
+            totalNonCashSales: existingReport.totalNonCashSales + totalNonCashSales,
+            cashMovementIn: existingReport.cashMovementIn + cmIn,
+            cashMovementOut: existingReport.cashMovementOut + cmOut,
+            voidCount: existingReport.voidCount + voidCount,
+            refundCount: existingReport.refundCount + refundCount,
+            paymentSummary: paymentData, // latest snapshot
+            notes: parsed.data.notes ?? existingReport.notes,
+            allowReopen: false, // reset after new closing
+          },
+        });
+      } else {
+        // Create new report
+        await prisma.closingReport.create({
+          data: {
+            shiftId: id,
+            branchId: shift.branchId,
+            companyId,
+            cashierUserId: shift.userId,
+            cashierName: cashierUser?.name ?? "",
+            date: closedAt,
+            openingCash: shift.openingCash,
+            closingCash: parsed.data.closingCash,
+            expectedCash,
+            cashDifference,
+            totalTransactions: allTx.length,
+            totalSales,
+            totalDiscount,
+            totalTax,
+            totalCashSales,
+            totalNonCashSales,
+            cashMovementIn: cmIn,
+            cashMovementOut: cmOut,
+            voidCount,
+            refundCount,
+            paymentSummary: paymentData,
+            notes: parsed.data.notes ?? null,
+          },
+        });
+      }
+    } catch (e) {
+      console.error("Failed to create closing report:", e);
+    }
+
     revalidatePath("/shifts");
+    revalidatePath("/closing-reports");
 
     createAuditLog({ action: "UPDATE", entity: "Shift", entityId: id, details: { data: { openingCash: shift.openingCash, closingCash: parsed.data.closingCash, expectedCash, cashDifference, notes: parsed.data.notes ?? null } } }).catch(() => {});
 

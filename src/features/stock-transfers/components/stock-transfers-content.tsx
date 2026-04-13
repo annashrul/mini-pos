@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +17,9 @@ import { createStockTransferSchema, type CreateStockTransferInput } from "@/feat
 import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
+import { ProductPicker } from "@/components/ui/product-picker";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
@@ -30,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
     Plus, Eye, ArrowRightLeft, ArrowRight,
-    CheckCircle2, XCircle, PackageCheck, Trash2,
+    CheckCircle2, XCircle, PackageCheck,
     Clock, ShieldCheck, Truck, PackageOpen, Ban, Package,
     Search, Loader2, CalendarDays, MapPin, SlidersHorizontal, Check,
 } from "lucide-react";
@@ -52,10 +56,10 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 
 const STATUS_PILLS = [
     { value: "ALL", label: "Semua" },
-    { value: "PENDING", label: "Pending" },
-    { value: "APPROVED", label: "Approved" },
-    { value: "RECEIVED", label: "Received" },
-    { value: "REJECTED", label: "Rejected" },
+    { value: "PENDING", label: "Menunggu" },
+    { value: "APPROVED", label: "Disetujui" },
+    { value: "RECEIVED", label: "Diterima" },
+    { value: "REJECTED", label: "Ditolak" },
 ];
 
 export function StockTransfersContent() {
@@ -82,9 +86,6 @@ export function StockTransfersContent() {
         defaultValues: { fromBranchId: "", toBranchId: "", notes: "", items: [] },
     });
     const cartItems = form.watch("items");
-    const [productOptions, setProductOptions] = useState<Array<{ id: string; name: string; code: string; stock: number; unit: string }>>([]);
-    const [selectedProductId, setSelectedProductId] = useState("");
-    const [newQty, setNewQty] = useState(1);
 
     // Reject state
     const [rejectReason, setRejectReason] = useState("");
@@ -92,10 +93,11 @@ export function StockTransfersContent() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-    const [confirmRequiredAction, setConfirmRequiredAction] = useState<null | "approve" | "receive">(null);
+    const [confirmKind, setConfirmKind] = useState<"approve" | "custom">("custom");
     const { canAction, cannotMessage } = useMenuActionAccess("stock-transfers");
-    const canCreate = canAction("create");
-    const canApprove = canAction("approve");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("stock-transfers", "create");
+    const canApprove = canAction("approve") && canPlan("stock-transfers", "approve");
     const canReceive = canAction("receive");
 
     const activeBranches = branches.filter((b) => b.isActive);
@@ -130,18 +132,8 @@ export function StockTransfersContent() {
 
     useEffect(() => {
         startTransition(async () => {
-            const [allBranches, productsData] = await Promise.all([
-                getAllBranches(),
-                import("@/server/actions/products").then((m) => m.getProducts({ limit: 500 })),
-            ]);
+            const allBranches = await getAllBranches();
             setBranches(allBranches);
-            setProductOptions(productsData.products.map((p: Record<string, unknown>) => ({
-                id: p.id as string,
-                name: p.name as string,
-                code: p.code as string,
-                stock: (p.stock as number) || 0,
-                unit: (p.unit as string) || "PCS",
-            })));
         });
     }, []);
 
@@ -162,40 +154,16 @@ export function StockTransfersContent() {
         setDetailOpen(true);
     };
 
-    const addCartItem = () => {
-        if (!selectedProductId || newQty < 1) {
-            toast.error("Pilih produk dan masukkan jumlah");
-            return;
-        }
-        const product = productOptions.find((p) => p.id === selectedProductId);
-        if (!product) return;
-        const currentItems = form.getValues("items");
-        const existing = currentItems.find((item) => item.productId === selectedProductId);
-        if (existing) {
-            form.setValue("items", currentItems.map((item) =>
-                item.productId === selectedProductId
-                    ? { ...item, quantity: item.quantity + newQty }
-                    : item
-            ), { shouldValidate: true });
-        } else {
-            form.setValue("items", [...currentItems, {
-                productId: product.id,
-                productName: product.name,
-                quantity: newQty,
-            }], { shouldValidate: true });
-        }
-        setSelectedProductId("");
-        setNewQty(1);
-    };
 
-    const removeCartItem = (index: number) => {
-        const currentItems = form.getValues("items");
-        form.setValue("items", currentItems.filter((_, i) => i !== index), { shouldValidate: true });
-    };
+    const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
 
-    const handleCreate = form.handleSubmit(async (data) => {
+    const handleCreate = form.handleSubmit(() => {
         if (!canCreate) { toast.error(cannotMessage("create")); return; }
+        setTransferConfirmOpen(true);
+    });
 
+    const executeCreateTransfer = async () => {
+        const data = form.getValues();
         const payload = {
             fromBranchId: data.fromBranchId,
             toBranchId: data.toBranchId,
@@ -213,11 +181,12 @@ export function StockTransfersContent() {
             form.reset();
             fetchData({});
         }
-    });
+        setTransferConfirmOpen(false);
+    };
 
     const handleApprove = async (id: string) => {
         if (!canApprove) { toast.error(cannotMessage("approve")); return; }
-        setConfirmRequiredAction("approve");
+        setConfirmKind("approve");
         setConfirmText("Yakin ingin menyetujui transfer ini?");
         setPendingConfirmAction(() => async () => {
             const result = await approveStockTransfer(id);
@@ -225,14 +194,13 @@ export function StockTransfersContent() {
             else { toast.success("Transfer disetujui"); setDetailOpen(false); fetchData({}); }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
-            setConfirmRequiredAction(null);
         });
         setConfirmOpen(true);
     };
 
     const handleReceive = async (id: string) => {
         if (!canReceive) { toast.error(cannotMessage("receive")); return; }
-        setConfirmRequiredAction("receive");
+        setConfirmKind("approve");
         setConfirmText("Yakin ingin menerima transfer ini? Stok akan diperbarui.");
         setPendingConfirmAction(() => async () => {
             const result = await receiveStockTransfer(id);
@@ -240,7 +208,6 @@ export function StockTransfersContent() {
             else { toast.success("Transfer diterima. Stok telah diperbarui."); setDetailOpen(false); fetchData({}); }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
-            setConfirmRequiredAction(null);
         });
         setConfirmOpen(true);
     };
@@ -252,11 +219,18 @@ export function StockTransfersContent() {
         setRejectOpen(true);
     };
 
-    const handleReject = async () => {
+    const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+
+    const handleReject = () => {
         if (!canApprove) { toast.error(cannotMessage("approve")); return; }
+        setRejectConfirmOpen(true);
+    };
+
+    const executeReject = async () => {
         const result = await rejectStockTransfer(rejectId, rejectReason || undefined);
-        if (result.error) toast.error(result.error);
+        if (result.error) { toast.error(result.error); }
         else { toast.success("Transfer ditolak"); setRejectOpen(false); setDetailOpen(false); fetchData({}); }
+        setRejectConfirmOpen(false);
     };
 
     const handleSearchChange = (value: string) => {
@@ -288,12 +262,15 @@ export function StockTransfersContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 shadow-lg shadow-purple-200/50 text-white" onClick={() => setCreateOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Buat Transfer
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="stock-transfers" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock-transfers" actionKey="create">
+                        <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 shadow-lg shadow-purple-200/50 text-white" onClick={() => setCreateOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Buat Transfer
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
                 {canCreate && (
                     <div className="sm:hidden fixed bottom-4 right-4 z-50">
                         <Button onClick={() => setCreateOpen(true)} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-purple-300/50 bg-gradient-to-br from-purple-500 to-violet-600">
@@ -312,16 +289,16 @@ export function StockTransfersContent() {
                             {/* From / To branch selectors — inline on sm, stacked on mobile */}
                             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                 <div className="flex-1 space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Cabang Asal</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Cabang Asal <span className="text-red-400">*</span></Label>
                                     <Controller name="fromBranchId" control={form.control} render={({ field }) => (
-                                        <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih cabang asal"
+                                        <SmartSelect value={field.value} onChange={(v) => { field.onChange(v); form.setValue("items", []); }} placeholder="Pilih cabang asal"
                                             onSearch={async (query) => activeBranches.filter((b) => b.name.toLowerCase().includes(query.toLowerCase())).map((b) => ({ value: b.id, label: b.name }))} />
                                     )} />
                                     {form.formState.errors.fromBranchId && <p className="text-xs text-red-500">{form.formState.errors.fromBranchId.message}</p>}
                                 </div>
                                 <ArrowRight className="w-5 h-5 text-purple-400 shrink-0 hidden sm:block mt-6" />
                                 <div className="flex-1 space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Cabang Tujuan</Label>
+                                    <Label className="text-xs sm:text-sm font-medium">Cabang Tujuan <span className="text-red-400">*</span></Label>
                                     <Controller name="toBranchId" control={form.control} render={({ field }) => (
                                         <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih cabang tujuan"
                                             onSearch={async (query) => activeBranches.filter((b) => b.name.toLowerCase().includes(query.toLowerCase())).map((b) => ({ value: b.id, label: b.name }))} />
@@ -336,65 +313,31 @@ export function StockTransfersContent() {
                                 <Textarea {...form.register("notes")} className="rounded-xl resize-none min-h-[60px]" placeholder="Catatan transfer..." />
                             </div>
 
-                            {/* Add item form — sticky below DialogHeader */}
-                            <div className="sticky top-0 z-10 py-3 bg-white/95 backdrop-blur-sm border-y border-slate-200/60">
-                                <div className="rounded-xl bg-slate-50 border border-slate-200/60 p-2 sm:p-3 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <Package className="w-4 h-4 text-purple-600" />
-                                        <Label className="font-semibold text-xs sm:text-sm">Tambah Produk</Label>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                                        <div className="sm:col-span-7">
-                                            <SmartSelect value={selectedProductId} onChange={setSelectedProductId} placeholder="Pilih produk"
-                                                onSearch={async (query) => productOptions.filter((p) => { if (!query) return true; const q = query.toLowerCase(); return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q); }).map((p) => ({ value: p.id, label: p.name, description: `${p.code} • Stok ${p.stock} ${p.unit}` }))} />
-                                        </div>
-                                        <div className="sm:col-span-3">
-                                            <Input type="number" value={newQty} onChange={(e) => setNewQty(Number(e.target.value))} className="rounded-xl h-9 sm:h-10" min={1} placeholder="Qty" />
-                                        </div>
-                                        <div className="sm:col-span-2">
-                                            <Button onClick={addCartItem} className="rounded-xl w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white" size="sm">
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Item list */}
-                            {cartItems.length > 0 ? (
-                                <div className="space-y-2">
-                                    {cartItems.map((item, i) => (
-                                        <div key={i} className="flex items-center justify-between rounded-xl bg-white border border-slate-200 px-2 sm:px-4 py-2 sm:py-3 group hover:shadow-sm transition-shadow">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-violet-100 flex items-center justify-center text-purple-600 font-bold text-xs border border-purple-200/50">
-                                                    {item.productName.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-medium">{item.productName}</p>
-                                                    {item.productId && <p className="text-[10px] text-muted-foreground font-mono">{item.productId.slice(0, 8)}</p>}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <Badge className="bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border border-purple-200 px-3">
-                                                    Qty: {item.quantity}
-                                                </Badge>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-400 hover:text-red-600 transition-all" onClick={() => removeCartItem(i)}>
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 flex items-center justify-center mb-3">
-                                        <Package className="w-4 h-4 sm:w-6 sm:h-6 text-slate-400" />
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">Belum ada item ditambahkan</p>
-                                    <p className="text-xs text-muted-foreground/70">Pilih produk di atas untuk menambahkan</p>
-                                </div>
-                            )}
+                            {/* Product items */}
                             {form.formState.errors.items && <p className="text-xs text-red-500">{form.formState.errors.items.message || form.formState.errors.items.root?.message}</p>}
+                            <ProductPicker
+                                stickySearch
+                                items={cartItems.map((item) => ({
+                                    productId: item.productId,
+                                    productName: item.productName,
+                                    productCode: "",
+                                    productPrice: 0,
+                                    quantity: item.quantity,
+                                }))}
+                                onChange={(pickerItems) => {
+                                    form.setValue("items", pickerItems.map((pi) => ({
+                                        productId: pi.productId,
+                                        productName: pi.productName,
+                                        quantity: pi.quantity,
+                                    })), { shouldValidate: true });
+                                }}
+                                branchId={form.watch("fromBranchId") || undefined}
+                                label="Item Transfer"
+                                required
+                                showPrice={false}
+                                showSubtotal={false}
+                                emptyText="Pilih cabang asal lalu tambahkan produk"
+                            />
                         </DialogBody>
 
                         <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">
@@ -409,10 +352,10 @@ export function StockTransfersContent() {
                                 ) : <div />}
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
-                                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                                        <Button disabled={!canCreate} onClick={handleCreate} className="rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white shadow-lg shadow-purple-200/50">
-                                            <ArrowRightLeft className="w-4 h-4 mr-2" />
-                                            Buat Transfer
+                                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock-transfers" actionKey="create">
+                                        <Button disabled={!canCreate || form.formState.isSubmitting} onClick={handleCreate} className="rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white shadow-lg shadow-purple-200/50">
+                                            {form.formState.isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ArrowRightLeft className="w-4 h-4 mr-2" />}
+                                            {form.formState.isSubmitting ? "Menyimpan..." : "Buat Transfer"}
                                         </Button>
                                     </DisabledActionTooltip>
                                 </div>
@@ -805,7 +748,7 @@ export function StockTransfersContent() {
                             </div>
                             <div className="flex justify-end gap-2">
                                 <Button variant="outline" onClick={() => setRejectOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")}>
+                                <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")} menuKey="stock-transfers" actionKey="approve">
                                     <Button disabled={!canApprove} variant="destructive" onClick={handleReject} className="rounded-xl">
                                         <Ban className="w-4 h-4 mr-2" />
                                         Tolak Transfer
@@ -818,38 +761,31 @@ export function StockTransfersContent() {
             </Dialog>
 
             {/* Confirm Dialog */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl p-0 gap-0 overflow-hidden">
-                    <div className="h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 shrink-0" />
-                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
-                                    <ShieldCheck className="w-4 h-4 text-amber-600" />
-                                </div>
-                                Konfirmasi
-                            </DialogTitle>
-                        </DialogHeader>
-                        <p className="text-sm text-muted-foreground mt-3">{confirmText}</p>
-                        <div className="flex justify-end gap-2 mt-5">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl">Batal</Button>
-                            <DisabledActionTooltip
-                                disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "receive" ? !canReceive : false}
-                                message={cannotMessage(confirmRequiredAction === "approve" ? "approve" : "receive")}
-                            >
-                                <Button
-                                    disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "receive" ? !canReceive : false}
-                                    variant="destructive"
-                                    onClick={async () => { await pendingConfirmAction?.(); }}
-                                    className="rounded-xl"
-                                >
-                                    Ya, Lanjutkan
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind={confirmKind}
+                description={confirmText}
+                confirmLabel="Ya, Lanjutkan"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                size="sm"
+            />
+            <ActionConfirmDialog
+                open={transferConfirmOpen}
+                onOpenChange={setTransferConfirmOpen}
+                kind="submit"
+                description="Yakin ingin membuat transfer stok ini?"
+                onConfirm={executeCreateTransfer}
+            />
+            <ActionConfirmDialog
+                open={rejectConfirmOpen}
+                onOpenChange={setRejectConfirmOpen}
+                kind="delete"
+                title="Konfirmasi Penolakan"
+                description="Yakin ingin menolak transfer ini?"
+                confirmLabel="Ya, Tolak"
+                onConfirm={executeReject}
+            />
         </div>
     );
 }

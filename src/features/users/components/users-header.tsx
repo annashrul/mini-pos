@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Plus, Users } from "lucide-react";
 
 export function UsersHeader(props: {
@@ -22,15 +23,18 @@ export function UsersHeader(props: {
           <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola user dan hak akses</p>
         </div>
       </div>
-      <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-        <Button
-          disabled={!canCreate}
-          className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-          onClick={onCreate}
-        >
-          <Plus className="w-4 h-4 mr-2" /> Tambah User
-        </Button>
-      </DisabledActionTooltip>
+      <div className="hidden sm:flex items-center gap-2">
+        <ExportMenu module="users" />
+        <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="users" actionKey="create">
+          <Button
+            disabled={!canCreate}
+            className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+            onClick={onCreate}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Tambah User
+          </Button>
+        </DisabledActionTooltip>
+      </div>
 
       {/* Mobile: Floating button */}
       {canCreate && (

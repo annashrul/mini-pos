@@ -41,7 +41,12 @@ export async function getGiftCards(params?: {
   } = params || {};
 
   const companyId = await getCurrentCompanyId();
-  const where: Record<string, unknown> = { branch: { companyId } };
+  const where: Record<string, unknown> = {
+    OR: [
+      { branch: { companyId } },
+      { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+    ],
+  };
 
   if (search) {
     where.OR = [
@@ -84,8 +89,15 @@ export async function getGiftCards(params?: {
 }
 
 export async function getGiftCardByCode(code: string) {
-  const giftCard = await prisma.giftCard.findUnique({
-    where: { code },
+  const companyId = await getCurrentCompanyId();
+  const giftCard = await prisma.giftCard.findFirst({
+    where: {
+      code,
+      OR: [
+        { branch: { companyId } },
+        { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+      ],
+    },
     include: {
       customer: { select: { id: true, name: true, phone: true } },
       branch: { select: { id: true, name: true } },
@@ -101,8 +113,15 @@ export async function getGiftCardByCode(code: string) {
 }
 
 export async function getGiftCardById(id: string) {
-  const giftCard = await prisma.giftCard.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  const giftCard = await prisma.giftCard.findFirst({
+    where: {
+      id,
+      OR: [
+        { branch: { companyId } },
+        { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+      ],
+    },
     include: {
       customer: { select: { id: true, name: true, phone: true } },
       branch: { select: { id: true, name: true } },
@@ -126,6 +145,7 @@ export async function createGiftCard(data: {
 }) {
   await assertMenuActionAccess("gift-cards", "create");
   const session = await auth();
+  const companyId = await getCurrentCompanyId();
   if (!session?.user?.id) return { error: "Unauthorized" };
 
   if (!data.amount || data.amount <= 0) {
@@ -144,42 +164,60 @@ export async function createGiftCard(data: {
   if (attempts >= 10) return { error: "Gagal membuat kode gift card" };
 
   try {
-    const giftCard = await prisma.giftCard.create({
-      data: {
-        code,
-        initialBalance: data.amount,
-        currentBalance: data.amount,
-        status: "ACTIVE",
-        purchasedBy: data.purchasedBy || null,
-        customerId: data.customerId || null,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
-        branchId: data.branchId || null,
-        createdBy: session.user.id,
-      },
-    });
+    // Determine target branches
+    let targetBranchIds: string[];
+    if (data.branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: data.branchId, companyId }, select: { id: true } });
+      if (!branch) return { error: "Cabang tidak ditemukan" };
+      targetBranchIds = [data.branchId];
+    } else {
+      const branches = await prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true } });
+      targetBranchIds = branches.map((b) => b.id);
+      if (targetBranchIds.length === 0) return { error: "Tidak ada cabang aktif" };
+    }
 
-    // Create initial purchase transaction
-    await prisma.giftCardTransaction.create({
-      data: {
-        giftCardId: giftCard.id,
-        type: "PURCHASE",
-        amount: data.amount,
-        balanceBefore: 0,
-        balanceAfter: data.amount,
-        reference: `Initial purchase`,
-      },
-    });
+    for (const bid of targetBranchIds) {
+      // Generate unique code per branch
+      const cardCode = targetBranchIds.length > 1 ? generateGiftCardCode() : code;
 
-    createAuditLog({
-      action: "CREATE",
-      entity: "GiftCard",
-      entityId: giftCard.id,
-      details: { code, amount: data.amount, purchasedBy: data.purchasedBy ?? null },
-      ...(data.branchId ? { branchId: data.branchId } : {}),
-    }).catch(() => {});
+      const giftCard = await prisma.giftCard.create({
+        data: {
+          code: cardCode,
+          initialBalance: data.amount,
+          currentBalance: data.amount,
+          status: "ACTIVE",
+          purchasedBy: data.purchasedBy || null,
+          customerId: data.customerId || null,
+          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+          branchId: bid,
+          companyId,
+          createdBy: session.user.id,
+        },
+      });
+
+      // Create initial purchase transaction
+      await prisma.giftCardTransaction.create({
+        data: {
+          giftCardId: giftCard.id,
+          type: "PURCHASE",
+          amount: data.amount,
+          balanceBefore: 0,
+          balanceAfter: data.amount,
+          reference: `Initial purchase`,
+        },
+      });
+
+      createAuditLog({
+        action: "CREATE",
+        entity: "GiftCard",
+        entityId: giftCard.id,
+        details: { code: cardCode, amount: data.amount, purchasedBy: data.purchasedBy ?? null },
+        branchId: bid,
+      }).catch(() => {});
+    }
 
     revalidatePath("/gift-cards");
-    return { success: true, giftCard };
+    return { success: true };
   } catch {
     return { error: "Gagal membuat gift card" };
   }
@@ -187,13 +225,22 @@ export async function createGiftCard(data: {
 
 export async function topUpGiftCard(id: string, amount: number) {
   await assertMenuActionAccess("gift-cards", "update");
+  const companyId = await getCurrentCompanyId();
 
   if (!amount || amount <= 0) {
     return { error: "Nominal top up harus lebih dari 0" };
   }
 
   try {
-    const giftCard = await prisma.giftCard.findUnique({ where: { id } });
+    const giftCard = await prisma.giftCard.findFirst({
+      where: {
+        id,
+        OR: [
+          { branch: { companyId } },
+          { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+        ],
+      },
+    });
     if (!giftCard) return { error: "Gift card tidak ditemukan" };
     if (giftCard.status !== "ACTIVE") return { error: "Gift card tidak aktif" };
     if (giftCard.expiresAt && new Date(giftCard.expiresAt) < new Date()) {
@@ -239,12 +286,21 @@ export async function redeemGiftCard(
   amount: number,
   reference?: string
 ) {
+  const companyId = await getCurrentCompanyId();
   if (!amount || amount <= 0) {
     return { error: "Nominal redeem harus lebih dari 0" };
   }
 
   try {
-    const giftCard = await prisma.giftCard.findUnique({ where: { code } });
+    const giftCard = await prisma.giftCard.findFirst({
+      where: {
+        code,
+        OR: [
+          { branch: { companyId } },
+          { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+        ],
+      },
+    });
     if (!giftCard) return { error: "Gift card tidak ditemukan" };
     if (giftCard.status !== "ACTIVE")
       return { error: "Gift card tidak aktif" };
@@ -299,9 +355,18 @@ export async function redeemGiftCard(
 
 export async function disableGiftCard(id: string) {
   await assertMenuActionAccess("gift-cards", "update");
+  const companyId = await getCurrentCompanyId();
 
   try {
-    const giftCard = await prisma.giftCard.findUnique({ where: { id } });
+    const giftCard = await prisma.giftCard.findFirst({
+      where: {
+        id,
+        OR: [
+          { branch: { companyId } },
+          { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+        ],
+      },
+    });
     if (!giftCard) return { error: "Gift card tidak ditemukan" };
 
     await prisma.giftCard.update({
@@ -325,7 +390,12 @@ export async function disableGiftCard(id: string) {
 
 export async function getGiftCardStats(branchId?: string) {
   const companyId = await getCurrentCompanyId();
-  const where: Record<string, unknown> = { branch: { companyId } };
+  const where: Record<string, unknown> = {
+    OR: [
+      { branch: { companyId } },
+      { AND: [{ branchId: null }, { createdByUser: { companyId } }] },
+    ],
+  };
   if (branchId && branchId !== "ALL") {
     where.branchId = branchId;
   }

@@ -321,7 +321,7 @@ export function SmartSelect({
                         <DialogHeader>
                             <DialogTitle>{createLabel}</DialogTitle>
                         </DialogHeader>
-                        <form action={handleCreate} className="space-y-3">
+                        <form onSubmit={async (e) => { e.preventDefault(); e.stopPropagation(); await handleCreate(new FormData(e.currentTarget)); }} className="space-y-3">
                             {createFields.map((field) => (
                                 <div key={field.name} className="space-y-1.5">
                                     <Label htmlFor={field.name} className="text-sm">

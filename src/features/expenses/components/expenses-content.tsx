@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { CalendarDays, Loader2, MapPin, Pencil, Plus, ReceiptText, Search, Trash2, TrendingDown, Wallet } from "lucide-react";
@@ -23,6 +25,7 @@ import type { Expense } from "@/types";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useMenuActionAccess } from "@/features/access-control";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const CATEGORY_COLORS = [
@@ -73,9 +76,10 @@ export function ExpensesContent() {
     const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("expenses");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("expenses", "create");
+    const canUpdate = canAction("update") && canPlan("expenses", "update");
+    const canDelete = canAction("delete") && canPlan("expenses", "delete");
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
@@ -228,11 +232,14 @@ export function ExpensesContent() {
                             <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1">Kelola pengeluaran operasional</p>
                         </div>
                     </div>
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                        <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-md shadow-blue-200 text-sm" onClick={openCreateDialog}>
-                            <Plus className="w-4 h-4 mr-2" /> Tambah Pengeluaran
-                        </Button>
-                    </DisabledActionTooltip>
+                    <div className="hidden sm:flex items-center gap-2">
+                        <ExportMenu module="expenses" branchId={selectedBranchId || undefined} />
+                        <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="expenses" actionKey="create">
+                            <Button disabled={!canCreate} className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-md shadow-blue-200 text-sm" onClick={openCreateDialog}>
+                                <Plus className="w-4 h-4 mr-2" /> Tambah Pengeluaran
+                            </Button>
+                        </DisabledActionTooltip>
+                    </div>
                 </div>
             </div>
             {/* Mobile: Floating button */}
@@ -302,7 +309,7 @@ export function ExpensesContent() {
                     {selectedRows.size > 0 && (
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500">{selectedRows.size} dipilih</span>
-                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="expenses" actionKey="delete">
                                 <Button
                                     disabled={!canDelete}
                                     variant="destructive"
@@ -403,12 +410,16 @@ export function ExpensesContent() {
 
                                                     {/* Actions */}
                                                     <div className="flex items-center gap-0.5 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                                        <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(expense)}>
-                                                            <Pencil className="w-3 h-3" />
-                                                        </Button>
-                                                        <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(expense.id)}>
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </Button>
+                                                        <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="expenses" actionKey="update">
+                                                            <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(expense)}>
+                                                                <Pencil className="w-3 h-3" />
+                                                            </Button>
+                                                        </DisabledActionTooltip>
+                                                        <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="expenses" actionKey="delete">
+                                                            <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(expense.id)}>
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </Button>
+                                                        </DisabledActionTooltip>
                                                     </div>
                                                 </div>
                                             );
@@ -466,31 +477,25 @@ export function ExpensesContent() {
                         </DialogBody>
                         <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
                             <Button type="button" variant="outline" onClick={closeDialog} className="rounded-xl">Batal</Button>
-                            <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                                {editing ? "Update" : "Simpan"}
+                            <Button disabled={(editing ? !canUpdate : !canCreate) || expenseForm.formState.isSubmitting} type="submit" className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                                {expenseForm.formState.isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}
                             </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-[calc(100vw-2rem)] sm:max-w-sm p-0 gap-0">
-                    <div className="h-1 bg-gradient-to-r from-red-400 to-orange-400 rounded-t-2xl" />
-                    <div className="px-4 sm:px-6 pt-4 sm:pt-6">
-                        <DialogHeader>
-                            <DialogTitle className="text-base sm:text-lg font-bold text-slate-800">Konfirmasi</DialogTitle>
-                        </DialogHeader>
-                        <p className="text-sm text-slate-500 mt-2">{confirmText}</p>
-                    </div>
-                    <div className="flex justify-end gap-2 px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
-                        <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-full">Batal</Button>
-                        <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                            <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-full">Ya, Lanjutkan</Button>
-                        </DisabledActionTooltip>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind="delete"
+                title="Konfirmasi"
+                description={confirmText}
+                confirmLabel="Ya, Lanjutkan"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                confirmDisabled={!canDelete}
+                size="sm"
+            />
         </div>
     );
 }

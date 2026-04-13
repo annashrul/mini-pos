@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import {
     Dialog,
     DialogContent,
@@ -109,6 +110,7 @@ interface ReturnDetailDialogProps {
     onOpenChange: (open: boolean) => void;
     returnId: string;
     canApprove: boolean;
+    canReject: boolean;
     onUpdated: () => void;
 }
 
@@ -117,6 +119,7 @@ export function ReturnDetailDialog({
     onOpenChange,
     returnId,
     canApprove,
+    canReject,
     onUpdated,
 }: ReturnDetailDialogProps) {
     const [data, setData] = useState<ReturnDetail | null>(null);
@@ -442,35 +445,40 @@ export function ReturnDetailDialog({
                         Tutup
                     </Button>
 
-                    {data && isPending && canApprove && !rejectMode && (
+                    {data && isPending && (canApprove || canReject) && !rejectMode && (
                         <>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setRejectMode(true)}
-                                className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1"
-                            >
-                                <XCircle className="h-4 w-4" />
-                                Tolak
-                            </Button>
-                            <Button
-                                type="button"
-                                onClick={handleApprove}
-                                disabled={processing}
-                                className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white gap-1"
-                            >
-                                {processing ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Memproses...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        Setujui & Proses
-                                    </>
-                                )}
-                            </Button>
+                            <DisabledActionTooltip disabled={!canReject} message="Anda tidak memiliki izin untuk aksi reject" menuKey="returns" actionKey="reject">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={!canReject}
+                                    onClick={() => setRejectMode(true)}
+                                    className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1"
+                                >
+                                    <XCircle className="h-4 w-4" />
+                                    Tolak
+                                </Button>
+                            </DisabledActionTooltip>
+                            <DisabledActionTooltip disabled={!canApprove} message="Anda tidak memiliki izin untuk aksi approve" menuKey="returns" actionKey="approve">
+                                <Button
+                                    type="button"
+                                    onClick={handleApprove}
+                                    disabled={!canApprove || processing}
+                                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white gap-1"
+                                >
+                                    {processing ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Memproses...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            Setujui & Proses
+                                        </>
+                                    )}
+                                </Button>
+                            </DisabledActionTooltip>
                         </>
                     )}
 

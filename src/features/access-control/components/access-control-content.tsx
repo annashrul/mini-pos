@@ -1,6 +1,5 @@
 "use client";
 
-import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
     accessControlService,
@@ -16,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 
 interface AppRoleData {
     id: string;
@@ -83,11 +84,19 @@ export function AccessControlContent() {
     const [formColor, setFormColor] = useState("bg-slate-100 text-slate-700");
     const [formCopyFrom, setFormCopyFrom] = useState("");
     const [confirmDelete, setConfirmDelete] = useState<AppRoleData | null>(null);
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [submitConfirmTitle, setSubmitConfirmTitle] = useState("Konfirmasi");
+    const [submitConfirmText, setSubmitConfirmText] = useState("");
+    const [submitConfirmKind, setSubmitConfirmKind] = useState<"submit" | "delete">("submit");
+    const [pendingSubmitAction, setPendingSubmitAction] = useState<null | (() => Promise<void>)>(null);
     const effectiveRole = roleKeys.includes(selectedRole) ? selectedRole : (roleKeys[0] ?? "SUPER_ADMIN");
     const { canAction, cannotMessage } = useMenuActionAccess("access-control");
-    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
-    const canManage = canAction("manage") && canPlanAction("access-control", "manage");
-    const getMessage = (ak: string) => getPlanBlockMessage("access-control", ak) ?? cannotMessage(ak);
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreateRole = canAction("create_role") && canPlan("access-control", "create_role");
+    const canUpdateRole = canAction("update_role") && canPlan("access-control", "update_role");
+    const canDeleteRole = canAction("delete_role") && canPlan("access-control", "delete_role");
+    const canManageMenu = canAction("manage_menu") && canPlan("access-control", "manage_menu");
+    const canManageAction = canAction("manage_action") && canPlan("access-control", "manage_action");
 
     const didFetchRef = useRef(false);
     useEffect(() => {
@@ -129,7 +138,7 @@ export function AccessControlContent() {
     };
 
     const toggleMenu = (menuId: string, role: string, allowed: boolean) => {
-        if (!canManage) { toast.error(getMessage("manage")); return; }
+        if (!canManageMenu) { toast.error(cannotMessage("manage_menu")); return; }
         startTransition(async () => {
             const result = await updateRoleMenuPermission({ menuId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -141,7 +150,7 @@ export function AccessControlContent() {
     };
 
     const toggleAction = (actionId: string, role: string, allowed: boolean) => {
-        if (!canManage) { toast.error(getMessage("manage")); return; }
+        if (!canManageAction) { toast.error(cannotMessage("manage_action")); return; }
         startTransition(async () => {
             const result = await updateRoleActionPermission({ actionId, role, allowed });
             if (result.error) { toast.error(result.error); return; }
@@ -156,8 +165,8 @@ export function AccessControlContent() {
     };
 
     // Role CRUD handlers
-    const handleCreateRole = async () => {
-        if (!canManage) { toast.error(getMessage("manage")); return; }
+    const executeCreateRole = async () => {
+        if (!canCreateRole) { toast.error(cannotMessage("create_role")); return; }
         const result = await accessControlService.createRole({
             key: formKey,
             name: formName,
@@ -191,8 +200,20 @@ export function AccessControlContent() {
         setFormKey(""); setFormName(""); setFormDesc(""); setFormCopyFrom("");
     };
 
-    const handleUpdateRole = async () => {
-        if (!canManage) { toast.error(getMessage("manage")); return; }
+    const handleCreateRole = async () => {
+        setSubmitConfirmKind("submit");
+        setSubmitConfirmTitle("Buat Role Baru?");
+        setSubmitConfirmText("Role baru akan dibuat dan dapat langsung diatur permission-nya.");
+        setPendingSubmitAction(() => async () => {
+            await executeCreateRole();
+            setSubmitConfirmOpen(false);
+            setPendingSubmitAction(null);
+        });
+        setSubmitConfirmOpen(true);
+    };
+
+    const executeUpdateRole = async () => {
+        if (!canUpdateRole) { toast.error(cannotMessage("update_role")); return; }
         if (!editingRole) return;
         const result = await accessControlService.updateRole(editingRole.id, { name: formName, description: formDesc, color: formColor });
         if (result.error) { toast.error(result.error); return; }
@@ -201,8 +222,20 @@ export function AccessControlContent() {
         setAppRoles((prev) => prev.map((r) => r.id === editingRole.id ? { ...r, name: formName, description: formDesc, color: formColor } : r));
     };
 
-    const handleDeleteRole = async () => {
-        if (!canManage) { toast.error(getMessage("manage")); return; }
+    const handleUpdateRole = async () => {
+        setSubmitConfirmKind("submit");
+        setSubmitConfirmTitle("Simpan Perubahan Role?");
+        setSubmitConfirmText("Perubahan nama, deskripsi, dan warna role akan disimpan.");
+        setPendingSubmitAction(() => async () => {
+            await executeUpdateRole();
+            setSubmitConfirmOpen(false);
+            setPendingSubmitAction(null);
+        });
+        setSubmitConfirmOpen(true);
+    };
+
+    const executeDeleteRole = async () => {
+        if (!canDeleteRole) { toast.error(cannotMessage("delete_role")); return; }
         if (!confirmDelete) return;
         const deletingRoleKey = confirmDelete.key;
         const result = await accessControlService.deleteRole(confirmDelete.id);
@@ -227,6 +260,10 @@ export function AccessControlContent() {
                 };
             }),
         }));
+    };
+
+    const handleDeleteRole = async () => {
+        await executeDeleteRole();
     };
 
     const openEditRole = (role: AppRoleData) => {
@@ -363,9 +400,9 @@ export function AccessControlContent() {
                         </div>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
+                <DisabledActionTooltip disabled={!canCreateRole} message={cannotMessage("create_role")} menuKey="access-control" actionKey="create_role">
                     <Button
-                        disabled={!canManage}
+                        disabled={!canCreateRole}
                         className="hidden lg:inline-flex rounded-xl bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
                         onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
                     >
@@ -429,18 +466,18 @@ export function AccessControlContent() {
                                 const selectedAppRole = appRoles.find((r) => r.key === effectiveRole);
                                 return (
                                     <>
-                                        {selectedAppRole && canManage && (
+                                        {selectedAppRole && canUpdateRole && (
                                             <Button variant="outline" size="sm" className="rounded-xl gap-1" onClick={() => { setRoleSheetOpen(false); openEditRole(selectedAppRole); }}>
                                                 <Pencil className="w-3 h-3" /> Edit
                                             </Button>
                                         )}
-                                        {selectedAppRole && !selectedAppRole.isSystem && canManage && (
+                                        {selectedAppRole && !selectedAppRole.isSystem && canDeleteRole && (
                                             <Button variant="outline" size="sm" className="rounded-xl gap-1 text-red-500 hover:text-red-600" onClick={() => { setRoleSheetOpen(false); setConfirmDelete(selectedAppRole); }}>
                                                 <Trash2 className="w-3 h-3" /> Hapus
                                             </Button>
                                         )}
                                         <div className="flex-1" />
-                                        {canManage && (
+                                        {canCreateRole && (
                                             <Button size="sm" className="rounded-xl gap-1" onClick={() => { setRoleSheetOpen(false); setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}>
                                                 <Plus className="w-3 h-3" /> Tambah Role
                                             </Button>
@@ -511,14 +548,14 @@ export function AccessControlContent() {
                                         {/* Edit/Delete buttons - show on hover */}
                                         {appRole && (
                                             <div className="flex gap-1 px-3 pb-2 pl-[52px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
-                                                    <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-foreground" onClick={() => openEditRole(appRole)}>
+                                                <DisabledActionTooltip disabled={!canUpdateRole} message={cannotMessage("update_role")} menuKey="access-control" actionKey="update_role">
+                                                    <Button disabled={!canUpdateRole} variant="ghost" size="xs" className="h-6 rounded-lg text-muted-foreground hover:text-foreground" onClick={() => openEditRole(appRole)}>
                                                         <Pencil className="w-3 h-3 mr-1" /> Edit
                                                     </Button>
                                                 </DisabledActionTooltip>
                                                 {!appRole.isSystem && (
-                                                    <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
-                                                        <Button disabled={!canManage} variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(appRole)}>
+                                                    <DisabledActionTooltip disabled={!canDeleteRole} message={cannotMessage("delete_role")} menuKey="access-control" actionKey="delete_role">
+                                                        <Button disabled={!canDeleteRole} variant="ghost" size="xs" className="h-6 text-[10px] rounded-lg text-muted-foreground hover:text-red-500" onClick={() => setConfirmDelete(appRole)}>
                                                             <Trash2 className="w-3 h-3 mr-1" /> Hapus
                                                         </Button>
                                                     </DisabledActionTooltip>
@@ -542,9 +579,9 @@ export function AccessControlContent() {
 
                         {/* Bottom add button */}
                         <div className="p-2 border-t border-border/20">
-                            <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
+                            <DisabledActionTooltip disabled={!canCreateRole} message={cannotMessage("create_role")} menuKey="access-control" actionKey="create_role">
                                 <Button
-                                    disabled={!canManage}
+                                    disabled={!canCreateRole}
                                     variant="outline"
                                     className="w-full rounded-xl border-dashed text-muted-foreground hover:text-foreground text-xs h-9"
                                     onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
@@ -637,7 +674,7 @@ export function AccessControlContent() {
                                                                     <span className="text-[9px] text-muted-foreground font-mono tabular-nums shrink-0">{activeActions}/{menu.actions.length}</span>
                                                                 )}
                                                             </div>
-                                                            <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} className="scale-90 shrink-0" />
+                                                            <Switch disabled={!canManageMenu} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} className="scale-90 shrink-0" />
                                                             {menu.actions.length > 0 ? (
                                                                 <button onClick={() => toggleMenuExpand(menu.id)} className="shrink-0 p-0.5">
                                                                     {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -651,20 +688,21 @@ export function AccessControlContent() {
                                                                 {menu.actions.map((action) => {
                                                                     const allowed = Boolean(action.permissions[effectiveRole]);
                                                                     return (
-                                                                        <button
+                                                                        <Button
+                                                                            size={'sm'}
                                                                             key={action.id}
-                                                                            disabled={!canManage}
+                                                                            disabled={!canManageAction}
                                                                             onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
                                                                             className={cn(
                                                                                 "text-[10px] px-2 py-1 rounded-md font-medium transition-all",
                                                                                 allowed
                                                                                     ? "bg-primary/10 text-primary"
                                                                                     : "bg-muted/60 text-muted-foreground",
-                                                                                !canManage && "opacity-60 cursor-not-allowed"
+                                                                                !canManageAction && "opacity-60 cursor-not-allowed"
                                                                             )}
                                                                         >
                                                                             {ACTION_LABELS[action.key] ?? action.key}
-                                                                        </button>
+                                                                        </Button>
                                                                     );
                                                                 })}
                                                             </div>
@@ -739,7 +777,7 @@ export function AccessControlContent() {
                                                                 </div>
                                                                 <p className="text-[11px] text-muted-foreground font-mono">{menu.path}</p>
                                                             </div>
-                                                            <Switch disabled={!canManage} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
+                                                            <Switch disabled={!canManageMenu} checked={hasAccess} onCheckedChange={(v) => toggleMenu(menu.id, effectiveRole, v)} />
                                                         </div>
 
                                                         {isExpanded && menu.actions.length > 0 && (
@@ -749,13 +787,13 @@ export function AccessControlContent() {
                                                                         {menu.actions.map((action) => {
                                                                             const allowed = Boolean(action.permissions[effectiveRole]);
                                                                             return (
-                                                                                <button key={action.id} disabled={!canManage} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
+                                                                                <button key={action.id} disabled={!canManageAction} onClick={() => toggleAction(action.id, effectiveRole, !allowed)}
                                                                                     className={cn(
                                                                                         "flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all",
                                                                                         allowed
                                                                                             ? "bg-primary text-white shadow-sm shadow-primary/20"
                                                                                             : "bg-white border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                                                                                        !canManage && "opacity-60 cursor-not-allowed"
+                                                                                        !canManageAction && "opacity-60 cursor-not-allowed"
                                                                                     )}>
                                                                                     {allowed ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                                                                                     {ACTION_LABELS[action.key] ?? action.key}
@@ -790,9 +828,9 @@ export function AccessControlContent() {
 
             {/* Mobile: Sticky bottom "Tambah Role" button */}
             <div className="lg:hidden fixed bottom-4 right-4 z-50">
-                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
+                <DisabledActionTooltip disabled={!canCreateRole} message={cannotMessage("create_role")} menuKey="access-control" actionKey="create_role">
                     <Button
-                        disabled={!canManage}
+                        disabled={!canCreateRole}
                         size="lg"
                         className="rounded-2xl bg-gradient-to-r from-primary to-primary/80 shadow-xl shadow-primary/30 h-12 px-5"
                         onClick={() => { setFormKey(""); setFormName(""); setFormDesc(""); setFormColor("bg-slate-100 text-slate-700"); setFormCopyFrom(""); setCreateOpen(true); }}
@@ -804,7 +842,7 @@ export function AccessControlContent() {
 
             {/* Create Role Dialog */}
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogContent className="rounded-2xl max-w-md p-0 overflow-hidden max-h-[90vh]">
+                <DialogContent className="rounded-2xl max-w-lg p-0 overflow-hidden max-h-[90vh]">
                     <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/50 shrink-0" />
                     <div className="p-6 space-y-5 overflow-y-auto">
                         <DialogHeader><DialogTitle className="text-lg">Tambah Role Baru</DialogTitle></DialogHeader>
@@ -827,7 +865,7 @@ export function AccessControlContent() {
                                 <div className="flex flex-wrap gap-2.5">
                                     {DEFAULT_COLORS.map((c) => (
                                         <div key={c.value} className="group/color relative">
-                                            <button type="button" disabled={!canManage} onClick={() => setFormColor(c.value)}
+                                            <button type="button" disabled={!canUpdateRole} onClick={() => setFormColor(c.value)}
                                                 className={cn("w-10 h-10 rounded-xl border-2 flex items-center justify-center text-xs font-bold transition-all",
                                                     c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20 scale-110" : "border-transparent hover:scale-105"
                                                 )}>
@@ -863,8 +901,8 @@ export function AccessControlContent() {
                             </div>
                             <div className="flex justify-end gap-2 pt-3">
                                 <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
-                                    <Button onClick={handleCreateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80" disabled={!canManage || !formKey || !formName}>Buat Role</Button>
+                                <DisabledActionTooltip disabled={!canCreateRole} message={cannotMessage("create_role")} menuKey="access-control" actionKey="create_role">
+                                    <Button onClick={handleCreateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80" disabled={!canCreateRole || !formKey || !formName}>Buat Role</Button>
                                 </DisabledActionTooltip>
                             </div>
                         </div>
@@ -892,7 +930,7 @@ export function AccessControlContent() {
                                 <div className="flex flex-wrap gap-2.5">
                                     {DEFAULT_COLORS.map((c) => (
                                         <div key={c.value} className="group/color relative">
-                                            <button type="button" disabled={!canManage} onClick={() => setFormColor(c.value)}
+                                            <button type="button" disabled={!canCreateRole} onClick={() => setFormColor(c.value)}
                                                 className={cn("w-10 h-10 rounded-xl border-2 flex items-center justify-center text-xs font-bold transition-all",
                                                     c.value, formColor === c.value ? "border-foreground ring-2 ring-foreground/20 scale-110" : "border-transparent hover:scale-105"
                                                 )}>
@@ -905,8 +943,8 @@ export function AccessControlContent() {
                             </div>
                             <div className="flex justify-end gap-2 pt-3">
                                 <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">Batal</Button>
-                                <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
-                                    <Button disabled={!canManage} onClick={handleUpdateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80">Simpan</Button>
+                                <DisabledActionTooltip disabled={!canUpdateRole} message={cannotMessage("update_role")} menuKey="access-control" actionKey="update_role">
+                                    <Button disabled={!canUpdateRole} onClick={handleUpdateRole} className="rounded-xl bg-gradient-to-r from-primary to-primary/80">Simpan</Button>
                                 </DisabledActionTooltip>
                             </div>
                         </div>
@@ -914,24 +952,28 @@ export function AccessControlContent() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Confirm Dialog */}
-            <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
-                <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-500 to-red-400" />
-                    <div className="p-6 space-y-4">
-                        <DialogHeader><DialogTitle className="text-lg">Hapus Role</DialogTitle></DialogHeader>
-                        <p className="text-sm text-muted-foreground">
-                            Yakin ingin menghapus role <strong className="text-foreground">{confirmDelete?.name}</strong>? Semua permission untuk role ini akan dihapus permanen.
-                        </p>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button variant="outline" onClick={() => setConfirmDelete(null)} className="rounded-xl">Batal</Button>
-                            <DisabledActionTooltip disabled={!canManage} message={getMessage("manage")}>
-                                <Button disabled={!canManage} variant="destructive" onClick={handleDeleteRole} className="rounded-xl">Ya, Hapus</Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) { setPendingSubmitAction(null); } }}
+                kind={submitConfirmKind}
+                title={submitConfirmTitle}
+                description={submitConfirmText}
+                confirmLabel={submitConfirmKind === "delete" ? "Ya, Hapus" : "Ya, Lanjutkan"}
+                confirmDisabled={submitConfirmKind === "delete" ? !canDeleteRole : !canCreateRole && !canUpdateRole}
+                onConfirm={async () => { await pendingSubmitAction?.(); }}
+                size="sm"
+            />
+            <ActionConfirmDialog
+                open={!!confirmDelete}
+                onOpenChange={(v) => { if (!v) setConfirmDelete(null); }}
+                kind="delete"
+                title="Hapus Role?"
+                description={`Yakin ingin menghapus role ${confirmDelete?.name ?? ""}? Semua permission untuk role ini akan dihapus permanen.`}
+                confirmLabel="Ya, Hapus"
+                confirmDisabled={!canDeleteRole}
+                onConfirm={handleDeleteRole}
+                size="sm"
+            />
         </div>
     );
 }

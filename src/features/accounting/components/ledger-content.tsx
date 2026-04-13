@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { SmartTable, type SmartColumn } from "@/components/ui/smart-table";
+import { ExportMenu } from "@/components/ui/export-menu";
 import {
     Command,
     CommandEmpty,
@@ -218,6 +219,9 @@ export function LedgerContent() {
                     <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                         Detail transaksi dan saldo per akun
                     </p>
+                </div>
+                <div className="hidden sm:block ml-auto">
+                    <ExportMenu module="ledger" />
                 </div>
             </div>
 
@@ -547,7 +551,7 @@ export function LedgerContent() {
                             onSearch={(q) => { setEntrySearch(q); setEntryPage(1); }}
                             onPageChange={setEntryPage}
                             onPageSizeChange={(s) => { setEntryPageSize(s); setEntryPage(1); }}
-                            planMenuKey="accounting-ledger" exportFilename="buku-besar"
+                            planMenuKey="accounting-ledger" exportModule="ledger"
                             emptyIcon={<BookText className="w-6 h-6 text-muted-foreground/40" />}
                             emptyTitle="Tidak ada transaksi"
                             emptyDescription="Tidak ada mutasi pada periode ini atau filter pencarian tidak menemukan hasil."

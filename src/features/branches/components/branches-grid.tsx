@@ -50,7 +50,7 @@ export function BranchesGrid(props: {
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-foreground">Belum ada cabang</h3>
                 <p className="text-sm text-muted-foreground mt-1">Mulai tambahkan cabang pertama untuk mengelola toko Anda.</p>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="branches" actionKey="create">
                     <Button
                         disabled={!canCreate}
                         className="rounded-xl mt-3 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
@@ -96,7 +96,7 @@ export function BranchesGrid(props: {
                                 </div>
 
                                 <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branches" actionKey="update">
                                         <Button
                                             disabled={!canUpdate}
                                             variant="ghost"
@@ -107,7 +107,7 @@ export function BranchesGrid(props: {
                                             <Pencil className="w-3.5 h-3.5" />
                                         </Button>
                                     </DisabledActionTooltip>
-                                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branches" actionKey="delete">
                                         <Button
                                             disabled={!canDelete}
                                             variant="ghost"

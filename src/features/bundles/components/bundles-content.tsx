@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useTransition, useMemo, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { getBundles, createBundle, updateBundle, deleteBundle } from "@/server/actions/bundles";
-import { searchProducts } from "@/server/actions/products";
 import { getCategories } from "@/server/actions/categories";
+import { ProductPicker, type ProductPickerItem } from "@/components/ui/product-picker";
 import { useMenuActionAccess } from "@/features/access-control";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useBranch } from "@/components/providers/branch-provider";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +25,9 @@ import {
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { SmartTable, type SmartColumn, type SmartFilter } from "@/components/ui/smart-table";
 import {
-    Plus, Pencil, Trash2, Package, AlertTriangle, Search,
-    X, Loader2, PackageOpen, BadgePercent, ShoppingCart,
+    Plus, Pencil, Trash2, Package, AlertTriangle,
+    Loader2, BadgePercent, ShoppingCart,
+    PackageOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -72,13 +75,7 @@ interface CategoryOption {
     name: string;
 }
 
-interface FormItem {
-    productId: string;
-    productName: string;
-    productCode: string;
-    productPrice: number;
-    quantity: number;
-}
+type FormItem = ProductPickerItem;
 
 // ===========================
 // Schema
@@ -99,6 +96,7 @@ type BundleFormValues = z.infer<typeof bundleFormSchema>;
 // ===========================
 
 export function BundlesContent() {
+    const { selectedBranchId } = useBranch();
     // Data state
     const [data, setData] = useState<{ bundles: Bundle[]; total: number; totalPages: number }>({ bundles: [], total: 0, totalPages: 0 });
     const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -127,16 +125,12 @@ export function BundlesContent() {
     const [formItems, setFormItems] = useState<FormItem[]>([]);
 
     // Product search state
-    const [productSearch, setProductSearch] = useState("");
-    const [productResults, setProductResults] = useState<Array<{ id: string; code: string; name: string; sellingPrice: number }>>([]);
-    const [searchingProducts, setSearchingProducts] = useState(false);
-    const productSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     // Access control
-    const { canAction, cannotMessage } = useMenuActionAccess("products");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction, cannotMessage } = useMenuActionAccess("bundles");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("bundles", "create");
+    const canUpdate = canAction("update") && canPlan("bundles", "update");
+    const canDelete = canAction("delete") && canPlan("bundles", "delete");
 
     // Stats
     const stats = useMemo(() => {
@@ -153,22 +147,20 @@ export function BundlesContent() {
                 search: params.search ?? search,
                 page: params.page ?? page,
                 perPage: params.pageSize ?? pageSize,
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
                 ...(f.status === "active" ? { isActive: true } : f.status === "inactive" ? { isActive: false } : {}),
             });
             setData(result as unknown as typeof data);
         });
-    }, [search, page, pageSize, activeFilters]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [search, page, pageSize, activeFilters, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
         fetchData({});
         // Load categories
         getCategories({ perPage: 200 }).then((res) => {
             setCategories(res.categories.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })));
         });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Generate code
     const generateCode = () => {
@@ -210,74 +202,11 @@ export function BundlesContent() {
             });
             setFormItems([]);
         }
-        setProductSearch("");
-        setProductResults([]);
         setOpen(true);
     };
 
     // Product search handler
     const watchCategoryId = form.watch("categoryId");
-    const handleProductSearch = (query: string) => {
-        setProductSearch(query);
-        if (productSearchTimeout.current) clearTimeout(productSearchTimeout.current);
-        if (!query || query.length < 1) {
-            setProductResults([]);
-            return;
-        }
-        setSearchingProducts(true);
-        productSearchTimeout.current = setTimeout(async () => {
-            try {
-                const catId = watchCategoryId && watchCategoryId !== "none" ? watchCategoryId : undefined;
-                const results = await searchProducts(query, null, catId);
-                setProductResults(
-                    results.map((p: { id: string; code: string; name: string; sellingPrice: number }) => ({
-                        id: p.id,
-                        code: p.code,
-                        name: p.name,
-                        sellingPrice: p.sellingPrice,
-                    }))
-                );
-            } catch {
-                setProductResults([]);
-            } finally {
-                setSearchingProducts(false);
-            }
-        }, 300);
-    };
-
-    // Add product to items
-    const addProductToItems = (product: { id: string; code: string; name: string; sellingPrice: number }) => {
-        const exists = formItems.find((item) => item.productId === product.id);
-        if (exists) {
-            setFormItems((prev) =>
-                prev.map((item) => (item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item))
-            );
-        } else {
-            setFormItems((prev) => [
-                ...prev,
-                {
-                    productId: product.id,
-                    productName: product.name,
-                    productCode: product.code,
-                    productPrice: product.sellingPrice,
-                    quantity: 1,
-                },
-            ]);
-        }
-        setProductSearch("");
-        setProductResults([]);
-    };
-
-    // Remove product from items
-    const removeProductFromItems = (productId: string) => {
-        setFormItems((prev) => prev.filter((item) => item.productId !== productId));
-    };
-
-    // Update item quantity
-    const updateItemQuantity = (productId: string, quantity: number) => {
-        if (quantity < 1) return;
-        setFormItems((prev) => prev.map((item) => (item.productId === productId ? { ...item, quantity } : item)));
-    };
 
     // Calculated total base price
     const calculatedBasePrice = useMemo(() => {
@@ -311,6 +240,7 @@ export function BundlesContent() {
                 sellingPrice: parseFloat(values.sellingPrice),
                 ...(values.categoryId ? { categoryId: values.categoryId } : {}),
                 ...(values.barcode?.trim() ? { barcode: values.barcode.trim() } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
                 items: formItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
             };
 
@@ -386,17 +316,18 @@ export function BundlesContent() {
                 if (!row.items || row.items.length === 0) {
                     return <span className="text-xs text-muted-foreground italic">Kosong</span>;
                 }
-                const itemsText = row.items
-                    .map((item) => `${item.quantity}x ${item.product.name}`)
-                    .join(", ");
                 return (
-                    <div className="max-w-[250px]">
-                        <p className="text-xs text-slate-600 line-clamp-2">{itemsText}</p>
-                        <span className="text-[10px] text-muted-foreground">{row.items.length} produk</span>
+                    <div className="max-w-[280px] space-y-0.5">
+                        {row.items.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-slate-600 truncate">{item.quantity}x {item.product.name}</span>
+                                <span className="text-muted-foreground shrink-0 tabular-nums">stok: {item.product.stock}</span>
+                            </div>
+                        ))}
                     </div>
                 );
             },
-            exportValue: (row) => row.items.map((item) => `${item.quantity}x ${item.product.name}`).join(", "),
+            exportValue: (row) => row.items.map((item) => `${item.quantity}x ${item.product.name} (stok:${item.product.stock})`).join(", "),
         },
         {
             key: "sellingPrice",
@@ -460,12 +391,12 @@ export function BundlesContent() {
             width: "90px",
             render: (row) => (
                 <div className="flex justify-end gap-0.5">
-                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="bundles" actionKey="update">
                         <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openDialog(row)}>
                             <Pencil className="w-3.5 h-3.5" />
                         </Button>
                     </DisabledActionTooltip>
-                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="bundles" actionKey="delete">
                         <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(row.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -502,7 +433,7 @@ export function BundlesContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola paket bundling produk</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="bundles" actionKey="create">
                     <Button
                         disabled={!canCreate}
                         className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
@@ -569,7 +500,7 @@ export function BundlesContent() {
                         setConfirmOpen(true);
                     },
                 }]}
-                planMenuKey="bundles" exportFilename="paket-produk"
+                planMenuKey="bundles" exportModule="bundles"
                 mobileRender={(row) => {
                     const savings = row.totalBasePrice - row.sellingPrice;
                     return (
@@ -583,7 +514,14 @@ export function BundlesContent() {
                                     {row.isActive ? "Aktif" : "Nonaktif"}
                                 </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">{row.items.map((i) => `${i.quantity}x ${i.product.name}`).join(", ")}</p>
+                            <div className="space-y-0.5">
+                                {row.items.map((i) => (
+                                    <div key={i.id} className="flex items-center justify-between text-[11px]">
+                                        <span className="text-muted-foreground truncate">{i.quantity}x {i.product.name}</span>
+                                        <span className="text-muted-foreground/60 shrink-0 tabular-nums ml-2">stok: {i.product.stock}</span>
+                                    </div>
+                                ))}
+                            </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-bold text-primary tabular-nums">{formatCurrency(row.sellingPrice)}</span>
                                 {savings > 0 && (
@@ -600,7 +538,7 @@ export function BundlesContent() {
                 emptyTitle="Belum ada paket produk"
                 emptyDescription="Buat paket bundling untuk menawarkan produk dengan harga spesial"
                 emptyAction={
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="bundles" actionKey="create">
                         <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-xl mt-2" onClick={() => openDialog()}>
                             <Plus className="w-3 h-3 mr-1" /> Tambah Paket
                         </Button>
@@ -616,7 +554,7 @@ export function BundlesContent() {
             )}
 
             {/* Create/Edit Dialog */}
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setProductSearch(""); setProductResults([]); form.reset(); } }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); form.reset(); } }}>
                 <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-2xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
                     <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500" />
                     <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
@@ -673,72 +611,19 @@ export function BundlesContent() {
                         </div>
 
                         {/* Product Items Section */}
+                        <ProductPicker
+                            stickySearch
+                            items={formItems}
+                            onChange={setFormItems}
+                            branchId={selectedBranchId}
+                            categoryId={watchCategoryId && watchCategoryId !== "none" ? watchCategoryId : null}
+                            label="Isi Paket"
+                            required
+                            searchPlaceholder="Cari produk..."
+                            emptyText="Belum ada produk"
+                        />
+
                         <div className="space-y-2 sm:space-y-3">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs sm:text-sm font-semibold">Isi Paket <span className="text-red-400">*</span></Label>
-                                <span className="text-[10px] sm:text-xs text-muted-foreground">{formItems.length} produk</span>
-                            </div>
-
-                            {/* Product Search */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input value={productSearch} onChange={(e) => handleProductSearch(e.target.value)} className="rounded-xl h-9 sm:h-10 pl-9 text-sm" placeholder="Cari produk..." />
-                                {searchingProducts && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-                                {productResults.length > 0 && (
-                                    <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                                        {productResults.map((product) => {
-                                            const alreadyAdded = formItems.some((item) => item.productId === product.id);
-                                            return (
-                                                <button key={product.id} type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-2 text-xs sm:text-sm transition-colors" onClick={() => addProductToItems(product)}>
-                                                    <div className="min-w-0 truncate">
-                                                        <span className="font-medium text-slate-800">{product.name}</span>
-                                                        <span className="text-muted-foreground ml-1.5 font-mono hidden sm:inline">{product.code}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 shrink-0">
-                                                        <span className="text-xs text-blue-600 font-medium">{formatCurrency(product.sellingPrice)}</span>
-                                                        {alreadyAdded && <Badge className="rounded-full bg-blue-100 text-blue-700 border-0 text-[10px] px-1.5">+1</Badge>}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Items List */}
-                            {formItems.length === 0 ? (
-                                <div className="rounded-xl border-2 border-dashed border-slate-200 p-4 sm:p-6 text-center">
-                                    <PackageOpen className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground/30 mx-auto mb-2" />
-                                    <p className="text-xs sm:text-sm text-muted-foreground">Belum ada produk</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-1.5 sm:space-y-2">
-                                    {formItems.map((item) => (
-                                        <div key={item.productId} className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs sm:text-sm font-medium text-slate-800 truncate">{item.productName}</p>
-                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                    {formatCurrency(item.productPrice)}/pcs
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <Button type="button" variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg" onClick={() => updateItemQuantity(item.productId, item.quantity - 1)} disabled={item.quantity <= 1}>
-                                                    <span className="text-xs sm:text-sm font-bold">-</span>
-                                                </Button>
-                                                <Input type="number" value={item.quantity} onChange={(e) => updateItemQuantity(item.productId, parseInt(e.target.value) || 1)} className="w-10 sm:w-14 h-6 sm:h-7 rounded-md sm:rounded-lg text-center text-xs sm:text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min={1} />
-                                                <Button type="button" variant="outline" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg" onClick={() => updateItemQuantity(item.productId, item.quantity + 1)}>
-                                                    <span className="text-xs sm:text-sm font-bold">+</span>
-                                                </Button>
-                                            </div>
-                                            <span className="text-xs sm:text-sm font-semibold text-slate-700 tabular-nums shrink-0 hidden sm:block min-w-[70px] text-right">{formatCurrency(item.productPrice * item.quantity)}</span>
-                                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 sm:h-7 sm:w-7 rounded-md sm:rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0" onClick={() => removeProductFromItems(item.productId)}>
-                                                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
                             {/* Price Summary */}
                             {formItems.length > 0 && (
                                 <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-3 sm:p-4 space-y-1.5 sm:space-y-2">
@@ -770,7 +655,7 @@ export function BundlesContent() {
                     {/* Footer */}
                     <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border/40 shrink-0 flex flex-row justify-end gap-2">
                         <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl flex-1 sm:flex-none">Batal</Button>
-                        <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
+                        <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")} menuKey="bundles" actionKey={editing ? "update" : "create"}>
                             <Button type="submit" form="bundle-form" disabled={(editing ? !canUpdate : !canCreate) || submitting} className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md flex-1 sm:flex-none">
                                 {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                                 {editing ? "Update" : "Simpan"}
@@ -799,7 +684,7 @@ export function BundlesContent() {
                         </div>
                         <div className="flex flex-row justify-end gap-2 pt-4">
                             <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl flex-1 sm:flex-none">Batal</Button>
-                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="bundles" actionKey="delete">
                                 <Button disabled={!canDelete} variant="destructive" onClick={async () => { await pendingConfirmAction?.(); }} className="rounded-xl shadow-md flex-1 sm:flex-none">Ya, Hapus</Button>
                             </DisabledActionTooltip>
                         </div>

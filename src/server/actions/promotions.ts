@@ -21,13 +21,14 @@ function parseIdList(data: FormData, key: string) {
 export async function getPromotions(params?: {
   search?: string | undefined;
   type?: string | undefined;
+  branchId?: string | undefined;
   page?: number | undefined;
   perPage?: number | undefined;
   sortBy?: string | undefined;
   sortDir?: "asc" | "desc" | undefined;
 }) {
   const companyId = await getCurrentCompanyId();
-  const { search, type, page = 1, perPage = 10, sortBy, sortDir = "desc" } = params || {};
+  const { search, type, branchId, page = 1, perPage = 10, sortBy, sortDir = "desc" } = params || {};
   const where: Record<string, unknown> = { companyId };
 
   if (search) {
@@ -38,6 +39,7 @@ export async function getPromotions(params?: {
     ];
   }
   if (type && type !== "ALL") where.type = type;
+  if (branchId) where.branchId = branchId;
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -56,6 +58,7 @@ export async function getPromotions(params?: {
       include: {
         category: { select: { name: true } },
         product: { select: { name: true, code: true } },
+        branch: { select: { id: true, name: true } },
       },
     }),
     prisma.promotion.count({ where }),
@@ -70,8 +73,21 @@ export async function createPromotion(data: FormData) {
   const scope = data.get("scope") as string || "all";
   const productIds = parseIdList(data, "productIds");
   const categoryIds = parseIdList(data, "categoryIds");
+  const branchId = (data.get("branchId") as string) || null;
 
   try {
+    // Determine target branches
+    let targetBranchIds: string[];
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: branchId, companyId } });
+      if (!branch) return { error: "Cabang tidak ditemukan" };
+      targetBranchIds = [branchId];
+    } else {
+      const branches = await prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true } });
+      targetBranchIds = branches.map((b) => b.id);
+      if (targetBranchIds.length === 0) return { error: "Tidak ada cabang aktif" };
+    }
+
     const baseData = {
       companyId,
       name: data.get("name") as string,
@@ -95,15 +111,26 @@ export async function createPromotion(data: FormData) {
       : scope === "category"
         ? (categoryIds.length > 0 ? categoryIds : [((data.get("categoryId") as string) || "")]).filter(Boolean).map((id) => ({ productId: null as string | null, categoryId: id }))
         : [{ productId: null as string | null, categoryId: null as string | null }];
-    await prisma.$transaction(targets.map((target) => prisma.promotion.create({
-      data: {
-        ...baseData,
-        productId: target.productId,
-        categoryId: target.categoryId,
-      },
-    })));
+
+    // Create for each target × each branch
+    const creates = targetBranchIds.flatMap((bid) =>
+      targets.map((target) => prisma.promotion.create({
+        data: {
+          ...baseData,
+          branchId: bid,
+          productId: target.productId,
+          categoryId: target.categoryId,
+          // voucherCode must be unique — append branch suffix for multi-branch
+          voucherCode: baseData.voucherCode && targetBranchIds.length > 1
+            ? `${baseData.voucherCode}-${bid.slice(-4)}`
+            : baseData.voucherCode,
+        },
+      }))
+    );
+    await prisma.$transaction(creates);
+
     revalidatePath("/promotions");
-    createAuditLog({ action: "CREATE", entity: "Promotion", details: { data: { name: baseData.name, type: baseData.type, value: baseData.value, startDate: baseData.startDate, endDate: baseData.endDate } } }).catch(() => {});
+    createAuditLog({ action: "CREATE", entity: "Promotion", details: { data: { name: baseData.name, type: baseData.type, value: baseData.value, startDate: baseData.startDate, endDate: baseData.endDate, branchCount: targetBranchIds.length } } }).catch(() => {});
     return { success: true };
   } catch {
     return { error: "Gagal menambahkan promo" };
@@ -116,15 +143,24 @@ export async function updatePromotion(id: string, data: FormData) {
   const scope = data.get("scope") as string || "all";
   const productIds = parseIdList(data, "productIds");
   const categoryIds = parseIdList(data, "categoryIds");
+  const branchId = (data.get("branchId") as string) || null;
 
   try {
-    const oldPromo = await prisma.promotion.findUnique({
-      where: { id },
+    const oldPromo = await prisma.promotion.findFirst({
+      where: { id, companyId },
       select: { name: true, type: true, value: true, isActive: true, startDate: true, endDate: true, minPurchase: true, maxDiscount: true, voucherCode: true, scope: true },
     });
+    if (!oldPromo) return { error: "Promo tidak ditemukan" };
+
+    // Validate branch belongs to company
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: branchId, companyId } });
+      if (!branch) return { error: "Cabang tidak ditemukan" };
+    }
 
     const baseData = {
       companyId,
+      branchId,
       name: data.get("name") as string,
       type: type as never,
       value: Number(data.get("value")) || 0,
@@ -177,12 +213,13 @@ export async function updatePromotion(id: string, data: FormData) {
 }
 
 export async function deletePromotion(id: string) {
-  await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyId();
   try {
-    const oldPromo = await prisma.promotion.findUnique({
-      where: { id },
+    const oldPromo = await prisma.promotion.findFirst({
+      where: { id, companyId },
       select: { name: true, type: true },
     });
+    if (!oldPromo) return { error: "Promo tidak ditemukan" };
 
     await prisma.promotion.delete({ where: { id } });
     revalidatePath("/promotions");

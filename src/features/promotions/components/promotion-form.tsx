@@ -5,7 +5,6 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createPromotion, updatePromotion } from "@/features/promotions";
-import { getProducts } from "@/features/products";
 import { getCategories } from "@/features/categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { DialogBody, DialogFooter } from "@/components/ui/dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SmartSelect, type SmartSelectOption } from "@/components/ui/smart-select";
+import { ProductPicker, type ProductPickerItem } from "@/components/ui/product-picker";
 import { Percent, Tag, Gift, Ticket, Package, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -21,6 +21,7 @@ import type { Promotion } from "@/types";
 
 interface Props {
     editing: Promotion | null;
+    branchId?: string | undefined;
     onSuccess: () => void;
     onCancel: () => void;
 }
@@ -30,7 +31,7 @@ const promoSchema = z.object({
     description: z.string().default(""),
     type: z.enum(["DISCOUNT_PERCENT", "DISCOUNT_AMOUNT", "BUY_X_GET_Y", "VOUCHER", "BUNDLE"]),
     scope: z.enum(["all", "product", "category"]),
-    value: z.number().min(0, "Nilai tidak valid"),
+    value: z.number().min(0, "Nilai tidak valid").default(0),
     minPurchase: z.number().min(0).optional(),
     maxDiscount: z.number().min(0).optional(),
     productId: z.string().default(""),
@@ -44,21 +45,40 @@ const promoSchema = z.object({
     endDate: z.string().min(1, "Tanggal berakhir wajib diisi"),
     isActive: z.boolean().default(true),
 }).superRefine((data, ctx) => {
-    if ((data.type === "DISCOUNT_PERCENT" || data.type === "DISCOUNT_AMOUNT") && data.value <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Nilai diskon harus lebih dari 0" });
+    // -- Diskon Persen --
+    if (data.type === "DISCOUNT_PERCENT") {
+        if (data.value <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Nilai diskon harus lebih dari 0" });
+        if (data.value > 100) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Diskon persen maksimal 100%" });
     }
-    if (data.type === "DISCOUNT_PERCENT" && data.value > 100) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Diskon persen maksimal 100%" });
+    // -- Diskon Nominal --
+    if (data.type === "DISCOUNT_AMOUNT") {
+        if (data.value <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Nilai diskon harus lebih dari 0" });
     }
+    // -- Voucher --
+    if (data.type === "VOUCHER") {
+        if (!data.voucherCode) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["voucherCode"], message: "Kode voucher wajib diisi" });
+        if (data.value <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Nilai diskon voucher harus lebih dari 0" });
+    }
+    // -- Beli X Gratis Y --
+    if (data.type === "BUY_X_GET_Y") {
+        if (!data.buyQty || data.buyQty < 1) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["buyQty"], message: "Jumlah beli wajib diisi (min. 1)" });
+        if (!data.getQty || data.getQty < 1) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["getQty"], message: "Jumlah gratis wajib diisi (min. 1)" });
+    }
+    // -- Tebus Murah (Bundle) --
+    if (data.type === "BUNDLE") {
+        if (!data.buyQty || data.buyQty < 1) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["buyQty"], message: "Syarat qty beli wajib diisi (min. 1)" });
+        if (!data.getQty || data.getQty < 1) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["getQty"], message: "Qty tebus wajib diisi (min. 1)" });
+        if (data.value <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Harga tebus harus lebih dari 0" });
+        if (!data.getProductId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["getProductId"], message: "Produk tebus wajib dipilih" });
+    }
+    // -- Scope --
     if (data.scope === "product" && !data.productId) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["productId"], message: "Pilih produk" });
     }
     if (data.scope === "category" && !data.categoryId) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Pilih kategori" });
     }
-    if (data.type === "VOUCHER" && !data.voucherCode) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["voucherCode"], message: "Kode voucher wajib diisi" });
-    }
+    // -- Periode --
     if (data.startDate && data.endDate && data.startDate > data.endDate) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endDate"], message: "Tanggal berakhir harus setelah tanggal mulai" });
     }
@@ -81,36 +101,21 @@ const scopeOptions = [
     { key: "category", label: "Kategori Tertentu" },
 ] as const;
 
-export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
+export function PromotionForm({ editing, branchId, onSuccess, onCancel }: Props) {
     const editExt = editing as Promotion & { scope?: string; description?: string; maxDiscount?: number; buyQty?: number; getQty?: number; getProductId?: string; usageLimit?: number };
-    const productOptions: SmartSelectOption[] = useMemo(() => [], []);
     const categoryOptions: SmartSelectOption[] = useMemo(() => [], []);
-    const [selectedProductIds, setSelectedProductIds] = useState<string[]>(editing?.productId ? [editing.productId] : []);
+    // Product picker states
+    const [selectedProducts, setSelectedProducts] = useState<ProductPickerItem[]>(() =>
+        editing?.productId ? [{ productId: editing.productId, productName: editing.product?.name ?? "", productCode: "", productPrice: 0, quantity: 1 }] : []
+    );
+    const [getProduct, setGetProduct] = useState<ProductPickerItem | null>(() =>
+        editExt?.getProductId ? { productId: editExt.getProductId, productName: "", productCode: "", productPrice: 0, quantity: 1 } : null
+    );
     const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(editing?.categoryId ? [editing.categoryId] : []);
-    const smartSelectPageSize = 20;
-    const searchProductsApi = useCallback(async (query: string, page: number) => {
-        const payload = {
-            page,
-            limit: smartSelectPageSize,
-            sortBy: "name",
-            sortDir: "asc" as const,
-            ...(query.trim().length > 0 ? { search: query } : {}),
-        };
-        const result = await getProducts({
-            ...payload,
-        });
-        return {
-            items: result.products.map((item) => ({
-                value: item.id,
-                label: `${item.code} - ${item.name}`,
-            })),
-            hasMore: page < result.totalPages,
-        };
-    }, []);
     const searchCategoriesApi = useCallback(async (query: string, page: number) => {
         const payload = {
             page,
-            perPage: smartSelectPageSize,
+            perPage: 20,
             ...(query.trim().length > 0 ? { search: query } : {}),
         };
         const result = await getCategories({
@@ -149,14 +154,15 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
     });
 
     const { control, register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = form;
+    // Register helper for optional number fields — NaN becomes undefined
+    const registerOptNum = (name: keyof PromoFormInput) => register(name, { setValueAs: (v: string) => { const n = Number(v); return v === "" || Number.isNaN(n) ? undefined : n; } });
+    const registerNum = (name: keyof PromoFormInput) => register(name, { setValueAs: (v: string) => { const n = Number(v); return Number.isNaN(n) ? 0 : n; } });
     const type = watch("type");
     const scope = watch("scope");
     useEffect(() => {
-        const nextProducts = editing?.productId ? [editing.productId] : [];
         const nextCategories = editing?.categoryId ? [editing.categoryId] : [];
-        setSelectedProductIds(nextProducts);
         setSelectedCategoryIds(nextCategories);
-        setValue("productId", nextProducts[0] || "");
+        setValue("productId", editing?.productId || "");
         setValue("categoryId", nextCategories[0] || "");
     }, [editing, setValue]);
 
@@ -183,9 +189,12 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
         fd.set("startDate", values.startDate);
         fd.set("endDate", values.endDate);
         fd.set("isActive", String(values.isActive));
-        if (values.scope === "product" && selectedProductIds.length > 0) {
-            fd.set("productIds", JSON.stringify(selectedProductIds));
-            fd.set("productId", selectedProductIds[0] || "");
+        // Send branchId from active location filter
+        const targetBranchId = editing?.branchId ?? branchId;
+        if (targetBranchId) fd.set("branchId", targetBranchId);
+        if (values.scope === "product" && selectedProducts.length > 0) {
+            fd.set("productIds", JSON.stringify(selectedProducts.map((p) => p.productId)));
+            fd.set("productId", selectedProducts[0]?.productId || "");
         }
         if (values.scope === "category" && selectedCategoryIds.length > 0) {
             fd.set("categoryIds", JSON.stringify(selectedCategoryIds));
@@ -195,7 +204,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
         const result = editing ? await updatePromotion(editing.id, fd) : await createPromotion(fd);
         if (result.error) { toast.error(result.error); return; }
         const targetsCount = values.scope === "product"
-            ? Math.max(1, selectedProductIds.length)
+            ? Math.max(1, selectedProducts.length)
             : values.scope === "category"
                 ? Math.max(1, selectedCategoryIds.length)
                 : 1;
@@ -238,7 +247,7 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
 
                 {/* Scope */}
                 <div className="space-y-2 sm:space-y-3 ">
-                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Berlaku Untuk</Label>
+                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Berlaku Untuk <span className="text-red-400">*</span></Label>
                     <div className="flex gap-1.5 sm:gap-2">
                         {scopeOptions.map(({ key, label }) => (
                             <button key={key} type="button" onClick={() => setValue("scope", key, { shouldValidate: true })}
@@ -251,27 +260,20 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                 </div>
 
                 {scope === "product" && (
-                    <div className="space-y-1.5 ">
-                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Pilih Produk <span className="text-red-400">*</span></Label>
-                        <Controller
-                            control={control}
-                            name="productId"
-                            render={() => (
-                                <SmartSelect
-                                    multiple
-                                    values={selectedProductIds}
-                                    onValuesChange={(next) => {
-                                        setSelectedProductIds(next);
-                                        setValue("productId", next[0] || "", { shouldValidate: true });
-                                    }}
-                                    initialOptions={productOptions}
-                                    placeholder="Pilih produk"
-                                    onSearch={searchProductsApi}
-                                />
-                            )}
-                        />
-                        {fieldError("productId") && <p className="text-xs sm:text-sm text-red-500">{fieldError("productId")}</p>}
-                    </div>
+                    <ProductPicker
+                        items={selectedProducts}
+                        onChange={(items) => {
+                            setSelectedProducts(items);
+                            setValue("productId", items[0]?.productId || "", { shouldValidate: true });
+                        }}
+                        branchId={branchId}
+                        label="Pilih Produk"
+                        required
+                        showQuantity={false}
+                        showSubtotal={false}
+                        showPrice={false}
+                        error={fieldError("productId")}
+                    />
                 )}
 
                 {scope === "category" && (
@@ -305,13 +307,13 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                     <div className="grid grid-cols-2 gap-3 ">
                         <div className="space-y-1.5">
                             <Label className="text-xs sm:text-sm font-semibold text-slate-700">{type === "DISCOUNT_PERCENT" ? "Diskon (%)" : "Diskon (Rp)"} <span className="text-red-400">*</span></Label>
-                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
+                            <Input type="number" {...registerNum("value")} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
                             {fieldError("value") && <p className="text-xs sm:text-sm text-red-500">{fieldError("value")}</p>}
                         </div>
                         {type === "DISCOUNT_PERCENT" && (
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Maks. Diskon (Rp)</Label>
-                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa batas" />
+                                <Input type="number" {...registerOptNum("maxDiscount")} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa batas" />
                             </div>
                         )}
                     </div>
@@ -326,30 +328,29 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Beli (qty) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
+                                <Input type="number" {...registerOptNum("buyQty")} className={`rounded-xl h-10 ${fieldError("buyQty") ? "border-red-400" : "border-slate-200"}`} min={1} />
+                                {fieldError("buyQty") && <p className="text-xs text-red-500">{fieldError("buyQty")}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Gratis (qty) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
+                                <Input type="number" {...registerOptNum("getQty")} className={`rounded-xl h-10 ${fieldError("getQty") ? "border-red-400" : "border-slate-200"}`} min={1} />
+                                {fieldError("getQty") && <p className="text-xs text-red-500">{fieldError("getQty")}</p>}
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Produk Gratis</Label>
-                            <Controller
-                                control={control}
-                                name="getProductId"
-                                render={({ field }) => (
-                                    <SmartSelect
-                                        value={field.value}
-                                        onChange={field.onChange}
-                                        initialOptions={productOptions}
-                                        placeholder="Sama dengan produk yang dibeli"
-                                        onSearch={searchProductsApi}
-                                    />
-                                )}
-                            />
-                            <p className="text-[11px] text-muted-foreground">Kosongkan jika produk gratis sama dengan produk yang dibeli</p>
-                        </div>
+                        <ProductPicker
+                            items={getProduct ? [getProduct] : []}
+                            onChange={(items) => {
+                                const item = items[0] ?? null;
+                                setGetProduct(item);
+                                setValue("getProductId", item?.productId || "", { shouldValidate: true });
+                            }}
+                            branchId={branchId}
+                            single
+                            label="Produk Gratis"
+                            showQuantity={false}
+                            showSubtotal={false}
+                            emptyText="Kosongkan jika sama dengan produk yang dibeli"
+                        />
                     </div>
                 )}
 
@@ -362,37 +363,39 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Syarat Qty (Beli) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("buyQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
+                                <Input type="number" {...registerOptNum("buyQty")} className={`rounded-xl h-10 ${fieldError("buyQty") ? "border-red-400" : "border-slate-200"}`} min={1} />
+                                {fieldError("buyQty") && <p className="text-xs text-red-500">{fieldError("buyQty")}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Qty Tebus <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("getQty", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} />
+                                <Input type="number" {...registerOptNum("getQty")} className={`rounded-xl h-10 ${fieldError("getQty") ? "border-red-400" : "border-slate-200"}`} min={1} />
+                                {fieldError("getQty") && <p className="text-xs text-red-500">{fieldError("getQty")}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Harga Tebus (Rp) <span className="text-red-400">*</span></Label>
-                                <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
+                                <Input type="number" {...registerNum("value")} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
+                                {fieldError("value") && <p className="text-xs text-red-500">{fieldError("value")}</p>}
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-xs sm:text-sm font-semibold text-slate-700">Maks Qty Tebus / Transaksi</Label>
-                                <Input type="number" {...register("maxDiscount", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Sesuai kelipatan" />
+                                <Input type="number" {...registerOptNum("maxDiscount")} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Sesuai kelipatan" />
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Produk Tebus <span className="text-red-400">*</span></Label>
-                            <Controller
-                                control={control}
-                                name="getProductId"
-                                render={({ field }) => (
-                                    <SmartSelect
-                                        value={field.value}
-                                        onChange={field.onChange}
-                                        initialOptions={productOptions}
-                                        placeholder="Pilih produk tebus"
-                                        onSearch={searchProductsApi}
-                                    />
-                                )}
-                            />
-                        </div>
+                        <ProductPicker
+                            items={getProduct ? [getProduct] : []}
+                            onChange={(items) => {
+                                const item = items[0] ?? null;
+                                setGetProduct(item);
+                                setValue("getProductId", item?.productId || "", { shouldValidate: true });
+                            }}
+                            branchId={branchId}
+                            single
+                            label="Produk Tebus"
+                            required
+                            showQuantity={false}
+                            showSubtotal={false}
+                            error={fieldError("getProductId")}
+                        />
                     </div>
                 )}
 
@@ -405,20 +408,27 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs sm:text-sm font-semibold text-slate-700">Nilai Diskon (Rp) <span className="text-red-400">*</span></Label>
-                            <Input type="number" {...register("value", { valueAsNumber: true })} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
+                            <Input type="number" {...registerNum("value")} className={`rounded-xl h-10 ${fieldError("value") ? "border-red-400" : "border-slate-200"}`} min={0} />
+                            {fieldError("value") && <p className="text-xs sm:text-sm text-red-500">{fieldError("value")}</p>}
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs sm:text-sm font-semibold text-slate-700">Batas Penggunaan</Label>
-                            <Input type="number" {...register("usageLimit", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Tanpa batas" />
+                            <Input type="number" {...registerOptNum("usageLimit")} className="rounded-xl h-10 border-slate-200" min={1} placeholder="Tanpa batas" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-xs sm:text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
+                            <Input type="number" {...registerOptNum("minPurchase")} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa minimum" />
                         </div>
                     </div>
                 )}
 
-                {/* Min purchase */}
-                <div className="space-y-1.5 ">
-                    <Label className="text-xs sm:text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
-                    <Input type="number" {...register("minPurchase", { valueAsNumber: true })} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa minimum" />
-                </div>
+                {/* Min purchase - only for discount types */}
+                {(type === "DISCOUNT_PERCENT" || type === "DISCOUNT_AMOUNT") && (
+                    <div className="space-y-1.5 ">
+                        <Label className="text-xs sm:text-sm font-semibold text-slate-700">Min. Pembelian (Rp)</Label>
+                        <Input type="number" {...registerOptNum("minPurchase")} className="rounded-xl h-10 border-slate-200" min={0} placeholder="Tanpa minimum" />
+                    </div>
+                )}
 
                 {/* Period */}
                 <div className="grid grid-cols-2 gap-3 ">
@@ -455,6 +465,14 @@ export function PromotionForm({ editing, onSuccess, onCancel }: Props) {
                         {fieldError("endDate") && <p className="text-xs sm:text-sm text-red-500">{fieldError("endDate")}</p>}
                     </div>
                 </div>
+                {/* Global validation errors for hidden fields */}
+                {Object.keys(errors).length > 0 && (
+                    <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-600 space-y-0.5">
+                        {Object.entries(errors).map(([key, err]) => (
+                            <p key={key}>• {err?.message || `Field ${key} tidak valid`}</p>
+                        ))}
+                    </div>
+                )}
             </DialogBody>
 
             <DialogFooter className="border-t border-border/40 pt-4 px-4 sm:px-6 pb-4 sm:pb-6 shrink-0">

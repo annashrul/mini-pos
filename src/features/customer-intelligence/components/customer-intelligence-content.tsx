@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Repeat, Clock, Crown, Users, UserCheck, Zap, TrendingUp } from "lucide-react";
 import { useRepeatCustomers } from "../hooks/use-repeat-customers";
@@ -126,9 +127,14 @@ export function CustomerIntelligenceContent() {
     return (
         <div className="space-y-4 sm:space-y-8">
             {/* Header */}
-            <div>
-                <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">Customer Intelligence</h1>
-                <p className="text-slate-500 text-xs sm:text-sm mt-1">Analisis pelanggan, loyalitas, dan pola belanja</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight">Customer Intelligence</h1>
+                    <p className="text-slate-500 text-xs sm:text-sm mt-1">Analisis pelanggan, loyalitas, dan pola belanja</p>
+                </div>
+                <div className="hidden sm:block">
+                    <ExportMenu module="customer-intelligence" />
+                </div>
             </div>
 
             {/* Summary Cards */}

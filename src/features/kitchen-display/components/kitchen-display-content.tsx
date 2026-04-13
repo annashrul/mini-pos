@@ -18,6 +18,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getOrderQueue, getQueueStats, resetDailyQueue, updateOrderStatus } from "@/server/actions/order-queue";
+import { useMenuActionAccess } from "@/features/access-control";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { useKitchenRealtime } from "@/hooks/use-kitchen-socket";
 import { useBranch } from "@/components/providers/branch-provider";
 import { OrderCard } from "./order-card";
@@ -138,11 +141,13 @@ function DraggableOrderCard({
   darkMode,
   onRefresh,
   onSpeak,
+  canUpdateStatus,
 }: {
   order: Order;
   darkMode: boolean;
   onRefresh: () => void;
   onSpeak?: (text: string) => void;
+  canUpdateStatus?: boolean;
 }) {
   const isDraggable = order.status !== "SERVED" && order.status !== "CANCELLED";
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -162,7 +167,7 @@ function DraggableOrderCard({
       {...attributes}
       className={`${isDragging ? "opacity-30" : ""} ${isDraggable ? "touch-none cursor-grab" : ""}`}
     >
-      <OrderCard order={order} darkMode={darkMode} onRefresh={onRefresh} onSpeak={onSpeak} />
+      <OrderCard order={order} darkMode={darkMode} onRefresh={onRefresh} onSpeak={onSpeak} canUpdateStatus={canUpdateStatus} />
     </div>
   );
 }
@@ -192,6 +197,10 @@ export function KitchenDisplayContent() {
   soundEnabledRef.current = soundEnabled;
   const [isPending, startTransition] = useTransition();
   const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
+  const { canAction } = useMenuActionAccess("kitchen-display");
+  const { canAction: canPlan } = usePlanAccess();
+  const canUpdateStatus = canAction("update_status") && canPlan("kitchen-display", "update_status");
+  const canReset = canAction("reset") && canPlan("kitchen-display", "reset");
   const prevNewCountRef = useRef(-1); // -1 = first load, skip sound
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioInitRef = useRef(false);
@@ -240,6 +249,11 @@ export function KitchenDisplayContent() {
     const fromStatus = active.data.current?.status as string;
     const toStatus = over.id as string;
     if (fromStatus === toStatus) return;
+
+    if (!canUpdateStatus) {
+      toast.error("Anda tidak memiliki izin untuk mengubah status order");
+      return;
+    }
 
     if (VALID_TRANSITIONS[fromStatus] !== toStatus) {
       toast.error("Hanya bisa pindah ke status berikutnya");
@@ -395,6 +409,7 @@ export function KitchenDisplayContent() {
   }, []);
 
   function handleReset() {
+    if (!canReset) { toast.error("Anda tidak memiliki izin untuk aksi ini"); return; }
     if (!confirm("Reset semua antrian hari ini? Order aktif akan dibatalkan.")) return;
     startTransition(async () => {
       try {
@@ -513,19 +528,21 @@ export function KitchenDisplayContent() {
               >
                 <RefreshCcw className={`h-4 w-4 sm:h-5 sm:w-5 ${isPending ? "animate-spin" : ""}`} />
               </Button>
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={isPending}
-                className={`h-9 sm:h-11 rounded-xl gap-1 sm:gap-2 transition-all duration-300 text-xs sm:text-sm ${
-                  darkMode
-                    ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
-                }`}
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span className="hidden sm:inline font-semibold">Reset</span>
-              </Button>
+              <DisabledActionTooltip disabled={!canReset} message="Anda tidak memiliki izin untuk aksi ini" menuKey="kitchen-display" actionKey="reset">
+                <Button
+                  variant="outline"
+                  onClick={handleReset}
+                  disabled={!canReset || isPending}
+                  className={`h-9 sm:h-11 rounded-xl gap-1 sm:gap-2 transition-all duration-300 text-xs sm:text-sm ${
+                    darkMode
+                      ? "border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                  }`}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span className="hidden sm:inline font-semibold">Reset</span>
+                </Button>
+              </DisabledActionTooltip>
             </div>
           </div>
 
@@ -605,6 +622,7 @@ export function KitchenDisplayContent() {
                               darkMode={darkMode}
                               onRefresh={fetchData}
                               onSpeak={speak}
+                              canUpdateStatus={canUpdateStatus}
                             />
                             {/* Subtle divider between cards */}
                             {idx < columnOrders.length - 1 && (
@@ -627,7 +645,7 @@ export function KitchenDisplayContent() {
           <DragOverlay>
             {activeOrder && (
               <div className="opacity-90 scale-105 rotate-2">
-                <OrderCard order={activeOrder} darkMode={darkMode} onRefresh={() => {}} />
+                <OrderCard order={activeOrder} darkMode={darkMode} onRefresh={() => {}} canUpdateStatus={canUpdateStatus} />
               </div>
             )}
           </DragOverlay>

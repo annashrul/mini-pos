@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,6 +122,9 @@ export function ScheduleDialog({
   const [shiftPreset, setShiftPreset] = useState<string>("Pagi");
   const [saving, setSaving] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingSubmitValues, setPendingSubmitValues] = useState<ScheduleFormValues | null>(null);
 
   const {
     register,
@@ -185,9 +189,7 @@ export function ScheduleDialog({
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function onSubmit(data: any) {
-    const values = data as ScheduleFormValues;
+  async function executeSave(values: ScheduleFormValues) {
     setSaving(true);
     try {
       await onSave({
@@ -208,7 +210,14 @@ export function ScheduleDialog({
     }
   }
 
-  async function handleDelete() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function onSubmit(data: any) {
+    const values = data as ScheduleFormValues;
+    setPendingSubmitValues(values);
+    setSubmitConfirmOpen(true);
+  }
+
+  async function handleDeleteConfirmed() {
     if (!existing?.id || !onDelete) return;
     setSaving(true);
     try {
@@ -434,7 +443,7 @@ export function ScheduleDialog({
               type="button"
               variant="destructive"
               size="sm"
-              onClick={handleDelete}
+              onClick={() => setDeleteConfirmOpen(true)}
               disabled={saving}
               className="mr-auto"
             >
@@ -448,6 +457,33 @@ export function ScheduleDialog({
             {saving ? "Menyimpan..." : "Simpan"}
           </Button>
         </DialogFooter>
+        <ActionConfirmDialog
+          open={submitConfirmOpen}
+          onOpenChange={setSubmitConfirmOpen}
+          kind="submit"
+          title={existing ? "Update Jadwal?" : "Simpan Jadwal Baru?"}
+          description={existing ? "Perubahan jadwal karyawan akan disimpan." : "Jadwal baru akan ditambahkan."}
+          confirmLabel={existing ? "Update" : "Simpan"}
+          loading={saving}
+          onConfirm={async () => {
+            if (!pendingSubmitValues) return;
+            await executeSave(pendingSubmitValues);
+            setSubmitConfirmOpen(false);
+            setPendingSubmitValues(null);
+          }}
+          size="sm"
+        />
+        <ActionConfirmDialog
+          open={deleteConfirmOpen}
+          onOpenChange={setDeleteConfirmOpen}
+          kind="delete"
+          title="Hapus Jadwal?"
+          description="Jadwal karyawan ini akan dihapus permanen."
+          confirmLabel="Ya, Hapus"
+          loading={saving}
+          onConfirm={handleDeleteConfirmed}
+          size="sm"
+        />
       </DialogContent>
     </Dialog>
   );

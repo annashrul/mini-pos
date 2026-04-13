@@ -3,10 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Pencil, Plus } from "lucide-react";
+import { useRef, useState } from "react";
 
 export function BranchesDialog(props: {
     open: boolean;
@@ -32,6 +34,8 @@ export function BranchesDialog(props: {
         onCancel,
         onSubmit,
     } = props;
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const formRef = useRef<HTMLFormElement | null>(null);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -46,7 +50,7 @@ export function BranchesDialog(props: {
                     </DialogTitle>
                 </DialogHeader>
 
-                <form action={onSubmit} className="min-h-0 flex flex-col">
+                <form ref={formRef} action={onSubmit} className="min-h-0 flex flex-col">
                     <DialogBody className="space-y-4">
                         <div className="space-y-1.5">
                             <Label className="text-sm font-medium">
@@ -82,13 +86,24 @@ export function BranchesDialog(props: {
                         <Button type="button" variant="outline" onClick={onCancel} className="rounded-xl">
                             Batal
                         </Button>
-                        <DisabledActionTooltip disabled={!canSubmit} message={cannotMessage}>
-                            <Button disabled={!canSubmit} type="submit" className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
+                        <DisabledActionTooltip disabled={!canSubmit} message={cannotMessage} menuKey="branches" actionKey="create">
+                            <Button disabled={!canSubmit} type="button" onClick={() => setSubmitConfirmOpen(true)} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
                                 {editingName ? "Update" : "Simpan"}
                             </Button>
                         </DisabledActionTooltip>
                     </DialogFooter>
                 </form>
+                <ActionConfirmDialog
+                    open={submitConfirmOpen}
+                    onOpenChange={setSubmitConfirmOpen}
+                    kind="submit"
+                    title={editingName ? "Update Cabang?" : "Tambah Cabang?"}
+                    description={editingName ? "Perubahan cabang akan disimpan." : "Cabang baru akan ditambahkan."}
+                    confirmLabel={editingName ? "Update" : "Simpan"}
+                    confirmDisabled={!canSubmit}
+                    onConfirm={() => formRef.current?.requestSubmit()}
+                    size="sm"
+                />
             </DialogContent>
         </Dialog>
     );

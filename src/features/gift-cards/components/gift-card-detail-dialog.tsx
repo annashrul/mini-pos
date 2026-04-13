@@ -91,6 +91,7 @@ interface GiftCardDetailDialogProps {
   onTopUp: (id: string, amount: number) => Promise<void>;
   onDisable: (id: string, code: string) => void;
   canUpdate: boolean;
+  canDisable: boolean;
   cannotMessage: (action: string) => string;
 }
 
@@ -101,6 +102,7 @@ export function GiftCardDetailDialog({
   onTopUp,
   onDisable,
   canUpdate,
+  canDisable,
   cannotMessage,
 }: GiftCardDetailDialogProps) {
   const [showTopUp, setShowTopUp] = useState(false);
@@ -303,6 +305,8 @@ export function GiftCardDetailDialog({
                   <DisabledActionTooltip
                     disabled={!canUpdate}
                     message={cannotMessage("update")}
+                    menuKey="gift-cards"
+                    actionKey="update"
                   >
                     <Button
                       disabled={!canUpdate}
@@ -314,11 +318,13 @@ export function GiftCardDetailDialog({
                     </Button>
                   </DisabledActionTooltip>
                   <DisabledActionTooltip
-                    disabled={!canUpdate}
-                    message={cannotMessage("update")}
+                    disabled={!canDisable}
+                    message={cannotMessage("disable")}
+                    menuKey="gift-cards"
+                    actionKey="disable"
                   >
                     <Button
-                      disabled={!canUpdate}
+                      disabled={!canDisable}
                       variant="outline"
                       className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                       onClick={() => onDisable(data.id, data.code)}

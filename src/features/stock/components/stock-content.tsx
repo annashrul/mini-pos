@@ -1,10 +1,15 @@
 "use client";
 
+import { ProButton } from "@/components/ui/pro-gate";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createStockMovement, getStockMovements, getProductsForSelect } from "@/features/stock";
+import { createStockMovement, getStockMovements } from "@/features/stock";
+import { ProductPicker, type ProductPickerItem } from "@/components/ui/product-picker";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { getAllBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
 import { formatDateTime } from "@/lib/utils";
@@ -15,7 +20,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { SmartSelect } from "@/components/ui/smart-select";
 import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,8 +71,10 @@ function formatRelativeTime(date: Date | string): string {
 }
 
 export function StockContent() {
+
     const [data, setData] = useState<StockMovementsData>({ movements: [], total: 0, totalPages: 0, currentPage: 1 });
-    const [products, setProducts] = useState<ProductBasic[]>([]);
+    const [products] = useState<ProductBasic[]>([]);
+    const [selectedProduct, setSelectedProduct] = useState<ProductPickerItem | null>(null);
     const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
     const [open, setOpen] = useState(false);
     const [page, setPage] = useState(1);
@@ -85,7 +91,8 @@ export function StockContent() {
     const [sortDir] = useState<"asc" | "desc">("desc");
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("stock");
-    const canCreate = canAction("create");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("stock", "create");
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
@@ -111,14 +118,9 @@ export function StockContent() {
 
     useEffect(() => {
         startTransition(async () => {
-            const [productsData, allBranches] = await Promise.all([
-                getProductsForSelect(),
-                getAllBranches(),
-            ]);
-            setProducts(productsData);
+            const allBranches = await getAllBranches();
             const activeBranches = allBranches.filter((b) => b.isActive).map((b) => ({ id: b.id, name: b.name }));
             setBranches(activeBranches);
-            stockForm.setValue("branchIds", activeBranches.map((b) => b.id));
         });
     }, []);
 
@@ -131,10 +133,21 @@ export function StockContent() {
         } else {
             fetchData({});
         }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const onFormSubmit = async (values: StockFormValues) => {
+
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [pendingFormValues, setPendingFormValues] = useState<StockFormValues | null>(null);
+
+    const onFormSubmit = (values: StockFormValues) => {
         if (!canCreate) return;
+        setPendingFormValues(values);
+        setSubmitConfirmOpen(true);
+    };
+
+    const executeSubmit = async () => {
+        if (!pendingFormValues) return;
+        const values = pendingFormValues;
         const formData = new FormData();
         formData.set("branchIds", JSON.stringify(values.branchIds));
         formData.set("productId", values.productId);
@@ -148,8 +161,26 @@ export function StockContent() {
             toast.success("Pergerakan stok berhasil disimpan");
             setOpen(false);
             stockForm.reset();
+            setSelectedProduct(null);
             fetchData({});
         }
+        setSubmitConfirmOpen(false);
+        setPendingFormValues(null);
+    };
+
+    // Effective branchIds for ProductPicker
+    const watchedBranchIds = stockForm.watch("branchIds");
+    const effectiveBranchIds: string[] = selectedBranchId
+        ? [selectedBranchId]
+        : (watchedBranchIds ?? []).filter(Boolean);
+
+    const openCreateDialog = () => {
+        // Pre-fill branchIds based on active filter
+        const defaultBranchIds = selectedBranchId
+            ? [selectedBranchId]
+            : branches.map((b) => b.id);
+        stockForm.setValue("branchIds", defaultBranchIds);
+        setOpen(true);
     };
 
     const stats = useMemo(() => {
@@ -208,29 +239,26 @@ export function StockContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button
-                        disabled={!canCreate}
-                        className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
-                        onClick={() => setOpen(true)}
-                    >
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="stock" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock" actionKey="create">
+                        <Button
+                            disabled={!canCreate}
+                            className="text-sm rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-lg shadow-indigo-200/50 text-white"
+                            onClick={openCreateDialog}
+                        >
+                            <Plus className="w-4 h-4 mr-2" /> Tambah Pergerakan
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* Mobile: Floating button */}
-            {canCreate && (
-                <div className="sm:hidden fixed bottom-4 right-4 z-50">
-                    <Button
-                        onClick={() => setOpen(true)}
-                        size="icon"
-                        className="h-12 w-12 rounded-full shadow-xl shadow-indigo-300/50 bg-gradient-to-br from-indigo-500 to-blue-600"
-                    >
-                        <Plus className="w-5 h-5" />
-                    </Button>
-                </div>
-            )}
+            <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                <ProButton menuKey="stock" actionKey="create" onClick={openCreateDialog} className="h-12 w-12 rounded-full shadow-xl shadow-indigo-300/50 bg-gradient-to-br from-indigo-500 to-blue-600 inline-flex items-center justify-center text-white">
+                    <Plus className="w-5 h-5" />
+                </ProButton>
+            </div>
 
             {/* Movement List */}
             <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
@@ -316,8 +344,8 @@ export function StockContent() {
                         <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-center">
                             <BoxesIcon className="w-10 h-10 sm:w-16 sm:h-16 text-muted-foreground/30 mb-3" />
                             <p className="text-sm sm:text-lg font-medium text-slate-500">Belum ada pergerakan stok</p>
-                            <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                                <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-full mt-3" onClick={() => setOpen(true)}>
+                            <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock" actionKey="create">
+                                <Button disabled={!canCreate} variant="outline" size="sm" className="rounded-full mt-3" onClick={openCreateDialog}>
                                     <Plus className="w-3 h-3 mr-1" /> Tambah Pergerakan
                                 </Button>
                             </DisabledActionTooltip>
@@ -418,12 +446,12 @@ export function StockContent() {
                         totalItems={data.total}
                         pageSize={pageSize}
                         onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
                     />
                 </div>
             </div>
 
-            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) stockForm.reset(); }}>
+            <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { stockForm.reset(); setSelectedProduct(null); } }}>
                 <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
                     <div className="h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-purple-500 shrink-0" />
                     <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
@@ -432,39 +460,46 @@ export function StockContent() {
                     <form onSubmit={stockForm.handleSubmit(onFormSubmit)} className={!canCreate ? "pointer-events-none opacity-70" : "flex flex-col flex-1 overflow-hidden"}>
                         <DialogBody className="px-4 sm:px-6 space-y-3 sm:space-y-4">
                             {/* Lokasi */}
-                            <div className="space-y-1">
-                                <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
-                                <BranchMultiSelect
-                                    branches={branches}
-                                    value={stockForm.watch("branchIds")}
-                                    onChange={(v) => { stockForm.setValue("branchIds", v); stockForm.clearErrors("branchIds"); }}
-                                    placeholder="Pilih lokasi"
-                                />
-                                {stockForm.formState.errors.branchIds && <p className="text-xs text-red-500">{stockForm.formState.errors.branchIds.message}</p>}
-                            </div>
+                            {selectedBranchId ? (
+                                <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="font-medium">
+                                        Lokasi: {branches.find((b) => b.id === selectedBranchId)?.name ?? "—"}
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                    <BranchMultiSelect
+                                        branches={branches}
+                                        value={stockForm.watch("branchIds")}
+                                        onChange={(v) => { stockForm.setValue("branchIds", v); stockForm.clearErrors("branchIds"); stockForm.setValue("productId", ""); setSelectedProduct(null); }}
+                                        placeholder="Pilih lokasi"
+                                    />
+                                    {stockForm.formState.errors.branchIds && <p className="text-xs text-red-500">{stockForm.formState.errors.branchIds.message}</p>}
+                                </div>
+                            )}
 
                             {/* Produk */}
-                            <div className="space-y-1">
-                                <Label className="text-xs sm:text-sm font-medium">Produk <span className="text-red-400">*</span></Label>
-                                <SmartSelect
-                                    value={stockForm.watch("productId")}
-                                    onChange={(v) => { stockForm.setValue("productId", v); stockForm.clearErrors("productId"); }}
-                                    placeholder="Pilih Produk"
-                                    onSearch={async (query) =>
-                                        products
-                                            .filter((p) => {
-                                                const q = query.toLowerCase();
-                                                return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q);
-                                            })
-                                            .map((p) => ({
-                                                value: p.id,
-                                                label: `${p.code} - ${p.name}`,
-                                                description: `Stok: ${p.stock}`,
-                                            }))
-                                    }
-                                />
-                                {stockForm.formState.errors.productId && <p className="text-xs text-red-500">{stockForm.formState.errors.productId.message}</p>}
-                            </div>
+                            <ProductPicker
+                                items={selectedProduct ? [selectedProduct] : []}
+                                onChange={(pickerItems) => {
+                                    const item = pickerItems[0] ?? null;
+                                    setSelectedProduct(item);
+                                    stockForm.setValue("productId", item?.productId ?? "");
+                                    stockForm.clearErrors("productId");
+                                }}
+                                branchId={selectedBranchId || undefined}
+                                branchIds={effectiveBranchIds.length > 0 ? effectiveBranchIds : undefined}
+                                single
+                                label="Produk"
+                                required
+                                showQuantity={false}
+                                showSubtotal={false}
+                                searchPlaceholder="Cari produk..."
+                                emptyText="Pilih produk"
+                                error={stockForm.formState.errors.productId?.message}
+                            />
 
                             {/* Tipe */}
                             <div className="space-y-1.5">
@@ -514,13 +549,20 @@ export function StockContent() {
                         <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
                             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Batal</Button>
                             <Button disabled={!canCreate || stockForm.formState.isSubmitting} type="submit" className="rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white">
-                                {stockForm.formState.isSubmitting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
-                                Simpan
+                                {stockForm.formState.isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : "Simpan"}
                             </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
+
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) setPendingFormValues(null); }}
+                kind="submit"
+                description="Yakin ingin menyimpan pergerakan stok ini?"
+                onConfirm={executeSubmit}
+            />
         </div>
     );
 }

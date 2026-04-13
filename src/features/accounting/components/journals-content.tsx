@@ -1,5 +1,10 @@
 "use client";
 
+import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { ProButton } from "@/components/ui/pro-gate";
+import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useMenuActionAccess } from "@/features/access-control";
 import { useMemo } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,276 +18,277 @@ import { JournalDetailDialog } from "./journal-detail-dialog";
 import type { Journal } from "../types";
 
 const smartFilters: SmartFilter[] = [
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: [
-      { value: "ALL", label: "Semua Status" },
-      { value: "DRAFT", label: "Draft" },
-      { value: "POSTED", label: "Posted" },
-      { value: "VOID", label: "Void" },
-    ],
-  },
-  { key: "dateFrom", label: "Dari Tanggal", type: "date" },
-  { key: "dateTo", label: "Sampai Tanggal", type: "date" },
+    {
+        key: "status",
+        label: "Status",
+        type: "select",
+        options: [
+            { value: "DRAFT", label: "Draft" },
+            { value: "POSTED", label: "Posted" },
+            { value: "VOID", label: "Void" },
+        ],
+    },
+    { key: "dateFrom", label: "Dari Tanggal", type: "date" },
+    { key: "dateTo", label: "Sampai Tanggal", type: "date" },
 ];
 
 export function JournalsContent() {
-  const {
-    data,
-    page,
-    pageSize,
-    formOpen,
-    detailOpen,
-    selectedJournal,
-    loading,
-    activeFilters,
-    setPage,
-    setFormOpen,
-    setDetailOpen,
-    handleRowClick,
-    handleFormClose,
-    handleSearchChange,
-    handleFilterChange,
-    handlePageSizeChange,
-  } = useJournals();
+    const {
+        data,
+        page,
+        pageSize,
+        formOpen,
+        detailOpen,
+        selectedJournal,
+        loading,
+        activeFilters,
+        setPage,
+        setFormOpen,
+        setDetailOpen,
+        handleRowClick,
+        handleFormClose,
+        handleSearchChange,
+        handleFilterChange,
+        handlePageSizeChange,
+    } = useJournals();
 
-  const columns = useMemo<SmartColumn<Journal>[]>(
-    () => [
-      {
-        key: "number",
-        header: "No. Jurnal",
-        render: (row) => (
-          <span className="font-mono text-sm font-medium text-gray-900">
-            {row.number}
-          </span>
-        ),
-        exportValue: (row) => row.number,
-      },
-      {
-        key: "date",
-        header: "Tanggal",
-        render: (row) => (
-          <span className="text-sm text-gray-600">{formatDate(row.date)}</span>
-        ),
-        exportValue: (row) => row.date,
-      },
-      {
-        key: "description",
-        header: "Deskripsi",
-        render: (row) => (
-          <span className="text-sm text-gray-700 max-w-[220px] truncate block">
-            {row.description}
-          </span>
-        ),
-        exportValue: (row) => row.description,
-      },
-      {
-        key: "reference",
-        header: "Referensi",
-        render: (row) => (
-          <span className="text-sm text-gray-500">
-            {row.reference || "-"}
-          </span>
-        ),
-        exportValue: (row) => row.reference || "-",
-      },
-      {
-        key: "type",
-        header: "Tipe",
-        render: (row) => {
-          const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
-          return (
-            <Badge
-              variant="secondary"
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 ${typeCfg?.className}`}
-            >
-              {typeCfg?.label}
-            </Badge>
-          );
-        },
-        exportValue: (row) => {
-          const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
-          return typeCfg?.label || row.type;
-        },
-      },
-      {
-        key: "totalDebit",
-        header: "Debit",
-        align: "right",
-        render: (row) => (
-          <span className="text-sm font-mono font-semibold text-gray-900 tabular-nums">
-            {formatCurrency(row.totalDebit)}
-          </span>
-        ),
-        exportValue: (row) => row.totalDebit,
-      },
-      {
-        key: "totalCredit",
-        header: "Kredit",
-        align: "right",
-        render: (row) => (
-          <span className="text-sm font-mono font-semibold text-gray-900 tabular-nums">
-            {formatCurrency(row.totalCredit)}
-          </span>
-        ),
-        exportValue: (row) => row.totalCredit,
-      },
-      {
-        key: "status",
-        header: "Status",
-        render: (row) => {
-          const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
-          const className =
-            row.status === "DRAFT"
-              ? "bg-gray-100 text-gray-600"
-              : row.status === "POSTED"
-              ? "bg-emerald-100 text-emerald-700"
-              : row.status === "VOID"
-              ? "bg-red-100 text-red-700"
-              : statusCfg?.className;
-          return (
-            <Badge
-              variant="secondary"
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 ${className}`}
-            >
-              {statusCfg?.label}
-            </Badge>
-          );
-        },
-        exportValue: (row) => {
-          const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
-          return statusCfg?.label || row.status;
-        },
-      },
-      {
-        key: "createdByName",
-        header: "Dibuat oleh",
-        render: (row) => (
-          <span className="text-sm text-gray-600">{row.createdByName}</span>
-        ),
-        exportValue: (row) => row.createdByName,
-      },
-    ],
-    [],
-  );
+    const { canAction, cannotMessage } = useMenuActionAccess("accounting-journals");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("accounting-journals", "create");
 
-  const createButton = (
-    <Button
-      onClick={() => setFormOpen(true)}
-      className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20 h-8 px-4 text-xs"
-    >
-      <Plus className="w-4 h-4 mr-1.5" />
-      Buat Jurnal
-    </Button>
-  );
+    const columns = useMemo<SmartColumn<Journal>[]>(
+        () => [
+            {
+                key: "number",
+                header: "No. Jurnal",
+                render: (row) => (
+                    <span className="font-mono text-sm font-medium text-gray-900">
+                        {row.number}
+                    </span>
+                ),
+                exportValue: (row) => row.number,
+            },
+            {
+                key: "date",
+                header: "Tanggal",
+                render: (row) => (
+                    <span className="text-sm text-gray-600">{formatDate(row.date)}</span>
+                ),
+                exportValue: (row) => row.date,
+            },
+            {
+                key: "description",
+                header: "Deskripsi",
+                render: (row) => (
+                    <span className="text-sm text-gray-700 max-w-[220px] truncate block">
+                        {row.description}
+                    </span>
+                ),
+                exportValue: (row) => row.description,
+            },
+            {
+                key: "reference",
+                header: "Referensi",
+                render: (row) => (
+                    <span className="text-sm text-gray-500">
+                        {row.reference || "-"}
+                    </span>
+                ),
+                exportValue: (row) => row.reference || "-",
+            },
+            {
+                key: "type",
+                header: "Tipe",
+                render: (row) => {
+                    const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
+                    return (
+                        <Badge
+                            variant="secondary"
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 ${typeCfg?.className}`}
+                        >
+                            {typeCfg?.label}
+                        </Badge>
+                    );
+                },
+                exportValue: (row) => {
+                    const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
+                    return typeCfg?.label || row.type;
+                },
+            },
+            {
+                key: "totalDebit",
+                header: "Debit",
+                align: "right",
+                render: (row) => (
+                    <span className="text-sm font-mono font-semibold text-gray-900 tabular-nums">
+                        {formatCurrency(row.totalDebit)}
+                    </span>
+                ),
+                exportValue: (row) => row.totalDebit,
+            },
+            {
+                key: "totalCredit",
+                header: "Kredit",
+                align: "right",
+                render: (row) => (
+                    <span className="text-sm font-mono font-semibold text-gray-900 tabular-nums">
+                        {formatCurrency(row.totalCredit)}
+                    </span>
+                ),
+                exportValue: (row) => row.totalCredit,
+            },
+            {
+                key: "status",
+                header: "Status",
+                render: (row) => {
+                    const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
+                    const className =
+                        row.status === "DRAFT"
+                            ? "bg-gray-100 text-gray-600"
+                            : row.status === "POSTED"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : row.status === "VOID"
+                                    ? "bg-red-100 text-red-700"
+                                    : statusCfg?.className;
+                    return (
+                        <Badge
+                            variant="secondary"
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium border-0 ${className}`}
+                        >
+                            {statusCfg?.label}
+                        </Badge>
+                    );
+                },
+                exportValue: (row) => {
+                    const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
+                    return statusCfg?.label || row.status;
+                },
+            },
+            {
+                key: "createdByName",
+                header: "Dibuat oleh",
+                render: (row) => (
+                    <span className="text-sm text-gray-600">{row.createdByName}</span>
+                ),
+                exportValue: (row) => row.createdByName,
+            },
+        ],
+        [],
+    );
 
-  return (
-    <div className="space-y-6">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
-            <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold text-gray-900 tracking-tight">
-              Jurnal Umum
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Catat dan kelola entri jurnal
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => setFormOpen(true)}
-          className="hidden sm:inline-flex bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20 h-10 px-5"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Buat Jurnal
-        </Button>
-      </div>
 
-      {/* Mobile: Floating button */}
-      <div className="sm:hidden fixed bottom-4 right-4 z-50">
-        <Button
-          onClick={() => setFormOpen(true)}
-          size="icon"
-          className="h-12 w-12 rounded-full shadow-xl shadow-blue-300/50 bg-gradient-to-br from-blue-600 to-indigo-600"
-        >
-          <Plus className="w-5 h-5" />
-        </Button>
-      </div>
-
-      {/* ── SmartTable ─────────────────────────────────────────────────── */}
-      <SmartTable<Journal>
-        data={data.journals}
-        columns={columns}
-        totalItems={data.total}
-        totalPages={data.totalPages}
-        currentPage={page}
-        pageSize={pageSize}
-        loading={loading}
-        title="Jurnal Umum"
-        titleIcon={<BookOpen className="w-4 h-4 text-blue-600" />}
-        headerActions={createButton}
-        searchPlaceholder="Cari no. jurnal, deskripsi..."
-        onSearch={handleSearchChange}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
-        filters={smartFilters}
-        activeFilters={activeFilters}
-        onFilterChange={handleFilterChange}
-        onRowClick={handleRowClick}
-        planMenuKey="accounting-journals" exportFilename="jurnal-umum"
-        emptyIcon={<BookOpen className="w-6 h-6 text-muted-foreground/40" />}
-        emptyTitle="Belum ada jurnal"
-        emptyDescription='Klik "Buat Jurnal" untuk membuat entri pertama'
-        mobileRender={(row) => {
-          const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
-          const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
-          const statusClass =
-            row.status === "DRAFT"
-              ? "bg-gray-100 text-gray-600"
-              : row.status === "POSTED"
-              ? "bg-emerald-100 text-emerald-700"
-              : row.status === "VOID"
-              ? "bg-red-100 text-red-700"
-              : statusCfg?.className;
-          return (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-xs font-semibold text-gray-900">{row.number}</span>
-                  <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${typeCfg?.className}`}>
-                    {typeCfg?.label}
-                  </Badge>
+    return (
+        <div className="space-y-6">
+            {/* ── Header ─────────────────────────────────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
+                        <BookOpen className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <div>
+                        <h1 className="text-lg sm:text-2xl font-bold text-gray-900 tracking-tight">
+                            Jurnal Umum
+                        </h1>
+                        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                            Catat dan kelola entri jurnal
+                        </p>
+                    </div>
                 </div>
-                <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${statusClass}`}>
-                  {statusCfg?.label}
-                </Badge>
-              </div>
-              <p className="text-[11px] text-gray-600 truncate">{row.description}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">{formatDate(row.date)}</span>
-                <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums">
-                  <span className="text-emerald-600 font-semibold">D {formatCurrency(row.totalDebit)}</span>
-                  <span className="text-rose-600 font-semibold">K {formatCurrency(row.totalCredit)}</span>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="journals" />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="accounting-journals" actionKey="create">
+                        <Button
+                            onClick={() => setFormOpen(true)}
+                            disabled={!canCreate}
+                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20 h-10 px-5"
+                        >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Buat Jurnal
+                        </Button>
+                    </DisabledActionTooltip>
                 </div>
-              </div>
             </div>
-          );
-        }}
-      />
 
-      {/* ── Dialogs ────────────────────────────────────────────────────── */}
-      <JournalFormDialog open={formOpen} onClose={handleFormClose} />
-      <JournalDetailDialog
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        journal={selectedJournal}
-      />
-    </div>
-  );
+            {/* Mobile: Floating button */}
+            <div className="sm:hidden fixed bottom-4 right-4 z-50">
+                <ProButton
+                    menuKey="accounting-journals"
+                    actionKey="create"
+                    onClick={() => setFormOpen(true)}
+                    className="h-12 w-12 rounded-full shadow-xl shadow-blue-300/50 bg-gradient-to-br from-blue-600 to-indigo-600 inline-flex items-center justify-center text-white"
+                >
+                    <Plus className="w-5 h-5" />
+                </ProButton>
+            </div>
+
+            {/* ── SmartTable ─────────────────────────────────────────────────── */}
+            <SmartTable<Journal>
+                data={data.journals}
+                columns={columns}
+                totalItems={data.total}
+                totalPages={data.totalPages}
+                currentPage={page}
+                pageSize={pageSize}
+                loading={loading}
+                title="Jurnal Umum"
+                titleIcon={<BookOpen className="w-4 h-4 text-blue-600" />}
+                // headerActions={createButton}
+                searchPlaceholder="Cari no. jurnal, deskripsi..."
+                onSearch={handleSearchChange}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+                filters={smartFilters}
+                activeFilters={activeFilters}
+                onFilterChange={handleFilterChange}
+                onRowClick={handleRowClick}
+                planMenuKey="accounting-journals" exportModule="journals"
+                emptyIcon={<BookOpen className="w-6 h-6 text-muted-foreground/40" />}
+                emptyTitle="Belum ada jurnal"
+                emptyDescription='Klik "Buat Jurnal" untuk membuat entri pertama'
+                mobileRender={(row) => {
+                    const statusCfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.DRAFT;
+                    const typeCfg = TYPE_CONFIG[row.type] || TYPE_CONFIG.GENERAL;
+                    const statusClass =
+                        row.status === "DRAFT"
+                            ? "bg-gray-100 text-gray-600"
+                            : row.status === "POSTED"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : row.status === "VOID"
+                                    ? "bg-red-100 text-red-700"
+                                    : statusCfg?.className;
+                    return (
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="font-mono text-xs font-semibold text-gray-900">{row.number}</span>
+                                    <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${typeCfg?.className}`}>
+                                        {typeCfg?.label}
+                                    </Badge>
+                                </div>
+                                <Badge variant="secondary" className={`rounded-full px-1.5 py-0 text-[10px] font-medium border-0 shrink-0 ${statusClass}`}>
+                                    {statusCfg?.label}
+                                </Badge>
+                            </div>
+                            <p className="text-[11px] text-gray-600 truncate">{row.description}</p>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-400">{formatDate(row.date)}</span>
+                                <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums">
+                                    <span className="text-emerald-600 font-semibold">D {formatCurrency(row.totalDebit)}</span>
+                                    <span className="text-rose-600 font-semibold">K {formatCurrency(row.totalCredit)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }}
+            />
+
+            {/* ── Dialogs ────────────────────────────────────────────────────── */}
+            <JournalFormDialog open={formOpen} onClose={handleFormClose} />
+            <JournalDetailDialog
+                open={detailOpen}
+                onClose={() => setDetailOpen(false)}
+                journal={selectedJournal}
+            />
+        </div>
+    );
 }

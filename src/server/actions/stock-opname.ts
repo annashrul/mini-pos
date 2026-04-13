@@ -34,7 +34,7 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
   const skip = (page - 1) * limit;
 
   const companyId = await getCurrentCompanyId();
-  const where: Record<string, unknown> = { branch: { companyId } };
+  const where: Record<string, unknown> = { companyId };
   if (search) {
     where.OR = [
       { opnameNumber: { contains: search, mode: "insensitive" } },
@@ -83,8 +83,9 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
 }
 
 export async function getStockOpnameById(id: string) {
-  return prisma.stockOpname.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.stockOpname.findFirst({
+    where: { id, companyId },
     include: {
       branch: { select: { name: true } },
       items: {
@@ -104,6 +105,13 @@ export async function createStockOpname(
   const branchId = Array.isArray(branchIdOrIds) ? (branchIdOrIds[0] ?? null) : branchIdOrIds;
   await assertMenuActionAccess("stock-opname", "create");
   const companyId = await getCurrentCompanyId();
+
+  // Validate branch belongs to company
+  if (branchId) {
+    const branch = await prisma.branch.findFirst({ where: { id: branchId, companyId } });
+    if (!branch) return { error: "Cabang tidak ditemukan" };
+  }
+
   try {
     const today = new Date();
     const prefix = `SO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
@@ -133,6 +141,7 @@ export async function createStockOpname(
       data: {
         opnameNumber,
         branchId: branchId || null,
+        companyId,
         notes: notes || null,
         status: "DRAFT",
         items: {
@@ -161,15 +170,21 @@ export async function createStockOpname(
   }
 }
 
+/** Helper: validate opname belongs to company */
+async function validateOpnameOwnership(id: string, companyId: string) {
+  return prisma.stockOpname.findFirst({
+    where: { id, companyId },
+  });
+}
+
 export async function updateOpnameItems(
   opnameId: string,
   items: { productId: string; actualStock: number }[],
 ) {
   await assertMenuActionAccess("stock-opname", "update");
+  const companyId = await getCurrentCompanyId();
   try {
-    const opname = await prisma.stockOpname.findUnique({
-      where: { id: opnameId },
-    });
+    const opname = await validateOpnameOwnership(opnameId, companyId);
     if (!opname) return { error: "Stock opname tidak ditemukan" };
     if (opname.status === "COMPLETED" || opname.status === "CANCELLED") {
       return { error: "Stock opname sudah selesai atau dibatalkan" };
@@ -216,7 +231,12 @@ export async function updateOpnameItems(
 
 export async function completeStockOpname(id: string) {
   await assertMenuActionAccess("stock-opname", "approve");
+  const companyId = await getCurrentCompanyId();
   try {
+    // Pre-validate ownership
+    const check = await validateOpnameOwnership(id, companyId);
+    if (!check) throw new Error("Stock opname tidak ditemukan");
+
     await prisma.$transaction(async (tx) => {
       const opname = await tx.stockOpname.findUnique({
         where: { id },
@@ -238,6 +258,8 @@ export async function completeStockOpname(id: string) {
               quantity: Math.abs(item.difference),
               note: `Stock Opname ${opname.opnameNumber}: ${item.difference > 0 ? "kelebihan" : "kekurangan"} ${Math.abs(item.difference)} unit`,
               reference: opname.opnameNumber,
+              branchId: opname.branchId,
+              companyId,
             },
           });
 
@@ -275,8 +297,9 @@ export async function completeStockOpname(id: string) {
 
 export async function cancelStockOpname(id: string) {
   await assertMenuActionAccess("stock-opname", "approve");
+  const companyId = await getCurrentCompanyId();
   try {
-    const opname = await prisma.stockOpname.findUnique({ where: { id } });
+    const opname = await validateOpnameOwnership(id, companyId);
     if (!opname) return { error: "Stock opname tidak ditemukan" };
     if (opname.status === "COMPLETED")
       return { error: "Stock opname yang sudah selesai tidak bisa dibatalkan" };
@@ -299,5 +322,99 @@ export async function cancelStockOpname(id: string) {
     return { success: true };
   } catch {
     return { error: "Gagal membatalkan stock opname" };
+  }
+}
+
+/** Load all active products with branch stock for opname form */
+export async function getProductsForOpname(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { isActive: true, companyId };
+  if (branchId) {
+    where.branchStocks = { some: { branchId } };
+  }
+
+  const products = await prisma.product.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      stock: true,
+      ...(branchId ? { branchStocks: { where: { branchId }, select: { quantity: true }, take: 1 } } : {}),
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return products.map((p) => {
+    const bs = branchId ? ((p as Record<string, unknown>).branchStocks as Array<{ quantity: number }> | undefined)?.[0] : null;
+    return { id: p.id, name: p.name, code: p.code, systemStock: bs?.quantity ?? p.stock };
+  });
+}
+
+/** Create opname and set actual stock in one call — supports multiple branches */
+export async function createStockOpnameWithItems(params: {
+  branchIds: string[];
+  notes?: string | undefined;
+  items: { productId: string; systemStock: number; actualStock: number }[];
+}) {
+  await assertMenuActionAccess("stock-opname", "create");
+  const companyId = await getCurrentCompanyId();
+
+  if (params.items.length === 0) return { error: "Tidak ada produk untuk di-opname" };
+  if (params.branchIds.length === 0) return { error: "Pilih minimal 1 lokasi" };
+
+  // Validate all branches
+  const validBranches = await prisma.branch.findMany({
+    where: { id: { in: params.branchIds }, companyId },
+    select: { id: true },
+  });
+  if (validBranches.length !== params.branchIds.length) return { error: "Cabang tidak ditemukan" };
+
+  try {
+    for (const branchId of params.branchIds) {
+      const today = new Date();
+      const prefix = `SO-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
+      const last = await prisma.stockOpname.findFirst({
+        where: { opnameNumber: { startsWith: prefix } },
+        orderBy: { opnameNumber: "desc" },
+      });
+      let seq = 1;
+      if (last) {
+        const lastSeq = parseInt(last.opnameNumber.split("-").pop() || "0");
+        seq = lastSeq + 1;
+      }
+      const opnameNumber = `${prefix}-${String(seq).padStart(4, "0")}`;
+
+      await prisma.stockOpname.create({
+        data: {
+          opnameNumber,
+          branchId,
+          companyId,
+          notes: params.notes || null,
+          status: "IN_PROGRESS",
+          items: {
+            create: params.items.map((item) => ({
+              productId: item.productId,
+              systemStock: item.systemStock,
+              actualStock: item.actualStock,
+              difference: item.actualStock - item.systemStock,
+            })),
+          },
+        },
+      });
+
+      createAuditLog({
+        action: "CREATE",
+        entity: "StockOpname",
+        entityId: opnameNumber,
+        details: { data: { opnameNumber, branchId, itemCount: params.items.length } },
+        branchId,
+      }).catch(() => {});
+    }
+
+    revalidatePath("/stock-opname");
+    return { success: true };
+  } catch {
+    return { error: "Gagal membuat stock opname" };
   }
 }

@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PLAN_UI } from "@/lib/plan-ui";
 import {
     Building2, Users, Package, GitBranch, Crown, Zap, Shield,
     ArrowUpRight, ArrowDownRight, ShoppingCart, CalendarClock,
@@ -25,12 +26,6 @@ function formatCompact(v: number) {
     if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
     return v.toString();
 }
-
-const planColors: Record<string, string> = {
-    FREE: "bg-slate-100 text-slate-700",
-    PRO: "bg-amber-100 text-amber-700",
-    ENTERPRISE: "bg-purple-100 text-purple-700",
-};
 
 export function PlatformDashboard() {
     const [stats, setStats] = useState<Stats | null>(null);
@@ -63,7 +58,7 @@ export function PlatformDashboard() {
     if (!stats) return null;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
             <div>
                 <h1 className="text-xl sm:text-2xl font-bold">Platform Overview</h1>
@@ -71,7 +66,7 @@ export function PlatformDashboard() {
             </div>
 
             {/* Top metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                 <MetricCard icon={Building2} label="Total Perusahaan" value={stats.totalCompanies} color="from-blue-500 to-indigo-600" />
                 <MetricCard icon={Users} label="Total Pengguna" value={stats.totalUsers} color="from-emerald-500 to-green-600" />
                 <MetricCard icon={GitBranch} label="Total Cabang" value={stats.totalBranches} color="from-amber-500 to-orange-600" />
@@ -79,10 +74,10 @@ export function PlatformDashboard() {
             </div>
 
             {/* Revenue + Plan distribution */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {/* Subscription Revenue */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
                                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
@@ -115,7 +110,7 @@ export function PlatformDashboard() {
                             </div>
                             <div>
                                 <p className="text-muted-foreground text-[10px]">Revenue Tenant</p>
-                                <p className="font-semibold">{formatCurrency(stats.tenantTotalRevenue)}</p>
+                                <p className="font-semibold truncate">{formatCurrency(stats.tenantTotalRevenue)}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -123,7 +118,7 @@ export function PlatformDashboard() {
 
                 {/* Plan Distribution */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <p className="text-xs text-muted-foreground mb-3">Distribusi Plan</p>
                         <div className="space-y-3">
                             {(["FREE", "PRO", "ENTERPRISE"] as const).map((plan) => {
@@ -153,10 +148,10 @@ export function PlatformDashboard() {
             </div>
 
             {/* Expiring soon + Recent companies */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {/* Expiring soon */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-sm font-semibold flex items-center gap-1.5">
                                 <AlertTriangle className="w-4 h-4 text-amber-500" /> Segera Expired
@@ -170,7 +165,7 @@ export function PlatformDashboard() {
                                 {stats.expiringSoon.map((c) => {
                                     const daysLeft = Math.ceil((new Date(c.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                                     return (
-                                        <div key={c.id} className="flex items-center justify-between rounded-lg bg-amber-50/50 border border-amber-100 px-3 py-2">
+                                        <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg bg-amber-50/50 border border-amber-100 px-3 py-2">
                                             <div>
                                                 <p className="text-sm font-medium">{c.name}</p>
                                                 <p className="text-[11px] text-muted-foreground">
@@ -193,7 +188,7 @@ export function PlatformDashboard() {
 
                 {/* Recent companies */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-sm font-semibold flex items-center gap-1.5">
                                 <Building2 className="w-4 h-4 text-blue-500" /> Tenant Terbaru
@@ -204,7 +199,7 @@ export function PlatformDashboard() {
                         </div>
                         <div className="space-y-2">
                             {stats.recentCompanies.map((c) => (
-                                <div key={c.id} className="flex items-center justify-between rounded-lg border border-border/40 px-3 py-2">
+                                <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border/40 px-3 py-2">
                                     <div>
                                         <p className="text-sm font-medium">{c.name}</p>
                                         <p className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -213,7 +208,9 @@ export function PlatformDashboard() {
                                             <CalendarClock className="w-3 h-3" /> {new Date(c.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
                                         </p>
                                     </div>
-                                    <Badge className={cn("text-[10px] px-2 py-0 rounded-full", planColors[c.plan])}>{c.plan}</Badge>
+                                    <Badge className={cn("text-[10px] px-2 py-0 rounded-full", (PLAN_UI[c.plan as keyof typeof PLAN_UI] || PLAN_UI.FREE).badgeClassName)}>
+                                        {(PLAN_UI[c.plan as keyof typeof PLAN_UI] || PLAN_UI.FREE).name}
+                                    </Badge>
                                 </div>
                             ))}
                         </div>
@@ -222,7 +219,7 @@ export function PlatformDashboard() {
             </div>
 
             {/* Activity row */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div className="flex items-center gap-3 rounded-xl border p-3">
                     <Activity className="w-5 h-5 text-emerald-500" />
                     <div>
@@ -247,10 +244,10 @@ export function PlatformDashboard() {
             </div>
 
             {/* Top tenants + Recent payments */}
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {/* Top tenants by revenue */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <p className="text-sm font-semibold flex items-center gap-1.5 mb-3">
                             <TrendingUp className="w-4 h-4 text-emerald-500" /> Top Tenant (Revenue)
                         </p>
@@ -277,7 +274,7 @@ export function PlatformDashboard() {
 
                 {/* Recent subscription payments */}
                 <Card className="rounded-2xl border-border/50">
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <div className="flex items-center justify-between mb-3">
                             <p className="text-sm font-semibold flex items-center gap-1.5">
                                 <DollarSign className="w-4 h-4 text-emerald-500" /> Pembayaran Terbaru
@@ -291,11 +288,13 @@ export function PlatformDashboard() {
                         ) : (
                             <div className="space-y-2">
                                 {stats.recentPayments.map((p) => (
-                                    <div key={p.id} className="flex items-center justify-between rounded-lg border border-border/40 px-3 py-2">
+                                    <div key={p.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-border/40 px-3 py-2">
                                         <div>
                                             <p className="text-sm font-medium">{p.companyName}</p>
                                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                                <Badge className={cn("text-[9px] px-1.5 py-0 rounded-full", planColors[p.plan])}>{p.plan}</Badge>
+                                                <Badge className={cn("text-[9px] px-1.5 py-0 rounded-full", (PLAN_UI[p.plan as keyof typeof PLAN_UI] || PLAN_UI.FREE).badgeClassName)}>
+                                                    {(PLAN_UI[p.plan as keyof typeof PLAN_UI] || PLAN_UI.FREE).name}
+                                                </Badge>
                                                 <span>{new Date(p.createdAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
                                             </p>
                                         </div>
@@ -313,12 +312,12 @@ export function PlatformDashboard() {
 
 function MetricCard({ icon: Icon, label, value, color }: { icon: typeof Building2; label: string; value: string | number; color: string }) {
     return (
-        <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white p-3 sm:p-4">
-            <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0", color)}>
+        <div className="flex items-center gap-2.5 sm:gap-3 rounded-xl border border-border/50 bg-white p-2.5 sm:p-4">
+            <div className={cn("w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0", color)}>
                 <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div>
-                <p className="text-lg sm:text-xl font-bold tabular-nums">{value}</p>
+                <p className="text-base sm:text-xl font-bold tabular-nums">{value}</p>
                 <p className="text-[10px] sm:text-xs text-muted-foreground">{label}</p>
             </div>
         </div>

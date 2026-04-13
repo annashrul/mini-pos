@@ -6,15 +6,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createCategory, updateCategory, deleteCategory, getCategories } from "@/features/categories";
 import { useMenuActionAccess } from "@/features/access-control";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, FolderTree, Folder, Layers, PackageCheck, FolderOpen, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderTree, Folder, Layers, PackageCheck, FolderOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Category } from "@/types";
 
@@ -30,15 +32,19 @@ export function CategoriesContent() {
     const [editing, setEditing] = useState<Category | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [pendingSubmitValues, setPendingSubmitValues] = useState<CategoryFormValues | null>(null);
+    const [confirmLoading, setConfirmLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("categories");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("categories", "create");
+    const canUpdate = canAction("update") && canPlan("categories", "update");
+    const canDelete = canAction("delete") && canPlan("categories", "delete");
 
     // --- Stats ---
     const stats = useMemo(() => {
@@ -68,7 +74,7 @@ export function CategoriesContent() {
         defaultValues: { name: "", description: "" },
     });
 
-    const onSubmit = async (values: CategoryFormValues) => {
+    const executeSubmit = async (values: CategoryFormValues) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
         const fd = new FormData();
         fd.set("name", values.name);
@@ -76,6 +82,11 @@ export function CategoriesContent() {
         const result = editing ? await updateCategory(editing.id, fd) : await createCategory(fd);
         if (result.error) { toast.error(result.error); }
         else { toast.success(editing ? "Kategori berhasil diupdate" : "Kategori berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
+    };
+
+    const onSubmit = async (values: CategoryFormValues) => {
+        setPendingSubmitValues(values);
+        setSubmitConfirmOpen(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -142,7 +153,7 @@ export function CategoriesContent() {
             key: "actions", header: "Aksi", align: "right", sticky: true, width: "90px",
             render: (row) => (
                 <div className="flex justify-end gap-1">
-                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="categories" actionKey="update">
                         <Button
                             disabled={!canUpdate}
                             variant="ghost"
@@ -153,7 +164,7 @@ export function CategoriesContent() {
                             <Pencil className="w-3.5 h-3.5" />
                         </Button>
                     </DisabledActionTooltip>
-                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="categories" actionKey="delete">
                         <Button
                             disabled={!canDelete}
                             variant="ghost"
@@ -187,7 +198,7 @@ export function CategoriesContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="categories" actionKey="create">
                     <Button
                         disabled={!canCreate}
                         className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
@@ -247,7 +258,7 @@ export function CategoriesContent() {
                         </div>
                     </div>
                 }
-                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} planMenuKey="categories" exportFilename="kategori"
+                selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id} planMenuKey="categories" exportModule="categories"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-green-100 mx-auto">
                         <FolderTree className="w-8 h-8 text-emerald-400" />
@@ -256,7 +267,7 @@ export function CategoriesContent() {
                 emptyTitle="Belum ada kategori"
                 emptyDescription="Mulai tambahkan kategori pertama untuk mengelompokkan produk Anda."
                 emptyAction={
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="categories" actionKey="create">
                         <Button
                             disabled={!canCreate}
                             variant="outline"
@@ -307,8 +318,8 @@ export function CategoriesContent() {
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
                                 <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl">Batal</Button>
-                                <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white">
-                                    {editing ? "Update" : "Simpan"}
+                                <Button disabled={(editing ? !canUpdate : !canCreate) || form.formState.isSubmitting} type="submit" className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white">
+                                    {form.formState.isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}
                                 </Button>
                             </div>
                         </form>
@@ -317,44 +328,33 @@ export function CategoriesContent() {
             </Dialog>
 
             {/* --- Confirm Delete Dialog --- */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500" />
-                    <div className="px-6 pt-4 pb-6">
-                        <DialogHeader className="pb-4">
-                            <DialogTitle className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-md shadow-red-500/20">
-                                    <AlertTriangle className="w-5 h-5 text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-lg font-bold">Hapus Kategori</p>
-                                    <p className="text-xs font-normal text-muted-foreground mt-0.5">Tindakan ini tidak dapat dibatalkan</p>
-                                </div>
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="rounded-xl bg-red-50 border border-red-100 p-3 mb-4">
-                            <p className="text-sm text-red-700">
-                                Yakin ingin menghapus kategori ini? Semua data terkait kategori akan dihapus secara permanen.
-                            </p>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingDeleteId(null); }} className="rounded-xl">
-                                Batal
-                            </Button>
-                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                                <Button
-                                    disabled={!canDelete}
-                                    variant="destructive"
-                                    onClick={confirmDelete}
-                                    className="rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-md shadow-red-500/20"
-                                >
-                                    Ya, Hapus
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingDeleteId(null); }}
+                kind="delete"
+                title="Hapus Kategori"
+                description="Yakin ingin menghapus kategori ini? Semua data terkait kategori akan dihapus secara permanen."
+                confirmLabel="Ya, Hapus"
+                onConfirm={confirmDelete}
+                confirmDisabled={!canDelete}
+            />
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) setPendingSubmitValues(null); }}
+                kind="submit"
+                title={editing ? "Update Kategori?" : "Simpan Kategori?"}
+                description={editing ? "Perubahan kategori akan disimpan." : "Kategori baru akan ditambahkan."}
+                confirmLabel={editing ? "Update" : "Simpan"}
+                loading={confirmLoading}
+                onConfirm={async () => {
+                    if (!pendingSubmitValues) return;
+                    setConfirmLoading(true);
+                    await executeSubmit(pendingSubmitValues);
+                    setConfirmLoading(false);
+                    setSubmitConfirmOpen(false);
+                    setPendingSubmitValues(null);
+                }}
+            />
         </div>
     );
 }

@@ -80,7 +80,7 @@ export function BranchPricesCopyDialog(props: {
                     <Button variant="outline" onClick={onCancel} className="rounded-xl border-slate-200/60">
                         Batal
                     </Button>
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="branch-prices" actionKey="copy">
                         <Button
                             disabled={!canCreate || !copyTarget}
                             onClick={onConfirm}

@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createSupplier, updateSupplier, deleteSupplier, getSuppliers } from "@/features/suppliers";
 import { useMenuActionAccess } from "@/features/access-control";
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,10 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, CheckCircle2, XCircle, Building2, Package, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, CheckCircle2, XCircle, Building2, Package, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Supplier } from "@/types";
 
@@ -36,6 +38,9 @@ export function SuppliersContent() {
     const [editing, setEditing] = useState<Supplier | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+    const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+    const [pendingSubmitValues, setPendingSubmitValues] = useState<SupplierFormValues | null>(null);
+    const [confirmLoading, setConfirmLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
@@ -43,9 +48,10 @@ export function SuppliersContent() {
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("suppliers");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canDelete = canAction("delete");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("suppliers", "create");
+    const canUpdate = canAction("update") && canPlan("suppliers", "update");
+    const canDelete = canAction("delete") && canPlan("suppliers", "delete");
 
     // --- Stats ---
     const stats = useMemo(() => {
@@ -83,7 +89,7 @@ export function SuppliersContent() {
         defaultValues: { name: "", contact: "", email: "", address: "", isActive: true },
     });
 
-    const onSubmit = async (values: SupplierFormValues) => {
+    const executeSubmit = async (values: SupplierFormValues) => {
         if (editing ? !canUpdate : !canCreate) { toast.error(cannotMessage(editing ? "update" : "create")); return; }
         const fd = new FormData();
         fd.set("name", values.name);
@@ -94,6 +100,11 @@ export function SuppliersContent() {
         const result = editing ? await updateSupplier(editing.id, fd) : await createSupplier(fd);
         if (result.error) { toast.error(result.error); }
         else { toast.success(editing ? "Supplier berhasil diupdate" : "Supplier berhasil ditambahkan"); setOpen(false); setEditing(null); fetchData({}); }
+    };
+
+    const onSubmit = async (values: SupplierFormValues) => {
+        setPendingSubmitValues(values);
+        setSubmitConfirmOpen(true);
     };
 
     const handleDelete = async (id: string) => {
@@ -192,7 +203,7 @@ export function SuppliersContent() {
             key: "actions", header: "Aksi", align: "right", sticky: true, width: "100px",
             render: (row) => (
                 <div className="flex justify-end gap-1">
-                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="suppliers" actionKey="update">
                         <Button
                             disabled={!canUpdate}
                             variant="ghost"
@@ -203,7 +214,7 @@ export function SuppliersContent() {
                             <Pencil className="w-3.5 h-3.5" />
                         </Button>
                     </DisabledActionTooltip>
-                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="suppliers" actionKey="delete">
                         <Button
                             disabled={!canDelete}
                             variant="ghost"
@@ -241,7 +252,7 @@ export function SuppliersContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="suppliers" actionKey="create">
                     <Button
                         disabled={!canCreate}
                         className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
@@ -328,7 +339,7 @@ export function SuppliersContent() {
                     </div>
                 }
                 selectable selectedRows={selectedRows} onSelectionChange={setSelectedRows} rowKey={(r) => r.id}
-                planMenuKey="suppliers" exportFilename="supplier"
+                planMenuKey="suppliers" exportModule="suppliers"
                 emptyIcon={
                     <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 mx-auto">
                         <Truck className="w-8 h-8 text-amber-400" />
@@ -337,7 +348,7 @@ export function SuppliersContent() {
                 emptyTitle="Belum ada supplier"
                 emptyDescription="Mulai tambahkan supplier pertama Anda untuk mengelola rantai pasokan."
                 emptyAction={
-                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="suppliers" actionKey="create">
                         <Button
                             disabled={!canCreate}
                             className="rounded-xl mt-3 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
@@ -404,8 +415,8 @@ export function SuppliersContent() {
                             <div className="flex justify-end gap-2 pt-2">
                                 <Button type="button" variant="outline" onClick={() => { setOpen(false); setEditing(null); form.reset(); }} className="rounded-xl">Batal</Button>
                                 <DisabledActionTooltip disabled={editing ? !canUpdate : !canCreate} message={cannotMessage(editing ? "update" : "create")}>
-                                    <Button disabled={editing ? !canUpdate : !canCreate} type="submit" className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
-                                        {editing ? "Update" : "Simpan"}
+                                    <Button disabled={(editing ? !canUpdate : !canCreate) || form.formState.isSubmitting} type="submit" className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all">
+                                        {form.formState.isSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : editing ? "Update" : "Simpan"}
                                     </Button>
                                 </DisabledActionTooltip>
                             </div>
@@ -414,37 +425,33 @@ export function SuppliersContent() {
                 </DialogContent>
             </Dialog>
 
-            {/* --- Confirm Delete Dialog --- */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="rounded-2xl max-w-sm p-0 overflow-hidden">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-500 via-rose-500 to-orange-500" />
-                    <div className="px-6 pt-4 pb-6">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-600 shadow-sm">
-                                    <AlertTriangle className="w-4 h-4 text-white" />
-                                </div>
-                                Hapus Supplier
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="mt-3 p-3 rounded-xl bg-red-50/50 border border-red-100">
-                            <p className="text-sm text-red-700">
-                                Apakah Anda yakin ingin menghapus supplier ini? Tindakan ini tidak dapat dibatalkan.
-                            </p>
-                        </div>
-                        <div className="flex justify-end gap-2 mt-4">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingDeleteId(null); }} className="rounded-xl">
-                                Batal
-                            </Button>
-                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
-                                <Button disabled={!canDelete} variant="destructive" onClick={confirmDelete} className="rounded-xl shadow-md shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/30 transition-all">
-                                    Ya, Hapus
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingDeleteId(null); }}
+                kind="delete"
+                title="Hapus Supplier"
+                description="Apakah Anda yakin ingin menghapus supplier ini? Tindakan ini tidak dapat dibatalkan."
+                confirmLabel="Ya, Hapus"
+                onConfirm={confirmDelete}
+                confirmDisabled={!canDelete}
+            />
+            <ActionConfirmDialog
+                open={submitConfirmOpen}
+                onOpenChange={(v) => { setSubmitConfirmOpen(v); if (!v) setPendingSubmitValues(null); }}
+                kind="submit"
+                title={editing ? "Update Supplier?" : "Simpan Supplier?"}
+                description={editing ? "Perubahan supplier akan disimpan." : "Supplier baru akan ditambahkan."}
+                confirmLabel={editing ? "Update" : "Simpan"}
+                loading={confirmLoading}
+                onConfirm={async () => {
+                    if (!pendingSubmitValues) return;
+                    setConfirmLoading(true);
+                    await executeSubmit(pendingSubmitValues);
+                    setConfirmLoading(false);
+                    setSubmitConfirmOpen(false);
+                    setPendingSubmitValues(null);
+                }}
+            />
         </div>
     );
 }

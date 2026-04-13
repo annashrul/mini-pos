@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import { Card, CardContent } from "@/components/ui/card";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -169,6 +170,9 @@ function AnalyticsContentInner() {
                             <p className="text-slate-400 text-xs sm:text-sm">Analisis profit, stok, dan performa bisnis</p>
                         </div>
                     </div>
+                </div>
+                <div className="hidden sm:block">
+                    <ExportMenu module="reports" />
                 </div>
             </div>
 

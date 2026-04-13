@@ -10,6 +10,7 @@ export type PosReadyScreenContextValue = {
     setupErrors: FieldErrors<PosSessionSetupValues>;
     setSelectedRegister: (value: string) => void;
     activeShift: { id: string; openingCash: number; openedAt: string | Date } | null;
+    closedToday: boolean;
     openingCash: string;
     setOpeningCash: (value: string) => void;
     onBack: () => void;

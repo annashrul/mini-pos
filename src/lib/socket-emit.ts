@@ -8,6 +8,7 @@ export const EVENTS = {
   STOCK_UPDATED: "stock:updated",
   SHIFT_OPENED: "shift:opened",
   SHIFT_CLOSED: "shift:closed",
+  SHIFT_RECLOSED: "shift:reclosed",
   DASHBOARD_REFRESH: "dashboard:refresh",
   ORDER_QUEUE_CREATED: "order-queue:created",
   ORDER_QUEUE_UPDATED: "order-queue:updated",

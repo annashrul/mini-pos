@@ -1,12 +1,14 @@
 "use client";
 
+import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
     getStockOpnames,
     getStockOpnameById,
-    createStockOpname,
+    createStockOpnameWithItems,
+    getProductsForOpname,
     updateOpnameItems,
     completeStockOpname,
     cancelStockOpname,
@@ -16,9 +18,11 @@ import { getAllBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
+import { SmartSelect } from "@/components/ui/smart-select";
 import {
     Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,7 +35,7 @@ import {
     Plus, Eye, ClipboardCheck,
     CheckCircle2, XCircle, Save,
     FileEdit, Loader2, Copy,
-    Package, TrendingUp, TrendingDown, AlertTriangle,
+    Package, TrendingUp, TrendingDown,
     Search, CalendarDays, MapPin,
     SlidersHorizontal, Check,
 } from "lucide-react";
@@ -54,7 +58,7 @@ const statusConfig: Record<string, { label: string; classes: string; icon: React
     IN_PROGRESS: {
         label: "Berlangsung",
         classes: "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200/60",
-        icon: <Loader2 className="w-3 h-3 animate-spin" />,
+        icon: <FileEdit className="w-3 h-3" />,
         borderColor: "border-l-amber-400",
         gradientBg: "from-amber-400 to-amber-500",
     },
@@ -106,17 +110,22 @@ export function StockOpnameContent() {
         resolver: zodResolver(createStockOpnameSchema),
         defaultValues: { branchIds: [], notes: "" },
     });
+    const [createProducts, setCreateProducts] = useState<Array<{ id: string; name: string; code: string; systemStock: number; actualStock: number }>>([]);
+    const [createProductsLoading, setCreateProductsLoading] = useState(false);
+    const [createSearch, setCreateSearch] = useState("");
+    const [createSubmitting, setCreateSubmitting] = useState(false);
 
     // Detail edit state
     const [editedItems, setEditedItems] = useState<Record<string, number>>({});
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-    const [confirmRequiredAction, setConfirmRequiredAction] = useState<null | "approve" | "update">(null);
+    const [confirmKind, setConfirmKind] = useState<"approve" | "delete" | "custom">("custom");
     const { canAction, cannotMessage } = useMenuActionAccess("stock-opname");
-    const canCreate = canAction("create");
-    const canUpdate = canAction("update");
-    const canApprove = canAction("approve");
+    const { canAction: canPlan } = usePlanAccess();
+    const canCreate = canAction("create") && canPlan("stock-opname", "create");
+    const canUpdate = canAction("update") && canPlan("stock-opname", "update");
+    const canApprove = canAction("approve") && canPlan("stock-opname", "approve");
 
     function fetchData(params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) {
         startTransition(async () => {
@@ -155,7 +164,7 @@ export function StockOpnameContent() {
         } else {
             fetchData({});
         }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleViewDetail = async (id: string) => {
         const opname: StockOpnameDetail | null = await getStockOpnameById(id);
@@ -169,21 +178,72 @@ export function StockOpnameContent() {
         setDetailOpen(true);
     };
 
-    const onCreateSubmit = async (values: CreateStockOpnameInput) => {
-        if (!canCreate) { toast.error(cannotMessage("create")); return; }
-        const result = await createStockOpname(values.branchIds.length === branches.length ? null : values.branchIds, values.notes || undefined);
-        if (result.error) {
-            toast.error(result.error);
-        } else {
-            toast.success("Stock Opname berhasil dibuat");
-            setCreateOpen(false);
-            createForm.reset();
-            fetchData({});
+    const loadCreateProducts = async (branchId?: string) => {
+        setCreateProductsLoading(true);
+        try {
+            const products = await getProductsForOpname(branchId || undefined);
+            setCreateProducts(products.map((p) => ({ ...p, actualStock: p.systemStock })));
+        } finally {
+            setCreateProductsLoading(false);
         }
     };
 
-    const handleSaveItems = async () => {
+    const openCreateDialog = () => {
+        const bid = selectedBranchId || undefined;
+        if (bid) {
+            createForm.setValue("branchIds", [bid]);
+            loadCreateProducts(bid);
+        } else {
+            createForm.setValue("branchIds", []);
+            setCreateProducts([]);
+        }
+        setCreateOpen(true);
+    };
+
+    const [opnameCreateConfirmOpen, setOpnameCreateConfirmOpen] = useState(false);
+    const [opnameSaveConfirmOpen, setOpnameSaveConfirmOpen] = useState(false);
+
+    const onCreateSubmit = (_values: CreateStockOpnameInput) => {
+        if (!canCreate) { toast.error(cannotMessage("create")); return; }
+        setOpnameCreateConfirmOpen(true);
+    };
+
+    const executeCreateOpname = async () => {
+        const values = createForm.getValues();
+        const effectiveIds = selectedBranchId ? [selectedBranchId] : values.branchIds;
+
+        setCreateSubmitting(true);
+        try {
+            const result = await createStockOpnameWithItems({
+                branchIds: effectiveIds,
+                notes: values.notes || undefined,
+                items: createProducts.map((p) => ({
+                    productId: p.id,
+                    systemStock: p.systemStock,
+                    actualStock: p.actualStock,
+                })),
+            });
+            if (result.error) { toast.error(result.error); return; }
+
+            toast.success("Stock Opname berhasil dibuat");
+            setCreateOpen(false);
+            createForm.reset();
+            setCreateProducts([]);
+            setCreateSearch("");
+            fetchData({});
+        } finally {
+            setCreateSubmitting(false);
+            setOpnameCreateConfirmOpen(false);
+        }
+    };
+
+    const handleSaveItems = () => {
         if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        if (!selectedOpname) return;
+        setOpnameSaveConfirmOpen(true);
+    };
+
+    const executeSaveItems = async () => {
         if (!selectedOpname) return;
         const items = Object.entries(editedItems).map(([productId, actualStock]) => ({
             productId,
@@ -195,17 +255,17 @@ export function StockOpnameContent() {
             toast.error(result.error);
         } else {
             toast.success("Data opname berhasil disimpan");
-            // Refresh detail
             const updated = await getStockOpnameById(selectedOpname.id);
             setSelectedOpname(updated);
             fetchData({});
         }
+        setOpnameSaveConfirmOpen(false);
     };
 
     const handleComplete = async () => {
         if (!canApprove) { toast.error(cannotMessage("approve")); return; }
         if (!selectedOpname) return;
-        setConfirmRequiredAction("approve");
+        setConfirmKind("approve");
         setConfirmText("Yakin ingin menyelesaikan stock opname ini? Stok produk akan disesuaikan.");
         setPendingConfirmAction(() => async () => {
             const items = Object.entries(editedItems).map(([productId, actualStock]) => ({
@@ -223,14 +283,13 @@ export function StockOpnameContent() {
             }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
-            setConfirmRequiredAction(null);
         });
         setConfirmOpen(true);
     };
 
     const handleCancel = async (id: string) => {
         if (!canUpdate) { toast.error(cannotMessage("update")); return; }
-        setConfirmRequiredAction("update");
+        setConfirmKind("delete");
         setConfirmText("Yakin ingin membatalkan stock opname ini?");
         setPendingConfirmAction(() => async () => {
             const result = await cancelStockOpname(id);
@@ -243,7 +302,6 @@ export function StockOpnameContent() {
             }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
-            setConfirmRequiredAction(null);
         });
         setConfirmOpen(true);
     };
@@ -322,73 +380,145 @@ export function StockOpnameContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Penyesuaian stok berdasarkan penghitungan fisik</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50" onClick={() => setCreateOpen(true)}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Buat Opname
-                    </Button>
-                </DisabledActionTooltip>
+                <div className="hidden sm:flex items-center gap-2">
+                    <ExportMenu module="stock-opname" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock-opname" actionKey="create">
+                        <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50" onClick={() => openCreateDialog()}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Buat Opname
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
                 {/* Mobile: Floating button */}
                 {canCreate && (
                     <div className="sm:hidden fixed bottom-4 right-4 z-50">
-                        <Button onClick={() => setCreateOpen(true)} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-amber-300/50 bg-gradient-to-br from-amber-500 to-orange-500">
+                        <Button onClick={() => openCreateDialog()} size="icon" className="h-12 w-12 rounded-full shadow-xl shadow-amber-300/50 bg-gradient-to-br from-amber-500 to-orange-500">
                             <Plus className="w-5 h-5" />
                         </Button>
                     </div>
                 )}
-                <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) createForm.reset(); }}>
-                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl border-0 shadow-2xl p-0 gap-0">
-                        {/* Gradient accent line */}
+                <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { createForm.reset(); setCreateProducts([]); setCreateSearch(""); } }}>
+                    <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden border-0 shadow-2xl p-0 gap-0">
                         <div className="h-1 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 shrink-0" />
-                        <form onSubmit={createForm.handleSubmit(onCreateSubmit)}>
-                            <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
-                                <DialogTitle className="text-base sm:text-lg font-bold">Buat Stock Opname Baru</DialogTitle>
+                        <form onSubmit={createForm.handleSubmit(onCreateSubmit)} className="flex flex-col flex-1 min-h-0">
+                            <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
+                                <DialogTitle className="text-base sm:text-lg font-bold">Buat Stock Opname</DialogTitle>
                             </DialogHeader>
-                            <DialogBody className={`space-y-3 sm:space-y-5 px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
-                                <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 p-3">
-                                    <p className="text-xs sm:text-sm text-amber-800">
-                                        Semua produk aktif akan dimuat dengan stok sistem saat ini. Anda dapat memasukkan stok aktual setelah opname dibuat.
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
-                                    <div className="rounded-xl border border-slate-200 bg-white p-0.5">
-                                        <Controller
-                                            control={createForm.control}
-                                            name="branchIds"
-                                            render={({ field }) => (
-                                                <BranchMultiSelect
-                                                    branches={branches}
-                                                    value={field.value}
-                                                    onChange={field.onChange}
+                            <DialogBody className={`space-y-3 sm:space-y-4 px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
+                                {/* Lokasi + Catatan */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                                        {selectedBranchId ? (
+                                            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                                                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                                <span className="font-medium">{branches.find((b) => b.id === selectedBranchId)?.name ?? "—"}</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <SmartSelect
+                                                    value={createForm.watch("branchIds")?.[0] ?? ""}
+                                                    onChange={(v) => {
+                                                        createForm.setValue("branchIds", v ? [v] : []);
+                                                        if (v) loadCreateProducts(v);
+                                                        else setCreateProducts([]);
+                                                    }}
                                                     placeholder="Pilih lokasi"
+                                                    onSearch={async (query) =>
+                                                        branches
+                                                            .filter((b) => !query || b.name.toLowerCase().includes(query.toLowerCase()))
+                                                            .map((b) => ({ value: b.id, label: b.name }))
+                                                    }
                                                 />
-                                            )}
-                                        />
+                                                {createForm.formState.errors.branchIds && <p className="text-xs text-red-500">{createForm.formState.errors.branchIds.message}</p>}
+                                            </>
+                                        )}
                                     </div>
-                                    {createForm.formState.errors.branchIds && (
-                                        <p className="text-sm text-red-500">{createForm.formState.errors.branchIds.message}</p>
-                                    )}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs sm:text-sm font-medium">Catatan</Label>
+                                        <Input {...createForm.register("notes")} className="rounded-xl h-9 sm:h-10" placeholder="Opsional..." />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
-                                    <textarea
-                                        {...createForm.register("notes")}
-                                        className="flex w-full rounded-xl border border-slate-200 bg-white px-3 sm:px-4 py-2.5 sm:py-3 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 transition-all resize-none min-h-[70px] sm:min-h-[80px]"
-                                        placeholder="Tambahkan catatan untuk opname ini, misalnya: Opname akhir bulan Maret 2026..."
-                                    />
-                                </div>
+
+                                {/* Product list */}
+                                {createProductsLoading ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="w-5 h-5 animate-spin text-amber-500 mr-2" />
+                                        <span className="text-sm text-muted-foreground">Memuat produk...</span>
+                                    </div>
+                                ) : createProducts.length > 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Label className="text-xs sm:text-sm font-semibold">Daftar Produk</Label>
+                                                <Badge variant="secondary" className="rounded-full text-[10px] px-1.5">{createProducts.length}</Badge>
+                                            </div>
+                                            <div className="relative w-40 sm:w-56">
+                                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                                                <Input value={createSearch} onChange={(e) => setCreateSearch(e.target.value)} className="rounded-lg h-7 sm:h-8 pl-8 text-xs" placeholder="Cari produk..." />
+                                            </div>
+                                        </div>
+
+                                        {/* Header */}
+                                        <div className="hidden sm:grid grid-cols-[1fr_100px_100px_80px] gap-2 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">
+                                            <span>Produk</span>
+                                            <span className="text-center">Stok Sistem</span>
+                                            <span className="text-center">Stok Aktual</span>
+                                            <span className="text-center">Selisih</span>
+                                        </div>
+
+                                        {/* Items */}
+                                        <div className="space-y-1 max-h-[40vh] overflow-y-auto">
+                                            {createProducts
+                                                .filter((p) => !createSearch || p.name.toLowerCase().includes(createSearch.toLowerCase()) || p.code.toLowerCase().includes(createSearch.toLowerCase()))
+                                                .map((item) => {
+                                                    const diff = item.actualStock - item.systemStock;
+                                                    return (
+                                                        <div key={item.id} className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_100px_100px_80px] gap-2 items-center px-3 py-2 rounded-lg border border-slate-100 hover:bg-slate-50/50">
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs sm:text-sm font-medium truncate">{item.name}</p>
+                                                                <p className="text-[10px] text-muted-foreground font-mono">{item.code}</p>
+                                                            </div>
+                                                            <div className="hidden sm:block text-center text-sm tabular-nums text-slate-500">{item.systemStock}</div>
+                                                            <div className="flex items-center gap-1.5 sm:justify-center">
+                                                                <span className="sm:hidden text-[10px] text-muted-foreground">Aktual:</span>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={item.actualStock}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value) || 0;
+                                                                        setCreateProducts((prev) => prev.map((p) => p.id === item.id ? { ...p, actualStock: val } : p));
+                                                                    }}
+                                                                    className="w-16 sm:w-20 h-7 sm:h-8 rounded-lg text-center text-xs sm:text-sm font-medium tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                    min={0}
+                                                                />
+                                                            </div>
+                                                            <div className="hidden sm:flex justify-center">
+                                                                {diff !== 0 && (
+                                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff > 0 ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"}`}>
+                                                                        {diff > 0 ? "+" : ""}{diff}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+                                ) : !selectedBranchId ? (
+                                    <div className="text-center py-6 text-muted-foreground">
+                                        <ClipboardCheck className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                        <p className="text-xs sm:text-sm">Pilih 1 lokasi untuk memuat daftar produk</p>
+                                    </div>
+                                ) : null}
                             </DialogBody>
-                            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
-                                <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); createForm.reset(); }} className="rounded-xl px-5">
+                            <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
+                                <Button type="button" variant="outline" onClick={() => { setCreateOpen(false); createForm.reset(); setCreateProducts([]); setCreateSearch(""); }} className="rounded-xl">
                                     Batal
                                 </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={!canCreate}
-                                    className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-200/40 px-6"
-                                >
-                                    Simpan
+                                <Button type="submit" disabled={!canCreate || createProducts.length === 0 || createSubmitting}
+                                    className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-200/40 px-6">
+                                    {createSubmitting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Menyimpan...</> : "Simpan Opname"}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -822,40 +952,29 @@ export function StockOpnameContent() {
             </Dialog>
 
             {/* Confirmation dialog */}
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-xl sm:rounded-2xl border-0 shadow-2xl p-0 gap-0">
-                    <div className="h-1 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-r from-red-400 to-orange-400" />
-                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 pt-4">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2.5">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-50">
-                                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                                </div>
-                                Konfirmasi
-                            </DialogTitle>
-                        </DialogHeader>
-                        <p className="text-sm text-muted-foreground mt-3">{confirmText}</p>
-                        <div className="flex justify-end gap-2 mt-5">
-                            <Button variant="outline" onClick={() => { setConfirmOpen(false); setPendingConfirmAction(null); }} className="rounded-xl px-5">
-                                Batal
-                            </Button>
-                            <DisabledActionTooltip
-                                disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                                message={cannotMessage(confirmRequiredAction === "approve" ? "approve" : "update")}
-                            >
-                                <Button
-                                    disabled={confirmRequiredAction === "approve" ? !canApprove : confirmRequiredAction === "update" ? !canUpdate : false}
-                                    variant="destructive"
-                                    onClick={async () => { await pendingConfirmAction?.(); }}
-                                    className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-md shadow-red-200/40 px-5"
-                                >
-                                    Ya, Lanjutkan
-                                </Button>
-                            </DisabledActionTooltip>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={(v) => { setConfirmOpen(v); if (!v) setPendingConfirmAction(null); }}
+                kind={confirmKind}
+                description={confirmText}
+                confirmLabel="Ya, Lanjutkan"
+                onConfirm={async () => { await pendingConfirmAction?.(); }}
+                size="sm"
+            />
+            <ActionConfirmDialog
+                open={opnameCreateConfirmOpen}
+                onOpenChange={setOpnameCreateConfirmOpen}
+                kind="submit"
+                description="Yakin ingin menyimpan stock opname ini?"
+                onConfirm={executeCreateOpname}
+            />
+            <ActionConfirmDialog
+                open={opnameSaveConfirmOpen}
+                onOpenChange={setOpnameSaveConfirmOpen}
+                kind="submit"
+                description="Yakin ingin menyimpan perubahan data opname?"
+                onConfirm={executeSaveItems}
+            />
         </div>
     );
 }

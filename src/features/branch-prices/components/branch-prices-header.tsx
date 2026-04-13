@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ExportMenu } from "@/components/ui/export-menu";
 import { Copy, DollarSign } from "lucide-react";
 
 export function BranchPricesHeader(props: {
@@ -29,15 +30,18 @@ export function BranchPricesHeader(props: {
                 </div>
             </div>
 
-            <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")}>
-                <Button
-                    disabled={!canCreate || customCount === 0}
-                    className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/20 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
-                    onClick={onOpenCopy}
-                >
-                    <Copy className="w-4 h-4 mr-2" /> Salin Harga
-                </Button>
-            </DisabledActionTooltip>
+            <div className="hidden sm:flex items-center gap-2">
+                <ExportMenu module="branch-prices" />
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="branch-prices" actionKey="copy">
+                    <Button
+                        disabled={!canCreate || customCount === 0}
+                        className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/20 hover:shadow-lg hover:shadow-violet-500/30 transition-all"
+                        onClick={onOpenCopy}
+                    >
+                        <Copy className="w-4 h-4 mr-2" /> Salin Harga
+                    </Button>
+                </DisabledActionTooltip>
+            </div>
 
             {/* Mobile: Floating button */}
             {canCreate && (

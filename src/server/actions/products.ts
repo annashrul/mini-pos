@@ -14,13 +14,17 @@ import {
   productUnitSchema,
   tierPriceSchema,
 } from "@/shared/schemas/product";
+import { serverCache, cacheKey } from "@/lib/server-cache";
 
 interface GetProductsParams {
   page?: number;
   limit?: number;
   search?: string;
   categoryId?: string;
+  brandId?: string;
   status?: string;
+  stockStatus?: string;
+  branchId?: string;
   sortBy?: string;
   sortDir?: "asc" | "desc";
 }
@@ -46,6 +50,249 @@ function parseJsonArray<T>(
   }
 }
 
+// ─── View-based product queries ───────────────────────────────
+// Uses vw_product_branch for branch-resolved prices and stock
+
+interface ProductBranchRow {
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  brand_id: string | null;
+  company_id: string;
+  base_unit: string;
+  is_active: boolean;
+  image_url: string | null;
+  barcode: string | null;
+  description: string | null;
+  branch_id: string;
+  branch_name: string;
+  branch_code: string | null;
+  selling_price: number;
+  purchase_price: number;
+  stock: number;
+  min_stock: number;
+  has_branch_stock: boolean;
+  has_branch_price: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export async function queryProductsByBranch(params: {
+  companyId: string;
+  branchId?: string | undefined;
+  search?: string | undefined;
+  categoryId?: string | undefined;
+  brandId?: string | undefined;
+  isActive?: boolean | undefined;
+  stockStatus?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+  onlyWithStock?: boolean | undefined;
+}) {
+  const {
+    companyId,
+    branchId,
+    search,
+    categoryId,
+    brandId,
+    isActive,
+    stockStatus,
+    limit = 20,
+    offset = 0,
+    onlyWithStock = false,
+  } = params;
+
+  const conditions: string[] = ["company_id = $1"];
+  const values: unknown[] = [companyId];
+  let paramIdx = 2;
+
+  if (branchId) {
+    conditions.push(`branch_id = $${paramIdx}`);
+    values.push(branchId);
+    paramIdx++;
+  }
+  if (search) {
+    conditions.push(
+      `(product_name ILIKE $${paramIdx} OR product_code ILIKE $${paramIdx} OR barcode ILIKE $${paramIdx})`,
+    );
+    values.push(`%${search}%`);
+    paramIdx++;
+  }
+  if (categoryId) {
+    conditions.push(`category_id = $${paramIdx}`);
+    values.push(categoryId);
+    paramIdx++;
+  }
+  if (brandId) {
+    conditions.push(`brand_id = $${paramIdx}`);
+    values.push(brandId);
+    paramIdx++;
+  }
+  if (isActive !== undefined) {
+    conditions.push(`is_active = $${paramIdx}`);
+    values.push(isActive);
+    paramIdx++;
+  }
+  if (stockStatus === "out") {
+    conditions.push("stock = 0");
+  } else if (stockStatus === "low") {
+    conditions.push("stock > 0 AND stock <= 10");
+  } else if (stockStatus === "available") {
+    conditions.push("stock > 0");
+  }
+  if (onlyWithStock) {
+    conditions.push("has_branch_stock = true");
+  }
+
+  const whereClause = conditions.join(" AND ");
+  const countQuery = `SELECT COUNT(DISTINCT product_id)::int AS total FROM vw_product_branch WHERE ${whereClause}`;
+
+  let paginatedQuery: string;
+  if (branchId) {
+    // Single branch — direct filter, 1 row per product guaranteed
+    paginatedQuery = `SELECT * FROM vw_product_branch WHERE ${whereClause} ORDER BY product_name ASC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
+  } else {
+    // No branch filter — aggregate stock across all branches, use product-level prices
+    paginatedQuery = `
+      SELECT
+        product_id, product_code, product_name, category_id, category_name,
+        brand_id, company_id, base_unit, is_active, image_url, barcode, description,
+        MIN(branch_id) AS branch_id, '' AS branch_name, '' AS branch_code,
+        (SELECT p."sellingPrice" FROM products p WHERE p.id = product_id)::float8 AS selling_price,
+        (SELECT p."purchasePrice" FROM products p WHERE p.id = product_id)::float8 AS purchase_price,
+        (SELECT p.stock FROM products p WHERE p.id = product_id)::int4 AS stock,
+        (SELECT p."minStock" FROM products p WHERE p.id = product_id)::int4 AS min_stock,
+        bool_or(has_branch_stock) AS has_branch_stock,
+        bool_or(has_branch_price) AS has_branch_price,
+        MIN(created_at) AS created_at, MAX(updated_at) AS updated_at
+      FROM vw_product_branch
+      WHERE ${whereClause}
+      GROUP BY product_id, product_code, product_name, category_id, category_name,
+               brand_id, company_id, base_unit, is_active, image_url, barcode, description
+      ORDER BY product_name ASC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `;
+  }
+  values.push(limit, offset);
+
+  const [countResult, rawRows] = await Promise.all([
+    prisma.$queryRawUnsafe<[{ total: number | bigint }]>(countQuery,
+      ...values.slice(0, -2),
+    ),
+    prisma.$queryRawUnsafe<Record<string, unknown>[]>(paginatedQuery, ...values),
+  ]);
+
+  // Prisma raw queries return BigInt/Decimal — normalize to plain numbers
+  const rows: ProductBranchRow[] = rawRows.map((r) => ({
+    product_id: String(r.product_id),
+    product_code: String(r.product_code ?? ""),
+    product_name: String(r.product_name ?? ""),
+    category_id: r.category_id ? String(r.category_id) : null,
+    category_name: r.category_name ? String(r.category_name) : null,
+    brand_id: r.brand_id ? String(r.brand_id) : null,
+    company_id: String(r.company_id),
+    base_unit: String(r.base_unit ?? "pcs"),
+    is_active: Boolean(r.is_active),
+    image_url: r.image_url ? String(r.image_url) : null,
+    barcode: r.barcode ? String(r.barcode) : null,
+    description: r.description ? String(r.description) : null,
+    branch_id: String(r.branch_id),
+    branch_name: String(r.branch_name ?? ""),
+    branch_code: r.branch_code ? String(r.branch_code) : null,
+    selling_price: Number(r.selling_price ?? 0),
+    purchase_price: Number(r.purchase_price ?? 0),
+    stock: Number(r.stock ?? 0),
+    min_stock: Number(r.min_stock ?? 0),
+    has_branch_stock: Boolean(r.has_branch_stock),
+    has_branch_price: Boolean(r.has_branch_price),
+    created_at: r.created_at as Date,
+    updated_at: r.updated_at as Date,
+  }));
+
+  return { rows, total: Number(countResult[0]?.total ?? 0) };
+}
+
+/** Server action for ProductPicker — searches products with branch-specific data */
+export async function searchProductsByBranch(params: {
+  branchId?: string | undefined;
+  branchIds?: string[] | undefined;
+  categoryId?: string | undefined;
+  search?: string | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
+}) {
+  const companyId = await getCurrentCompanyId();
+  const { branchId, branchIds, categoryId, search, page = 1, limit = 10 } = params;
+
+  // Resolve effective branch filter
+  const effectiveIds = branchId ? [branchId] : (branchIds ?? []).filter(Boolean);
+  const hasBranch = effectiveIds.length > 0;
+
+  const where: Record<string, unknown> = { companyId, isActive: true };
+  if (categoryId) where.categoryId = categoryId;
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { code: { contains: search, mode: "insensitive" } },
+      { barcode: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (hasBranch) {
+    where.branchStocks = { some: { branchId: { in: effectiveIds } } };
+  }
+
+  const products = await prisma.product.findMany({
+    where,
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      sellingPrice: true,
+      purchasePrice: true,
+      stock: true,
+      ...(hasBranch ? {
+        branchStocks: { where: { branchId: { in: effectiveIds } }, select: { quantity: true } },
+        branchPrices: { where: { branchId: { in: effectiveIds } }, select: { sellingPrice: true, purchasePrice: true }, take: 1 },
+      } : {}),
+    },
+    orderBy: { name: "asc" },
+    skip: (page - 1) * limit,
+    take: limit + 1, // fetch 1 extra to check hasMore
+  });
+
+  const hasMore = products.length > limit;
+  const sliced = hasMore ? products.slice(0, limit) : products;
+
+  const items = sliced.map((p) => {
+    if (hasBranch) {
+      const bsArr = (p as Record<string, unknown>).branchStocks as Array<{ quantity: number }> | undefined;
+      const bp = ((p as Record<string, unknown>).branchPrices as Array<{ sellingPrice: number; purchasePrice: number | null }> | undefined)?.[0];
+      // Sum stock across selected branches
+      const totalStock = bsArr?.reduce((sum, bs) => sum + bs.quantity, 0) ?? p.stock;
+      return {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        sellingPrice: bp?.sellingPrice ?? p.sellingPrice,
+        purchasePrice: bp?.purchasePrice ?? p.purchasePrice,
+        stock: totalStock,
+      };
+    }
+    return {
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      sellingPrice: p.sellingPrice,
+      purchasePrice: p.purchasePrice,
+      stock: p.stock,
+    };
+  });
+
+  return { items, hasMore };
+}
+
 export async function getProducts(params: GetProductsParams = {}) {
   const companyId = await getCurrentCompanyId();
   const {
@@ -53,13 +300,19 @@ export async function getProducts(params: GetProductsParams = {}) {
     limit = 10,
     search,
     categoryId,
+    brandId,
     status,
+    stockStatus,
+    branchId,
     sortBy,
     sortDir = "desc",
   } = params;
-  const skip = (page - 1) * limit;
 
-  const where: Record<string, unknown> = { companyId };
+  const key = cacheKey(`products:${companyId}`, { page, limit, search, categoryId, brandId, status, stockStatus, branchId, sortBy, sortDir });
+  return serverCache.get(key, async () => {
+
+  const skip = (page - 1) * limit;
+  const where: Record<string, unknown> = { companyId, deletedAt: null };
 
   if (search) {
     where.OR = [
@@ -68,13 +321,13 @@ export async function getProducts(params: GetProductsParams = {}) {
       { barcode: { contains: search, mode: "insensitive" } },
     ];
   }
-
-  if (categoryId) {
-    where.categoryId = categoryId;
-  }
-
+  if (categoryId) where.categoryId = categoryId;
+  if (brandId) where.brandId = brandId;
   if (status === "active") where.isActive = true;
   if (status === "inactive") where.isActive = false;
+  if (stockStatus === "out") where.stock = 0;
+  if (stockStatus === "low") where.stock = { gt: 0, lte: 10 };
+  if (stockStatus === "available") where.stock = { gt: 10 };
 
   const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
   const orderBy =
@@ -92,16 +345,37 @@ export async function getProducts(params: GetProductsParams = {}) {
                 ? { stock: direction }
                 : { createdAt: direction };
 
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: { category: true },
-      orderBy,
-      skip,
-      take: limit,
-    }),
+  const include = {
+    category: { select: { id: true, name: true } },
+    brand: { select: { id: true, name: true } },
+    supplier: { select: { id: true, name: true } },
+    ...(branchId ? {
+      branchPrices: { where: { branchId }, select: { sellingPrice: true, purchasePrice: true }, take: 1 },
+      branchStocks: { where: { branchId }, select: { quantity: true, minStock: true }, take: 1 },
+    } : {}),
+  };
+
+  const [rawProducts, total] = await Promise.all([
+    prisma.product.findMany({ where, include, orderBy, skip, take: limit }),
     prisma.product.count({ where }),
   ]);
+
+  // Overlay branch prices/stock if branch filter is active
+  const products = branchId
+    ? rawProducts.map((p) => {
+        const bp = (p as unknown as { branchPrices?: { sellingPrice: number; purchasePrice: number }[] }).branchPrices?.[0];
+        const bs = (p as unknown as { branchStocks?: { quantity: number; minStock: number }[] }).branchStocks?.[0];
+        return {
+          ...p,
+          sellingPrice: bp?.sellingPrice ?? p.sellingPrice,
+          purchasePrice: bp?.purchasePrice ?? p.purchasePrice,
+          stock: bs?.quantity ?? p.stock,
+          minStock: bs?.minStock ?? p.minStock,
+          branchPrices: undefined,
+          branchStocks: undefined,
+        };
+      })
+    : rawProducts;
 
   return {
     products,
@@ -109,6 +383,42 @@ export async function getProducts(params: GetProductsParams = {}) {
     totalPages: Math.ceil(total / limit),
     currentPage: page,
   };
+
+  }, { ttl: 30, tags: [`products:${companyId}`] });
+}
+
+export async function getProductStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const key = cacheKey(`product-stats:${companyId}`, { branchId });
+
+  return serverCache.get(key, async () => {
+    if (branchId) {
+      const result = await prisma.$queryRaw<[{ total: bigint; active: bigint; low_stock: bigint; out_of_stock: bigint }]>`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE p."isActive" = true)::int AS active,
+          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, p.stock) > 0 AND COALESCE(bs.quantity, p.stock) <= 10)::int AS low_stock,
+          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, p.stock) = 0)::int AS out_of_stock
+        FROM products p
+        LEFT JOIN branch_stocks bs ON bs."productId" = p.id AND bs."branchId" = ${branchId}
+        WHERE p."companyId" = ${companyId} AND p."deletedAt" IS NULL
+      `;
+      const r = result[0];
+      return { total: Number(r.total), active: Number(r.active), lowStock: Number(r.low_stock), outOfStock: Number(r.out_of_stock) };
+    }
+
+    const result = await prisma.$queryRaw<[{ total: bigint; active: bigint; low_stock: bigint; out_of_stock: bigint }]>`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE "isActive" = true)::int AS active,
+        COUNT(*) FILTER (WHERE stock > 0 AND stock <= 10)::int AS low_stock,
+        COUNT(*) FILTER (WHERE stock = 0)::int AS out_of_stock
+      FROM products
+      WHERE "companyId" = ${companyId} AND "deletedAt" IS NULL
+    `;
+    const r = result[0];
+    return { total: Number(r.total), active: Number(r.active), lowStock: Number(r.low_stock), outOfStock: Number(r.out_of_stock) };
+  }, { ttl: 30, tags: [`products:${companyId}`] });
 }
 
 export async function getProductById(id: string) {
@@ -119,17 +429,31 @@ export async function getProductById(id: string) {
   });
 }
 
-async function checkProductPlanFeatures(formData: FormData): Promise<string | null> {
+async function checkProductPlanFeatures(
+  formData: FormData,
+): Promise<string | null> {
   const branchPrices = formData.get("branchPrices") as string | null;
   const productUnits = formData.get("productUnits") as string | null;
   const tierPrices = formData.get("tierPrices") as string | null;
   const imageUrl = formData.get("imageUrl") as string | null;
 
-  if (branchPrices && branchPrices !== "[]" && !(await checkActionAccess("products", "branch_prices")))
+  if (
+    branchPrices &&
+    branchPrices !== "[]" &&
+    !(await checkActionAccess("products", "branch_prices"))
+  )
     return "Fitur Harga Per Cabang memerlukan upgrade ke plan PRO";
-  if (productUnits && productUnits !== "[]" && !(await checkActionAccess("products", "multi_unit")))
+  if (
+    productUnits &&
+    productUnits !== "[]" &&
+    !(await checkActionAccess("products", "multi_unit"))
+  )
     return "Fitur Multi Satuan memerlukan upgrade ke plan PRO";
-  if (tierPrices && tierPrices !== "[]" && !(await checkActionAccess("products", "tier_prices")))
+  if (
+    tierPrices &&
+    tierPrices !== "[]" &&
+    !(await checkActionAccess("products", "tier_prices"))
+  )
     return "Fitur Harga Bertingkat memerlukan upgrade ke plan PRO";
   if (imageUrl && !(await checkActionAccess("products", "upload_image")))
     return "Fitur Upload Gambar memerlukan upgrade ke plan PRO";
@@ -140,9 +464,10 @@ export async function createProduct(formData: FormData) {
   await assertMenuActionAccess("products", "create");
   const companyId = await getCurrentCompanyId();
   const brandIdRaw = (formData.get("brandId") as string) || "";
+  const supplierIdRaw = (formData.get("supplierId") as string) || "";
   const imageUrl = (formData.get("imageUrl") as string) || null;
   const data = {
-    code: formData.get("code") as string,
+    code: (formData.get("code") as string) || "", // empty → DB trigger auto-generates
     name: formData.get("name") as string,
     categoryId: formData.get("categoryId") as string,
     brandId: brandIdRaw,
@@ -199,6 +524,7 @@ export async function createProduct(formData: FormData) {
       description: parsed.data.description ?? null,
       ...(parsed.data.categoryId ? { categoryId: parsed.data.categoryId } : {}),
       ...(brandIdRaw ? { brandId: brandIdRaw } : { brandId: null }),
+      ...(supplierIdRaw ? { supplierId: supplierIdRaw } : { supplierId: null }),
       imageUrl,
       companyId,
     };
@@ -279,8 +605,29 @@ export async function createProduct(formData: FormData) {
     }
 
     revalidatePath("/products");
+    serverCache.invalidate(`products:${companyId}`);
 
-    createAuditLog({ action: "CREATE", entity: "Product", entityId: product.id, details: { data: { name: parsed.data.name, code: parsed.data.code, categoryId: parsed.data.categoryId ?? null, brandId: brandIdRaw || null, unit: parsed.data.unit, purchasePrice: parsed.data.purchasePrice, sellingPrice: parsed.data.sellingPrice, stock: parsed.data.stock, minStock: parsed.data.minStock, barcode: parsed.data.barcode ?? null, description: parsed.data.description ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
+    createAuditLog({
+      action: "CREATE",
+      entity: "Product",
+      entityId: product.id,
+      details: {
+        data: {
+          name: parsed.data.name,
+          code: parsed.data.code,
+          categoryId: parsed.data.categoryId ?? null,
+          brandId: brandIdRaw || null,
+          unit: parsed.data.unit,
+          purchasePrice: parsed.data.purchasePrice,
+          sellingPrice: parsed.data.sellingPrice,
+          stock: parsed.data.stock,
+          minStock: parsed.data.minStock,
+          barcode: parsed.data.barcode ?? null,
+          description: parsed.data.description ?? null,
+          isActive: parsed.data.isActive,
+        },
+      },
+    }).catch(() => {});
 
     return {
       success: true,
@@ -302,6 +649,7 @@ export async function updateProduct(id: string, formData: FormData) {
   await assertMenuActionAccess("products", "update");
   const companyId = await getCurrentCompanyId();
   const brandIdRaw = (formData.get("brandId") as string) || "";
+  const supplierIdRaw = (formData.get("supplierId") as string) || "";
   const imageUrl = (formData.get("imageUrl") as string) || null;
   const data = {
     code: formData.get("code") as string,
@@ -350,7 +698,20 @@ export async function updateProduct(id: string, formData: FormData) {
   try {
     const oldProduct = await prisma.product.findFirst({
       where: { id, companyId },
-      select: { name: true, code: true, sellingPrice: true, purchasePrice: true, unit: true, stock: true, minStock: true, barcode: true, isActive: true, categoryId: true, brandId: true, description: true },
+      select: {
+        name: true,
+        code: true,
+        sellingPrice: true,
+        purchasePrice: true,
+        unit: true,
+        stock: true,
+        minStock: true,
+        barcode: true,
+        isActive: true,
+        categoryId: true,
+        brandId: true,
+        description: true,
+      },
     });
 
     const data = {
@@ -366,6 +727,7 @@ export async function updateProduct(id: string, formData: FormData) {
       description: parsed.data.description ?? null,
       ...(parsed.data.categoryId ? { categoryId: parsed.data.categoryId } : {}),
       ...(brandIdRaw ? { brandId: brandIdRaw } : { brandId: null }),
+      ...(supplierIdRaw ? { supplierId: supplierIdRaw } : { supplierId: null }),
       imageUrl,
     };
     await prisma.product.update({ where: { id, companyId }, data });
@@ -394,7 +756,12 @@ export async function updateProduct(id: string, formData: FormData) {
           });
         } else {
           await prisma.branchStock.create({
-            data: { branchId: bp.branchId, productId: id, quantity: bp.stock ?? parsed.data.stock, minStock: bp.minStock ?? parsed.data.minStock },
+            data: {
+              branchId: bp.branchId,
+              productId: id,
+              quantity: bp.stock ?? parsed.data.stock,
+              minStock: bp.minStock ?? parsed.data.minStock,
+            },
           });
         }
       }
@@ -433,32 +800,44 @@ export async function updateProduct(id: string, formData: FormData) {
     }
 
     revalidatePath("/products");
+    serverCache.invalidate(`products:${companyId}`);
 
-    createAuditLog({ action: "UPDATE", entity: "Product", entityId: id, details: { before: oldProduct, after: { name: parsed.data.name, code: parsed.data.code, sellingPrice: parsed.data.sellingPrice, purchasePrice: parsed.data.purchasePrice, unit: parsed.data.unit, stock: parsed.data.stock, minStock: parsed.data.minStock, barcode: parsed.data.barcode ?? null, isActive: parsed.data.isActive, categoryId: parsed.data.categoryId ?? null, brandId: brandIdRaw || null, description: parsed.data.description ?? null } } }).catch(() => {});
+    createAuditLog({
+      action: "UPDATE",
+      entity: "Product",
+      entityId: id,
+      details: {
+        before: oldProduct,
+        after: {
+          name: parsed.data.name,
+          code: parsed.data.code,
+          sellingPrice: parsed.data.sellingPrice,
+          purchasePrice: parsed.data.purchasePrice,
+          unit: parsed.data.unit,
+          stock: parsed.data.stock,
+          minStock: parsed.data.minStock,
+          barcode: parsed.data.barcode ?? null,
+          isActive: parsed.data.isActive,
+          categoryId: parsed.data.categoryId ?? null,
+          brandId: brandIdRaw || null,
+          description: parsed.data.description ?? null,
+        },
+      },
+    }).catch(() => {});
 
     return { success: true };
   } catch (err) {
     console.error("[updateProduct] Error:", err);
-    const message = err instanceof Error ? err.message : "Gagal mengupdate produk";
+    const message =
+      err instanceof Error ? err.message : "Gagal mengupdate produk";
     return { error: message };
   }
 }
 
-export async function generateProductCode(): Promise<string> {
-  const companyId = await getCurrentCompanyId();
-  const last = await prisma.product.findFirst({
-    where: { companyId, code: { startsWith: "PRD" } },
-    orderBy: { code: "desc" },
-    select: { code: true },
-  });
-
-  let seq = 1;
-  if (last?.code) {
-    const num = parseInt(last.code.replace("PRD", ""), 10);
-    if (!isNaN(num)) seq = num + 1;
-  }
-  return `PRD${String(seq).padStart(4, "0")}`;
-}
+/** Product code is auto-generated by database trigger (trg_generate_product_code).
+ *  Format: {COMPANY_SLUG}-{SEQ}, e.g. TOKO-0001
+ *  If code is empty/null on INSERT, the trigger fills it automatically.
+ */
 
 export async function checkProductCodeExists(
   code: string,
@@ -477,7 +856,18 @@ export async function checkProductCodeExists(
 }
 
 export async function getProductBranchPrices(productId: string) {
-  const [prices, stocks] = await Promise.all([
+  const companyId = await getCurrentCompanyId();
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId },
+    select: { stock: true, sellingPrice: true },
+  });
+
+  const [branches, prices, stocks] = await Promise.all([
+    prisma.branch.findMany({
+      where: { companyId, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     prisma.branchProductPrice.findMany({
       where: { productId },
       include: { branch: { select: { name: true } } },
@@ -487,10 +877,24 @@ export async function getProductBranchPrices(productId: string) {
       select: { branchId: true, quantity: true, minStock: true },
     }),
   ]);
+
+  const priceMap = new Map(prices.map((p) => [p.branchId, p]));
   const stockMap = new Map(stocks.map((s) => [s.branchId, s]));
-  return prices.map((p) => {
-    const bs = stockMap.get(p.branchId);
-    return { ...p, stock: bs?.quantity ?? 0, minStock: bs?.minStock ?? 5 };
+
+  // Return ALL company branches — merge price + stock data
+  return branches.map((b) => {
+    const price = priceMap.get(b.id);
+    const bs = stockMap.get(b.id);
+    return {
+      id: price?.id ?? "",
+      branchId: b.id,
+      productId,
+      sellingPrice: price?.sellingPrice ?? product?.sellingPrice ?? 0,
+      purchasePrice: price?.purchasePrice ?? null,
+      branch: { name: b.name },
+      stock: bs?.quantity ?? product?.stock ?? 0,
+      minStock: bs?.minStock ?? 5,
+    };
   });
 }
 
@@ -505,8 +909,14 @@ export async function deleteProduct(id: string) {
 
     await prisma.product.delete({ where: { id, companyId } });
     revalidatePath("/products");
+    serverCache.invalidate(`products:${companyId}`);
 
-    createAuditLog({ action: "DELETE", entity: "Product", entityId: id, details: { deleted: oldProduct } }).catch(() => {});
+    createAuditLog({
+      action: "DELETE",
+      entity: "Product",
+      entityId: id,
+      details: { deleted: oldProduct },
+    }).catch(() => {});
 
     return { success: true };
   } catch {
@@ -516,7 +926,11 @@ export async function deleteProduct(id: string) {
   }
 }
 
-export async function searchProducts(query: string, branchId?: string | null, categoryId?: string | null) {
+export async function searchProducts(
+  query: string,
+  branchId?: string | null,
+  categoryId?: string | null,
+) {
   if (!query || query.length < 1) return [];
   const companyId = await getCurrentCompanyId();
 
@@ -525,6 +939,7 @@ export async function searchProducts(query: string, branchId?: string | null, ca
       companyId,
       isActive: true,
       ...(categoryId ? { categoryId } : {}),
+      ...(branchId ? { branchStocks: { some: { branchId } } } : {}),
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { code: { contains: query, mode: "insensitive" } },
@@ -535,10 +950,12 @@ export async function searchProducts(query: string, branchId?: string | null, ca
       category: true,
       units: { orderBy: { conversionQty: "asc" } },
       tierPrices: { orderBy: { minQty: "asc" } },
-      ...(branchId ? {
-        branchPrices: { where: { branchId }, take: 1 },
-        branchStocks: { where: { branchId }, take: 1 },
-      } : {}),
+      ...(branchId
+        ? {
+            branchPrices: { where: { branchId }, take: 1 },
+            branchStocks: { where: { branchId }, take: 1 },
+          }
+        : {}),
     },
     take: 10,
   });
@@ -546,13 +963,20 @@ export async function searchProducts(query: string, branchId?: string | null, ca
   // Overlay branch prices and stock if available
   return products.map((p) => {
     const ext = p as Record<string, unknown>;
-    const bpArr = ext.branchPrices as { sellingPrice: number; purchasePrice: number | null }[] | undefined;
+    const bpArr = ext.branchPrices as
+      | { sellingPrice: number; purchasePrice: number | null }[]
+      | undefined;
     const bsArr = ext.branchStocks as { quantity: number }[] | undefined;
     const bp = bpArr?.[0];
     const bs = bsArr?.[0];
     return {
       ...p,
-      ...(bp ? { sellingPrice: bp.sellingPrice, purchasePrice: bp.purchasePrice ?? p.purchasePrice } : {}),
+      ...(bp
+        ? {
+            sellingPrice: bp.sellingPrice,
+            purchasePrice: bp.purchasePrice ?? p.purchasePrice,
+          }
+        : {}),
       ...(bs !== undefined ? { stock: bs.quantity } : {}),
       branchPrices: undefined,
       branchStocks: undefined,
@@ -575,16 +999,20 @@ export async function findByBarcode(barcode: string, branchId?: string | null) {
       category: true,
       units: { orderBy: { conversionQty: "asc" } },
       tierPrices: { orderBy: { minQty: "asc" } },
-      ...(branchId ? {
-        branchPrices: { where: { branchId }, take: 1 },
-        branchStocks: { where: { branchId }, take: 1 },
-      } : {}),
+      ...(branchId
+        ? {
+            branchPrices: { where: { branchId }, take: 1 },
+            branchStocks: { where: { branchId }, take: 1 },
+          }
+        : {}),
     },
   });
 
   if (product) {
     const ext = product as Record<string, unknown>;
-    const bpArr = ext.branchPrices as { sellingPrice: number; purchasePrice: number | null }[] | undefined;
+    const bpArr = ext.branchPrices as
+      | { sellingPrice: number; purchasePrice: number | null }[]
+      | undefined;
     const bsArr = ext.branchStocks as { quantity: number }[] | undefined;
     const bp = bpArr?.[0];
     const bs = bsArr?.[0];
@@ -680,24 +1108,40 @@ export async function browseProducts(params: {
 
   // Helper to overlay branch prices + stock
   const applyBranchOverlay = async <
-    T extends { id: string; sellingPrice: number; purchasePrice: number; stock: number },
+    T extends {
+      id: string;
+      sellingPrice: number;
+      purchasePrice: number;
+      stock: number;
+    },
   >(
     products: T[],
   ): Promise<T[]> => {
     if (!branchId || products.length === 0) return products;
     const ids = products.map((p) => p.id);
     const [branchPrices, branchStocks] = await Promise.all([
-      prisma.branchProductPrice.findMany({ where: { branchId, productId: { in: ids } } }),
-      prisma.branchStock.findMany({ where: { branchId, productId: { in: ids } } }),
+      prisma.branchProductPrice.findMany({
+        where: { branchId, productId: { in: ids } },
+      }),
+      prisma.branchStock.findMany({
+        where: { branchId, productId: { in: ids } },
+      }),
     ]);
     const priceMap = new Map(branchPrices.map((bp) => [bp.productId, bp]));
-    const stockMap = new Map(branchStocks.map((bs) => [bs.productId, bs.quantity]));
+    const stockMap = new Map(
+      branchStocks.map((bs) => [bs.productId, bs.quantity]),
+    );
     return products.map((p) => {
       const bp = priceMap.get(p.id);
       const bsQty = stockMap.get(p.id);
       return {
         ...p,
-        ...(bp ? { sellingPrice: bp.sellingPrice, purchasePrice: bp.purchasePrice ?? p.purchasePrice } : {}),
+        ...(bp
+          ? {
+              sellingPrice: bp.sellingPrice,
+              purchasePrice: bp.purchasePrice ?? p.purchasePrice,
+            }
+          : {}),
         ...(bsQty !== undefined ? { stock: bsQty } : {}),
       };
     });
@@ -720,7 +1164,11 @@ export async function browseProducts(params: {
     const productIds = items.map((i) => i.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, companyId, isActive: true },
-      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } }, units: { orderBy: { conversionQty: "asc" } } },
+      include: {
+        category: true,
+        tierPrices: { orderBy: { minQty: "asc" } },
+        units: { orderBy: { conversionQty: "asc" } },
+      },
     });
 
     const sorted = items
@@ -742,7 +1190,11 @@ export async function browseProducts(params: {
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: true, tierPrices: { orderBy: { minQty: "asc" } }, units: { orderBy: { conversionQty: "asc" } } },
+      include: {
+        category: true,
+        tierPrices: { orderBy: { minQty: "asc" } },
+        units: { orderBy: { conversionQty: "asc" } },
+      },
       orderBy: { name: "asc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -767,7 +1219,6 @@ export async function getProductTierPrices(productId: string) {
 // ===========================
 // Import Products
 // ===========================
-
 interface ImportProductRow {
   code: string;
   name: string;
@@ -782,25 +1233,81 @@ interface ImportProductRow {
   description?: string;
 }
 
-export async function importProducts(rows: ImportProductRow[]) {
+interface ValidatedRow {
+  rowNum: number;
+  code: string;
+  name: string;
+  categoryId: string;
+  brandId: string | null;
+  unit: string;
+  purchasePrice: number;
+  sellingPrice: number;
+  stock: number;
+  minStock: number;
+  barcode: string | null;
+  description: string | null;
+}
+
+type ImportResultItem = {
+  row: number;
+  success: boolean;
+  name: string;
+  error?: string;
+};
+
+const SQL_CHUNK = 5000; // rows per raw INSERT statement
+
+export async function importProducts(
+  rows: ImportProductRow[],
+  branchId?: string,
+) {
   await assertMenuActionAccess("products", "create");
-  if (!(await checkActionAccess("products", "import")))
-    return { results: [{ row: 1, success: false, name: "", error: "Fitur Import memerlukan upgrade ke plan PRO" }], successCount: 0, failedCount: rows.length };
+
+  if (!(await checkActionAccess("products", "import"))) {
+    return {
+      results: [
+        {
+          row: 1,
+          success: false,
+          name: "",
+          error: "Fitur Import memerlukan upgrade ke plan PRO",
+        },
+      ],
+      successCount: 0,
+      failedCount: rows.length,
+    };
+  }
+
   const companyId = await getCurrentCompanyId();
 
-  const results: {
-    row: number;
-    success: boolean;
-    name: string;
-    error?: string;
-  }[] = [];
-
-  // Pre-fetch categories and brands to map by name
-  const [allCategories, allBrands, existingProducts] = await Promise.all([
-    prisma.category.findMany({ where: { companyId }, select: { id: true, name: true } }),
-    prisma.brand.findMany({ where: { companyId }, select: { id: true, name: true } }),
+  // ── Pre-fetch semua lookup data sekaligus ──────────────────────────────────
+  const [
+    allCategories,
+    allBrands,
+    existingProducts,
+    activeBranches,
+    productCount,
+  ] = await Promise.all([
+    prisma.category.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+    }),
+    prisma.brand.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+    }),
     prisma.product.findMany({ where: { companyId }, select: { code: true } }),
+    prisma.branch.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        ...(branchId ? { id: branchId } : {}),
+      },
+      select: { id: true },
+    }),
+    prisma.product.count({ where: { companyId } }),
   ]);
+
   const categoryMap = new Map(
     allCategories.map((c) => [c.name.toLowerCase().trim(), c.id]),
   );
@@ -810,12 +1317,18 @@ export async function importProducts(rows: ImportProductRow[]) {
   const existingCodes = new Set(
     existingProducts.map((p) => p.code.toLowerCase()),
   );
+  const branchIds = activeBranches.map((b) => b.id);
+
+  let autoCodeCounter = productCount;
+
+  // ── Phase 1: Validasi semua row ────────────────────────────────────────────
+  const results: ImportResultItem[] = [];
+  const validRows: ValidatedRow[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
-    const rowNum = i + 2; // +2 because row 1 is header, data starts at row 2
+    const rowNum = i + 2;
 
-    // Validate required fields
     if (!row.name?.trim()) {
       results.push({
         row: rowNum,
@@ -826,7 +1339,6 @@ export async function importProducts(rows: ImportProductRow[]) {
       continue;
     }
 
-    // Find category
     const categoryId = categoryMap.get(
       (row.categoryName || "").toLowerCase().trim(),
     );
@@ -840,14 +1352,12 @@ export async function importProducts(rows: ImportProductRow[]) {
       continue;
     }
 
-    // Generate code if empty
     let code = row.code?.trim();
     if (!code) {
-      const count = await prisma.product.count({ where: { companyId } });
-      code = `PRD-${String(count + i + 1).padStart(5, "0")}`;
+      autoCodeCounter++;
+      code = `PRD-${String(autoCodeCounter).padStart(5, "0")}`;
     }
 
-    // Check duplicate code
     if (existingCodes.has(code.toLowerCase())) {
       results.push({
         row: rowNum,
@@ -858,7 +1368,6 @@ export async function importProducts(rows: ImportProductRow[]) {
       continue;
     }
 
-    // Find brand (optional)
     const brandName = (row.brandName || "").trim();
     const brandId = brandName
       ? (brandMap.get(brandName.toLowerCase()) ?? null)
@@ -898,67 +1407,93 @@ export async function importProducts(rows: ImportProductRow[]) {
       continue;
     }
 
-    try {
-      const product = await prisma.product.create({
-        data: {
-          code,
-          name: row.name.trim(),
-          categoryId,
-          brandId,
-          unit: row.unit?.trim() || "PCS",
-          purchasePrice,
-          sellingPrice,
-          stock,
-          minStock,
-          barcode: row.barcode?.trim() || null,
-          description: row.description?.trim() || null,
-          isActive: true,
-          companyId,
-        },
-      });
+    // Tandai kode sebagai sudah dipakai agar row berikutnya tidak duplikat
+    existingCodes.add(code.toLowerCase());
 
-      if (stock > 0) {
-        await prisma.stockMovement.create({
-          data: {
-            productId: product.id,
-            type: "IN",
-            quantity: stock,
-            note: "Stok awal (import)",
-            reference: "IMPORT",
-          },
-        });
+    validRows.push({
+      rowNum,
+      code,
+      name: row.name.trim(),
+      categoryId,
+      brandId,
+      unit: row.unit?.trim() || "PCS",
+      purchasePrice,
+      sellingPrice,
+      stock,
+      minStock,
+      barcode: row.barcode?.trim() || null,
+      description: row.description?.trim() || null,
+    });
+  }
+
+  if (validRows.length === 0) {
+    results.sort((a, b) => a.row - b.row);
+    return { results, successCount: 0, failedCount: results.length };
+  }
+
+  // ── Phase 2: Raw SQL bulk insert in single transaction ─────────────────────
+  const esc = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  const allCodes = validRows.map((r) => esc(r.code)).join(",");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. INSERT products in chunks (PostgreSQL param limit)
+      for (let i = 0; i < validRows.length; i += SQL_CHUNK) {
+        const chunk = validRows.slice(i, i + SQL_CHUNK);
+        const values = chunk.map((r) =>
+          `(gen_random_uuid(), ${esc(r.code)}, ${esc(r.name)}, ${esc(r.categoryId)}, ${r.brandId ? esc(r.brandId) : "NULL"}, ${esc(r.unit)}, ${r.purchasePrice}, ${r.sellingPrice}, ${r.stock}, ${r.minStock}, ${r.barcode ? esc(r.barcode) : "NULL"}, ${r.description ? esc(r.description) : "NULL"}, true, ${esc(companyId)}, NOW(), NOW())`
+        ).join(",");
+
+        await tx.$executeRawUnsafe(`
+          INSERT INTO products (id, code, name, "categoryId", "brandId", unit, "purchasePrice", "sellingPrice", stock, "minStock", barcode, description, "isActive", "companyId", "createdAt", "updatedAt")
+          VALUES ${values}
+          ON CONFLICT DO NOTHING
+        `);
       }
 
-      // Create branch stock for all active branches
-      const activeBranches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true } });
-      if (activeBranches.length > 0) {
-        await prisma.branchStock.createMany({
-          data: activeBranches.map((b) => ({
-            branchId: b.id,
-            productId: product.id,
-            quantity: stock,
-            minStock,
-          })),
-        });
-      }
+      // 2. INSERT stock movements for all imported products with stock > 0 (single query)
+      await tx.$executeRawUnsafe(`
+        INSERT INTO stock_movements (id, "productId", type, quantity, note, reference, "createdAt")
+        SELECT gen_random_uuid(), p.id, 'IN', p.stock, 'Stok awal (import)', 'IMPORT', NOW()
+        FROM products p
+        WHERE p."companyId" = ${esc(companyId)}
+          AND p.stock > 0
+          AND p.code IN (${allCodes})
+          AND NOT EXISTS (SELECT 1 FROM stock_movements sm WHERE sm."productId" = p.id AND sm.reference = 'IMPORT')
+      `);
 
-      existingCodes.add(code.toLowerCase());
-      results.push({ row: rowNum, success: true, name: row.name });
-    } catch {
-      results.push({
-        row: rowNum,
-        success: false,
-        name: row.name,
-        error: "Gagal menyimpan (kode/barcode duplikat)",
-      });
+      // 3. INSERT branch stocks via CROSS JOIN (single query)
+      if (branchIds.length > 0) {
+        const branchArray = branchIds.map((id) => esc(id)).join(",");
+        await tx.$executeRawUnsafe(`
+          INSERT INTO branch_stocks (id, "branchId", "productId", quantity, "minStock", "createdAt", "updatedAt")
+          SELECT gen_random_uuid(), b.bid, p.id, p.stock, p."minStock", NOW(), NOW()
+          FROM products p
+          CROSS JOIN (SELECT unnest(ARRAY[${branchArray}]::text[]) AS bid) b
+          WHERE p."companyId" = ${esc(companyId)}
+            AND p.code IN (${allCodes})
+          ON CONFLICT ("branchId", "productId") DO NOTHING
+        `);
+      }
+    }, { timeout: 300000 }); // 5 min timeout
+
+    // Transaction succeeded — mark all valid rows as success
+    for (const r of validRows) {
+      results.push({ row: r.rowNum, success: true, name: r.name });
+    }
+  } catch (err) {
+    console.error("[Import] Transaction error:", err);
+    // Transaction rolled back — all failed, no partial data
+    for (const r of validRows) {
+      results.push({ row: r.rowNum, success: false, name: r.name, error: "Gagal menyimpan data" });
     }
   }
 
+  results.sort((a, b) => a.row - b.row);
   revalidatePath("/products");
 
   const successCount = results.filter((r) => r.success).length;
   const failedCount = results.filter((r) => !r.success).length;
-
   return { results, successCount, failedCount };
 }
 
@@ -970,64 +1505,113 @@ export async function getImportTemplate() {
       select: { name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.brand.findMany({ where: { companyId }, select: { name: true }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({
+      where: { companyId },
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
   return {
     headers: [
-      "code",
-      "name",
-      "categoryName",
-      "brandName",
-      "unit",
-      "purchasePrice",
-      "sellingPrice",
-      "stock",
-      "minStock",
-      "barcode",
-      "description",
+      "code", "name", "categoryName", "brandName", "unit",
+      "purchasePrice", "sellingPrice", "stock", "minStock", "barcode", "description",
     ],
     headerLabels: [
-      "Kode Produk",
-      "Nama Produk *",
-      "Kategori *",
-      "Brand",
-      "Satuan *",
-      "Harga Beli *",
-      "Harga Jual *",
-      "Stok",
-      "Stok Minimum",
-      "Barcode",
-      "Deskripsi",
+      "Kode Produk", "Nama Produk *", "Kategori *", "Brand", "Satuan *",
+      "Harga Beli *", "Harga Jual *", "Stok", "Stok Minimum", "Barcode", "Deskripsi",
     ],
     categories: categories.map((c) => c.name),
     brands: brands.map((b) => b.name),
     sampleRows: [
-      [
-        "PRD-00001",
-        "Indomie Goreng",
-        categories[0]?.name ?? "Makanan",
-        brands[0]?.name ?? "",
-        "PCS",
-        "2500",
-        "3500",
-        "100",
-        "10",
-        "8991234567890",
-        "Mi instan goreng",
-      ],
-      [
-        "PRD-00002",
-        "Aqua 600ml",
-        categories[0]?.name ?? "Minuman",
-        brands[0]?.name ?? "",
-        "PCS",
-        "3000",
-        "4000",
-        "200",
-        "20",
-        "8997654321098",
-        "Air mineral 600ml",
-      ],
+      ["PRD-00001", "Indomie Goreng", categories[0]?.name ?? "Makanan", brands[0]?.name ?? "", "PCS", "2500", "3500", "100", "10", "8991234567890", "Mi instan goreng"],
+      ["PRD-00002", "Aqua 600ml", categories[0]?.name ?? "Minuman", brands[0]?.name ?? "", "PCS", "3000", "4000", "200", "20", "8997654321098", "Air mineral 600ml"],
     ],
+  };
+}
+
+// ─── File-based import (backend parsing) ───
+
+import { parseFormDataPreview, parseFormDataAllRows, generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
+
+const PRODUCT_TEMPLATE_COLUMNS: TemplateColumn[] = [
+  { header: "Kode Produk", width: 16, sampleValues: ["PRD-00001", "PRD-00002"] },
+  { header: "Nama Produk *", width: 22, sampleValues: ["Indomie Goreng", "Aqua 600ml"] },
+  { header: "Kategori *", width: 16, sampleValues: ["Makanan", "Minuman"] },
+  { header: "Brand", width: 14, sampleValues: ["Indofood", "Danone"] },
+  { header: "Satuan *", width: 10, sampleValues: ["PCS", "PCS"] },
+  { header: "Harga Beli *", width: 14, sampleValues: ["2500", "3000"] },
+  { header: "Harga Jual *", width: 14, sampleValues: ["3500", "4000"] },
+  { header: "Stok", width: 10, sampleValues: ["100", "200"] },
+  { header: "Stok Minimum", width: 14, sampleValues: ["10", "20"] },
+  { header: "Barcode", width: 18, sampleValues: ["8991234567890", "8997654321098"] },
+  { header: "Deskripsi", width: 24, sampleValues: ["Mi instan goreng", "Air mineral 600ml"] },
+];
+
+export async function previewProductImportFile(formData: FormData) {
+  const fileName = formData.get("fileName") as string;
+  if (!fileName) throw new Error("File tidak ditemukan");
+  console.log(`[Import Preview] File: ${fileName}`);
+  try {
+    return await parseFormDataPreview(formData, 20);
+  } catch (err) {
+    console.error("[Import Preview] Error:", err);
+    throw new Error(`Gagal membaca file: ${err instanceof Error ? err.message : "Unknown error"}`);
+  }
+}
+
+export async function loadAllProductImportRows(formData: FormData) {
+  const fileName = formData.get("fileName") as string;
+  if (!fileName) throw new Error("File tidak ditemukan");
+  try {
+    return await parseFormDataPreview(formData, 999999);
+  } catch (err) {
+    console.error("[Import LoadAll] Error:", err);
+    throw new Error(`Gagal memuat data: ${err instanceof Error ? err.message : "Unknown error"}`);
+  }
+}
+
+export async function importProductsFromFile(formData: FormData) {
+  const fileName = formData.get("fileName") as string;
+  if (!fileName) throw new Error("File tidak ditemukan");
+  const branchId = (formData.get("branchId") as string) || undefined;
+
+  const { rows } = await parseFormDataAllRows(formData);
+
+  const mapped: ImportProductRow[] = rows.map((row) => ({
+    code: row[0] || "",
+    name: row[1] || "",
+    categoryName: row[2] || "",
+    brandName: row[3] || "",
+    unit: row[4] || "PCS",
+    purchasePrice: Number(row[5]) || 0,
+    sellingPrice: Number(row[6]) || 0,
+    stock: Number(row[7]) || 0,
+    minStock: Number(row[8]) || 0,
+    barcode: row[9] || "",
+    description: row[10] || "",
+  }));
+
+  return importProducts(mapped, branchId);
+}
+
+export async function downloadProductImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const [categories, brands] = await Promise.all([
+    prisma.category.findMany({ where: { companyId }, select: { name: true }, orderBy: { name: "asc" } }),
+    prisma.brand.findMany({ where: { companyId }, select: { name: true }, orderBy: { name: "asc" } }),
+  ]);
+
+  const notes = [
+    `Kategori yang tersedia: ${categories.map((c) => c.name).join(", ") || "-"}`,
+    `Brand yang tersedia: ${brands.map((b) => b.name).join(", ") || "-"}`,
+    "Kolom dengan tanda * wajib diisi",
+    "Kode produk otomatis jika dikosongkan",
+  ];
+
+  const result = await generateImportTemplate(PRODUCT_TEMPLATE_COLUMNS, 2, notes, format);
+  return {
+    data: result.data,
+    filename: `template-import-produk.${format === "excel" ? "xlsx" : format}`,
+    mimeType: result.mimeType,
   };
 }

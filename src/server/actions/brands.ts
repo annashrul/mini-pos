@@ -5,12 +5,12 @@ import { brandSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
-import { getCurrentCompanyId } from "@/lib/company";
+import { getCurrentCompanyId, getCurrentCompanyIdOrNull } from "@/lib/company";
 
 export async function getBrands(params?: { search?: string; page?: number; perPage?: number }) {
-  const companyId = await getCurrentCompanyId();
+  const companyId = await getCurrentCompanyIdOrNull();
   const { search, page = 1, perPage = 10 } = params || {};
-  const where: Record<string, unknown> = { companyId };
+  const where: Record<string, unknown> = companyId ? { companyId } : {};
   if (search) {
     where.name = { contains: search, mode: "insensitive" };
   }

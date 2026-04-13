@@ -62,7 +62,7 @@ export function UsersGrid(props: {
       {users.map((user) => (
         <div key={user.id} className="rounded-xl border border-border/40 bg-white hover:shadow-md transition-all group p-5 relative">
           <div className="absolute top-3 right-3 flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="users" actionKey="update">
               <Button
                 disabled={!canUpdate}
                 variant="ghost"
@@ -73,7 +73,7 @@ export function UsersGrid(props: {
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
             </DisabledActionTooltip>
-            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")}>
+            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="users" actionKey="delete">
               <Button
                 disabled={!canDelete}
                 variant="ghost"

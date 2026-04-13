@@ -9,7 +9,8 @@ import { getSidebarMenuAccess } from "@/features/access-control";
 import { getAllBranches } from "@/server/actions/branches";
 import { getCompanyPlan, getCurrentCompanyInfo } from "@/server/actions/plan";
 import { type PlanKey } from "@/lib/plan-config";
-import { getPlanMenuAccessMap, getAllPlanAccessData } from "@/server/actions/plan-access";
+import { getPlanUi } from "@/lib/plan-ui";
+import { getPlanMenuAccessMap, getPlanActionAccessMap, getAllPlanAccessData } from "@/server/actions/plan-access";
 import { useBranch } from "@/components/providers/branch-provider";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -110,13 +111,16 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
         }
     }, [session?.user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const buildGroups = useCallback((menus: AccessMenu[], role: string, planAccess: Record<string, boolean>, allMenuPlans: Record<string, Record<string, boolean>>) => {
+    const buildGroups = useCallback((menus: AccessMenu[], role: string, planAccess: Record<string, boolean>, allMenuPlans: Record<string, Record<string, boolean>>, actionAccess: Record<string, boolean>) => {
         const planOrder: PlanKey[] = ["FREE", "PRO", "ENTERPRISE"];
         const grouped = new Map<string, MenuItem[]>();
         for (const menu of menus) {
             if (!menu.permissions[role]) continue;
             const icon = iconByMenuKey[menu.key] ?? LayoutDashboard;
-            const locked = Object.keys(planAccess).length > 0 ? (planAccess[menu.key] === false) : false;
+            const hasPlanData = Object.keys(planAccess).length > 0;
+            const menuLocked = hasPlanData ? planAccess[menu.key] === false : false;
+            const viewLocked = hasPlanData ? actionAccess[`${menu.key}:view`] === false : false;
+            const locked = menuLocked || viewLocked;
             let lockedBadge: string | undefined;
             if (locked && allMenuPlans[menu.key]) {
                 const menuPlans = allMenuPlans[menu.key]!;
@@ -144,7 +148,7 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
             if (cached) {
                 const parsed = JSON.parse(cached) as { role: string; menus: AccessMenu[]; roleColor?: string };
                 if (parsed.role === currentRole) {
-                    setDynamicMenuGroups(buildGroups(parsed.menus, parsed.role, {}, {}));
+                    setDynamicMenuGroups(buildGroups(parsed.menus, parsed.role, {}, {}, {}));
                     if (parsed.roleColor) setRoleColor(parsed.roleColor);
                 }
             }
@@ -156,24 +160,27 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
                 const result = await getSidebarMenuAccess();
                 if (!active) return;
                 let planAccess: Record<string, boolean> = {};
+                let actionAccessMap: Record<string, boolean> = {};
                 let allMenuPlans: Record<string, Record<string, boolean>> = {};
                 let plan: PlanKey = "PRO";
                 if (result.role !== "PLATFORM_OWNER") {
                     try {
-                        const [planResult, accessMap, allData, companyInfo] = await Promise.all([
+                        const [planResult, accessMap, actMap, allData, companyInfo] = await Promise.all([
                             getCompanyPlan(),
                             getPlanMenuAccessMap(),
+                            getPlanActionAccessMap(),
                             getAllPlanAccessData(),
                             getCurrentCompanyInfo(),
                         ]);
                         plan = planResult.plan as PlanKey;
                         planAccess = accessMap;
                         allMenuPlans = allData.menus;
+                        actionAccessMap = actMap;
                         setCompanyName(companyInfo.name || "-");
                     } catch { /* no company context */ }
                 }
                 setCompanyPlan(plan);
-                setDynamicMenuGroups(buildGroups(result.menus as AccessMenu[], result.role, planAccess, allMenuPlans));
+                setDynamicMenuGroups(buildGroups(result.menus as AccessMenu[], result.role, planAccess, allMenuPlans, actionAccessMap));
                 if (result.roleColor) setRoleColor(result.roleColor);
                 try {
                     sessionStorage.removeItem("sidebar-menus");
@@ -244,22 +251,17 @@ export function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
         const content = (
             <>
                 <item.icon className={iconCls} />
-                {showLabel && <span className="truncate flex-1">{item.label}</span>}
-                {showLabel && item.locked && (
-                    <span className={cn("ml-auto shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md text-white leading-none bg-gradient-to-r",
-                        item.lockedBadge === "ENTERPRISE" ? "from-purple-500 to-violet-500" :
-                        item.lockedBadge === "SOON" ? "from-slate-400 to-slate-500" :
-                        "from-amber-400 to-orange-400"
-                    )}>
-                        {item.lockedBadge === "SOON" ? "SOON" : item.lockedBadge || "PRO"}
-                    </span>
-                )}
+                {showLabel && <span className="truncate">{item.label}</span>}
+                {showLabel && item.locked && (() => {
+                    const ui = getPlanUi(item.lockedBadge || "PRO");
+                    return (
+                        <span className={cn("ml-auto shrink-0 px-1.5 py-0.5 text-[9px] font-bold rounded-md text-white leading-none bg-gradient-to-r", ui.gradient)}>
+                            {ui.name}
+                        </span>
+                    );
+                })()}
                 {!showLabel && item.locked && (
-                    <span className={cn("absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white",
-                        item.lockedBadge === "ENTERPRISE" ? "bg-purple-500" :
-                        item.lockedBadge === "SOON" ? "bg-slate-400" :
-                        "bg-amber-400"
-                    )} />
+                    <span className={cn("absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white", getPlanUi(item.lockedBadge || "PRO").dotColor)} />
                 )}
             </>
         );

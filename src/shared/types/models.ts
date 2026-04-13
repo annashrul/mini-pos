@@ -154,6 +154,8 @@ export interface Promotion {
   category: { name: string } | null;
   productId: string | null;
   product: { name: string; code?: string } | null;
+  branchId: string | null;
+  branch: { id: string; name: string } | null;
   buyQty: number | null;
   getQty: number | null;
   getProductId: string | null;

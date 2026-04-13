@@ -46,6 +46,7 @@ interface OrderCardProps {
   darkMode?: boolean;
   onRefresh: () => void;
   onSpeak?: ((text: string) => void) | undefined;
+  canUpdateStatus?: boolean | undefined;
 }
 
 const STATUS_CONFIG: Record<
@@ -155,7 +156,7 @@ function isOverdue(createdAt: string | Date): boolean {
   return now.getTime() - created.getTime() > 15 * 60000; // 15 minutes
 }
 
-export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProps) {
+export function OrderCard({ order, darkMode, onRefresh, onSpeak, canUpdateStatus = true }: OrderCardProps) {
   const [isPending, startTransition] = useTransition();
   const [cancelPending, setCancelPending] = useState(false);
 
@@ -179,6 +180,7 @@ export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProp
   };
 
   function handleAdvance() {
+    if (!canUpdateStatus) { toast.error("Anda tidak memiliki izin untuk mengubah status order"); return; }
     const speechText = NEXT_STATUS_SPEECH[order.status];
     if (speechText && onSpeak) onSpeak(speechText);
 
@@ -194,6 +196,7 @@ export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProp
   }
 
   function handleCancel() {
+    if (!canUpdateStatus) { toast.error("Anda tidak memiliki izin untuk mengubah status order"); return; }
     if (onSpeak) onSpeak(`${queueLabel} dibatalkan`);
     setCancelPending(true);
     startTransition(async () => {
@@ -210,6 +213,7 @@ export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProp
   }
 
   function handleItemToggle(item: OrderItem) {
+    if (!canUpdateStatus) { toast.error("Anda tidak memiliki izin untuk mengubah status order"); return; }
     const nextStatus = item.status === "DONE" ? "PREPARING" : "DONE";
     startTransition(async () => {
       try {
@@ -410,7 +414,7 @@ export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProp
             {canAdvance && (
               <Button
                 onClick={handleAdvance}
-                disabled={isPending}
+                disabled={!canUpdateStatus || isPending}
                 className={`flex-1 h-11 text-base font-bold rounded-xl transition-all shadow-md ${config.btnGradient}`}
               >
                 {isPending ? (
@@ -426,7 +430,7 @@ export function OrderCard({ order, darkMode, onRefresh, onSpeak }: OrderCardProp
             {canCancel && (
               <Button
                 onClick={handleCancel}
-                disabled={isPending || cancelPending}
+                disabled={!canUpdateStatus || isPending || cancelPending}
                 variant="outline"
                 size="icon"
                 className={`h-11 w-11 rounded-xl shrink-0 transition-colors ${

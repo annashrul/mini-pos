@@ -53,7 +53,7 @@ export async function createSupplier(data: FormData) {
 
   const companyId = await getCurrentCompanyId();
   try {
-    await prisma.supplier.create({
+    const supplier = await prisma.supplier.create({
       data: {
         name: parsed.data.name,
         contact: parsed.data.contact ?? null,
@@ -65,7 +65,7 @@ export async function createSupplier(data: FormData) {
     });
     createAuditLog({ action: "CREATE", entity: "Supplier", details: { data: { name: parsed.data.name, contact: parsed.data.contact ?? null, email: parsed.data.email ?? null, address: parsed.data.address ?? null, isActive: parsed.data.isActive } } }).catch(() => {});
     revalidatePath("/suppliers");
-    return { success: true };
+    return { success: true, id: supplier.id };
   } catch {
     return { error: "Gagal menambahkan supplier" };
   }

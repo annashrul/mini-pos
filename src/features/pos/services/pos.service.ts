@@ -2,7 +2,7 @@ import { searchProducts, findByBarcode, browseProducts } from "@/server/actions/
 import { getAllCategories } from "@/server/actions/categories";
 import { getAllBranches } from "@/server/actions/branches";
 import { createTransaction } from "@/server/actions/transactions";
-import { getActiveShift, openShift, closeShift, getShiftSummary } from "@/server/actions/shifts";
+import { getActiveShift, hasClosedShiftToday, openShift, closeShift, getShiftSummary } from "@/server/actions/shifts";
 import { calculateAutoPromo, validateVoucher, findCustomerByPhone, getTebusMurahOptions } from "@/server/actions/promo-engine";
 import { redeemPoints } from "@/server/actions/points";
 import { getReceiptConfig, getPosConfig } from "@/server/actions/settings";
@@ -16,6 +16,7 @@ export const posService = {
   getAllBranches,
   createTransaction,
   getActiveShift,
+  hasClosedShiftToday,
   openShift,
   closeShift,
   getShiftSummary,

@@ -1,6 +1,5 @@
 "use client";
 
-import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useTransition, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { savePointConfig, saveReceiptConfig, savePosConfig, saveKitchenConfig, getPointConfig, getReceiptConfig, getPosConfig, getKitchenConfig } from "@/features/settings";
@@ -16,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProGate } from "@/components/ui/pro-gate";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Settings, Save, Loader2, Star, Coins, ArrowRightLeft, TrendingUp, Award, Gift, FileText, Store, ShoppingCart, Shield, AlertTriangle, Users, Percent, Info, MapPin, Globe, Eye, ChefHat, Bell, RefreshCw, Utensils, LayoutGrid, Send } from "lucide-react";
 import { toast } from "sonner";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
@@ -59,11 +60,10 @@ export function SettingsContent() {
     const [kitchenCfg, setKitchenCfg] = useState<KitchenConfig>(KITCHEN_DEFAULTS);
     const [isSaving, startTransition] = useTransition();
     const [hasChanges, setHasChanges] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
     const { selectedBranchId, branchReady, selectedBranchName } = useBranch();
     const { canAction, cannotMessage } = useMenuActionAccess("settings");
-    const { canAction: canPlanAction, getPlanBlockMessage } = usePlanAccess();
-    const canUpdate = canAction("update") && canPlanAction("settings", "update");
-    const getMessage = (ak: string) => getPlanBlockMessage("settings", ak) ?? cannotMessage(ak);
+    const canUpdate = canAction("update");
 
     // Load settings — only after initial hydration is stable
     const mountedRef = useRef(false);
@@ -101,14 +101,20 @@ export function SettingsContent() {
         setHasChanges(true);
     };
 
-    const handleSave = () => {
-        if (!canUpdate) { toast.error(getMessage("update")); return; }
+    const executeSave = () => {
+        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
         const bid = selectedBranchId || undefined;
         startTransition(async () => {
             await Promise.all([savePointConfig(pointCfg, bid), saveReceiptConfig(receiptCfg, bid), savePosConfig(posCfg, bid), saveKitchenConfig(kitchenCfg, bid)]);
             toast.success(`Pengaturan berhasil disimpan${selectedBranchId ? ` untuk ${selectedBranchName}` : " (global)"}`);
             setHasChanges(false);
+            setConfirmOpen(false);
         });
+    };
+
+    const handleSave = () => {
+        if (!canUpdate) { toast.error(cannotMessage("update")); return; }
+        setConfirmOpen(true);
     };
 
     const previewTransaction = 100000;
@@ -141,7 +147,7 @@ export function SettingsContent() {
                     </div>
                 </div>
                 {/* Desktop save button */}
-                <DisabledActionTooltip disabled={!canUpdate} message={getMessage("update")}>
+                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="settings" actionKey="update">
                     <Button
                         onClick={handleSave}
                         disabled={!canUpdate || isSaving || !hasChanges}
@@ -431,6 +437,7 @@ export function SettingsContent() {
 
                 {/* ====== Tab Toko & Struk ====== */}
                 <TabsContent value="store" className="space-y-5">
+                    <ProGate menuKey="settings" actionKey="settings_store">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
                         {/* Store Info */}
                         <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-5 space-y-4 shadow-sm">
@@ -561,10 +568,12 @@ export function SettingsContent() {
                             </div>
                         </div>
                     </div>
+                    </ProGate>
                 </TabsContent>
 
                 {/* ====== Tab Perolehan Poin ====== */}
                 <TabsContent value="earn" className="space-y-5">
+                    <ProGate menuKey="settings" actionKey="settings_earn">
                     {/* Master Toggle */}
                     <div className={`bg-white rounded-2xl border border-border/40 p-4 sm:p-6 flex items-center justify-between gap-3 shadow-sm transition-all duration-300 ${
                         pointCfg.pointsEnabled ? "ring-2 ring-primary/20" : ""
@@ -651,10 +660,12 @@ export function SettingsContent() {
                             </p>
                         </div>
                     </div>
+                    </ProGate>
                 </TabsContent>
 
                 {/* ====== Tab Penukaran ====== */}
                 <TabsContent value="redeem" className="space-y-5">
+                    <ProGate menuKey="settings" actionKey="settings_redeem">
                     <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center shadow-md shadow-rose-500/20">
@@ -700,10 +711,12 @@ export function SettingsContent() {
                             </div>
                         </div>
                     </div>
+                    </ProGate>
                 </TabsContent>
 
                 {/* ====== Tab Level ====== */}
                 <TabsContent value="levels" className="space-y-5">
+                    <ProGate menuKey="settings" actionKey="settings_levels">
                     <div className="bg-white rounded-2xl border border-border/40 p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center shadow-md shadow-teal-500/20">
@@ -762,6 +775,7 @@ export function SettingsContent() {
                             </div>
                         </div>
                     </div>
+                    </ProGate>
                 </TabsContent>
                 </div>
             </Tabs>
@@ -781,6 +795,18 @@ export function SettingsContent() {
                     </Button>
                 </div>
             )}
+            <ActionConfirmDialog
+                open={confirmOpen}
+                onOpenChange={setConfirmOpen}
+                kind="submit"
+                title="Simpan Pengaturan?"
+                description="Perubahan konfigurasi akan diterapkan sesuai lokasi aktif."
+                confirmLabel="Simpan Perubahan"
+                loading={isSaving}
+                confirmDisabled={!canUpdate || !hasChanges}
+                onConfirm={executeSave}
+                size="sm"
+            />
         </div>
     );
 }

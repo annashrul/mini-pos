@@ -34,7 +34,7 @@ export async function getStockTransfers(params: GetStockTransfersParams = {}) {
   const skip = (page - 1) * limit;
   const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = { fromBranch: { companyId } };
+  const where: Record<string, unknown> = { companyId };
   if (branchId && branchId !== "ALL") {
     where.OR = [
       { fromBranchId: branchId },
@@ -97,9 +97,17 @@ export async function getStockTransfers(params: GetStockTransfersParams = {}) {
   };
 }
 
+/** Helper: validate transfer belongs to company via branch relationship */
+async function validateTransferOwnership(id: string, companyId: string) {
+  return prisma.stockTransfer.findFirst({
+    where: { id, companyId },
+  });
+}
+
 export async function getStockTransferById(id: string) {
-  return prisma.stockTransfer.findUnique({
-    where: { id },
+  const companyId = await getCurrentCompanyId();
+  return prisma.stockTransfer.findFirst({
+    where: { id, companyId },
     include: {
       fromBranch: { select: { name: true } },
       toBranch: { select: { name: true } },
@@ -121,11 +129,21 @@ export async function createStockTransfer(data: {
   notes?: string;
 }) {
   await assertMenuActionAccess("stock-transfers", "create");
+  const companyId = await getCurrentCompanyId();
+
   if (!data.fromBranchId) return { error: "Cabang asal wajib dipilih" };
   if (!data.toBranchId) return { error: "Cabang tujuan wajib dipilih" };
   if (data.fromBranchId === data.toBranchId)
     return { error: "Cabang asal dan tujuan tidak boleh sama" };
   if (!data.items.length) return { error: "Minimal 1 item untuk transfer" };
+
+  // Validate both branches belong to company
+  const [fromBranch, toBranch] = await Promise.all([
+    prisma.branch.findFirst({ where: { id: data.fromBranchId, companyId } }),
+    prisma.branch.findFirst({ where: { id: data.toBranchId, companyId } }),
+  ]);
+  if (!fromBranch) return { error: "Cabang asal tidak ditemukan" };
+  if (!toBranch) return { error: "Cabang tujuan tidak ditemukan" };
 
   try {
     const today = new Date();
@@ -146,6 +164,7 @@ export async function createStockTransfer(data: {
         transferNumber,
         fromBranchId: data.fromBranchId,
         toBranchId: data.toBranchId,
+        companyId,
         notes: data.notes || null,
         status: "PENDING",
         items: {
@@ -174,8 +193,9 @@ export async function createStockTransfer(data: {
 
 export async function approveStockTransfer(id: string) {
   await assertMenuActionAccess("stock-transfers", "approve");
+  const companyId = await getCurrentCompanyId();
   try {
-    const transfer = await prisma.stockTransfer.findUnique({ where: { id } });
+    const transfer = await validateTransferOwnership(id, companyId);
     if (!transfer) return { error: "Transfer tidak ditemukan" };
     if (transfer.status !== "PENDING")
       return { error: "Hanya transfer PENDING yang bisa diapprove" };
@@ -201,7 +221,12 @@ export async function approveStockTransfer(id: string) {
 
 export async function receiveStockTransfer(id: string) {
   await assertMenuActionAccess("stock-transfers", "receive");
+  const companyId = await getCurrentCompanyId();
   try {
+    // Pre-validate ownership before transaction
+    const check = await validateTransferOwnership(id, companyId);
+    if (!check) return { error: "Transfer tidak ditemukan" };
+
     await prisma.$transaction(async (tx) => {
       const transfer = await tx.stockTransfer.findUnique({
         where: { id },
@@ -216,8 +241,8 @@ export async function receiveStockTransfer(id: string) {
         if (item.productId === "manual") continue;
 
         // Decrease stock from source (OUT)
-        const product = await tx.product.findUnique({
-          where: { id: item.productId },
+        const product = await tx.product.findFirst({
+          where: { id: item.productId, companyId },
         });
         if (!product) continue;
 
@@ -239,6 +264,8 @@ export async function receiveStockTransfer(id: string) {
             quantity: item.quantity,
             note: `Transfer keluar ${transfer.transferNumber}`,
             reference: transfer.transferNumber,
+            branchId: transfer.fromBranchId,
+            companyId,
           },
         });
 
@@ -250,6 +277,8 @@ export async function receiveStockTransfer(id: string) {
             quantity: item.quantity,
             note: `Transfer masuk ${transfer.transferNumber}`,
             reference: transfer.transferNumber,
+            branchId: transfer.toBranchId,
+            companyId,
           },
         });
 
@@ -286,8 +315,9 @@ export async function receiveStockTransfer(id: string) {
 
 export async function rejectStockTransfer(id: string, reason?: string) {
   await assertMenuActionAccess("stock-transfers", "approve");
+  const companyId = await getCurrentCompanyId();
   try {
-    const transfer = await prisma.stockTransfer.findUnique({ where: { id } });
+    const transfer = await validateTransferOwnership(id, companyId);
     if (!transfer) return { error: "Transfer tidak ditemukan" };
     if (transfer.status !== "PENDING" && transfer.status !== "APPROVED") {
       return { error: "Transfer tidak bisa ditolak" };

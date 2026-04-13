@@ -101,7 +101,7 @@ export function BranchPricesEditDialog(props: {
           <Button variant="outline" onClick={onCancel} className="rounded-xl border-slate-200/60">
             Batal
           </Button>
-          <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")}>
+          <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
             <Button
               disabled={!canUpdate}
               onClick={onSave}

@@ -10,11 +10,13 @@ interface ProductFormDialogProps {
     editingProduct: Product | null;
     categories: Category[];
     brands?: { id: string; name: string }[];
+    suppliers?: { id: string; name: string }[];
     branches: Branch[];
+    selectedBranchId?: string | undefined;
     onSubmitted: () => void;
 }
 
-export function ProductFormDialog({ open, onOpenChange, editingProduct, categories, brands, branches, onSubmitted }: ProductFormDialogProps) {
+export function ProductFormDialog({ open, onOpenChange, editingProduct, categories, brands, suppliers, branches, selectedBranchId, onSubmitted }: ProductFormDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex h-[92vh] max-h-[92vh] max-w-[calc(100vw-1rem)] sm:max-w-3xl flex-col overflow-hidden rounded-xl sm:rounded-2xl p-0">
@@ -30,7 +32,9 @@ export function ProductFormDialog({ open, onOpenChange, editingProduct, categori
                             product={editingProduct}
                             categories={categories}
                             brands={brands ?? []}
+                            suppliers={suppliers ?? []}
                             branches={branches}
+                            selectedBranchId={selectedBranchId}
                             onSuccess={() => { onOpenChange(false); onSubmitted(); }}
                             onCancel={() => onOpenChange(false)}
                         />

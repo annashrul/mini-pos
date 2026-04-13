@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 export const productFormSchema = z.object({
-  code: z.string().min(1, "Kode produk wajib diisi"),
+  code: z.string(), // optional — DB trigger auto-generates if empty
   name: z.string().min(1, "Nama produk wajib diisi"),
   categoryId: z.string().min(1, "Kategori wajib dipilih"),
   brandId: z.string(),
+  supplierId: z.string(),
   unit: z.string().min(1, "Satuan wajib diisi"),
   purchasePrice: z.number().min(1, "Harga beli wajib diisi"),
   sellingPrice: z.number().min(1, "Harga jual wajib diisi"),

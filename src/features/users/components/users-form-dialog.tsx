@@ -3,10 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
 import { Lock, Mail, MapPin, Pencil, Plus, Shield, UserCircle } from "lucide-react";
+import { useRef, useState } from "react";
 
 export function UsersFormDialog(props: {
   open: boolean;
@@ -40,6 +42,8 @@ export function UsersFormDialog(props: {
     onCancel,
     onSubmit,
   } = props;
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,7 +58,7 @@ export function UsersFormDialog(props: {
           </DialogTitle>
         </DialogHeader>
 
-        <form action={onSubmit} className="min-h-0 flex flex-col">
+        <form ref={formRef} action={onSubmit} className="min-h-0 flex flex-col">
           <DialogBody className="space-y-4">
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -113,10 +117,11 @@ export function UsersFormDialog(props: {
             <Button type="button" variant="outline" onClick={onCancel} className="rounded-xl">
               Batal
             </Button>
-            <DisabledActionTooltip disabled={!canSubmit} message={cannotMessage}>
+            <DisabledActionTooltip disabled={!canSubmit} message={cannotMessage} menuKey="users" actionKey="create">
               <Button
                 disabled={!canSubmit}
-                type="submit"
+                type="button"
+                onClick={() => setSubmitConfirmOpen(true)}
                 className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
               >
                 {editing ? "Update" : "Simpan"}
@@ -124,8 +129,18 @@ export function UsersFormDialog(props: {
             </DisabledActionTooltip>
           </DialogFooter>
         </form>
+        <ActionConfirmDialog
+          open={submitConfirmOpen}
+          onOpenChange={setSubmitConfirmOpen}
+          kind="submit"
+          title={editing ? "Update Pengguna?" : "Tambah Pengguna?"}
+          description={editing ? "Perubahan pengguna akan disimpan." : "Pengguna baru akan ditambahkan."}
+          confirmLabel={editing ? "Update" : "Simpan"}
+          confirmDisabled={!canSubmit}
+          onConfirm={() => formRef.current?.requestSubmit()}
+          size="sm"
+        />
       </DialogContent>
     </Dialog>
   );
 }
-
