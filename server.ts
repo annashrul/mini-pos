@@ -3,6 +3,7 @@ import next from "next";
 import { initSocketServer } from "./src/lib/socket-server";
 
 const dev = process.env.NODE_ENV !== "production";
+// const hostname = "192.168.101.7";
 const hostname = "localhost";
 const port = parseInt(process.env.PORT || "3000", 10);
 
