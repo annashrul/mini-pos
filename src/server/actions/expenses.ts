@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 export async function getExpenses(params?: {
   search?: string;
@@ -208,4 +209,54 @@ export async function deleteExpense(id: string) {
   } catch {
     return { error: "Gagal menghapus pengeluaran" };
   }
+}
+
+// ─── Import Expenses ───
+
+export async function importExpenses(rows: { category: string; description: string; amount: number; date: string }[], branchId?: string) {
+  await assertMenuActionAccess("expenses", "create");
+  const companyId = await getCurrentCompanyId();
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  const validRows: { category: string; description: string; amount: number; date: Date; companyId: string; branchId: string | null }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    if (!row.category?.trim()) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Kategori wajib diisi" }); continue; }
+    if (!row.amount || row.amount <= 0) { results.push({ row: rowNum, success: false, name: row.category, error: "Jumlah harus lebih dari 0" }); continue; }
+    validRows.push({ category: row.category.trim(), description: row.description?.trim() || "", amount: row.amount, date: row.date ? new Date(row.date) : new Date(), companyId, branchId: branchId || null });
+  }
+
+  if (validRows.length > 0) {
+    try {
+      await prisma.expense.createMany({ data: validRows });
+      for (const r of validRows) results.push({ row: rows.findIndex((x) => x.category === r.category && x.amount === r.amount) + 2, success: true, name: `${r.category} - ${r.amount}` });
+    } catch { for (const r of validRows) results.push({ row: 0, success: false, name: r.category, error: "Gagal menyimpan" }); }
+  }
+
+  results.sort((a, b) => a.row - b.row);
+  revalidatePath("/expenses");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const EXPENSE_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Kategori *", width: 20, sampleValues: ["Listrik", "Gaji Karyawan"] },
+  { header: "Deskripsi", width: 30, sampleValues: ["Tagihan listrik bulan April", "Gaji kasir"] },
+  { header: "Jumlah *", width: 14, sampleValues: ["500000", "3000000"] },
+  { header: "Tanggal", width: 16, sampleValues: ["2026-04-14", "2026-04-14"] },
+];
+
+export async function downloadExpenseImportTemplate(format: "csv" | "excel" | "docx") {
+  const result = await generateImportTemplate(EXPENSE_TEMPLATE_COLS, 2, ["Kolom dengan tanda * wajib diisi", "Format tanggal: YYYY-MM-DD"], format);
+  return { data: result.data, filename: `template-import-pengeluaran.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
+}
+
+export async function bulkDeleteExpenses(ids: string[]) {
+  await assertMenuActionAccess("expenses", "delete");
+  const companyId = await getCurrentCompanyId();
+  const result = await prisma.expense.deleteMany({ where: { id: { in: ids }, companyId } });
+  revalidatePath("/expenses");
+  return { count: result.count };
 }

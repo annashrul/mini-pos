@@ -36,6 +36,7 @@ import {
     SlidersHorizontal,
     Check,
     ChevronDown,
+    Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -45,6 +46,7 @@ import { useMenuActionAccess } from "@/features/access-control";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { PaginationControl } from "@/components/ui/pagination-control";
+import { DebtImportDialog } from "./debt-import-dialog";
 
 // ---- local types ----
 
@@ -176,6 +178,7 @@ export function DebtsContent() {
     const [loading, startTransition] = useTransition();
 
     // dialogs
+    const [importOpen, setImportOpen] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<DebtItem | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
@@ -427,6 +430,9 @@ export function DebtsContent() {
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                     <ExportMenu module="debts" branchId={selectedBranchId || undefined} />
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="debts" actionKey="create">
                         <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-amber-200/30 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-sm" onClick={openCreateDialog}>
                             <Plus className="w-4 h-4 mr-2" /> Tambah
@@ -1067,6 +1073,8 @@ export function DebtsContent() {
                 onConfirm={async () => { await pendingConfirmAction?.(); }}
                 size="sm"
             />
+
+            <DebtImportDialog open={importOpen} onOpenChange={setImportOpen} branchId={selectedBranchId || undefined} onImported={() => fetchData({})} />
         </div>
     );
 }

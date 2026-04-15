@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 interface GetStockOpnamesParams {
   page?: number;
@@ -417,4 +418,52 @@ export async function createStockOpnameWithItems(params: {
   } catch {
     return { error: "Gagal membuat stock opname" };
   }
+}
+
+// ─── Import Stock Opname ───
+
+export async function importStockOpname(rows: { productCode: string; actualQty: number; note: string }[], branchId?: string) {
+  await assertMenuActionAccess("stock-opname", "create");
+  const companyId = await getCurrentCompanyId();
+  const products = await prisma.product.findMany({ where: { companyId }, select: { id: true, code: true, stock: true } });
+  const productMap = new Map(products.map((p) => [p.code.toLowerCase(), p]));
+  const counter = await prisma.stockOpname.count({ where: { companyId } });
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  const items: { productId: string; systemStock: number; actualStock: number; difference: number; notes: string | null }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    const product = productMap.get((row.productCode || "").toLowerCase().trim());
+    if (!product) { results.push({ row: rowNum, success: false, name: row.productCode || `Baris ${rowNum}`, error: `Produk "${row.productCode}" tidak ditemukan` }); continue; }
+    items.push({ productId: product.id, systemStock: product.stock, actualStock: Number(row.actualQty) || 0, difference: (Number(row.actualQty) || 0) - product.stock, notes: row.note?.trim() || null });
+    results.push({ row: rowNum, success: true, name: row.productCode });
+  }
+
+  if (items.length > 0) {
+    try {
+      await prisma.stockOpname.create({
+        data: { opnameNumber: `OPN-${String(counter + 1).padStart(5, "0")}`, branchId: branchId || null, companyId, status: "DRAFT", startedAt: new Date(), items: { create: items } },
+      });
+    } catch { for (const r of results) if (r.success) { r.success = false; r.error = "Gagal menyimpan"; } }
+  }
+
+  revalidatePath("/stock-opname");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const OPNAME_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Kode Produk *", width: 16, sampleValues: ["PRD-00001", "PRD-00002"] },
+  { header: "Stok Aktual *", width: 12, sampleValues: ["95", "200"] },
+  { header: "Catatan", width: 25, sampleValues: ["Selisih 5 pcs", "Sesuai"] },
+];
+
+export async function downloadOpnameImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const products = await prisma.product.findMany({ where: { companyId, isActive: true }, select: { code: true, name: true, stock: true }, take: 20, orderBy: { code: "asc" } });
+  const notes = [`Produk: ${products.map((p) => `${p.code} (${p.name}) stok: ${p.stock}`).join(", ") || "-"}`, "Semua item akan dibuat dalam 1 opname", "Kolom dengan tanda * wajib diisi"];
+  const result = await generateImportTemplate(OPNAME_TEMPLATE_COLS, 2, notes, format);
+  return { data: result.data, filename: `template-import-opname.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

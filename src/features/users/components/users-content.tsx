@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createUser, updateUser, deleteUser, getUsers, getActiveRoles } from "@/features/users";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { createUser, updateUser, deleteUser, getUsers, getActiveRoles, getUserStats, bulkDeleteUsers } from "@/features/users";
 import { getBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
 import { useBranch } from "@/components/providers/branch-provider";
@@ -15,7 +15,10 @@ import { UsersFilters } from "./users-filters";
 import { UsersFormDialog } from "./users-form-dialog";
 import { UsersGrid } from "./users-grid";
 import { UsersHeader } from "./users-header";
-import { UsersStatsBar } from "./users-stats-bar";
+import { UserImportDialog } from "./user-import-dialog";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
+import { Trash2 } from "lucide-react";
 
 interface AppRoleData {
     id: string;
@@ -34,7 +37,10 @@ export function UsersContent() {
     const branchOptions = branches.map((branch) => ({ value: branch.id, label: branch.name }));
     const defaultRole = roleOptions[0]?.value ?? "";
     const [data, setData] = useState<{ users: User[]; total: number; totalPages: number }>({ users: [], total: 0, totalPages: 0 });
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [formRole, setFormRole] = useState(defaultRole);
     const [formBranchId, setFormBranchId] = useState("");
@@ -71,14 +77,16 @@ export function UsersContent() {
 
     useEffect(() => {
         startTransition(async () => {
-            const [usersData, rolesData, branchesData] = await Promise.all([
-                getUsers(),
+            const [usersData, rolesData, branchesData, statsData] = await Promise.all([
+                getUsers({ perPage: pageSize, ...(selectedBranchId ? { branchId: selectedBranchId } : {}) }),
                 getActiveRoles(),
                 getBranches({ page: 1, perPage: 200 }),
+                getUserStats(selectedBranchId || undefined),
             ]);
             setData(usersData);
             setRoles(rolesData as AppRoleData[]);
             setBranches(branchesData.branches);
+            setStats(statsData);
         });
     }, []);
 
@@ -87,6 +95,7 @@ export function UsersContent() {
         if (prevBranchRef.current !== selectedBranchId) {
             prevBranchRef.current = selectedBranchId;
             fetchData({ page: 1 });
+            refreshStats();
         }
     }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -94,7 +103,7 @@ export function UsersContent() {
         if (editingUser ? !canUpdate : !canCreate) { toast.error(cannotMessage(editingUser ? "update" : "create")); return; }
         const result = editingUser ? await updateUser(editingUser.id, formData) : await createUser(formData);
         if (result.error) toast.error(result.error);
-        else { toast.success(editingUser ? "User berhasil diupdate" : "User berhasil ditambahkan"); setOpen(false); setEditingUser(null); fetchData({}); }
+        else { toast.success(editingUser ? "User berhasil diupdate" : "User berhasil ditambahkan"); setOpen(false); setEditingUser(null); fetchData({}); refreshStats(); }
     };
 
     const handleDelete = async (id: string) => {
@@ -102,7 +111,7 @@ export function UsersContent() {
         setConfirmText("Yakin ingin menghapus user ini?");
         setPendingConfirmAction(() => async () => {
             const result = await deleteUser(id);
-            if (result.error) toast.error(result.error); else { toast.success("User berhasil dihapus"); fetchData({}); }
+            if (result.error) toast.error(result.error); else { toast.success("User berhasil dihapus"); fetchData({}); refreshStats(); }
             setConfirmOpen(false);
             setPendingConfirmAction(null);
         });
@@ -131,25 +140,9 @@ export function UsersContent() {
     };
 
     /* ---------- Stats ---------- */
-    const stats = useMemo(() => {
-        const users = data.users;
-        const total = data.total;
-        const active = users.filter((u) => u.isActive).length;
-        const roleCounts: Record<string, number> = {};
-        users.forEach((u) => {
-            roleCounts[u.role] = (roleCounts[u.role] || 0) + 1;
-        });
-        const topRoles = Object.entries(roleCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3);
-        return { total, active, topRoles };
-    }, [data]);
+    const [stats, setStats] = useState<{ total: number; active: number; topRoles: [string, number][] }>({ total: 0, active: 0, topRoles: [] });
+    const refreshStats = () => { getUserStats(selectedBranchId || undefined).then(setStats); };
 
-    const statColors: Record<number, string> = {
-        0: "bg-violet-50 text-violet-700 ring-violet-200",
-        1: "bg-amber-50 text-amber-700 ring-amber-200",
-        2: "bg-cyan-50 text-cyan-700 ring-cyan-200",
-    };
 
     /* ---------- Search handler ---------- */
     const handleSearch = (value: string) => {
@@ -171,20 +164,20 @@ export function UsersContent() {
 
     return (
         <div className="space-y-6">
-            <UsersHeader canCreate={canCreate} cannotMessage={cannotMessage} onCreate={openCreateDialog} />
-
-            <UsersStatsBar stats={stats} statColors={statColors} />
+            <UsersHeader canCreate={canCreate} cannotMessage={cannotMessage} onCreate={openCreateDialog} onImport={() => setImportOpen(true)} />
 
             <UsersFilters
                 search={search}
                 loading={loading}
                 effectiveRole={effectiveFilters.role || ""}
                 roleOptions={roleOptions}
+                stats={stats}
                 onSearchChange={handleSearch}
                 onRoleFilterChange={handleRoleFilter}
             />
 
             <UsersGrid
+                key={`page-${page}`}
                 users={data.users}
                 loading={loading}
                 roleColors={roleColors}
@@ -193,6 +186,8 @@ export function UsersContent() {
                 cannotMessage={cannotMessage}
                 onEdit={openEditDialog}
                 onDelete={handleDelete}
+                selectedIds={selectedIds}
+                onToggleSelect={(id) => { const next = new Set(selectedIds); if (next.has(id)) next.delete(id); else next.add(id); setSelectedIds(next); }}
             />
 
             {/* Pagination */}
@@ -230,6 +225,32 @@ export function UsersContent() {
                 cannotMessage={cannotMessage}
                 onCancel={() => { setConfirmOpen(false); setPendingConfirmAction(null); }}
                 onConfirm={async () => { await pendingConfirmAction?.(); }}
+            />
+            <UserImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => { fetchData({}); refreshStats(); }} />
+            <BulkActionBar
+                selectedCount={selectedIds.size}
+                actions={[{
+                    label: "Hapus",
+                    variant: "destructive",
+                    icon: <Trash2 className="w-3 h-3" />,
+                    onClick: () => { if (canDelete) setBulkConfirmOpen(true); },
+                }]}
+                onClear={() => setSelectedIds(new Set())}
+            />
+            <ActionConfirmDialog
+                open={bulkConfirmOpen}
+                onOpenChange={setBulkConfirmOpen}
+                title={`Hapus ${selectedIds.size} User`}
+                description={`Yakin ingin menghapus ${selectedIds.size} user? Tindakan ini tidak dapat dibatalkan.`}
+                kind="delete"
+                onConfirm={async () => {
+                    const { count } = await bulkDeleteUsers([...selectedIds]);
+                    toast.success(`${count} user dihapus`);
+                    setSelectedIds(new Set());
+                    fetchData({});
+                    refreshStats();
+                    setBulkConfirmOpen(false);
+                }}
             />
         </div>
     );

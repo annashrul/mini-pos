@@ -7,6 +7,7 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 interface GetStockMovementsParams {
   page?: number;
@@ -328,4 +329,73 @@ export async function getProductsForSelect(params?: {
     : products.map((p) => ({ id: p.id, name: p.name, code: p.code, stock: p.stock }));
 
   return { items, hasMore: page < Math.ceil(total / limit) };
+}
+
+// ─── Import Stock Movements ───
+
+export async function importStockMovements(rows: { productCode: string; type: string; quantity: number; note: string }[], branchId?: string) {
+  await assertMenuActionAccess("stock", "create");
+  const companyId = await getCurrentCompanyId();
+  const products = await prisma.product.findMany({ where: { companyId }, select: { id: true, code: true } });
+  const productMap = new Map(products.map((p) => [p.code.toLowerCase(), p.id]));
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  const validMovements: { productId: string; type: "IN" | "OUT"; quantity: number; note: string; rowNum: number; code: string }[] = [];
+
+  // Phase 1: Validate
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    const productId = productMap.get((row.productCode || "").toLowerCase().trim());
+    if (!productId) { results.push({ row: rowNum, success: false, name: row.productCode || `Baris ${rowNum}`, error: `Produk "${row.productCode}" tidak ditemukan` }); continue; }
+    if (!row.quantity || row.quantity <= 0) { results.push({ row: rowNum, success: false, name: row.productCode, error: "Jumlah harus lebih dari 0" }); continue; }
+    const type = row.type?.toUpperCase().trim() === "OUT" ? "OUT" as const : "IN" as const;
+    validMovements.push({ productId, type, quantity: row.quantity, note: row.note?.trim() || "Import", rowNum, code: row.productCode });
+  }
+
+  // Phase 2: Bulk insert movements + batch update stock
+  if (validMovements.length > 0) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Bulk insert all movements
+        await tx.stockMovement.createMany({
+          data: validMovements.map((m) => ({ productId: m.productId, type: m.type, quantity: m.quantity, note: m.note, reference: "IMPORT", companyId, branchId: branchId || null })),
+        });
+
+        // Aggregate stock changes per product then batch update
+        const stockChanges = new Map<string, number>();
+        for (const m of validMovements) {
+          const delta = m.type === "IN" ? m.quantity : -m.quantity;
+          stockChanges.set(m.productId, (stockChanges.get(m.productId) ?? 0) + delta);
+        }
+        for (const [productId, delta] of stockChanges) {
+          if (delta > 0) await tx.product.update({ where: { id: productId }, data: { stock: { increment: delta } } });
+          else if (delta < 0) await tx.product.update({ where: { id: productId }, data: { stock: { decrement: Math.abs(delta) } } });
+        }
+      });
+      for (const m of validMovements) results.push({ row: m.rowNum, success: true, name: `${m.code} ${m.type} ${m.quantity}` });
+    } catch {
+      for (const m of validMovements) results.push({ row: m.rowNum, success: false, name: m.code, error: "Gagal menyimpan" });
+    }
+  }
+
+  results.sort((a, b) => a.row - b.row);
+  revalidatePath("/stock");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const STOCK_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Kode Produk *", width: 16, sampleValues: ["PRD-00001", "PRD-00002"] },
+  { header: "Tipe (IN/OUT) *", width: 14, sampleValues: ["IN", "OUT"] },
+  { header: "Jumlah *", width: 10, sampleValues: ["50", "10"] },
+  { header: "Catatan", width: 25, sampleValues: ["Restok dari supplier", "Barang rusak"] },
+];
+
+export async function downloadStockImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const products = await prisma.product.findMany({ where: { companyId, isActive: true }, select: { code: true, name: true }, take: 20, orderBy: { code: "asc" } });
+  const notes = [`Produk: ${products.map((p) => `${p.code} (${p.name})`).join(", ") || "-"}`, "Tipe: IN (masuk) atau OUT (keluar)", "Kolom dengan tanda * wajib diisi"];
+  const result = await generateImportTemplate(STOCK_TEMPLATE_COLS, 2, notes, format);
+  return { data: result.data, filename: `template-import-stok.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

@@ -711,29 +711,23 @@ export function SmartTable<T>({
             <Button variant="outline" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg" disabled={currentPage <= 1} onClick={() => onPageChange(currentPage - 1)}>
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
-            {/* Mobile: compact page indicator */}
             <span className="sm:hidden text-xs font-medium text-muted-foreground px-1.5 tabular-nums whitespace-nowrap">
               {currentPage.toLocaleString()} / {totalPages.toLocaleString()}
             </span>
-            {/* Desktop: page number buttons */}
             {(() => {
               const pages: (number | "...")[] = [];
               const maxVisible = 5;
               if (totalPages <= maxVisible) {
                 for (let i = 1; i <= totalPages; i++) pages.push(i);
               } else {
-                // Always show first page
                 pages.push(1);
-                // Calculate window around current page
                 let start = Math.max(2, currentPage - 1);
                 let end = Math.min(totalPages - 1, currentPage + 1);
-                // Adjust if near edges
                 if (currentPage <= 3) { start = 2; end = Math.min(4, totalPages - 1); }
                 if (currentPage >= totalPages - 2) { start = Math.max(2, totalPages - 3); end = totalPages - 1; }
                 if (start > 2) pages.push("...");
                 for (let i = start; i <= end; i++) pages.push(i);
                 if (end < totalPages - 1) pages.push("...");
-                // Always show last page
                 pages.push(totalPages);
               }
               return (

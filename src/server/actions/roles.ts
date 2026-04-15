@@ -128,3 +128,9 @@ export async function seedSystemRoles() {
 
   await prisma.appRole.createMany({ data: systemRoles });
 }
+
+export async function bulkDeleteRoles(ids: string[]) {
+  const result = await prisma.appRole.deleteMany({ where: { id: { in: ids }, isSystem: false } });
+  revalidatePath("/access-control");
+  return { count: result.count };
+}

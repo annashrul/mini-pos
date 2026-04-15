@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Plus, BoxesIcon, ArrowDownLeft, ArrowUpRight, RefreshCw, ArrowLeftRight, ClipboardCheck,
-    Minus, Search, Loader2, CalendarDays, MapPin,
+    Minus, Search, Loader2, CalendarDays, MapPin, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -33,6 +33,7 @@ import { id as idLocale } from "date-fns/locale";
 import type { ProductBasic } from "@/types";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { useBranch } from "@/components/providers/branch-provider";
+import { StockImportDialog } from "./stock-import-dialog";
 
 type StockMovementsData = Awaited<ReturnType<typeof getStockMovements>>;
 type StockMovementRow = StockMovementsData["movements"][number];
@@ -77,6 +78,7 @@ export function StockContent() {
     const [selectedProduct, setSelectedProduct] = useState<ProductPickerItem | null>(null);
     const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
@@ -241,6 +243,9 @@ export function StockContent() {
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                     <ExportMenu module="stock" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock" actionKey="create">
                         <Button
                             disabled={!canCreate}
@@ -563,6 +568,8 @@ export function StockContent() {
                 description="Yakin ingin menyimpan pergerakan stok ini?"
                 onConfirm={executeSubmit}
             />
+
+            <StockImportDialog open={importOpen} onOpenChange={setImportOpen} branchId={selectedBranchId || undefined} onImported={() => fetchData({})} />
         </div>
     );
 }

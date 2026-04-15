@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useMemo } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { printThermalReceipt } from "@/lib/thermal-receipt";
-import { getTransactions, getTransactionById, voidTransaction, refundTransaction } from "@/features/transactions";
+import { getTransactions, getTransactionById, getTransactionStats, voidTransaction, refundTransaction } from "@/features/transactions";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,9 @@ import {
   History, Eye, Printer, Ban, RotateCcw, Receipt, CheckCircle2,
   Clock, XCircle, ArrowLeftRight, CreditCard, Banknote, Smartphone,
   QrCode, ShoppingBag, AlertTriangle, Calendar, User, MapPin, Hash,
-  Wallet, TrendingUp, MoreVertical,
+  Wallet, TrendingUp, MoreVertical, Upload,
 } from "lucide-react";
+import { TransactionImportDialog } from "./transaction-import-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TransactionDetail } from "@/types";
@@ -87,6 +88,7 @@ export function TransactionsContent() {
   const { canAction: canPlan } = usePlanAccess();
   const canVoid = canAction("void") && canPlan("transactions", "void");
   const canRefund = canAction("refund") && canPlan("transactions", "refund");
+  const [importOpen, setImportOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<TransactionDetail | null>(null);
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
@@ -94,16 +96,7 @@ export function TransactionsContent() {
   const [actionTxId, setActionTxId] = useState<string>("");
   const [reason, setReason] = useState("");
 
-  const stats = useMemo(() => {
-    const txs = data.transactions;
-    return {
-      total: data.total,
-      completed: txs.filter((t) => t.status === "COMPLETED").length,
-      voided: txs.filter((t) => t.status === "VOIDED").length,
-      refunded: txs.filter((t) => t.status === "REFUNDED").length,
-      totalRevenue: txs.filter((t) => t.status === "COMPLETED").reduce((sum, t) => sum + t.grandTotal, 0),
-    };
-  }, [data]);
+  const [stats, setStats] = useState({ total: 0, completed: 0, voided: 0, refunded: 0, totalRevenue: 0 });
 
   const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
     startTransition(async () => {
@@ -125,8 +118,11 @@ export function TransactionsContent() {
     });
   };
 
+  const refreshStats = () => { getTransactionStats(selectedBranchId || undefined).then(setStats); };
+
   useEffect(() => {
     if (!branchReady) return;
+    refreshStats();
     if (prevBranchRef.current !== selectedBranchId) {
       prevBranchRef.current = selectedBranchId;
       setPage(1);
@@ -147,7 +143,7 @@ export function TransactionsContent() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
     const result = await voidTransaction(actionTxId, reason);
     if (result.error) toast.error(result.error);
-    else { toast.success("Transaksi berhasil di-void"); setVoidDialogOpen(false); setReason(""); fetchData({}); }
+    else { toast.success("Transaksi berhasil di-void"); setVoidDialogOpen(false); setReason(""); fetchData({}); refreshStats(); }
   };
 
   const handleRefund = async () => {
@@ -155,7 +151,7 @@ export function TransactionsContent() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
     const result = await refundTransaction(actionTxId, reason);
     if (result.error) toast.error(result.error);
-    else { toast.success("Transaksi berhasil di-refund"); setRefundDialogOpen(false); setReason(""); fetchData({}); }
+    else { toast.success("Transaksi berhasil di-refund"); setRefundDialogOpen(false); setReason(""); fetchData({}); refreshStats(); }
   };
 
   const getCashierName = (row: TransactionRow) => (row as unknown as { user?: { name?: string } }).user?.name ?? row.userId;
@@ -365,6 +361,9 @@ export function TransactionsContent() {
             <p className="text-muted-foreground text-[11px] sm:text-sm">Kelola dan pantau semua transaksi</p>
           </div>
         </div>
+        <Button variant="outline" className="hidden sm:inline-flex rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+          <Upload className="w-4 h-4 mr-2" /> Import
+        </Button>
       </div>
 
       <SmartTable<TransactionRow>
@@ -785,6 +784,14 @@ export function TransactionsContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Import Dialog */}
+      <TransactionImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        branchId={selectedBranchId || undefined}
+        onImported={() => { setPage(1); fetchData({ page: 1 }); refreshStats(); }}
+      />
     </div>
   );
 }

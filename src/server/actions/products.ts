@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+
 import { productSchema } from "@/lib/validators";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
@@ -311,71 +311,81 @@ export async function getProducts(params: GetProductsParams = {}) {
   const key = cacheKey(`products:${companyId}`, { page, limit, search, categoryId, brandId, status, stockStatus, branchId, sortBy, sortDir });
   return serverCache.get(key, async () => {
 
-  const skip = (page - 1) * limit;
-  const where: Record<string, unknown> = { companyId, deletedAt: null };
+  const esc = (v: string) => v.replace(/'/g, "''");
+  const conditions: string[] = [`p."companyId" = '${esc(companyId)}'`, `p."deletedAt" IS NULL`];
 
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: "insensitive" } },
-      { code: { contains: search, mode: "insensitive" } },
-      { barcode: { contains: search, mode: "insensitive" } },
-    ];
-  }
-  if (categoryId) where.categoryId = categoryId;
-  if (brandId) where.brandId = brandId;
-  if (status === "active") where.isActive = true;
-  if (status === "inactive") where.isActive = false;
-  if (stockStatus === "out") where.stock = 0;
-  if (stockStatus === "low") where.stock = { gt: 0, lte: 10 };
-  if (stockStatus === "available") where.stock = { gt: 10 };
+  if (search) conditions.push(`(p.name ILIKE '%${esc(search)}%' OR p.code ILIKE '%${esc(search)}%' OR p.barcode ILIKE '%${esc(search)}%')`);
+  if (categoryId) conditions.push(`p."categoryId" = '${esc(categoryId)}'`);
+  if (brandId) conditions.push(`p."brandId" = '${esc(brandId)}'`);
+  if (status === "active") conditions.push(`p."isActive" = true`);
+  if (status === "inactive") conditions.push(`p."isActive" = false`);
+  if (stockStatus === "out") conditions.push(`p.stock = 0`);
+  if (stockStatus === "low") conditions.push(`p.stock > 0 AND p.stock <= 10`);
+  if (stockStatus === "available") conditions.push(`p.stock > 0`);
 
-  const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
-  const orderBy =
-    sortBy === "code"
-      ? { code: direction }
-      : sortBy === "name"
-        ? { name: direction }
-        : sortBy === "category"
-          ? { category: { name: direction } }
-          : sortBy === "purchasePrice"
-            ? { purchasePrice: direction }
-            : sortBy === "sellingPrice"
-              ? { sellingPrice: direction }
-              : sortBy === "stock"
-                ? { stock: direction }
-                : { createdAt: direction };
+  const whereClause = conditions.join(" AND ");
+  const dir = sortDir === "asc" ? "ASC" : "DESC";
+  const orderColumn =
+    sortBy === "code" ? `p.code ${dir}`
+    : sortBy === "name" ? `p.name ${dir}`
+    : sortBy === "category" ? `c.name ${dir}`
+    : sortBy === "purchasePrice" ? `p."purchasePrice" ${dir}`
+    : sortBy === "sellingPrice" ? `p."sellingPrice" ${dir}`
+    : sortBy === "stock" ? `p.stock ${dir}`
+    : `p."createdAt" ${dir}`;
 
-  const include = {
-    category: { select: { id: true, name: true } },
-    brand: { select: { id: true, name: true } },
-    supplier: { select: { id: true, name: true } },
-    ...(branchId ? {
-      branchPrices: { where: { branchId }, select: { sellingPrice: true, purchasePrice: true }, take: 1 },
-      branchStocks: { where: { branchId }, select: { quantity: true, minStock: true }, take: 1 },
-    } : {}),
-  };
+  const offset = (page - 1) * limit;
 
-  const [rawProducts, total] = await Promise.all([
-    prisma.product.findMany({ where, include, orderBy, skip, take: limit }),
-    prisma.product.count({ where }),
+  const dataQuery = `
+    SELECT
+      p.id, p.code, p.name, p."categoryId", p."brandId", p."supplierId",
+      p."purchasePrice"::float8, p."sellingPrice"::float8, p.stock::int4, p."minStock"::int4,
+      p.barcode, p.unit, p.description, p."isActive", p."imageUrl",
+      p."createdAt", p."updatedAt",
+      c.id AS cat_id, c.name AS cat_name,
+      br.id AS brand_id, br.name AS brand_name,
+      s.id AS supplier_id, s.name AS supplier_name
+      ${branchId ? `, bp."sellingPrice"::float8 AS bp_selling, bp."purchasePrice"::float8 AS bp_purchase, bs.quantity::int4 AS bs_qty, bs."minStock"::int4 AS bs_min` : ""}
+    FROM products p
+    LEFT JOIN categories c ON c.id = p."categoryId"
+    LEFT JOIN brands br ON br.id = p."brandId"
+    LEFT JOIN suppliers s ON s.id = p."supplierId"
+    ${branchId ? `LEFT JOIN branch_product_prices bp ON bp."productId" = p.id AND bp."branchId" = '${esc(branchId)}'` : ""}
+    ${branchId ? `LEFT JOIN branch_stocks bs ON bs."productId" = p.id AND bs."branchId" = '${esc(branchId)}'` : ""}
+    WHERE ${whereClause}
+    ORDER BY ${orderColumn}
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const [rawRows, countResult] = await Promise.all([
+    prisma.$queryRawUnsafe<Record<string, unknown>[]>(dataQuery),
+    prisma.$queryRawUnsafe<[{ total: number }]>(`SELECT COUNT(*)::int4 AS total FROM products p WHERE ${whereClause}`),
   ]);
 
-  // Overlay branch prices/stock if branch filter is active
-  const products = branchId
-    ? rawProducts.map((p) => {
-        const bp = (p as unknown as { branchPrices?: { sellingPrice: number; purchasePrice: number }[] }).branchPrices?.[0];
-        const bs = (p as unknown as { branchStocks?: { quantity: number; minStock: number }[] }).branchStocks?.[0];
-        return {
-          ...p,
-          sellingPrice: bp?.sellingPrice ?? p.sellingPrice,
-          purchasePrice: bp?.purchasePrice ?? p.purchasePrice,
-          stock: bs?.quantity ?? p.stock,
-          minStock: bs?.minStock ?? p.minStock,
-          branchPrices: undefined,
-          branchStocks: undefined,
-        };
-      })
-    : rawProducts;
+  const total = Number(countResult[0]?.total ?? 0);
+
+  const products = rawRows.map((r) => ({
+    id: r.id as string,
+    code: r.code as string,
+    name: r.name as string,
+    categoryId: r.categoryId as string,
+    category: { id: (r.cat_id as string) || "", name: (r.cat_name as string) || "" },
+    brandId: r.brandId as string | null,
+    brand: r.brand_name ? { id: r.brand_id as string, name: r.brand_name as string } : null,
+    supplierId: r.supplierId as string | null,
+    supplier: r.supplier_name ? { id: r.supplier_id as string, name: r.supplier_name as string } : null,
+    purchasePrice: branchId && r.bp_purchase != null ? Number(r.bp_purchase) : Number(r.purchasePrice),
+    sellingPrice: branchId && r.bp_selling != null ? Number(r.bp_selling) : Number(r.sellingPrice),
+    stock: branchId && r.bs_qty != null ? Number(r.bs_qty) : Number(r.stock),
+    minStock: branchId && r.bs_min != null ? Number(r.bs_min) : Number(r.minStock),
+    barcode: r.barcode as string | null,
+    unit: r.unit as string,
+    description: r.description as string | null,
+    isActive: r.isActive as boolean,
+    imageUrl: r.imageUrl as string | null,
+    createdAt: r.createdAt as Date,
+    updatedAt: r.updatedAt as Date,
+  }));
 
   return {
     products,
@@ -1614,4 +1624,13 @@ export async function downloadProductImportTemplate(format: "csv" | "excel" | "d
     filename: `template-import-produk.${format === "excel" ? "xlsx" : format}`,
     mimeType: result.mimeType,
   };
+}
+
+export async function bulkDeleteProducts(ids: string[]) {
+  await assertMenuActionAccess("products", "delete");
+  const companyId = await getCurrentCompanyId();
+  const result = await prisma.product.deleteMany({ where: { id: { in: ids }, companyId } });
+  revalidatePath("/products");
+  serverCache.invalidate(`products:${companyId}`);
+  return { count: result.count };
 }

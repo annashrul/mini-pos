@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 export async function getSuppliers(params?: { search?: string; status?: string; page?: number; perPage?: number }) {
   const companyId = await getCurrentCompanyId();
@@ -119,4 +120,48 @@ export async function deleteSupplier(id: string) {
   } catch {
     return { error: "Gagal menghapus supplier" };
   }
+}
+
+// ─── Import Suppliers ───
+
+export async function importSuppliers(rows: { name: string; contact: string; email: string; address: string }[]) {
+  await assertMenuActionAccess("suppliers", "create");
+  const companyId = await getCurrentCompanyId();
+  const existing = new Set((await prisma.supplier.findMany({ where: { companyId }, select: { name: true } })).map((s) => s.name.toLowerCase()));
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  const validRows: { name: string; contact: string | null; email: string | null; address: string | null }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    if (!row.name?.trim()) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Nama wajib diisi" }); continue; }
+    if (existing.has(row.name.toLowerCase().trim())) { results.push({ row: rowNum, success: false, name: row.name, error: "Nama sudah ada" }); continue; }
+    existing.add(row.name.toLowerCase().trim());
+    validRows.push({ name: row.name.trim(), contact: row.contact?.trim() || null, email: row.email?.trim() || null, address: row.address?.trim() || null });
+  }
+
+  if (validRows.length > 0) {
+    try {
+      await prisma.supplier.createMany({ data: validRows.map((r) => ({ ...r, isActive: true, companyId })), skipDuplicates: true });
+      for (const r of validRows) results.push({ row: rows.findIndex((x) => x.name === r.name) + 2, success: true, name: r.name });
+    } catch { for (const r of validRows) results.push({ row: 0, success: false, name: r.name, error: "Gagal menyimpan" }); }
+  }
+
+  results.sort((a, b) => a.row - b.row);
+  revalidatePath("/suppliers");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const SUPPLIER_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Nama *", width: 22, sampleValues: ["PT Indofood", "CV Jaya Abadi"] },
+  { header: "Kontak", width: 16, sampleValues: ["08123456789", "021-5551234"] },
+  { header: "Email", width: 22, sampleValues: ["info@indofood.com", "order@jayaabadi.com"] },
+  { header: "Alamat", width: 30, sampleValues: ["Jl. Industri 10, Jakarta", "Jl. Raya Bogor 25"] },
+];
+
+export async function downloadSupplierImportTemplate(format: "csv" | "excel" | "docx") {
+  const result = await generateImportTemplate(SUPPLIER_TEMPLATE_COLS, 2, ["Kolom dengan tanda * wajib diisi"], format);
+  return { data: result.data, filename: `template-import-supplier.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

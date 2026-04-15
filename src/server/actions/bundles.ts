@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 export async function getBundles(params?: {
   search?: string;
@@ -274,4 +275,160 @@ export async function getActiveBundles(branchId?: string) {
     },
     orderBy: [{ name: "asc" }],
   });
+}
+
+// ─── Import Bundles ───
+
+interface ImportBundleRow {
+  code: string;
+  name: string;
+  description: string;
+  sellingPrice: number;
+  categoryName: string;
+  barcode: string;
+  /** Comma-separated "productCode:qty" pairs, e.g. "PRD-001:2,PRD-002:1" */
+  items: string;
+}
+
+export async function importBundles(rows: ImportBundleRow[], branchId?: string) {
+  await assertMenuActionAccess("products", "create");
+  const companyId = await getCurrentCompanyId();
+
+  // Lookup data
+  const [allCategories, allProducts, existingCodes, activeBranches] = await Promise.all([
+    prisma.category.findMany({ where: { companyId }, select: { id: true, name: true } }),
+    prisma.product.findMany({ where: { companyId }, select: { id: true, code: true, sellingPrice: true } }),
+    prisma.productBundle.findMany({ where: { companyId }, select: { code: true } }),
+    prisma.branch.findMany({ where: { companyId, isActive: true, ...(branchId ? { id: branchId } : {}) }, select: { id: true } }),
+  ]);
+
+  const categoryMap = new Map(allCategories.map((c) => [c.name.toLowerCase().trim(), c.id]));
+  const productMap = new Map(allProducts.map((p) => [p.code.toLowerCase().trim(), p]));
+  const usedCodes = new Set(existingCodes.map((b) => b.code.toLowerCase()));
+  const branchIds = activeBranches.map((b) => b.id);
+
+  type ResultItem = { row: number; success: boolean; name: string; error?: string };
+  const results: ResultItem[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+
+    if (!row.name?.trim()) {
+      results.push({ row: rowNum, success: false, name: row.name || `Baris ${rowNum}`, error: "Nama paket wajib diisi" });
+      continue;
+    }
+    if (!row.items?.trim()) {
+      results.push({ row: rowNum, success: false, name: row.name, error: "Item paket wajib diisi" });
+      continue;
+    }
+    if (row.sellingPrice <= 0) {
+      results.push({ row: rowNum, success: false, name: row.name, error: "Harga jual harus lebih dari 0" });
+      continue;
+    }
+
+    const code = row.code?.trim() || `BDL-${Date.now().toString(36).toUpperCase()}-${i}`;
+    if (usedCodes.has(code.toLowerCase())) {
+      results.push({ row: rowNum, success: false, name: row.name, error: `Kode "${code}" sudah ada` });
+      continue;
+    }
+
+    // Parse items: "PRD-001:2,PRD-002:1"
+    const itemPairs = row.items.split(",").map((s) => s.trim()).filter(Boolean);
+    const parsedItems: { productId: string; quantity: number; price: number }[] = [];
+    let itemError = false;
+
+    for (const pair of itemPairs) {
+      const [productCode, qtyStr] = pair.split(":").map((s) => s.trim());
+      if (!productCode) { itemError = true; break; }
+      const product = productMap.get(productCode!.toLowerCase());
+      if (!product) {
+        results.push({ row: rowNum, success: false, name: row.name, error: `Produk "${productCode}" tidak ditemukan` });
+        itemError = true;
+        break;
+      }
+      parsedItems.push({ productId: product.id, quantity: Number(qtyStr) || 1, price: product.sellingPrice });
+    }
+    if (itemError) continue;
+
+    const categoryId = row.categoryName?.trim() ? categoryMap.get(row.categoryName.toLowerCase().trim()) ?? null : null;
+    const totalBasePrice = parsedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    try {
+      for (const bid of branchIds) {
+        const bundleCode = branchIds.length > 1 ? `${code}-${bid.slice(-4)}` : code;
+        await prisma.productBundle.create({
+          data: {
+            code: bundleCode,
+            name: row.name.trim(),
+            description: row.description?.trim() || null,
+            sellingPrice: row.sellingPrice,
+            totalBasePrice,
+            categoryId,
+            barcode: row.barcode?.trim() || null,
+            branchId: bid,
+            companyId,
+            items: {
+              create: parsedItems.map((item, idx) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                sortOrder: idx,
+              })),
+            },
+          },
+        });
+      }
+      usedCodes.add(code.toLowerCase());
+      results.push({ row: rowNum, success: true, name: row.name });
+    } catch {
+      results.push({ row: rowNum, success: false, name: row.name, error: "Gagal menyimpan (kode duplikat)" });
+    }
+  }
+
+  revalidatePath("/products");
+  revalidatePath("/pos");
+
+  const successCount = results.filter((r) => r.success).length;
+  const failedCount = results.filter((r) => !r.success).length;
+  return { results, successCount, failedCount };
+}
+
+const BUNDLE_TEMPLATE_COLUMNS: TemplateColumn[] = [
+  { header: "Kode Paket", width: 16, sampleValues: ["BDL-001", "BDL-002"] },
+  { header: "Nama Paket *", width: 25, sampleValues: ["Paket Hemat A", "Paket Combo B"] },
+  { header: "Deskripsi", width: 25, sampleValues: ["Paket hemat makan siang", "Combo minuman"] },
+  { header: "Harga Jual *", width: 14, sampleValues: ["25000", "15000"] },
+  { header: "Kategori", width: 15, sampleValues: ["Makanan", "Minuman"] },
+  { header: "Barcode", width: 16, sampleValues: ["", ""] },
+  { header: "Item (kode:qty) *", width: 30, sampleValues: ["PRD-00001:2,PRD-00002:1", "PRD-00003:3"] },
+];
+
+export async function downloadBundleImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const [categories, products] = await Promise.all([
+    prisma.category.findMany({ where: { companyId }, select: { name: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId, isActive: true }, select: { code: true, name: true }, orderBy: { code: "asc" }, take: 20 }),
+  ]);
+
+  const notes = [
+    `Kategori: ${categories.map((c) => c.name).join(", ") || "-"}`,
+    `Produk (kode): ${products.map((p) => `${p.code} (${p.name})`).join(", ") || "-"}`,
+    "Kolom Item diisi dengan format kode_produk:jumlah dipisah koma. Contoh: PRD-00001:2,PRD-00002:1",
+    "Kolom dengan tanda * wajib diisi",
+  ];
+
+  const result = await generateImportTemplate(BUNDLE_TEMPLATE_COLUMNS, 2, notes, format);
+  return {
+    data: result.data,
+    filename: `template-import-paket.${format === "excel" ? "xlsx" : format}`,
+    mimeType: result.mimeType,
+  };
+}
+
+export async function bulkDeleteBundles(ids: string[]) {
+  await assertMenuActionAccess("bundles", "delete");
+  const companyId = await getCurrentCompanyId();
+  const result = await prisma.productBundle.deleteMany({ where: { id: { in: ids }, companyId } });
+  revalidatePath("/bundles");
+  return { count: result.count };
 }

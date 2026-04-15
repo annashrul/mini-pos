@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useTransition, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createBrand, updateBrand, deleteBrand, getBrands } from "@/features/brands";
+import { createBrand, updateBrand, deleteBrand, getBrands, bulkDeleteBrands } from "@/features/brands";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Tag, Package, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Package, AlertTriangle, Loader2, Upload } from "lucide-react";
+import { BrandImportDialog } from "./brand-import-dialog";
 import { toast } from "sonner";
 import type { Brand } from "@/types";
 
@@ -30,6 +31,7 @@ type BrandFormValues = z.infer<typeof brandFormSchema>;
 export function BrandsContent() {
     const [data, setData] = useState<{ brands: Brand[]; total: number; totalPages: number }>({ brands: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Brand | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
@@ -160,15 +162,17 @@ export function BrandsContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola brand dan merek produk</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="brands" actionKey="create">
-                    <Button
-                        disabled={!canCreate}
-                        className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
-                        onClick={() => { setEditing(null); form.reset({ name: "" }); setOpen(true); }}
-                    >
-                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Brand
+                <div className="hidden sm:flex gap-2">
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
-                </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="brands" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
+                            onClick={() => { setEditing(null); form.reset({ name: "" }); setOpen(true); }}>
+                            <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Brand
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             <SmartTable<Brand>
@@ -218,7 +222,7 @@ export function BrandsContent() {
                         if (!canDelete) { toast.error(cannotMessage("delete")); return; }
                         setConfirmText(`Hapus ${ids.length} brand?`);
                         setPendingConfirmAction(() => async () => {
-                            for (const id of ids) await deleteBrand(id);
+                            await bulkDeleteBrands(ids);
                             toast.success("Brand dihapus");
                             setSelectedRows(new Set());
                             fetchData({});
@@ -299,6 +303,7 @@ export function BrandsContent() {
                     setPendingSubmitValues(null);
                 }}
             />
+            <BrandImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => fetchData({})} />
         </div>
     );
 }

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createExpense, deleteExpense, getExpenses, updateExpense } from "@/features/expenses";
+import { createExpense, deleteExpense, getExpenses, updateExpense, bulkDeleteExpenses } from "@/features/expenses";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
-import { CalendarDays, Loader2, MapPin, Pencil, Plus, ReceiptText, Search, Trash2, TrendingDown, Wallet } from "lucide-react";
+import { CalendarDays, Loader2, MapPin, Pencil, Plus, ReceiptText, Search, Trash2, TrendingDown, Upload, Wallet } from "lucide-react";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -27,6 +27,7 @@ import { useMenuActionAccess } from "@/features/access-control";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ExpenseImportDialog } from "./expense-import-dialog";
 
 const CATEGORY_COLORS = [
     "from-rose-400 to-pink-500",
@@ -60,6 +61,7 @@ function hashCategory(name: string): number {
 export function ExpensesContent() {
     const [data, setData] = useState<{ expenses: Expense[]; total: number; totalPages: number }>({ expenses: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const expenseForm = useForm<ExpenseFormValues>({
         resolver: zodResolver(expenseSchema),
@@ -149,8 +151,8 @@ export function ExpensesContent() {
         if (!canDelete) { toast.error(cannotMessage("delete")); return; }
         setConfirmText(`Yakin ingin menghapus ${ids.length} pengeluaran?`);
         setPendingConfirmAction(() => async () => {
-            for (const id of ids) await deleteExpense(id);
-            toast.success(`${ids.length} pengeluaran dihapus`);
+            const { count } = await bulkDeleteExpenses(ids);
+            toast.success(`${count} pengeluaran dihapus`);
             setSelectedRows(new Set());
             fetchData({});
             setConfirmOpen(false);
@@ -234,6 +236,9 @@ export function ExpensesContent() {
                     </div>
                     <div className="hidden sm:flex items-center gap-2">
                         <ExportMenu module="expenses" branchId={selectedBranchId || undefined} />
+                        <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                            <Upload className="w-4 h-4 mr-2" /> Import
+                        </Button>
                         <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="expenses" actionKey="create">
                             <Button disabled={!canCreate} className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-md shadow-blue-200 text-sm" onClick={openCreateDialog}>
                                 <Plus className="w-4 h-4 mr-2" /> Tambah Pengeluaran
@@ -496,6 +501,8 @@ export function ExpensesContent() {
                 confirmDisabled={!canDelete}
                 size="sm"
             />
+
+            <ExpenseImportDialog open={importOpen} onOpenChange={setImportOpen} branchId={selectedBranchId || undefined} onImported={() => fetchData({})} />
         </div>
     );
 }

@@ -31,6 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { usePlanAccess } from "@/hooks/use-plan-access";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 
 interface AppRoleData {
     id: string;
@@ -84,6 +86,8 @@ export function AccessControlContent() {
     const [formColor, setFormColor] = useState("bg-slate-100 text-slate-700");
     const [formCopyFrom, setFormCopyFrom] = useState("");
     const [confirmDelete, setConfirmDelete] = useState<AppRoleData | null>(null);
+    const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
+    const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
     const [submitConfirmTitle, setSubmitConfirmTitle] = useState("Konfirmasi");
     const [submitConfirmText, setSubmitConfirmText] = useState("");
@@ -503,6 +507,7 @@ export function AccessControlContent() {
                                 const meta = getRoleMeta(roleKey);
                                 const appRole = appRoles.find((r) => r.key === roleKey);
                                 const isSelected = effectiveRole === roleKey;
+                                const isChecked = selectedRoleIds.has(appRole?.id ?? "");
                                 const mCount = data.menus.filter((m) => m.permissions[roleKey]).length;
                                 const aCount = data.menus.reduce((sum, menu) => sum + menu.actions.filter((action) => action.permissions[roleKey]).length, 0);
                                 const pct = totalMenus > 0 ? Math.round(mCount / totalMenus * 100) : 0;
@@ -513,11 +518,15 @@ export function AccessControlContent() {
                                             "group rounded-xl transition-all relative",
                                             isSelected
                                                 ? "border-l-4 border-l-primary bg-primary/5 border border-primary/10"
-                                                : "border border-transparent hover:bg-muted/30"
+                                                : "border border-transparent hover:bg-muted/30",
+                                            isChecked && "ring-2 ring-primary/20"
                                         )}
                                     >
                                         <button onClick={() => setSelectedRole(roleKey)} className="w-full text-left p-3">
                                             <div className="flex items-center gap-3">
+                                                {appRole && !appRole.isSystem && (
+                                                    <Checkbox checked={isChecked} onCheckedChange={() => { const next = new Set(selectedRoleIds); if (next.has(appRole.id)) next.delete(appRole.id); else next.add(appRole.id); setSelectedRoleIds(next); }} className="shrink-0" onClick={(e) => e.stopPropagation()} />
+                                                )}
                                                 <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm", meta.color)}>
                                                     {meta.icon}
                                                 </div>
@@ -973,6 +982,37 @@ export function AccessControlContent() {
                 confirmDisabled={!canDeleteRole}
                 onConfirm={handleDeleteRole}
                 size="sm"
+            />
+            <BulkActionBar
+                selectedCount={selectedRoleIds.size}
+                actions={[{
+                    label: "Hapus",
+                    variant: "destructive",
+                    icon: <Trash2 className="w-3 h-3" />,
+                    onClick: () => { if (canDeleteRole) setBulkConfirmOpen(true); },
+                }]}
+                onClear={() => setSelectedRoleIds(new Set())}
+            />
+            <ActionConfirmDialog
+                open={bulkConfirmOpen}
+                onOpenChange={setBulkConfirmOpen}
+                title={`Hapus ${selectedRoleIds.size} Role`}
+                description={`Yakin ingin menghapus ${selectedRoleIds.size} role? Tindakan ini tidak dapat dibatalkan.`}
+                kind="delete"
+                onConfirm={async () => {
+                    const { count } = await accessControlService.bulkDeleteRoles([...selectedRoleIds]);
+                    toast.success(`${count} role dihapus`);
+                    setSelectedRoleIds(new Set());
+                    setBulkConfirmOpen(false);
+                    startTransition(async () => {
+                        const [matrix, roles] = await Promise.all([
+                            accessControlService.getAccessControlMatrix(),
+                            accessControlService.getRoles(),
+                        ]);
+                        setData(matrix);
+                        setAppRoles(roles as AppRoleData[]);
+                    });
+                }}
             />
         </div>
     );

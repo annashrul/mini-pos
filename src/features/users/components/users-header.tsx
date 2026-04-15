@@ -3,14 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Upload } from "lucide-react";
 
 export function UsersHeader(props: {
   canCreate: boolean;
   cannotMessage: (action: string) => string;
   onCreate: () => void;
+  onImport?: () => void;
 }) {
-  const { canCreate, cannotMessage, onCreate } = props;
+  const { canCreate, cannotMessage, onCreate, onImport } = props;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -24,6 +25,11 @@ export function UsersHeader(props: {
         </div>
       </div>
       <div className="hidden sm:flex items-center gap-2">
+        {onImport && (
+          <Button variant="outline" className="rounded-xl border-dashed" onClick={onImport}>
+            <Upload className="w-4 h-4 mr-2" /> Import
+          </Button>
+        )}
         <ExportMenu module="users" />
         <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="users" actionKey="create">
           <Button

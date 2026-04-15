@@ -7,6 +7,7 @@ import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { auth } from "@/lib/auth";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 // ===========================
 // GET DEBTS (list with filters)
@@ -498,4 +499,54 @@ export async function getDebtSummary(branchId?: string) {
     unpaidReceivableCount,
     recentPayments,
   };
+}
+
+// ─── Import Debts ───
+
+export async function importDebts(rows: { type: string; partyName: string; description: string; totalAmount: number; dueDate: string }[], branchId?: string) {
+  await assertMenuActionAccess("debts", "create");
+  const companyId = await getCurrentCompanyId();
+  const session = await auth();
+  if (!session?.user?.id) return { results: [], successCount: 0, failedCount: rows.length };
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  const validRows: { type: DebtType; partyType: string; partyName: string; description: string | null; totalAmount: number; paidAmount: number; remainingAmount: number; status: DebtStatus; dueDate: Date | null; branchId: string | null; companyId: string; createdBy: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    if (!row.partyName?.trim()) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Nama pihak wajib diisi" }); continue; }
+    if (!row.totalAmount || row.totalAmount <= 0) { results.push({ row: rowNum, success: false, name: row.partyName, error: "Jumlah harus lebih dari 0" }); continue; }
+    const type = row.type?.toUpperCase().trim() === "RECEIVABLE" ? "RECEIVABLE" as DebtType : "PAYABLE" as DebtType;
+    validRows.push({
+      type, partyType: "OTHER", partyName: row.partyName.trim(), description: row.description?.trim() || null,
+      totalAmount: row.totalAmount, paidAmount: 0, remainingAmount: row.totalAmount, status: "UNPAID" as DebtStatus,
+      dueDate: row.dueDate ? new Date(row.dueDate) : null, branchId: branchId || null, companyId, createdBy: session.user.id,
+    });
+  }
+
+  if (validRows.length > 0) {
+    try {
+      await prisma.debt.createMany({ data: validRows });
+      for (const r of validRows) results.push({ row: rows.findIndex((x) => x.partyName === r.partyName && x.totalAmount === r.totalAmount) + 2, success: true, name: r.partyName });
+    } catch { for (const r of validRows) results.push({ row: 0, success: false, name: r.partyName, error: "Gagal menyimpan" }); }
+  }
+
+  results.sort((a, b) => a.row - b.row);
+  revalidatePath("/debts");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const DEBT_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Tipe (PAYABLE/RECEIVABLE) *", width: 24, sampleValues: ["PAYABLE", "RECEIVABLE"] },
+  { header: "Nama Pihak *", width: 22, sampleValues: ["PT Supplier A", "Toko Pelanggan B"] },
+  { header: "Deskripsi", width: 28, sampleValues: ["Hutang pembelian barang", "Piutang penjualan kredit"] },
+  { header: "Jumlah *", width: 14, sampleValues: ["5000000", "2000000"] },
+  { header: "Jatuh Tempo", width: 14, sampleValues: ["2026-05-14", "2026-04-30"] },
+];
+
+export async function downloadDebtImportTemplate(format: "csv" | "excel" | "docx") {
+  const result = await generateImportTemplate(DEBT_TEMPLATE_COLS, 2, ["Kolom dengan tanda * wajib diisi", "Tipe: PAYABLE (hutang) atau RECEIVABLE (piutang)", "Format tanggal: YYYY-MM-DD"], format);
+  return { data: result.data, filename: `template-import-hutang-piutang.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

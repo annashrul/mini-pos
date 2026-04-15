@@ -11,17 +11,22 @@ export function UsersFilters(props: {
   loading: boolean;
   effectiveRole: string;
   roleOptions: Array<{ value: string; label: string }>;
+  stats: { total: number; active: number; topRoles: [string, number][] };
   onSearchChange: (value: string) => void;
   onRoleFilterChange: (roleKey: string) => void;
 }) {
-  const { search, loading, effectiveRole, roleOptions, onSearchChange, onRoleFilterChange } = props;
+  const { search, loading, effectiveRole, roleOptions, stats, onSearchChange, onRoleFilterChange } = props;
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [draftRole, setDraftRole] = useState("ALL");
 
-  const allRoleOptions = [{ value: "ALL", label: "Semua" }, ...roleOptions];
+  const isInitialLoad = stats.total === 0 && roleOptions.length === 0;
+  const roleCountMap = new Map(stats.topRoles);
+  const seen = new Set<string>();
+  const dedupedRoles = roleOptions.filter((r) => { if (seen.has(r.value)) return false; seen.add(r.value); return true; });
+  const allRoleOptions = [{ value: "ALL", label: "Semua", count: stats.total }, ...dedupedRoles.map((r) => ({ ...r, count: roleCountMap.get(r.value) ?? 0 }))];
 
   const pillClass = (active: boolean) =>
-    `shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+    `shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
       active
         ? "bg-sky-500 text-white border-sky-500 shadow-sm"
         : "bg-white text-muted-foreground border-border hover:bg-slate-50"
@@ -59,15 +64,18 @@ export function UsersFilters(props: {
               </SheetHeader>
             </div>
             <div className="flex-1 overflow-y-auto px-4 space-y-1">
-              {allRoleOptions.map((opt) => {
+              {allRoleOptions.map((opt, idx) => {
                 const isActive = draftRole === opt.value;
                 return (
                   <button
-                    key={opt.value}
+                    key={`${opt.value}-${idx}`}
                     onClick={() => setDraftRole(opt.value)}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
                   >
-                    <span>{opt.label}</span>
+                    <span className="flex items-center gap-2">
+                      {opt.label}
+                      <span className={`text-[10px] font-mono tabular-nums ${isActive ? "text-background/60" : "text-muted-foreground/50"}`}>{opt.count}</span>
+                    </span>
                     {isActive && <Check className="w-4 h-4" />}
                   </button>
                 );
@@ -98,14 +106,25 @@ export function UsersFilters(props: {
           {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-          {allRoleOptions.map((role) => (
-            <button key={role.value} type="button" onClick={() => onRoleFilterChange(role.value)} className={pillClass(effectiveRole === role.value)}>
-              {role.label}
-            </button>
-          ))}
+          {isInitialLoad ? (
+            // Skeleton pills
+            <>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-7 rounded-full bg-gray-100 animate-pulse" style={{ width: `${60 + i * 15}px` }} />
+              ))}
+            </>
+          ) : (
+            allRoleOptions.map((role, idx) => (
+              <button key={`${role.value}-${idx}`} type="button" onClick={() => onRoleFilterChange(role.value)} className={pillClass(effectiveRole === role.value)}>
+                {role.label}
+                <span className={`font-mono tabular-nums text-[10px] ${effectiveRole === role.value ? "text-white/70" : "text-muted-foreground/50"}`}>
+                  {role.count}
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </div>
     </>
   );
 }
-

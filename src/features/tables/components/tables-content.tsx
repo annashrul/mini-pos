@@ -16,6 +16,7 @@ import {
     updateTableStatus,
     getTableStats,
     getTableSections,
+    bulkDeleteTables,
 } from "@/server/actions/tables";
 import { useMenuActionAccess } from "@/features/access-control";
 import { useBranch } from "@/components/providers/branch-provider";
@@ -71,6 +72,8 @@ import {
     Check,
     Search,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 
 // --- Types ---
 
@@ -136,6 +139,8 @@ export function TablesContent() {
     const [activeSection, setActiveSection] = useState<string>("Semua");
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [draftSection, setDraftSection] = useState("Semua");
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<TableRecord | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -503,6 +508,8 @@ export function TablesContent() {
                                 onEdit={() => openEditDialog(table)}
                                 onDelete={() => handleDelete(table.id)}
                                 onStatusChange={(status) => handleStatusChange(table.id, status)}
+                                isSelected={selectedIds.has(table.id)}
+                                onToggleSelect={() => { const next = new Set(selectedIds); if (next.has(table.id)) next.delete(table.id); else next.add(table.id); setSelectedIds(next); }}
                             />
                         ))}
                     </div>
@@ -654,6 +661,30 @@ export function TablesContent() {
                     setPendingSubmitValues(null);
                 }}
             />
+            <BulkActionBar
+                selectedCount={selectedIds.size}
+                actions={[{
+                    label: "Hapus",
+                    variant: "destructive",
+                    icon: <Trash2 className="w-3 h-3" />,
+                    onClick: () => { if (canDelete) setBulkConfirmOpen(true); },
+                }]}
+                onClear={() => setSelectedIds(new Set())}
+            />
+            <ActionConfirmDialog
+                open={bulkConfirmOpen}
+                onOpenChange={setBulkConfirmOpen}
+                title={`Hapus ${selectedIds.size} Meja`}
+                description={`Yakin ingin menghapus ${selectedIds.size} meja? Tindakan ini tidak dapat dibatalkan.`}
+                kind="delete"
+                onConfirm={async () => {
+                    const { count } = await bulkDeleteTables([...selectedIds]);
+                    toast.success(`${count} meja dihapus`);
+                    setSelectedIds(new Set());
+                    fetchData();
+                    setBulkConfirmOpen(false);
+                }}
+            />
         </div>
     );
 }
@@ -686,6 +717,8 @@ function TableCard({
     onEdit,
     onDelete,
     onStatusChange,
+    isSelected = false,
+    onToggleSelect,
 }: {
     table: TableRecord;
     canUpdate: boolean;
@@ -694,6 +727,8 @@ function TableCard({
     onEdit: () => void;
     onDelete: () => void;
     onStatusChange: (status: string) => void;
+    isSelected?: boolean;
+    onToggleSelect?: () => void;
 }) {
     const statusCfg = (STATUS_CONFIG[table.status] ?? STATUS_CONFIG["AVAILABLE"])!;
     const cardGradient = STATUS_CARD_GRADIENT[table.status] || STATUS_CARD_GRADIENT.AVAILABLE;
@@ -704,12 +739,19 @@ function TableCard({
         <div className={cn(
             "group relative rounded-xl sm:rounded-2xl border-2 transition-all duration-200 hover:shadow-lg overflow-hidden",
             !table.isActive && "opacity-50",
-            statusCfg.borderColor,
+            isSelected ? "border-primary ring-2 ring-primary/20" : statusCfg.borderColor,
             table.status === "AVAILABLE" ? "bg-gradient-to-br from-white to-emerald-50/30" :
                 table.status === "OCCUPIED" ? "bg-gradient-to-br from-white to-red-50/40" :
                     table.status === "RESERVED" ? "bg-gradient-to-br from-white to-amber-50/40" :
                         "bg-gradient-to-br from-white to-gray-50/40"
         )}>
+            {/* Checkbox */}
+            {onToggleSelect && (
+                <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5 z-10">
+                    <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect()} className="shrink-0 bg-white/80" onClick={(e) => e.stopPropagation()} />
+                </div>
+            )}
+
             {/* Dropdown trigger */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>

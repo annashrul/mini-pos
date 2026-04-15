@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, useMemo, useCallback } from "react"
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { getBundles, createBundle, updateBundle, deleteBundle } from "@/server/actions/bundles";
+import { getBundles, createBundle, updateBundle, deleteBundle, bulkDeleteBundles } from "@/server/actions/bundles";
 import { getCategories } from "@/server/actions/categories";
 import { ProductPicker, type ProductPickerItem } from "@/components/ui/product-picker";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -27,9 +27,10 @@ import { SmartTable, type SmartColumn, type SmartFilter } from "@/components/ui/
 import {
     Plus, Pencil, Trash2, Package, AlertTriangle,
     Loader2, BadgePercent, ShoppingCart,
-    PackageOpen,
+    PackageOpen, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BundleImportDialog } from "./bundle-import-dialog";
 
 // ===========================
 // Types
@@ -111,6 +112,7 @@ export function BundlesContent() {
 
     // Dialog state
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Bundle | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
@@ -433,15 +435,20 @@ export function BundlesContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola paket bundling produk</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="bundles" actionKey="create">
-                    <Button
-                        disabled={!canCreate}
-                        className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
-                        onClick={() => openDialog()}
-                    >
-                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Paket
+                <div className="hidden sm:flex gap-2">
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
-                </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="bundles" actionKey="create">
+                        <Button
+                            disabled={!canCreate}
+                            className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm"
+                            onClick={() => openDialog()}
+                        >
+                            <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Paket
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* Table */}
@@ -490,7 +497,7 @@ export function BundlesContent() {
                         if (!canDelete) { toast.error(cannotMessage("delete")); return; }
                         setConfirmText(`Hapus ${ids.length} paket?`);
                         setPendingConfirmAction(() => async () => {
-                            for (const id of ids) await deleteBundle(id);
+                            await bulkDeleteBundles(ids);
                             toast.success("Paket dihapus");
                             setSelectedRows(new Set());
                             fetchData({});
@@ -691,6 +698,14 @@ export function BundlesContent() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Import Dialog */}
+            <BundleImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                branchId={selectedBranchId || undefined}
+                onImported={() => fetchData({})}
+            />
         </div>
     );
 }

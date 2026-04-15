@@ -44,7 +44,7 @@ const menuDefinitions = [
     path: "/transactions",
     group: "Utama",
     sortOrder: 3,
-    actions: ["view", "export", "void", "refund", "reprint"],
+    actions: ["view", "export", "import", "void", "refund", "reprint"],
   },
   {
     key: "shifts",
@@ -479,20 +479,26 @@ export async function getCurrentRole() {
 }
 
 export async function ensureAccessSeeded() {
-  // Quick check: count existing menus vs definitions
-  const existingCount = await prisma.appMenu.count();
-  if (existingCount >= menuDefinitions.length) {
-    // All menus likely exist — only seed missing ones
-    const existingKeys = await prisma.appMenu.findMany({ select: { key: true } });
-    const existingKeySet = new Set(existingKeys.map((m) => m.key));
-    const missingMenus = menuDefinitions.filter((m) => !existingKeySet.has(m.key));
-    if (missingMenus.length === 0) return; // Nothing to seed
-    // Only seed missing menus
+  const existingMenus = await prisma.appMenu.findMany({
+    select: { key: true, id: true, actions: { select: { key: true } } },
+  });
+  const existingKeySet = new Set(existingMenus.map((m) => m.key));
+
+  // Seed missing menus
+  const missingMenus = menuDefinitions.filter((m) => !existingKeySet.has(m.key));
+  if (missingMenus.length > 0) {
     await seedMenus(missingMenus);
-    return;
   }
-  // Full seed needed
-  await seedMenus(menuDefinitions);
+
+  // Seed missing actions for existing menus
+  const existingMap = new Map(existingMenus.map((m) => [m.key, new Set(m.actions.map((a) => a.key))]));
+  const menusWithNewActions = menuDefinitions.filter((m) => {
+    const existing = existingMap.get(m.key);
+    return existing && m.actions.some((a) => !existing.has(a));
+  });
+  if (menusWithNewActions.length > 0) {
+    await seedMenus(menusWithNewActions);
+  }
 }
 
 /** Human-readable Indonesian action labels for display in plan management UI */

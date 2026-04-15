@@ -43,7 +43,7 @@ import {
     Search, Loader2,
     CalendarDays,
     ClipboardList,
-    SlidersHorizontal, Check,
+    SlidersHorizontal, Check, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -52,6 +52,7 @@ import { id as idLocale } from "date-fns/locale";
 import type { Supplier, PurchaseOrderDetail, Branch } from "@/types";
 import { useBranch } from "@/components/providers/branch-provider";
 import { PaginationControl } from "@/components/ui/pagination-control";
+import { PurchaseImportDialog } from "./purchase-import-dialog";
 
 
 
@@ -111,6 +112,7 @@ export function PurchasesContent() {
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [receiveOpen, setReceiveOpen] = useState(false);
@@ -333,6 +335,9 @@ export function PurchasesContent() {
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                     <ExportMenu module="purchases" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="purchases" actionKey="create">
                         <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-200/50 text-white" onClick={() => setCreateOpen(true)}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -882,6 +887,8 @@ export function PurchasesContent() {
                 confirmLabel="Ya, Terima"
                 onConfirm={executeReceive}
             />
+
+            <PurchaseImportDialog open={importOpen} onOpenChange={setImportOpen} branchId={selectedBranchId || undefined} onImported={() => fetchData({})} />
         </div>
     );
 }

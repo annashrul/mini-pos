@@ -3,9 +3,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
-import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/utils";
 import { Calendar, MapPin, Pencil, ShoppingCart, Trash2, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { User } from "@/types";
 
 export function UsersGrid(props: {
@@ -17,29 +17,38 @@ export function UsersGrid(props: {
   cannotMessage: (action: string) => string;
   onEdit: (user: User) => void;
   onDelete: (id: string) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
-  const { users, loading, roleColors, canUpdate, canDelete, cannotMessage, onEdit, onDelete } = props;
+  const { users, loading, roleColors, canUpdate, canDelete, cannotMessage, onEdit, onDelete, selectedIds, onToggleSelect } = props;
 
   if (loading && users.length === 0) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="rounded-xl border border-border/40 bg-white p-5 space-y-3">
+          <div key={i} className="rounded-xl border border-border/40 bg-white p-5 space-y-3 animate-pulse">
+            {/* Avatar + Name + Email */}
             <div className="flex items-center gap-3">
-              <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+              <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
               <div className="flex-1 min-w-0 space-y-1.5">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-3 w-36" />
+                <div className="h-4 w-24 bg-gray-200 rounded" />
+                <div className="h-3 w-36 bg-gray-100 rounded" />
               </div>
             </div>
-            <Skeleton className="h-5 w-16 rounded-full" />
+            {/* Role badge */}
+            <div className="h-5 w-20 bg-gray-200 rounded-full" />
+            {/* Branch + Date */}
             <div className="flex items-center gap-4">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-3 w-24" />
+              <div className="h-3 w-24 bg-gray-100 rounded" />
+              <div className="h-3 w-20 bg-gray-100 rounded" />
             </div>
+            {/* Transaction count + Status */}
             <div className="flex items-center justify-between pt-3 border-t border-border/40">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-3 w-12" />
+              <div className="h-3 w-28 bg-gray-100 rounded" />
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-gray-200" />
+                <div className="h-3 w-10 bg-gray-100 rounded" />
+              </div>
             </div>
           </div>
         ))}
@@ -59,8 +68,10 @@ export function UsersGrid(props: {
 
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? "opacity-50 pointer-events-none transition-opacity" : ""}`}>
-      {users.map((user) => (
-        <div key={user.id} className="rounded-xl border border-border/40 bg-white hover:shadow-md transition-all group p-5 relative">
+      {users.map((user) => {
+        const isSelected = selectedIds?.has(user.id) ?? false;
+        return (
+        <div key={user.id} className={`rounded-xl border bg-white hover:shadow-md transition-all group p-5 relative ${isSelected ? "border-primary ring-2 ring-primary/20" : "border-border/40"}`}>
           <div className="absolute top-3 right-3 flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
             <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="users" actionKey="update">
               <Button
@@ -87,6 +98,9 @@ export function UsersGrid(props: {
           </div>
 
           <div className="flex items-center gap-3 mb-3">
+            {onToggleSelect && (
+              <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(user.id)} className="shrink-0" onClick={(e) => e.stopPropagation()} />
+            )}
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
               {user.name?.charAt(0)?.toUpperCase() ?? "U"}
             </div>
@@ -132,7 +146,8 @@ export function UsersGrid(props: {
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

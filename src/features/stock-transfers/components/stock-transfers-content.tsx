@@ -36,7 +36,7 @@ import {
     Plus, Eye, ArrowRightLeft, ArrowRight,
     CheckCircle2, XCircle, PackageCheck,
     Clock, ShieldCheck, Truck, PackageOpen, Ban, Package,
-    Search, Loader2, CalendarDays, MapPin, SlidersHorizontal, Check,
+    Search, Loader2, CalendarDays, MapPin, SlidersHorizontal, Check, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,7 @@ import { id as idLocale } from "date-fns/locale";
 import type { StockTransfer, Branch, StockTransferDetail } from "@/types";
 import { useBranch } from "@/components/providers/branch-provider";
 import { PaginationControl } from "@/components/ui/pagination-control";
+import { TransferImportDialog } from "./transfer-import-dialog";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType; borderColor: string; gradientBg: string }> = {
     PENDING: { label: "Menunggu", color: "bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200", icon: Clock, borderColor: "border-l-amber-400", gradientBg: "from-amber-400 to-yellow-500" },
@@ -66,6 +67,7 @@ export function StockTransfersContent() {
     const [data, setData] = useState<{ transfers: StockTransfer[]; total: number; totalPages: number; currentPage: number }>({ transfers: [], total: 0, totalPages: 0, currentPage: 1 });
     const [branches, setBranches] = useState<Branch[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
@@ -264,6 +266,9 @@ export function StockTransfersContent() {
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                     <ExportMenu module="stock-transfers" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock-transfers" actionKey="create">
                         <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 shadow-lg shadow-purple-200/50 text-white" onClick={() => setCreateOpen(true)}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -786,6 +791,8 @@ export function StockTransfersContent() {
                 confirmLabel="Ya, Tolak"
                 onConfirm={executeReject}
             />
+
+            <TransferImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => fetchData({})} />
         </div>
     );
 }

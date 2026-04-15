@@ -125,3 +125,9 @@ export async function getTableStats(branchId?: string) {
     cleaning: tables.filter(t => t.status === "CLEANING").length,
   };
 }
+
+export async function bulkDeleteTables(ids: string[]) {
+  const result = await prisma.restaurantTable.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/tables");
+  return { count: result.count };
+}

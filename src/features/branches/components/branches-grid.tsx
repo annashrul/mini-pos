@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { Building2, CheckCircle2, MapPin, Pencil, Phone, Plus, Trash2, XCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Branch } from "@/types";
 
 export function BranchesGrid(props: {
@@ -15,12 +16,15 @@ export function BranchesGrid(props: {
     onCreateFirst: () => void;
     onEdit: (branch: Branch) => void;
     onDelete: (id: string) => void;
+    selectedIds?: Set<string>;
+    onToggleSelect?: (id: string) => void;
+    onCardClick?: (branch: Branch) => void;
 }) {
-    const { branches, loading, canCreate, canUpdate, canDelete, cannotMessage, onCreateFirst, onEdit, onDelete } = props;
+    const { branches, loading, canCreate, canUpdate, canDelete, cannotMessage, onCreateFirst, onEdit, onDelete, selectedIds, onToggleSelect, onCardClick } = props;
 
     if (loading && branches.length === 0) {
         return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="rounded-xl border border-border/40 bg-white p-5 space-y-3 animate-pulse">
                         <div className="flex items-center gap-3">
@@ -65,14 +69,19 @@ export function BranchesGrid(props: {
 
     return (
         <div className={loading ? "opacity-50 pointer-events-none transition-opacity" : ""}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {branches.map((branch) => (
-                    <div key={branch.id} className="rounded-xl border border-border/40 bg-white hover:shadow-md transition-all group relative overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {branches.map((branch) => {
+                    const isSelected = selectedIds?.has(branch.id) ?? false;
+                    return (
+                    <div key={branch.id} className={`rounded-xl border bg-white hover:shadow-md transition-all group relative overflow-hidden cursor-pointer ${isSelected ? "border-primary ring-2 ring-primary/20" : "border-border/40"}`} onClick={() => onCardClick?.(branch)}>
                         <div className={`h-1 w-full ${branch.isActive ? "bg-gradient-to-r from-cyan-500 to-teal-500" : "bg-gradient-to-r from-gray-300 to-gray-400"}`} />
 
                         <div className="p-4 space-y-3">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-3">
+                                    {onToggleSelect && (
+                                        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(branch.id)} className="shrink-0" onClick={(e) => e.stopPropagation()} />
+                                    )}
                                     <div
                                         className={`flex items-center justify-center w-10 h-10 rounded-xl shrink-0 ${branch.isActive ? "bg-gradient-to-br from-cyan-100 to-teal-100" : "bg-gradient-to-br from-gray-100 to-gray-200"
                                             }`}
@@ -136,7 +145,8 @@ export function BranchesGrid(props: {
                             )}
                         </div>
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

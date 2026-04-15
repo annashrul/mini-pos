@@ -16,7 +16,8 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, FolderTree, Folder, Layers, PackageCheck, FolderOpen, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FolderTree, Folder, Layers, PackageCheck, FolderOpen, Loader2, Upload } from "lucide-react";
+import { CategoryImportDialog } from "./category-import-dialog";
 import { toast } from "sonner";
 import type { Category } from "@/types";
 
@@ -29,6 +30,7 @@ type CategoryFormValues = z.infer<typeof categoryFormSchema>;
 export function CategoriesContent() {
     const [data, setData] = useState<{ categories: Category[]; total: number; totalPages: number }>({ categories: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Category | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -198,15 +200,17 @@ export function CategoriesContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="categories" actionKey="create">
-                    <Button
-                        disabled={!canCreate}
-                        className="hidden sm:inline-flex rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
-                        onClick={() => { setEditing(null); form.reset({ name: "", description: "" }); setOpen(true); }}
-                    >
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
+                <div className="hidden sm:flex gap-2">
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
-                </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="categories" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-md shadow-emerald-500/20 text-white"
+                            onClick={() => { setEditing(null); form.reset({ name: "", description: "" }); setOpen(true); }}>
+                            <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* --- Table --- */}
@@ -355,6 +359,7 @@ export function CategoriesContent() {
                     setPendingSubmitValues(null);
                 }}
             />
+            <CategoryImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => fetchData({})} />
         </div>
     );
 }

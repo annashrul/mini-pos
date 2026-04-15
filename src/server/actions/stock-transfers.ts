@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 interface GetStockTransfersParams {
   page?: number;
@@ -345,4 +346,75 @@ export async function rejectStockTransfer(id: string, reason?: string) {
   } catch {
     return { error: "Gagal menolak transfer" };
   }
+}
+
+// ─── Import Stock Transfers ───
+
+export async function importStockTransfers(rows: { fromBranch: string; toBranch: string; items: string; notes: string }[]) {
+  await assertMenuActionAccess("stock-transfers", "create");
+  const companyId = await getCurrentCompanyId();
+  const [branches, products] = await Promise.all([
+    prisma.branch.findMany({ where: { companyId, isActive: true }, select: { id: true, name: true } }),
+    prisma.product.findMany({ where: { companyId }, select: { id: true, code: true, name: true } }),
+  ]);
+  const branchMap = new Map(branches.map((b) => [b.name.toLowerCase(), b.id]));
+  const productMap = new Map(products.map((p) => [p.code.toLowerCase(), { id: p.id, name: p.name }]));
+  let counter = await prisma.stockTransfer.count({ where: { companyId } });
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    const fromId = branchMap.get((row.fromBranch || "").toLowerCase().trim());
+    const toId = branchMap.get((row.toBranch || "").toLowerCase().trim());
+    if (!fromId) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: `Cabang asal "${row.fromBranch}" tidak ditemukan` }); continue; }
+    if (!toId) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: `Cabang tujuan "${row.toBranch}" tidak ditemukan` }); continue; }
+    if (fromId === toId) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Cabang asal dan tujuan tidak boleh sama" }); continue; }
+
+    const itemPairs = (row.items || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const parsedItems: { productId: string; productName: string; quantity: number }[] = [];
+    let itemError = false;
+    for (const pair of itemPairs) {
+      const [code, qty] = pair.split(":").map((s) => s.trim());
+      const product = productMap.get((code || "").toLowerCase());
+      if (!product) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: `Produk "${code}" tidak ditemukan` }); itemError = true; break; }
+      parsedItems.push({ productId: product.id, productName: product.name, quantity: Number(qty) || 1 });
+    }
+    if (itemError || parsedItems.length === 0) continue;
+
+    counter++;
+    try {
+      await prisma.stockTransfer.create({
+        data: {
+          transferNumber: `TRF-${String(counter).padStart(5, "0")}`, fromBranchId: fromId, toBranchId: toId, companyId, status: "PENDING",
+          notes: row.notes?.trim() || null, requestedAt: new Date(),
+          items: { create: parsedItems },
+        },
+      });
+      results.push({ row: rowNum, success: true, name: `TRF-${String(counter).padStart(5, "0")}` });
+    } catch { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Gagal menyimpan" }); }
+  }
+
+  revalidatePath("/stock-transfers");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const TRANSFER_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Cabang Asal *", width: 20, sampleValues: ["Cabang Utama", "Cabang A"] },
+  { header: "Cabang Tujuan *", width: 20, sampleValues: ["Cabang A", "Cabang B"] },
+  { header: "Item (kode:qty) *", width: 30, sampleValues: ["PRD-00001:50,PRD-00002:100", "PRD-00003:200"] },
+  { header: "Catatan", width: 25, sampleValues: ["Transfer rutin", "Permintaan cabang"] },
+];
+
+export async function downloadTransferImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const [branches, products] = await Promise.all([
+    prisma.branch.findMany({ where: { companyId, isActive: true }, select: { name: true }, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId, isActive: true }, select: { code: true, name: true }, take: 20, orderBy: { code: "asc" } }),
+  ]);
+  const notes = [`Cabang: ${branches.map((b) => b.name).join(", ") || "-"}`, `Produk: ${products.map((p) => `${p.code} (${p.name})`).join(", ") || "-"}`, "Format item: kode:jumlah dipisah koma"];
+  const result = await generateImportTemplate(TRANSFER_TEMPLATE_COLS, 2, notes, format);
+  return { data: result.data, filename: `template-import-transfer.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

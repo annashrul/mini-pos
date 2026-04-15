@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 export async function getCustomers(params?: {
   search?: string;
@@ -245,4 +246,60 @@ export async function getCustomerFavoriteProducts(customerId: string) {
         totalQty: i._sum.quantity || 0,
         totalSpent: i._sum.subtotal || 0,
     }));
+}
+
+// ─── Import Customers ───
+
+export async function importCustomers(rows: { name: string; phone: string; email: string; address: string; memberLevel: string }[]) {
+  await assertMenuActionAccess("customers", "create");
+  const companyId = await getCurrentCompanyId();
+  const existing = new Set((await prisma.customer.findMany({ where: { companyId }, select: { name: true } })).map((c) => c.name.toLowerCase()));
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+  type ML = "REGULAR" | "SILVER" | "GOLD" | "PLATINUM";
+  const VALID_LEVELS: ML[] = ["REGULAR", "SILVER", "GOLD", "PLATINUM"];
+  const validRows: { name: string; phone: string | null; email: string | null; address: string | null; memberLevel: ML }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    if (!row.name?.trim()) { results.push({ row: rowNum, success: false, name: `Baris ${rowNum}`, error: "Nama wajib diisi" }); continue; }
+    if (existing.has(row.name.toLowerCase().trim())) { results.push({ row: rowNum, success: false, name: row.name, error: "Nama sudah ada" }); continue; }
+    existing.add(row.name.toLowerCase().trim());
+    const level = (row.memberLevel?.trim().toUpperCase() || "REGULAR") as ML;
+    validRows.push({ name: row.name.trim(), phone: row.phone?.trim() || null, email: row.email?.trim() || null, address: row.address?.trim() || null, memberLevel: VALID_LEVELS.includes(level) ? level : "REGULAR" });
+  }
+
+  if (validRows.length > 0) {
+    try {
+      await prisma.customer.createMany({ data: validRows.map((r) => ({ ...r, companyId })), skipDuplicates: true });
+      for (const r of validRows) results.push({ row: rows.findIndex((x) => x.name === r.name) + 2, success: true, name: r.name });
+    } catch { for (const r of validRows) results.push({ row: 0, success: false, name: r.name, error: "Gagal menyimpan" }); }
+  }
+
+  results.sort((a, b) => a.row - b.row);
+  revalidatePath("/customers");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const CUSTOMER_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Nama *", width: 22, sampleValues: ["Budi Santoso", "Siti Rahayu"] },
+  { header: "No. Telepon", width: 16, sampleValues: ["08123456789", "08567891234"] },
+  { header: "Email", width: 22, sampleValues: ["budi@email.com", "siti@email.com"] },
+  { header: "Alamat", width: 30, sampleValues: ["Jl. Merdeka 10", "Jl. Sudirman 5"] },
+  { header: "Level Member", width: 14, sampleValues: ["REGULAR", "VIP"] },
+];
+
+export async function downloadCustomerImportTemplate(format: "csv" | "excel" | "docx") {
+  const result = await generateImportTemplate(CUSTOMER_TEMPLATE_COLS, 2, ["Kolom dengan tanda * wajib diisi", "Level: REGULAR, SILVER, GOLD, VIP"], format);
+  return { data: result.data, filename: `template-import-customer.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
+}
+
+export async function bulkDeleteCustomers(ids: string[]) {
+  await assertMenuActionAccess("customers", "delete");
+  const companyId = await getCurrentCompanyId();
+  const result = await prisma.customer.deleteMany({ where: { id: { in: ids }, companyId } });
+  revalidatePath("/customers");
+  return { count: result.count };
 }

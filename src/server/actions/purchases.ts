@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
 import { getCurrentCompanyId } from "@/lib/company";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
 
 export async function getPurchaseOrders(params?: {
   search?: string;
@@ -346,4 +347,76 @@ export async function updatePurchaseOrderStatus(
   } catch {
     return { error: "Gagal mengubah status PO" };
   }
+}
+
+// ─── Import Purchase Orders ───
+
+export async function importPurchaseOrders(rows: { supplierName: string; items: string; notes: string; orderDate: string }[], branchId?: string) {
+  await assertMenuActionAccess("purchases", "create");
+  const companyId = await getCurrentCompanyId();
+  const [suppliers, products] = await Promise.all([
+    prisma.supplier.findMany({ where: { companyId }, select: { id: true, name: true } }),
+    prisma.product.findMany({ where: { companyId }, select: { id: true, code: true, purchasePrice: true } }),
+  ]);
+  const supplierMap = new Map(suppliers.map((s) => [s.name.toLowerCase(), s.id]));
+  const productMap = new Map(products.map((p) => [p.code.toLowerCase(), p]));
+  let counter = await prisma.purchaseOrder.count({ where: { companyId } });
+
+  type R = { row: number; success: boolean; name: string; error?: string };
+  const results: R[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    const supplierId = supplierMap.get((row.supplierName || "").toLowerCase().trim());
+    if (!supplierId) { results.push({ row: rowNum, success: false, name: row.supplierName || `Baris ${rowNum}`, error: `Supplier "${row.supplierName}" tidak ditemukan` }); continue; }
+    if (!row.items?.trim()) { results.push({ row: rowNum, success: false, name: row.supplierName, error: "Item wajib diisi" }); continue; }
+
+    const itemPairs = row.items.split(",").map((s) => s.trim()).filter(Boolean);
+    const parsedItems: { productId: string; quantity: number; unitPrice: number }[] = [];
+    let itemError = false;
+    for (const pair of itemPairs) {
+      const [code, qty, price] = pair.split(":").map((s) => s.trim());
+      const product = productMap.get((code || "").toLowerCase());
+      if (!product) { results.push({ row: rowNum, success: false, name: row.supplierName, error: `Produk "${code}" tidak ditemukan` }); itemError = true; break; }
+      parsedItems.push({ productId: product.id, quantity: Number(qty) || 1, unitPrice: price ? Number(price) : product.purchasePrice });
+    }
+    if (itemError) continue;
+
+    counter++;
+    const orderNumber = `PO-${String(counter).padStart(5, "0")}`;
+    const totalAmount = parsedItems.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
+
+    try {
+      await prisma.purchaseOrder.create({
+        data: {
+          orderNumber, supplierId, branchId: branchId || null, companyId, status: "DRAFT", totalAmount, paidAmount: 0,
+          notes: row.notes?.trim() || null, orderDate: row.orderDate ? new Date(row.orderDate) : new Date(),
+          items: { create: parsedItems.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice, subtotal: it.unitPrice * it.quantity })) },
+        },
+      });
+      results.push({ row: rowNum, success: true, name: orderNumber });
+    } catch { results.push({ row: rowNum, success: false, name: row.supplierName, error: "Gagal menyimpan" }); }
+  }
+
+  revalidatePath("/purchases");
+  return { results, successCount: results.filter((r) => r.success).length, failedCount: results.filter((r) => !r.success).length };
+}
+
+const PO_TEMPLATE_COLS: TemplateColumn[] = [
+  { header: "Nama Supplier *", width: 22, sampleValues: ["PT Supplier A", "CV Jaya"] },
+  { header: "Item (kode:qty:harga) *", width: 35, sampleValues: ["PRD-00001:50:2500,PRD-00002:100:3000", "PRD-00003:200:1500"] },
+  { header: "Catatan", width: 25, sampleValues: ["Restok bulanan", "Order urgent"] },
+  { header: "Tanggal Order", width: 14, sampleValues: ["2026-04-14", "2026-04-15"] },
+];
+
+export async function downloadPOImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const [suppliers, products] = await Promise.all([
+    prisma.supplier.findMany({ where: { companyId }, select: { name: true }, take: 10, orderBy: { name: "asc" } }),
+    prisma.product.findMany({ where: { companyId, isActive: true }, select: { code: true, name: true }, take: 20, orderBy: { code: "asc" } }),
+  ]);
+  const notes = [`Supplier: ${suppliers.map((s) => s.name).join(", ") || "-"}`, `Produk: ${products.map((p) => `${p.code} (${p.name})`).join(", ") || "-"}`, "Format item: kode:jumlah:harga dipisah koma. Harga opsional (default harga beli)"];
+  const result = await generateImportTemplate(PO_TEMPLATE_COLS, 2, notes, format);
+  return { data: result.data, filename: `template-import-po.${format === "excel" ? "xlsx" : format}`, mimeType: result.mimeType };
 }

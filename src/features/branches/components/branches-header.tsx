@@ -4,15 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Upload } from "lucide-react";
 
 export function BranchesHeader(props: {
     total: number;
     canCreate: boolean;
     cannotMessage: (action: string) => string;
     onCreate: () => void;
+    onImport?: () => void;
 }) {
-    const { total, canCreate, cannotMessage, onCreate } = props;
+    const { total, canCreate, cannotMessage, onCreate, onImport } = props;
 
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -32,6 +33,11 @@ export function BranchesHeader(props: {
             </div>
 
             <div className="hidden sm:flex items-center gap-2">
+                {onImport && (
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={onImport}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
+                )}
                 <ExportMenu module="branches" />
                 <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="branches" actionKey="create">
                     <Button

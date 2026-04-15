@@ -1,6 +1,6 @@
 export * from "@/server/actions/access-control";
 import * as featureActions from "@/server/actions/access-control";
-import { createRole, deleteRole, getRoles, updateRole } from "@/server/actions/roles";
+import { createRole, deleteRole, getRoles, updateRole, bulkDeleteRoles } from "@/server/actions/roles";
 
 export const accessControlService = {
   ...featureActions,
@@ -8,4 +8,5 @@ export const accessControlService = {
   createRole,
   updateRole,
   deleteRole,
+  bulkDeleteRoles,
 };

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useTransition, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createCustomer, updateCustomer, deleteCustomer, getCustomers } from "@/features/customers";
+import { createCustomer, updateCustomer, deleteCustomer, getCustomers, bulkDeleteCustomers } from "@/features/customers";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatCurrency } from "@/lib/utils";
@@ -20,7 +20,8 @@ import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
 import { SmartSelect } from "@/components/ui/smart-select";
-import { Plus, Pencil, Trash2, Users, Phone, Mail, Crown, Star, Heart, MapPin, Cake, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Phone, Mail, Crown, Star, Heart, MapPin, Cake, Loader2, Upload } from "lucide-react";
+import { CustomerImportDialog } from "./customer-import-dialog";
 import { toast } from "sonner";
 import type { Customer } from "@/types";
 
@@ -63,6 +64,7 @@ function getAvatarGradient(name: string): string {
 export function CustomersContent() {
     const [data, setData] = useState<{ customers: Customer[]; total: number; totalPages: number }>({ customers: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Customer | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
@@ -163,8 +165,8 @@ export function CustomersContent() {
         if (!canDelete) { toast.error(cannotMessage("delete")); return; }
         setConfirmText(`Yakin ingin menghapus ${ids.length} customer?`);
         setPendingConfirmAction(() => async () => {
-            for (const id of ids) await deleteCustomer(id);
-            toast.success(`${ids.length} customer dihapus`);
+            const { count } = await bulkDeleteCustomers(ids);
+            toast.success(`${count} customer dihapus`);
             setSelectedRows(new Set());
             fetchData({});
             setConfirmOpen(false);
@@ -311,11 +313,16 @@ export function CustomersContent() {
                         <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Kelola data pelanggan dan membership</p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="customers" actionKey="create">
-                    <Button disabled={!canCreate} className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm" onClick={openCreateDialog}>
-                        <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Customer
+                <div className="hidden sm:flex gap-2">
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
-                </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="customers" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all text-xs sm:text-sm" onClick={openCreateDialog}>
+                            <Plus className="w-4 h-4 mr-1.5 sm:mr-2" /> Tambah Customer
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             <SmartTable<Customer>
@@ -518,6 +525,7 @@ export function CustomersContent() {
                     setPendingSubmitValues(null);
                 }}
             />
+            <CustomerImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => fetchData({})} />
         </div>
     );
 }

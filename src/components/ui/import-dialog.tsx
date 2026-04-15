@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -152,7 +152,34 @@ export function ImportDialog({
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState<{ processed: number; total: number; successSoFar: number; failedSoFar: number } | null>(null);
+  const [progress, setProgress] = useState<{ processed: number; total: number; successSoFar: number; failedSoFar: number; startTime: number; elapsed: number } | null>(null);
+  const [displayPct, setDisplayPct] = useState(0);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Smoothly animate displayPct toward actual progress
+  useEffect(() => {
+    if (!importing || !progress) {
+      setDisplayPct(0);
+      return;
+    }
+    const targetPct = progress.total > 0 ? (progress.processed / progress.total) * 100 : 0;
+
+    const animate = () => {
+      setDisplayPct((prev) => {
+        if (prev >= targetPct) return targetPct;
+        // Move toward target: faster when far away, slower when close
+        const diff = targetPct - prev;
+        const step = Math.max(0.1, diff * 0.15);
+        return Math.min(prev + step, targetPct);
+      });
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [importing, progress]);
   const [results, setResults] = useState<ImportResult[] | null>(null);
   const [summary, setSummary] = useState<{ successCount: number; failedCount: number } | null>(null);
   const [step, setStep] = useState<Step>("upload");
@@ -319,8 +346,13 @@ export function ImportDialog({
     let allResults: ImportResult[] = [];
     let totalSuccess = 0;
     let totalFailed = 0;
+    const startTime = Date.now();
 
-    setProgress({ processed: 0, total, successSoFar: 0, failedSoFar: 0 });
+    setDisplayPct(0);
+    setProgress({ processed: 0, total, successSoFar: 0, failedSoFar: 0, startTime, elapsed: 0 });
+
+    // Yield to React to render progress bar before first batch starts
+    await new Promise((r) => setTimeout(r, 50));
 
     try {
       const totalBatches = Math.ceil(total / batchSize);
@@ -334,11 +366,14 @@ export function ImportDialog({
         totalSuccess += result.successCount;
         totalFailed += result.failedCount;
 
+        const processed = Math.min(start + batch.length, total);
         setProgress({
-          processed: Math.min(start + batch.length, total),
+          processed,
           total,
           successSoFar: totalSuccess,
           failedSoFar: totalFailed,
+          startTime,
+          elapsed: Date.now() - startTime,
         });
       }
 
@@ -592,7 +627,13 @@ export function ImportDialog({
                 </div>
 
                 {/* Progress bar */}
-                {importing && progress && (
+                {importing && progress && (() => {
+                  const speed = progress.elapsed > 0 ? Math.round(progress.processed / (progress.elapsed / 1000)) : 0;
+                  const remaining = speed > 0 ? Math.max(0, Math.ceil((progress.total - progress.processed) / speed)) : 0;
+                  const etaStr = remaining >= 60 ? `${Math.floor(remaining / 60)}m ${remaining % 60}s` : `${remaining}s`;
+                  const pctDisplay = Math.round(displayPct);
+
+                  return (
                   <div className="space-y-2 rounded-lg sm:rounded-xl border border-primary/20 bg-primary/5 p-3">
                     <div className="flex items-center justify-between text-[10px] sm:text-[11px]">
                       <span className="text-foreground font-medium">Mengimport data...</span>
@@ -602,30 +643,37 @@ export function ImportDialog({
                     </div>
                     <div className="h-2.5 sm:h-3 rounded-full bg-muted/50 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500 ease-out"
-                        style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }}
+                        className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80"
+                        style={{ width: `${displayPct}%` }}
                       />
                     </div>
                     <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <span className="text-emerald-600 font-medium">
-                          <CheckCircle2 className="w-3 h-3 inline mr-0.5" />{progress.successSoFar.toLocaleString()} berhasil
+                          <CheckCircle2 className="w-3 h-3 inline mr-0.5" />{progress.successSoFar.toLocaleString()}
                         </span>
                         {progress.failedSoFar > 0 && (
                           <span className="text-red-500 font-medium">
-                            <XCircle className="w-3 h-3 inline mr-0.5" />{progress.failedSoFar.toLocaleString()} gagal
+                            <XCircle className="w-3 h-3 inline mr-0.5" />{progress.failedSoFar.toLocaleString()}
                           </span>
                         )}
+                        {speed > 0 && (
+                          <span className="text-muted-foreground">{speed}/detik</span>
+                        )}
                       </div>
-                      <span className="text-muted-foreground font-mono">
-                        {Math.round((progress.processed / Math.max(progress.total, 1)) * 100)}%
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {remaining > 0 && (
+                          <span className="text-muted-foreground">~{etaStr}</span>
+                        )}
+                        <span className="text-foreground font-mono font-semibold">{pctDisplay}%</span>
+                      </div>
                     </div>
                     <p className="text-[9px] text-muted-foreground/60">
                       Mohon jangan tutup atau refresh halaman ini
                     </p>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 

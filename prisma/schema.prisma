@@ -250,6 +250,8 @@ model Branch {
   code            String?
   address         String?
   phone           String?
+  latitude        Float?
+  longitude       Float?
   companyId       String
   company         Company         @relation(fields: [companyId], references: [id])
   isActive        Boolean         @default(true)

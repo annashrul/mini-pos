@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState, useTransition } from "react";
-import { deleteProduct, getProducts, getProductStats } from "@/features/products";
+import { deleteProduct, getProducts, getProductStats, bulkDeleteProducts } from "@/features/products";
 import { useMenuActionAccess } from "@/features/access-control";
 import { getAllCategories } from "@/features/categories";
 import { getBrands } from "@/features/brands";
@@ -131,8 +131,8 @@ export function ProductsContent() {
     if (!canDelete) { toast.error(cannotMessage("delete")); return; }
     setConfirmText(`Yakin ingin menghapus ${ids.length} produk?`);
     setPendingConfirmAction(() => async () => {
-      for (const id of ids) await deleteProduct(id);
-      toast.success(`${ids.length} produk dihapus`);
+      const { count } = await bulkDeleteProducts(ids);
+      toast.success(`${count} produk dihapus`);
       setSelectedRows(new Set());
       fetchDataWithStats();
       setConfirmOpen(false);

@@ -19,7 +19,8 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, CheckCircle2, XCircle, Building2, Package, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Truck, Phone, Mail, MapPin, CheckCircle2, XCircle, Building2, Package, Loader2, Upload } from "lucide-react";
+import { SupplierImportDialog } from "./supplier-import-dialog";
 import { toast } from "sonner";
 import type { Supplier } from "@/types";
 
@@ -35,6 +36,7 @@ type SupplierFormValues = z.infer<typeof supplierFormSchema>;
 export function SuppliersContent() {
     const [data, setData] = useState<{ suppliers: Supplier[]; total: number; totalPages: number }>({ suppliers: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editing, setEditing] = useState<Supplier | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -252,15 +254,17 @@ export function SuppliersContent() {
                         </p>
                     </div>
                 </div>
-                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="suppliers" actionKey="create">
-                    <Button
-                        disabled={!canCreate}
-                        className="hidden sm:inline-flex rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
-                        onClick={() => { setEditing(null); form.reset({ name: "", contact: "", email: "", address: "", isActive: true }); setOpen(true); }}
-                    >
-                        <Plus className="w-4 h-4 mr-2" /> Tambah Supplier
+                <div className="hidden sm:flex gap-2">
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
-                </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="suppliers" actionKey="create">
+                        <Button disabled={!canCreate} className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+                            onClick={() => { setEditing(null); form.reset({ name: "", contact: "", email: "", address: "", isActive: true }); setOpen(true); }}>
+                            <Plus className="w-4 h-4 mr-2" /> Tambah Supplier
+                        </Button>
+                    </DisabledActionTooltip>
+                </div>
             </div>
 
             {/* --- Table --- */}
@@ -452,6 +456,7 @@ export function SuppliersContent() {
                     setPendingSubmitValues(null);
                 }}
             />
+            <SupplierImportDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => fetchData({})} />
         </div>
     );
 }

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+
 import { auth } from "@/lib/auth";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
@@ -10,6 +10,8 @@ import { redisDelByPrefix } from "@/lib/redis";
 import { emitEvent, EVENTS } from "@/lib/socket-emit";
 import { getCurrentCompanyId } from "@/lib/company";
 import { randomBytes } from "crypto";
+import { generateImportTemplate, type TemplateColumn } from "@/lib/import-parser";
+import { serverCache } from "@/lib/server-cache";
 
 async function invalidateAccelerate(tags: string[]) {
   const accelerate = (
@@ -545,6 +547,7 @@ export async function createTransaction(
 
     revalidatePath("/dashboard");
     revalidatePath("/transactions");
+    serverCache.invalidate(`transactions:${companyId}`, `import-tx:${companyId}`);
     revalidatePath("/products");
     revalidatePath("/customers");
     if (terminPayment && terminPayment.amount > 0) {
@@ -656,66 +659,93 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     sortBy,
     sortDir = "desc",
   } = params;
-  const skip = (page - 1) * limit;
   const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = {
-    user: { companyId },
-  };
+  const key = `transactions:${companyId}:${JSON.stringify(params)}`;
+  return serverCache.get(key, async () => {
 
-  if (search) {
-    where.invoiceNumber = { contains: search, mode: "insensitive" };
-  }
+  const esc = (v: string) => v.replace(/'/g, "''");
+  const conditions: string[] = [`u."companyId" = '${esc(companyId)}'`];
 
-  if (dateFrom || dateTo) {
-    where.createdAt = {};
-    if (dateFrom)
-      (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom);
-    if (dateTo) {
-      const to = new Date(dateTo);
-      to.setDate(to.getDate() + 1);
-      (where.createdAt as Record<string, unknown>).lt = to;
-    }
-  }
+  if (search) conditions.push(`t."invoiceNumber" ILIKE '%${esc(search)}%'`);
+  if (dateFrom) conditions.push(`t."createdAt" >= '${esc(dateFrom)}'::date`);
+  if (dateTo) conditions.push(`t."createdAt" < ('${esc(dateTo)}'::date + interval '1 day')`);
+  if (status && status !== "all") conditions.push(`t.status = '${esc(status)}'`);
+  if (branchId) conditions.push(`t."branchId" = '${esc(branchId)}'`);
+  if (userId) conditions.push(`t."userId" = '${esc(userId)}'`);
+  if (shiftId) conditions.push(`t."shiftId" = '${esc(shiftId)}'`);
 
-  if (status && status !== "all") {
-    where.status = status;
-  }
-  if (branchId) where.branchId = branchId;
-  if (userId) where.userId = userId;
-  if (shiftId) where.shiftId = shiftId;
+  const whereClause = conditions.join(" AND ");
+  const dir = sortDir === "asc" ? "ASC" : "DESC";
+  const orderColumn =
+    sortBy === "invoiceNumber" ? `t."invoiceNumber" ${dir}`
+    : sortBy === "grandTotal" ? `t."grandTotal" ${dir}`
+    : sortBy === "paymentMethod" ? `t."paymentMethod" ${dir}`
+    : sortBy === "user" ? `u.name ${dir}`
+    : `t."createdAt" ${dir}`;
+  const offset = (page - 1) * limit;
 
-  const direction: Prisma.SortOrder = sortDir === "asc" ? "asc" : "desc";
-  const orderBy =
-    sortBy === "invoiceNumber"
-      ? { invoiceNumber: direction }
-      : sortBy === "grandTotal"
-        ? { grandTotal: direction }
-        : sortBy === "paymentMethod"
-          ? { paymentMethod: direction }
-          : sortBy === "user"
-            ? { user: { name: direction } }
-            : { createdAt: direction };
+  const dataQuery = `
+    SELECT
+      t.id, t."invoiceNumber", t."userId", t."branchId", t."customerId",
+      t.subtotal::float8, t."discountAmount"::float8, t."taxAmount"::float8,
+      t."grandTotal"::float8, t."paymentMethod", t."paymentAmount"::float8,
+      t."changeAmount"::float8, t.status, t.notes, t."createdAt", t."updatedAt",
+      u.name AS user_name,
+      br.name AS branch_name,
+      cu.name AS customer_name
+    FROM transactions t
+    JOIN users u ON u.id = t."userId"
+    LEFT JOIN branches br ON br.id = t."branchId"
+    LEFT JOIN customers cu ON cu.id = t."customerId"
+    WHERE ${whereClause}
+    ORDER BY ${orderColumn}
+    LIMIT ${limit} OFFSET ${offset}
+  `;
 
-  const [transactions, total] = await Promise.all([
-    prisma.transaction.findMany({
-      where,
-      include: {
-        user: { select: { name: true } },
-        branch: { select: { name: true } },
-        customer: { select: { name: true } },
-        items: true,
-        payments: {
-          orderBy: { amount: "desc" },
-          select: { id: true, method: true, amount: true },
-        },
-      },
-      orderBy,
-      skip,
-      take: limit,
-    }),
-    prisma.transaction.count({ where }),
+  const [rawRows, countResult] = await Promise.all([
+    prisma.$queryRawUnsafe<Record<string, unknown>[]>(dataQuery),
+    prisma.$queryRawUnsafe<[{ total: number }]>(`SELECT COUNT(*)::int4 AS total FROM transactions t JOIN users u ON u.id = t."userId" WHERE ${whereClause}`),
   ]);
+
+  const total = Number(countResult[0]?.total ?? 0);
+  const txIds = rawRows.map((r) => `'${r.id}'`).join(",");
+
+  // Fetch payments for these transactions (1 query, not N)
+  const payments = txIds
+    ? await prisma.$queryRawUnsafe<{ transactionId: string; id: string; method: string; amount: number }[]>(
+        `SELECT id, "transactionId", method, amount::float8 FROM payments WHERE "transactionId" IN (${txIds}) ORDER BY amount DESC`
+      )
+    : [];
+  const paymentsByTx = new Map<string, typeof payments>();
+  for (const p of payments) {
+    if (!paymentsByTx.has(p.transactionId)) paymentsByTx.set(p.transactionId, []);
+    paymentsByTx.get(p.transactionId)!.push(p);
+  }
+
+  const transactions = rawRows.map((r) => ({
+    id: r.id as string,
+    invoiceNumber: r.invoiceNumber as string,
+    userId: r.userId as string,
+    user: { name: r.user_name as string },
+    branchId: r.branchId as string | null,
+    branch: r.branch_name ? { name: r.branch_name as string } : null,
+    customerId: r.customerId as string | null,
+    customer: r.customer_name ? { name: r.customer_name as string } : null,
+    subtotal: Number(r.subtotal),
+    discountAmount: Number(r.discountAmount),
+    taxAmount: Number(r.taxAmount),
+    grandTotal: Number(r.grandTotal),
+    paymentMethod: r.paymentMethod as string,
+    paymentAmount: Number(r.paymentAmount),
+    changeAmount: Number(r.changeAmount),
+    status: r.status as string,
+    notes: r.notes as string | null,
+    createdAt: r.createdAt as Date,
+    updatedAt: r.updatedAt as Date,
+    items: [],
+    payments: paymentsByTx.get(r.id as string) ?? [],
+  }));
 
   return {
     transactions,
@@ -723,6 +753,37 @@ export async function getTransactions(params: GetTransactionsParams = {}) {
     totalPages: Math.ceil(total / limit),
     currentPage: page,
   };
+
+  }, { ttl: 15, tags: [`transactions:${companyId}`] });
+}
+
+export async function getTransactionStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const key = `tx-stats:${companyId}:${branchId || "all"}`;
+  return serverCache.get(key, async () => {
+    const branchFilter = branchId ? `AND t."branchId" = '${branchId.replace(/'/g, "''")}'` : "";
+    const result = await prisma.$queryRawUnsafe<[{
+      total: number; completed: number; voided: number; refunded: number; revenue: number;
+    }]>(`
+      SELECT
+        COUNT(*)::int4 AS total,
+        COUNT(*) FILTER (WHERE t.status = 'COMPLETED')::int4 AS completed,
+        COUNT(*) FILTER (WHERE t.status = 'VOIDED')::int4 AS voided,
+        COUNT(*) FILTER (WHERE t.status = 'REFUNDED')::int4 AS refunded,
+        COALESCE(SUM(t."grandTotal") FILTER (WHERE t.status = 'COMPLETED'), 0)::float8 AS revenue
+      FROM transactions t
+      JOIN users u ON u.id = t."userId"
+      WHERE u."companyId" = '${companyId.replace(/'/g, "''")}' ${branchFilter}
+    `);
+    const r = result[0];
+    return {
+      total: Number(r.total),
+      completed: Number(r.completed),
+      voided: Number(r.voided),
+      refunded: Number(r.refunded),
+      totalRevenue: Number(r.revenue),
+    };
+  }, { ttl: 15, tags: [`transactions:${companyId}`] });
 }
 
 export async function getTransactionById(id: string) {
@@ -831,6 +892,7 @@ export async function voidTransaction(id: string, reason: string) {
     });
 
     revalidatePath("/transactions");
+    serverCache.invalidate(`transactions:${companyId}`, `import-tx:${companyId}`);
     revalidatePath("/dashboard");
     revalidatePath("/products");
     revalidateTag("dashboard-stats", "seconds");
@@ -872,6 +934,7 @@ export async function refundTransaction(id: string, reason: string) {
   const authResult = await resolveSessionUserId();
   if ("error" in authResult) return { error: authResult.error };
   const userId = authResult.userId;
+  const companyId = await getCurrentCompanyId();
 
   try {
     const tx0 = await prisma.transaction.findUnique({
@@ -960,6 +1023,7 @@ export async function refundTransaction(id: string, reason: string) {
     });
 
     revalidatePath("/transactions");
+    serverCache.invalidate(`transactions:${companyId}`, `import-tx:${companyId}`);
     revalidatePath("/dashboard");
     revalidatePath("/products");
     revalidateTag("dashboard-stats", "max");
@@ -994,4 +1058,215 @@ export async function refundTransaction(id: string, reason: string) {
       error: err instanceof Error ? err.message : "Gagal refund transaksi",
     };
   }
+}
+
+// ─── Import Transactions ───
+
+interface ImportTransactionRow {
+  invoiceNumber: string;
+  date: string;
+  cashierName: string;
+  customerName: string;
+  paymentMethod: string;
+  items: string; // "kode:qty:harga,kode:qty:harga"
+  discountAmount: number;
+  taxAmount: number;
+  grandTotal: number;
+  notes: string;
+}
+
+const VALID_PAYMENT_METHODS = ["CASH", "TRANSFER", "QRIS", "EWALLET", "DEBIT", "CREDIT_CARD", "TERMIN"] as const;
+
+export async function importTransactions(rows: ImportTransactionRow[], branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const session = await auth();
+  if (!session?.user?.id) return { results: [], successCount: 0, failedCount: rows.length };
+
+  // Lookup — cached for 60s to avoid repeated queries across batches
+  const lookupKey = `import-tx-lookup:${companyId}`;
+  const lookup = await serverCache.get(lookupKey, async () => {
+    await assertMenuActionAccess("transactions", "import");
+    const [allProducts, allUsers, allCustomers, company] = await Promise.all([
+      prisma.product.findMany({ where: { companyId }, select: { id: true, code: true, name: true, sellingPrice: true, unit: true } }),
+      prisma.user.findMany({ where: { companyId }, select: { id: true, name: true } }),
+      prisma.customer.findMany({ where: { companyId }, select: { id: true, name: true } }),
+      prisma.company.findUnique({ where: { id: companyId }, select: { slug: true } }),
+    ]);
+    return { allProducts, allUsers, allCustomers, company };
+  }, { ttl: 60, tags: [`import-tx:${companyId}`] });
+
+  const { allProducts, allUsers, allCustomers, company } = lookup;
+
+  const productMap = new Map(allProducts.map((p) => [p.code.toLowerCase().trim(), p]));
+  const userMap = new Map(allUsers.map((u) => [u.name.toLowerCase().trim(), u.id]));
+  const customerMap = new Map(allCustomers.map((c) => [c.name.toLowerCase().trim(), c.id]));
+  const companySlug = company?.slug?.toUpperCase() || "TRX";
+
+  type ResultItem = { row: number; success: boolean; name: string; error?: string };
+  const results: ResultItem[] = [];
+  const esc = (v: string) => v.replace(/'/g, "''");
+
+  // Phase 1: Validate all rows, prepare data
+  interface ValidTx {
+    rowNum: number;
+    txId: string;
+    invoiceNumber: string;
+    userId: string;
+    customerId: string | null;
+    subtotal: number;
+    discountAmount: number;
+    taxAmount: number;
+    grandTotal: number;
+    paymentMethod: string;
+    notes: string | null;
+    createdAt: string;
+    items: { productId: string; productName: string; productCode: string; quantity: number; unitPrice: number; unit: string }[];
+  }
+  const validTxs: ValidTx[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
+    const rowNum = i + 2;
+    const label = row.invoiceNumber || `Baris ${rowNum}`;
+
+    if (!row.items?.trim()) {
+      results.push({ row: rowNum, success: false, name: label, error: "Item transaksi wajib diisi" });
+      continue;
+    }
+
+    // Parse items
+    const itemPairs = row.items.split(",").map((s) => s.trim()).filter(Boolean);
+    const parsedItems: ValidTx["items"] = [];
+    let itemError = false;
+    for (const pair of itemPairs) {
+      const parts = pair.split(":").map((s) => s.trim());
+      const product = productMap.get((parts[0] || "").toLowerCase());
+      if (!product) {
+        results.push({ row: rowNum, success: false, name: label, error: `Produk "${parts[0]}" tidak ditemukan` });
+        itemError = true; break;
+      }
+      parsedItems.push({
+        productId: product.id, productName: product.name, productCode: product.code,
+        quantity: Number(parts[1]) || 1, unitPrice: parts[2] ? Number(parts[2]) : product.sellingPrice, unit: product.unit,
+      });
+    }
+    if (itemError) continue;
+
+    const pm = (row.paymentMethod || "CASH").toUpperCase().trim();
+    if (!VALID_PAYMENT_METHODS.includes(pm as typeof VALID_PAYMENT_METHODS[number])) {
+      results.push({ row: rowNum, success: false, name: label, error: `Metode "${row.paymentMethod}" tidak valid` });
+      continue;
+    }
+
+    const userId = row.cashierName ? (userMap.get(row.cashierName.toLowerCase().trim()) ?? session.user.id) : session.user.id;
+    const customerId = row.customerName && row.customerName.toLowerCase() !== "walk-in"
+      ? (customerMap.get(row.customerName.toLowerCase().trim()) ?? null) : null;
+    const subtotal = parsedItems.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
+    const discountAmount = Number(row.discountAmount) || 0;
+    const taxAmount = Number(row.taxAmount) || 0;
+    const grandTotal = row.grandTotal > 0 ? row.grandTotal : subtotal - discountAmount + taxAmount;
+    const invoiceNumber = row.invoiceNumber?.trim() || `${companySlug}-IMP-${randomBytes(4).toString("hex").toUpperCase()}`;
+    const createdAt = row.date ? new Date(row.date).toISOString() : new Date().toISOString();
+
+    validTxs.push({
+      rowNum, txId: crypto.randomUUID(), invoiceNumber, userId, customerId,
+      subtotal, discountAmount, taxAmount, grandTotal, paymentMethod: pm,
+      notes: row.notes?.trim() || null, createdAt, items: parsedItems,
+    });
+  }
+
+  // Phase 2: Bulk insert via raw SQL in transaction
+  if (validTxs.length > 0) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // INSERT transactions
+        const txValues = validTxs.map((t) =>
+          `('${t.txId}', '${esc(t.invoiceNumber)}', '${esc(t.userId)}', ${branchId ? `'${esc(branchId)}'` : "NULL"}, ${t.customerId ? `'${esc(t.customerId)}'` : "NULL"}, ${t.subtotal}, ${t.discountAmount}, ${t.taxAmount}, ${t.grandTotal}, '${t.paymentMethod}', ${t.grandTotal}, 0, 'COMPLETED', ${t.notes ? `'${esc(t.notes)}'` : "NULL"}, '${t.createdAt}'::timestamptz, NOW())`
+        ).join(",");
+
+        await tx.$executeRawUnsafe(`
+          INSERT INTO transactions (id, "invoiceNumber", "userId", "branchId", "customerId", subtotal, "discountAmount", "taxAmount", "grandTotal", "paymentMethod", "paymentAmount", "changeAmount", status, notes, "createdAt", "updatedAt")
+          VALUES ${txValues}
+          ON CONFLICT ("invoiceNumber") DO NOTHING
+        `);
+
+        // INSERT transaction_items
+        const itemValues = validTxs.flatMap((t) =>
+          t.items.map((it) =>
+            `(gen_random_uuid(), '${t.txId}', '${esc(it.productId)}', '${esc(it.productName)}', '${esc(it.productCode)}', ${it.quantity}, '${esc(it.unit)}', 1, ${it.unitPrice}, 0, ${it.unitPrice * it.quantity}, NOW())`
+          )
+        ).join(",");
+
+        if (itemValues) {
+          await tx.$executeRawUnsafe(`
+            INSERT INTO transaction_items (id, "transactionId", "productId", "productName", "productCode", quantity, "unitName", "conversionQty", "unitPrice", discount, subtotal, "createdAt")
+            VALUES ${itemValues}
+          `);
+        }
+
+        // INSERT payments
+        const payValues = validTxs.map((t) =>
+          `(gen_random_uuid(), '${t.txId}', '${t.paymentMethod}', ${t.grandTotal}, NOW())`
+        ).join(",");
+
+        await tx.$executeRawUnsafe(`
+          INSERT INTO payments (id, "transactionId", method, amount, "createdAt")
+          VALUES ${payValues}
+        `);
+      }, { timeout: 120000 });
+
+      for (const t of validTxs) {
+        results.push({ row: t.rowNum, success: true, name: t.invoiceNumber });
+      }
+    } catch (err) {
+      console.error("[Import Transactions] Error:", err);
+      const msg = err instanceof Error ? err.message : "";
+      for (const t of validTxs) {
+        results.push({ row: t.rowNum, success: false, name: t.invoiceNumber, error: msg.includes("Unique") ? "Invoice duplikat" : "Gagal menyimpan" });
+      }
+    }
+  }
+
+  revalidatePath("/transactions");
+  const successCount = results.filter((r) => r.success).length;
+  const failedCount = results.filter((r) => !r.success).length;
+  return { results, successCount, failedCount };
+}
+
+const TRANSACTION_TEMPLATE_COLUMNS: TemplateColumn[] = [
+  { header: "Invoice", width: 18, sampleValues: ["INV-001", "INV-002"] },
+  { header: "Tanggal", width: 20, sampleValues: ["2026-04-14 10:30:00", "2026-04-14 11:00:00"] },
+  { header: "Kasir", width: 14, sampleValues: ["Kasir A", "Kasir B"] },
+  { header: "Pelanggan", width: 14, sampleValues: ["Walk-in", "Budi"] },
+  { header: "Metode Pembayaran", width: 18, sampleValues: ["CASH", "QRIS"] },
+  { header: "Item (kode:qty:harga) *", width: 35, sampleValues: ["PRD-00001:2:3500,PRD-00002:1:4000", "PRD-00003:5:5000"] },
+  { header: "Diskon", width: 10, sampleValues: ["0", "1000"] },
+  { header: "Pajak", width: 10, sampleValues: ["0", "500"] },
+  { header: "Total", width: 12, sampleValues: ["11000", "24500"] },
+  { header: "Catatan", width: 20, sampleValues: ["", "Pelanggan member"] },
+];
+
+export async function downloadTransactionImportTemplate(format: "csv" | "excel" | "docx") {
+  const companyId = await getCurrentCompanyId();
+  const products = await prisma.product.findMany({
+    where: { companyId, isActive: true },
+    select: { code: true, name: true },
+    orderBy: { code: "asc" },
+    take: 20,
+  });
+
+  const notes = [
+    `Produk (kode): ${products.map((p) => `${p.code} (${p.name})`).join(", ") || "-"}`,
+    "Format Item: kode_produk:jumlah:harga dipisah koma. Harga opsional (default harga jual produk)",
+    "Metode: CASH, TRANSFER, QRIS, EWALLET, DEBIT, CREDIT_CARD, TERMIN",
+    "Invoice otomatis jika dikosongkan",
+    "Kolom dengan tanda * wajib diisi",
+  ];
+
+  const result = await generateImportTemplate(TRANSACTION_TEMPLATE_COLUMNS, 2, notes, format);
+  return {
+    data: result.data,
+    filename: `template-import-transaksi.${format === "excel" ? "xlsx" : format}`,
+    mimeType: result.mimeType,
+  };
 }

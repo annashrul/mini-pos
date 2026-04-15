@@ -37,7 +37,7 @@ import {
     FileEdit, Loader2, Copy,
     Package, TrendingUp, TrendingDown,
     Search, CalendarDays, MapPin,
-    SlidersHorizontal, Check,
+    SlidersHorizontal, Check, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -46,6 +46,7 @@ import { id as idLocale } from "date-fns/locale";
 import type { StockOpname, StockOpnameDetail } from "@/types";
 import { useBranch } from "@/components/providers/branch-provider";
 import { PaginationControl } from "@/components/ui/pagination-control";
+import { OpnameImportDialog } from "./opname-import-dialog";
 
 const statusConfig: Record<string, { label: string; classes: string; icon: React.ReactNode; borderColor: string; gradientBg: string }> = {
     DRAFT: {
@@ -92,6 +93,7 @@ export function StockOpnameContent() {
     const [data, setData] = useState<{ opnames: StockOpname[]; total: number; totalPages: number; currentPage: number }>({ opnames: [], total: 0, totalPages: 0, currentPage: 1 });
     const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
     const [createOpen, setCreateOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [selectedOpname, setSelectedOpname] = useState<StockOpnameDetail | null>(null);
@@ -382,6 +384,9 @@ export function StockOpnameContent() {
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
                     <ExportMenu module="stock-opname" branchId={selectedBranchId || undefined} filters={activeFilters} />
+                    <Button variant="outline" className="rounded-xl border-dashed" onClick={() => setImportOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" /> Import
+                    </Button>
                     <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="stock-opname" actionKey="create">
                         <Button disabled={!canCreate} className="text-sm rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200/50" onClick={() => openCreateDialog()}>
                             <Plus className="w-4 h-4 mr-2" />
@@ -975,6 +980,8 @@ export function StockOpnameContent() {
                 description="Yakin ingin menyimpan perubahan data opname?"
                 onConfirm={executeSaveItems}
             />
+
+            <OpnameImportDialog open={importOpen} onOpenChange={setImportOpen} branchId={selectedBranchId || undefined} onImported={() => fetchData({})} />
         </div>
     );
 }
