@@ -127,6 +127,14 @@ const menuDefinitions = [
     actions: ["view", "create", "update", "approve", "receive"],
   },
   {
+    key: "goods-receipts",
+    name: "Bukti Penerimaan",
+    path: "/goods-receipts",
+    group: "Inventori",
+    sortOrder: 2.5,
+    actions: ["view", "delete"],
+  },
+  {
     key: "stock-opname",
     name: "Stock Opname",
     path: "/stock-opname",
@@ -415,6 +423,7 @@ const menuAccessByRole: Record<Role, string[]> = {
     "customers",
     "stock",
     "purchases",
+    "goods-receipts",
     "stock-opname",
     "stock-transfers",
     "expenses",

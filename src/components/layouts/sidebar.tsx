@@ -23,7 +23,7 @@ import {
     BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
     ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
     RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays, Armchair, Crown,
-    Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine,
+    Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine, PackageCheck,
 } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -44,7 +44,7 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     dashboard: LayoutDashboard, pos: ShoppingCart, bundles: Combine, transactions: History,
     shifts: Clock, products: Package, categories: FolderTree, brands: Tag,
     suppliers: Truck, customers: UserCheck, stock: BoxesIcon,
-    purchases: ClipboardList, "stock-opname": ClipboardCheck,
+    purchases: ClipboardList, "goods-receipts": PackageCheck, "stock-opname": ClipboardCheck,
     "stock-transfers": ArrowLeftRight, expenses: Wallet, promotions: Percent, "price-schedules": CalendarClock,
     reports: BarChart3, analytics: BrainCircuit, "customer-intelligence": HeartHandshake,
     branches: Building2, "branch-prices": DollarSign, "audit-logs": ScrollText,

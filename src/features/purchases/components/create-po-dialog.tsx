@@ -16,7 +16,7 @@ import { SmartSelect } from "@/components/ui/smart-select";
 import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Minus, Trash2, Package, ShoppingBasket } from "lucide-react";
+import { Plus, Minus, Trash2, Package, ShoppingBasket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Supplier = { id: string; name: string; isActive: boolean };
@@ -229,7 +229,8 @@ export function CreatePODialog({ open, onOpenChange, onSuccess }: CreatePODialog
             <div className="flex items-center gap-2 shrink-0">
               <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">Batal</Button>
               <Button onClick={form.handleSubmit(handleSubmit)} disabled={isPending} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-                <ShoppingBasket className="w-4 h-4 mr-1.5" /> Buat PO
+                {isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShoppingBasket className="w-4 h-4 mr-1.5" />}
+                {isPending ? "Menyimpan..." : "Buat PO"}
               </Button>
             </div>
           </div>

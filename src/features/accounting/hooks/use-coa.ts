@@ -126,15 +126,25 @@ export function useCoa() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (account: Account) => {
-    if (!confirm(`Hapus akun "${account.name}"?`)) return;
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteAccount, setPendingDeleteAccount] = useState<Account | null>(null);
+
+  const handleDelete = (account: Account) => {
+    setPendingDeleteAccount(account);
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeDelete = async () => {
+    if (!pendingDeleteAccount) return;
     try {
-      await accountingService.deleteAccount(account.id);
+      await accountingService.deleteAccount(pendingDeleteAccount.id);
       toast.success("Akun berhasil dihapus");
       fetchData();
     } catch {
       toast.error("Gagal menghapus akun");
     }
+    setDeleteConfirmOpen(false);
+    setPendingDeleteAccount(null);
   };
 
   const handleDialogClose = (saved?: boolean) => {
@@ -163,6 +173,10 @@ export function useCoa() {
     toggleCategory,
     handleEdit,
     handleDelete,
+    executeDelete,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+    pendingDeleteAccount,
     handleDialogClose,
     handleOpenCreate,
   };

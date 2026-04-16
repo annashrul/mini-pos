@@ -380,16 +380,19 @@ export async function addDebtPayment(params: {
       };
     }
 
-    // Just create payment — trigger auto-updates debt status, paidAmount, remainingAmount
-    const payment = await prisma.debtPayment.create({
-      data: {
-        debtId,
-        amount,
-        method,
-        notes: notes || null,
-        paidBy: session.user.id,
-      },
-    });
+    const newPaidAmount = debt.paidAmount + amount;
+    const newRemaining = debt.totalAmount - newPaidAmount;
+    const newStatus = newRemaining <= 0 ? "PAID" : newPaidAmount > 0 ? "PARTIAL" : "UNPAID";
+
+    const [payment] = await prisma.$transaction([
+      prisma.debtPayment.create({
+        data: { debtId, amount, method, notes: notes || null, paidBy: session.user.id },
+      }),
+      prisma.debt.update({
+        where: { id: debtId },
+        data: { paidAmount: newPaidAmount, remainingAmount: Math.max(newRemaining, 0), status: newStatus as "UNPAID" | "PARTIAL" | "PAID" },
+      }),
+    ]);
 
     createAuditLog({
       action: "CREATE",
@@ -499,6 +502,20 @@ export async function getDebtSummary(branchId?: string) {
     unpaidReceivableCount,
     recentPayments,
   };
+}
+
+// ─── Customer Outstanding Debt ───
+
+export async function getCustomerOutstandingDebt(customerId: string) {
+  const companyId = await getCurrentCompanyId();
+  const debts = await prisma.debt.findMany({
+    where: { companyId, partyId: customerId, type: "RECEIVABLE", status: { in: ["UNPAID", "PARTIAL"] } },
+    select: { id: true, totalAmount: true, remainingAmount: true, description: true, dueDate: true, status: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const totalOutstanding = debts.reduce((sum, d) => sum + d.remainingAmount, 0);
+  const overdueCount = debts.filter((d) => d.dueDate && new Date(d.dueDate) < new Date()).length;
+  return { debts, totalOutstanding, overdueCount, count: debts.length };
 }
 
 // ─── Import Debts ───

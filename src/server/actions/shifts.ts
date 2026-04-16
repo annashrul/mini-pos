@@ -226,6 +226,17 @@ export async function openShift(data: FormData) {
   const closedToday = await hasClosedShiftToday();
   if (closedToday) return { error: "Anda sudah melakukan closing hari ini. Hubungi admin untuk reclosing jika diperlukan." };
 
+  // Check employee schedule for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const schedule = await prisma.employeeSchedule.findFirst({
+    where: { userId: resolvedUserId, date: { gte: today, lt: tomorrow } },
+  });
+  if (schedule?.status === "LEAVE") return { error: "Anda sedang dalam status cuti hari ini." };
+  if (schedule?.status === "ABSENT") return { error: "Anda tercatat absen hari ini. Hubungi admin." };
+
   const parsed = shiftSchema.safeParse({
     openingCash: data.get("openingCash"),
   });
@@ -248,7 +259,18 @@ export async function openShift(data: FormData) {
 
     emitEvent(EVENTS.SHIFT_OPENED, {}, branchId || undefined);
 
-    return { success: true };
+    // Auto-confirm schedule if exists
+    if (schedule && schedule.status === "SCHEDULED") {
+      await prisma.employeeSchedule.update({
+        where: { id: schedule.id },
+        data: { status: "CONFIRMED" },
+      }).catch(() => {});
+    }
+
+    return {
+      success: true,
+      ...(schedule ? { scheduleInfo: `Jadwal: ${schedule.shiftLabel || `${schedule.shiftStart}-${schedule.shiftEnd}`}` } : { warning: "Anda tidak memiliki jadwal hari ini" }),
+    };
   } catch (error) {
     if (error instanceof Error) {
       return { error: `Gagal membuka shift: ${error.message}` };

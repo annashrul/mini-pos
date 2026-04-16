@@ -4,9 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MapPin, AlertTriangle } from "lucide-react";
+import { MapPin, AlertTriangle, Clock, CalendarCheck } from "lucide-react";
 import { usePosScreenContext } from "../hooks";
 import type { PosReadyScreenContextValue } from "../hooks/use-pos-screen-context";
+import { useEffect, useState } from "react";
+import { getMyTodaySchedule } from "@/server/actions/employee-schedules";
 
 export function PosReadySection() {
     const {
@@ -22,6 +24,9 @@ export function PosReadySection() {
         onStartSession,
         startingShift,
     } = usePosScreenContext<PosReadyScreenContextValue>();
+
+    const [schedule, setSchedule] = useState<{ shiftStart: string; shiftEnd: string; shiftLabel: string | null; status: string } | null>(null);
+    useEffect(() => { getMyTodaySchedule().then((s) => setSchedule(s as typeof schedule)); }, []);
 
     // Block if already closed today and no active shift
     if (closedToday && !activeShift) {
@@ -62,6 +67,41 @@ export function PosReadySection() {
                     </div>
                     <Badge variant="secondary" className="rounded-md">{activeBranchName}</Badge>
                 </div>
+                {/* Today's schedule */}
+                {schedule ? (
+                    <div className={`rounded-xl border px-4 py-3 flex items-center justify-between ${
+                        schedule.status === "LEAVE" ? "border-amber-200 bg-amber-50" :
+                        schedule.status === "ABSENT" ? "border-red-200 bg-red-50" :
+                        "border-blue-200 bg-blue-50"
+                    }`}>
+                        <div className="flex items-center gap-2 text-sm">
+                            <CalendarCheck className={`w-4 h-4 ${schedule.status === "LEAVE" ? "text-amber-500" : schedule.status === "ABSENT" ? "text-red-500" : "text-blue-500"}`} />
+                            <span className="text-muted-foreground">Jadwal Hari Ini</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 text-xs font-medium">
+                                <Clock className="w-3 h-3" />
+                                {schedule.shiftLabel || `${schedule.shiftStart} - ${schedule.shiftEnd}`}
+                            </div>
+                            <Badge variant="secondary" className={`rounded-md text-[10px] ${
+                                schedule.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-700" :
+                                schedule.status === "LEAVE" ? "bg-amber-100 text-amber-700" :
+                                schedule.status === "ABSENT" ? "bg-red-100 text-red-700" :
+                                "bg-blue-100 text-blue-700"
+                            }`}>
+                                {schedule.status === "SCHEDULED" ? "Terjadwal" : schedule.status === "CONFIRMED" ? "Hadir" : schedule.status === "LEAVE" ? "Cuti" : "Absen"}
+                            </Badge>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <CalendarCheck className="w-4 h-4 text-slate-400" />
+                            <span>Tidak ada jadwal hari ini</span>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label>Kassa</Label>

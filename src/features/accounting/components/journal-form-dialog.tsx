@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +117,7 @@ export function JournalFormDialog({ open, onClose }: JournalFormDialogProps) {
     handleSave,
     validationErrors, clearError,
   } = useJournalForm(open, onClose);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -253,10 +255,20 @@ export function JournalFormDialog({ open, onClose }: JournalFormDialogProps) {
           <Button type="button" variant="outline" onClick={() => handleSave(false)} disabled={saving} className="rounded-xl">
             {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />} Draft
           </Button>
-          <Button type="button" onClick={() => handleSave(true)} disabled={saving || !isBalanced} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20">
+          <Button type="button" onClick={() => setPostConfirmOpen(true)} disabled={saving || !isBalanced} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/20">
             {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />} Posting
           </Button>
         </DialogFooter>
+
+        <ActionConfirmDialog
+          open={postConfirmOpen}
+          onOpenChange={setPostConfirmOpen}
+          kind="submit"
+          title="Posting Jurnal?"
+          description="Jurnal yang sudah diposting tidak dapat diedit. Pastikan semua data sudah benar."
+          confirmLabel="Ya, Posting"
+          onConfirm={async () => { await handleSave(true); setPostConfirmOpen(false); }}
+        />
       </DialogContent>
     </Dialog>
   );

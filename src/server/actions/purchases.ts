@@ -84,6 +84,7 @@ export async function getPurchaseOrderById(id: string) {
     where: { id, companyId },
     include: {
       supplier: true,
+      branch: { select: { name: true } },
       items: {
         include: {
           product: { select: { name: true, code: true, stock: true } },
@@ -202,11 +203,12 @@ export async function receivePurchaseOrder(
         },
       });
       if (!po) throw new Error("PO tidak ditemukan");
-      if (po.status === "CANCELLED" || po.status === "RECEIVED") {
+      if (po.status === "CANCELLED" || po.status === "RECEIVED" || po.status === "CLOSED") {
         throw new Error("PO tidak bisa diterima");
       }
 
       let allReceived = true;
+      let totalReceivedAmount = 0;
 
       // Batch all item operations
       await Promise.all(items.map(async (receiveItem) => {
@@ -226,7 +228,7 @@ export async function receivePurchaseOrder(
         });
 
         if (receiveItem.receivedQty > 0) {
-          await Promise.all([
+          const stockOps: Promise<unknown>[] = [
             tx.product.update({
               where: { id: poItem.productId },
               data: { stock: { increment: receiveItem.receivedQty } },
@@ -242,56 +244,140 @@ export async function receivePurchaseOrder(
                 companyId,
               },
             }),
-          ]);
+          ];
+
+          // Update BranchStock (stok per cabang)
+          if (po.branchId) {
+            stockOps.push(
+              tx.branchStock.upsert({
+                where: { branchId_productId: { branchId: po.branchId, productId: poItem.productId } },
+                update: { quantity: { increment: receiveItem.receivedQty } },
+                create: { branchId: po.branchId, productId: poItem.productId, quantity: receiveItem.receivedQty },
+              })
+            );
+          }
+
+          await Promise.all(stockOps);
         }
 
         if (newReceivedQty < poItem.quantity) allReceived = false;
       }));
 
-      // Check items not in the receive list
+      // Check items not in the receive list & calculate total received amount
       for (const poItem of po.items) {
-        if (!items.find((i) => i.itemId === poItem.id)) {
-          if (poItem.receivedQty < poItem.quantity) allReceived = false;
-        }
+        const receiveItem = items.find((i) => i.itemId === poItem.id);
+        const finalReceivedQty = receiveItem
+          ? poItem.receivedQty + receiveItem.receivedQty
+          : poItem.receivedQty;
+        totalReceivedAmount += finalReceivedQty * poItem.unitPrice;
+        if (finalReceivedQty < poItem.quantity) allReceived = false;
       }
 
       await tx.purchaseOrder.update({
         where: { id },
         data: {
           status: allReceived ? "RECEIVED" : "PARTIAL",
+          receivedAmount: totalReceivedAmount,
           receivedDate: allReceived ? new Date() : null,
         },
       });
 
-      return { po, allReceived };
+      // Auto-create Goods Receipt record
+      const receivedItems = items.filter((i) => i.receivedQty > 0);
+      if (receivedItems.length > 0) {
+        const grCount = await tx.goodsReceipt.count({ where: { purchaseOrderId: id } });
+        const today = new Date();
+        const grPrefix = `GR-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
+        const lastGR = await tx.goodsReceipt.findFirst({
+          where: { receiptNumber: { startsWith: grPrefix } },
+          orderBy: { receiptNumber: "desc" },
+        });
+        let grSeq = 1;
+        if (lastGR) {
+          const s = parseInt(lastGR.receiptNumber.split("-").pop() || "0");
+          grSeq = s + 1;
+        }
+        const receiptNumber = `${grPrefix}-${String(grSeq).padStart(4, "0")}`;
+
+        // Get current user name
+        let receivedByName: string | undefined;
+        let receivedById: string | undefined;
+        try {
+          const { auth: authFn } = await import("@/lib/auth");
+          const session = await authFn();
+          receivedByName = session?.user?.name ?? undefined;
+          receivedById = session?.user?.id ?? undefined;
+        } catch { /* ignore */ }
+
+        await tx.goodsReceipt.create({
+          data: {
+            receiptNumber,
+            purchaseOrderId: id,
+            companyId,
+            branchId: po.branchId,
+            receivedBy: receivedById ?? null,
+            receivedByName: receivedByName ?? null,
+            notes: grCount > 0 ? `Penerimaan ke-${grCount + 1}` : null,
+            items: {
+              create: receivedItems.map((ri) => {
+                const poItem = po.items.find((i) => i.id === ri.itemId)!;
+                return {
+                  productId: poItem.productId,
+                  productName: poItem.product.name,
+                  quantityOrdered: poItem.quantity,
+                  quantityReceived: ri.receivedQty,
+                };
+              }),
+            },
+          },
+        });
+      }
+
+      return { po, allReceived, totalReceivedAmount };
     }, { timeout: 15000 });
 
-    // Create payable debt for unpaid portion of PO
+    // Create payable debt based on RECEIVED amount (not order amount)
     const paid = paidAmount ?? 0;
-    const unpaidAmount = result.po.totalAmount - paid;
+    const unpaidAmount = result.totalReceivedAmount - paid;
     if (unpaidAmount > 0) {
       const { auth } = await import("@/lib/auth");
       const session = await auth();
       const createdBy = session?.user?.id;
       if (createdBy) {
-        await prisma.debt.create({
-          data: {
-            type: "PAYABLE",
-            referenceType: "PURCHASE",
-            referenceId: id,
-            partyType: "SUPPLIER",
-            partyId: result.po.supplierId,
-            partyName: result.po.supplier.name,
-            description: `Hutang pembelian PO ${result.po.orderNumber}`,
-            totalAmount: unpaidAmount,
-            paidAmount: 0,
-            remainingAmount: unpaidAmount,
-            status: "UNPAID",
-            branchId: result.po.branchId || null,
-            companyId,
-            createdBy,
-          },
+        // Check if debt already exists for this PO (partial receive case)
+        const existingDebt = await prisma.debt.findFirst({
+          where: { referenceType: "PURCHASE", referenceId: id, companyId },
         });
+        if (existingDebt) {
+          // Update existing debt with new received amount
+          await prisma.debt.update({
+            where: { id: existingDebt.id },
+            data: {
+              totalAmount: unpaidAmount,
+              remainingAmount: unpaidAmount - existingDebt.paidAmount,
+              description: `Hutang pembelian PO ${result.po.orderNumber} (diterima: ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(result.totalReceivedAmount)})`,
+            },
+          });
+        } else {
+          await prisma.debt.create({
+            data: {
+              type: "PAYABLE",
+              referenceType: "PURCHASE",
+              referenceId: id,
+              partyType: "SUPPLIER",
+              partyId: result.po.supplierId,
+              partyName: result.po.supplier.name,
+              description: `Hutang pembelian PO ${result.po.orderNumber} (diterima: ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(result.totalReceivedAmount)})`,
+              totalAmount: unpaidAmount,
+              paidAmount: 0,
+              remainingAmount: unpaidAmount,
+              status: "UNPAID",
+              branchId: result.po.branchId || null,
+              companyId,
+              createdBy,
+            },
+          });
+        }
       }
     }
 
@@ -299,7 +385,8 @@ export async function receivePurchaseOrder(
     revalidatePath("/products");
     revalidatePath("/stock");
     revalidatePath("/debts");
-    createAuditLog({ action: "RECEIVE", entity: "PurchaseOrder", entityId: id, details: { data: { orderId: id, paidAmount: paid, unpaidAmount: unpaidAmount > 0 ? unpaidAmount : 0 } } }).catch(() => {});
+    revalidatePath("/goods-receipts");
+    createAuditLog({ action: "RECEIVE", entity: "PurchaseOrder", entityId: id, details: { data: { orderId: id, receivedAmount: result.totalReceivedAmount, paidAmount: paid } } }).catch(() => {});
 
     // Auto-create accounting journal for purchase
     import("@/server/actions/accounting").then(({ createAutoJournal }) => {
@@ -346,6 +433,114 @@ export async function updatePurchaseOrderStatus(
     return { success: true };
   } catch {
     return { error: "Gagal mengubah status PO" };
+  }
+}
+
+// ─── Close Purchase Order (finalize partial with discrepancy) ───
+
+interface DiscrepancyItem {
+  itemId: string;
+  reason: string; // KURANG_KIRIM | RUSAK | RETUR | LAINNYA
+  note?: string | undefined;
+}
+
+export async function closePurchaseOrder(
+  id: string,
+  discrepancies: DiscrepancyItem[],
+  closingNotes?: string,
+) {
+  await assertMenuActionAccess("purchases", "receive");
+  const companyId = await getCurrentCompanyId();
+  try {
+    const po = await prisma.purchaseOrder.findFirst({
+      where: { id, companyId },
+      include: {
+        items: { include: { product: { select: { name: true } } } },
+        supplier: { select: { name: true } },
+      },
+    });
+    if (!po) return { error: "PO tidak ditemukan" };
+    if (po.status !== "PARTIAL") {
+      return { error: "Hanya PO berstatus Diterima Sebagian yang bisa ditutup" };
+    }
+
+    // Calculate received amount & record discrepancies
+    let receivedAmount = 0;
+    const discrepancyMap = new Map(discrepancies.map((d) => [d.itemId, d]));
+
+    await prisma.$transaction(async (tx) => {
+      for (const item of po.items) {
+        receivedAmount += item.receivedQty * item.unitPrice;
+        const gap = item.quantity - item.receivedQty;
+        if (gap > 0) {
+          const disc = discrepancyMap.get(item.id);
+          await tx.purchaseOrderItem.update({
+            where: { id: item.id },
+            data: {
+              discrepancyQty: gap,
+              discrepancyReason: disc?.reason || "KURANG_KIRIM",
+              discrepancyNote: disc?.note || null,
+            },
+          });
+        }
+      }
+
+      await tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          status: "CLOSED",
+          receivedAmount,
+          closedDate: new Date(),
+          closingNotes: closingNotes || null,
+        },
+      });
+
+      // Adjust debt to match actual received amount
+      const existingDebt = await tx.debt.findFirst({
+        where: { referenceType: "PURCHASE", referenceId: id, companyId },
+      });
+      if (existingDebt) {
+        const newTotal = Math.max(0, receivedAmount - po.paidAmount);
+        const newRemaining = Math.max(0, newTotal - existingDebt.paidAmount);
+        await tx.debt.update({
+          where: { id: existingDebt.id },
+          data: {
+            totalAmount: newTotal,
+            remainingAmount: newRemaining,
+            status: newRemaining <= 0 ? "PAID" : existingDebt.status,
+            description: `Hutang pembelian PO ${po.orderNumber} (CLOSED - diterima: ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(receivedAmount)} dari ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(po.totalAmount)})`,
+          },
+        });
+      }
+    }, { timeout: 15000 });
+
+    revalidatePath("/purchases");
+    revalidatePath("/debts");
+    createAuditLog({
+      action: "CLOSE",
+      entity: "PurchaseOrder",
+      entityId: id,
+      details: {
+        data: {
+          orderNumber: po.orderNumber,
+          totalAmount: po.totalAmount,
+          receivedAmount,
+          discrepancies: po.items
+            .filter((i) => i.quantity > i.receivedQty)
+            .map((i) => ({
+              product: i.product.name,
+              ordered: i.quantity,
+              received: i.receivedQty,
+              gap: i.quantity - i.receivedQty,
+              reason: discrepancyMap.get(i.id)?.reason || "KURANG_KIRIM",
+            })),
+        },
+      },
+    }).catch(() => {});
+
+    return { success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Gagal menutup PO" };
   }
 }
 

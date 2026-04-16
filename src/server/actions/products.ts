@@ -270,7 +270,7 @@ export async function searchProductsByBranch(params: {
       const bsArr = (p as Record<string, unknown>).branchStocks as Array<{ quantity: number }> | undefined;
       const bp = ((p as Record<string, unknown>).branchPrices as Array<{ sellingPrice: number; purchasePrice: number | null }> | undefined)?.[0];
       // Sum stock across selected branches
-      const totalStock = bsArr?.reduce((sum, bs) => sum + bs.quantity, 0) ?? p.stock;
+      const totalStock = bsArr?.length ? bsArr.reduce((sum, bs) => sum + bs.quantity, 0) : 0;
       return {
         id: p.id,
         code: p.code,
@@ -319,9 +319,10 @@ export async function getProducts(params: GetProductsParams = {}) {
   if (brandId) conditions.push(`p."brandId" = '${esc(brandId)}'`);
   if (status === "active") conditions.push(`p."isActive" = true`);
   if (status === "inactive") conditions.push(`p."isActive" = false`);
-  if (stockStatus === "out") conditions.push(`p.stock = 0`);
-  if (stockStatus === "low") conditions.push(`p.stock > 0 AND p.stock <= 10`);
-  if (stockStatus === "available") conditions.push(`p.stock > 0`);
+  const stockCol = branchId ? `COALESCE(bs.quantity, 0)` : `p.stock`;
+  if (stockStatus === "out") conditions.push(`${stockCol} = 0`);
+  if (stockStatus === "low") conditions.push(`${stockCol} > 0 AND ${stockCol} <= 10`);
+  if (stockStatus === "available") conditions.push(`${stockCol} > 0`);
 
   const whereClause = conditions.join(" AND ");
   const dir = sortDir === "asc" ? "ASC" : "DESC";
@@ -331,7 +332,7 @@ export async function getProducts(params: GetProductsParams = {}) {
     : sortBy === "category" ? `c.name ${dir}`
     : sortBy === "purchasePrice" ? `p."purchasePrice" ${dir}`
     : sortBy === "sellingPrice" ? `p."sellingPrice" ${dir}`
-    : sortBy === "stock" ? `p.stock ${dir}`
+    : sortBy === "stock" ? `${stockCol} ${dir}`
     : `p."createdAt" ${dir}`;
 
   const offset = (page - 1) * limit;
@@ -376,8 +377,8 @@ export async function getProducts(params: GetProductsParams = {}) {
     supplier: r.supplier_name ? { id: r.supplier_id as string, name: r.supplier_name as string } : null,
     purchasePrice: branchId && r.bp_purchase != null ? Number(r.bp_purchase) : Number(r.purchasePrice),
     sellingPrice: branchId && r.bp_selling != null ? Number(r.bp_selling) : Number(r.sellingPrice),
-    stock: branchId && r.bs_qty != null ? Number(r.bs_qty) : Number(r.stock),
-    minStock: branchId && r.bs_min != null ? Number(r.bs_min) : Number(r.minStock),
+    stock: branchId ? Number(r.bs_qty ?? 0) : Number(r.stock),
+    minStock: branchId ? Number(r.bs_min ?? r.minStock) : Number(r.minStock),
     barcode: r.barcode as string | null,
     unit: r.unit as string,
     description: r.description as string | null,
@@ -407,8 +408,8 @@ export async function getProductStats(branchId?: string) {
         SELECT
           COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE p."isActive" = true)::int AS active,
-          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, p.stock) > 0 AND COALESCE(bs.quantity, p.stock) <= 10)::int AS low_stock,
-          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, p.stock) = 0)::int AS out_of_stock
+          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, 0) > 0 AND COALESCE(bs.quantity, 0) <= 10)::int AS low_stock,
+          COUNT(*) FILTER (WHERE COALESCE(bs.quantity, 0) = 0)::int AS out_of_stock
         FROM products p
         LEFT JOIN branch_stocks bs ON bs."productId" = p.id AND bs."branchId" = ${branchId}
         WHERE p."companyId" = ${companyId} AND p."deletedAt" IS NULL
@@ -902,7 +903,7 @@ export async function getProductBranchPrices(productId: string) {
       sellingPrice: price?.sellingPrice ?? product?.sellingPrice ?? 0,
       purchasePrice: price?.purchasePrice ?? null,
       branch: { name: b.name },
-      stock: bs?.quantity ?? product?.stock ?? 0,
+      stock: bs?.quantity ?? 0,
       minStock: bs?.minStock ?? 5,
     };
   });

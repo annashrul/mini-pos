@@ -21,8 +21,15 @@ export function POSPageMainDialogs() {
         showHeldDialog, setShowHeldDialog, heldTransactions, resumeTransaction, setHeldTransactions,
         showHistoryDialog, setShowHistoryDialog, historyDetail, setHistoryDetailId, historyLoading, historyData, reprintReceipt, canPosAction, setVoidingId, setVoidReason, setShowVoidDialog,
         showPaymentDialog, setShowPaymentDialog, dynamicQuickAmounts, payment, setPaymentAmount, handleCalculatorInput, paymentEntries, setPaymentEntries, remainingToPay, paymentMethod, setPaymentMethod, grandTotal, paidFromEntries, totalPaid, changeAmount, loading, handlePayment,
+        terminConfig, setTerminConfig,
     } = usePosDialogsContext();
     const [splitCount, setSplitCount] = useState(2);
+    const terminDp = terminConfig?.downPayment ?? 0;
+    const terminCount = terminConfig?.installmentCount ?? 3;
+    const terminInterval = terminConfig?.interval ?? "MONTHLY";
+    const setTerminDp = (v: number) => setTerminConfig({ downPayment: v, installmentCount: terminCount, interval: terminInterval });
+    const setTerminCount = (v: number) => setTerminConfig({ downPayment: terminDp, installmentCount: v, interval: terminInterval });
+    const setTerminInterval = (v: "WEEKLY" | "MONTHLY") => setTerminConfig({ downPayment: terminDp, installmentCount: terminCount, interval: v });
     const splitAmount = useMemo(() => {
         const base = remainingToPay > 0 ? remainingToPay : grandTotal;
         const normalizedCount = Math.max(2, Number.isFinite(splitCount) ? Math.floor(splitCount) : 2);
@@ -237,6 +244,36 @@ export function POSPageMainDialogs() {
                                     </Button>
                                     {remainingToPay > splitAmount && <Button type="button" variant="outline" size="sm" className="w-full rounded-lg text-xs" onClick={() => addPaymentEntry(splitAmount)}><Plus className="w-3 h-3 mr-1" /> Tambah 1 Bagian Split</Button>}
                                 </div>}
+                                {/* TERMIN config */}
+                                {paymentMethod === "TERMIN" && (
+                                    <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                                        <label className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Konfigurasi Termin</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-muted-foreground">DP (Down Payment)</label>
+                                                <Input type="number" min={0} value={String(terminDp)} onChange={(e) => setTerminDp(Number(e.target.value) || 0)} className="h-8 rounded-lg text-xs tabular-nums" placeholder="0" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] text-muted-foreground">Jumlah Cicilan</label>
+                                                <Input type="number" min={1} max={60} value={String(terminCount)} onChange={(e) => setTerminCount(Math.max(1, Number(e.target.value) || 1))} className="h-8 rounded-lg text-xs tabular-nums" placeholder="3" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-muted-foreground">Interval</label>
+                                            <div className="flex gap-1.5">
+                                                <button type="button" onClick={() => setTerminInterval("MONTHLY")} className={cn("flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors", terminInterval === "MONTHLY" ? "border-amber-500 bg-amber-100 text-amber-700" : "border-border hover:bg-accent")}>Bulanan</button>
+                                                <button type="button" onClick={() => setTerminInterval("WEEKLY")} className={cn("flex-1 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors", terminInterval === "WEEKLY" ? "border-amber-500 bg-amber-100 text-amber-700" : "border-border hover:bg-accent")}>Mingguan</button>
+                                            </div>
+                                        </div>
+                                        {terminCount > 0 && grandTotal > terminDp && (
+                                            <div className="rounded-lg bg-white border border-amber-100 p-2 space-y-1">
+                                                <div className="flex justify-between text-[10px]"><span className="text-muted-foreground">Sisa setelah DP</span><span className="font-semibold tabular-nums">{formatCurrency(grandTotal - terminDp)}</span></div>
+                                                <div className="flex justify-between text-[10px]"><span className="text-muted-foreground">Per cicilan</span><span className="font-semibold tabular-nums">{formatCurrency(Math.ceil((grandTotal - terminDp) / terminCount))}</span></div>
+                                                <div className="flex justify-between text-[10px]"><span className="text-muted-foreground">Durasi</span><span className="font-medium">{terminCount}x {terminInterval === "MONTHLY" ? "bulan" : "minggu"}</span></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="hidden md:block space-y-1.5"><label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Nominal</label><Input type="number" value={String(payment)} onChange={(e) => setPaymentAmount(e.target.value)} className="rounded-lg h-11 text-right text-2xl font-bold tabular-nums" /></div>
                                 {payment > 0 && remainingToPay > 0 && payment < remainingToPay && <Button type="button" variant="outline" size="sm" className="w-full rounded-lg text-xs" onClick={() => addPaymentEntry(payment)}><Plus className="w-3 h-3 mr-1" /> Tambah & Lanjut Metode Lain</Button>}
                                 <div className="rounded-xl border border-border/40 p-2.5 md:p-4 space-y-1 md:space-y-2"><div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">Total</span><span className="font-semibold tabular-nums">{formatCurrency(grandTotal)}</span></div>{paidFromEntries > 0 && <div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">Sudah Dibayar</span><span className="font-semibold tabular-nums text-blue-600">{formatCurrency(paidFromEntries)}</span></div>}<div className="flex justify-between text-xs md:text-sm"><span className="text-muted-foreground">{paymentEntries.length > 0 ? "Bayar Sekarang" : "Dibayar"}</span><span className="font-semibold tabular-nums">{formatCurrency(payment)}</span></div><div className="border-t border-border/30 pt-1 md:pt-2 flex justify-between text-sm md:text-base"><span className="font-medium">Kembalian</span><span className="font-bold tabular-nums text-emerald-600">{formatCurrency(totalPaid >= grandTotal ? changeAmount : 0)}</span></div></div>

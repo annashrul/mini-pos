@@ -9,6 +9,25 @@ import { getCurrentCompanyId } from "@/lib/company";
 
 const REVALIDATE_PATH = "/employee-schedules";
 
+/** Parse "YYYY-MM-DD" to local date without timezone shift */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y!, m! - 1, d!, 12, 0, 0, 0); // noon local time to prevent day shift
+}
+
+export async function getMyTodaySchedule() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return prisma.employeeSchedule.findFirst({
+    where: { userId: session.user.id, date: { gte: today, lt: tomorrow } },
+    select: { shiftStart: true, shiftEnd: true, shiftLabel: true, status: true, notes: true },
+  });
+}
+
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -19,8 +38,7 @@ export async function getWeekSchedule(
   weekStart: string,
   branchId?: string,
 ) {
-  const start = new Date(weekStart);
-  start.setHours(0, 0, 0, 0);
+  const start = parseLocalDate(weekStart);
   const end = addDays(start, 7);
 
   const companyId = await getCurrentCompanyId();
@@ -120,8 +138,7 @@ export async function createSchedule(data: {
   if (!session?.user?.id) return { error: "Tidak terautentikasi" };
 
   try {
-    const dateObj = new Date(data.date);
-    dateObj.setHours(0, 0, 0, 0);
+    const dateObj = parseLocalDate(data.date);
 
     const result = await prisma.employeeSchedule.upsert({
       where: {
@@ -184,8 +201,7 @@ export async function bulkCreateSchedule(
   try {
     let created = 0;
     for (const entry of entries) {
-      const dateObj = new Date(entry.date);
-      dateObj.setHours(0, 0, 0, 0);
+      const dateObj = parseLocalDate(entry.date);
 
       await prisma.employeeSchedule.upsert({
         where: {
@@ -361,8 +377,7 @@ export async function getScheduleStats(
   weekStart: string,
   branchId?: string,
 ) {
-  const start = new Date(weekStart);
-  start.setHours(0, 0, 0, 0);
+  const start = parseLocalDate(weekStart);
   const end = addDays(start, 7);
 
   const companyId = await getCurrentCompanyId();
@@ -383,6 +398,17 @@ export async function getScheduleStats(
 
   const scheduledUserIds = new Set(schedules.map((s) => s.userId));
 
+  // Compare with actual cashier shifts
+  const actualShifts = await prisma.cashierShift.findMany({
+    where: { openedAt: { gte: start, lt: end }, user: { companyId }, ...(branchId ? { branchId } : {}) },
+    select: { userId: true },
+  });
+  const actualUserIds = new Set(actualShifts.map((s) => s.userId));
+  const scheduledButNoShow = schedules.filter((s) => s.status === "SCHEDULED" && !actualUserIds.has(s.userId)).length;
+  const attendanceRate = schedules.length > 0
+    ? Math.round(((schedules.filter((s) => s.status === "CONFIRMED").length) / schedules.length) * 100)
+    : 0;
+
   return {
     totalScheduled: schedules.filter((s) => s.status === "SCHEDULED").length,
     confirmed: schedules.filter((s) => s.status === "CONFIRMED").length,
@@ -391,6 +417,9 @@ export async function getScheduleStats(
     totalEntries: schedules.length,
     totalUsers,
     unscheduledUsers: totalUsers - scheduledUserIds.size,
+    scheduledButNoShow,
+    attendanceRate,
+    actualShiftCount: actualShifts.length,
   };
 }
 

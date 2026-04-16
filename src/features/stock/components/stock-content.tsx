@@ -212,10 +212,14 @@ export function StockContent() {
         return groups;
     }, [data.movements]);
 
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (q: string) => {
         setSearch(q);
-        setPage(1);
-        fetchData({ search: q, page: 1 });
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: q, page: 1 });
+        }, 400);
     };
 
 

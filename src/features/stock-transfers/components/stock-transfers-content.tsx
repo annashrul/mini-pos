@@ -71,6 +71,7 @@ export function StockTransfersContent() {
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [rejectOpen, setRejectOpen] = useState(false);
+    const [rejectLoading, setRejectLoading] = useState(false);
     const [selectedTransfer, setSelectedTransfer] = useState<StockTransferDetail | null>(null);
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
@@ -229,16 +230,22 @@ export function StockTransfersContent() {
     };
 
     const executeReject = async () => {
+        setRejectLoading(true);
         const result = await rejectStockTransfer(rejectId, rejectReason || undefined);
+        setRejectLoading(false);
         if (result.error) { toast.error(result.error); }
         else { toast.success("Transfer ditolak"); setRejectOpen(false); setDetailOpen(false); fetchData({}); }
         setRejectConfirmOpen(false);
     };
 
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearchChange = (value: string) => {
         setSearch(value);
-        setPage(1);
-        fetchData({ search: value, page: 1 });
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: value, page: 1 });
+        }, 400);
     };
 
     const handleStatusPill = (status: string) => {
@@ -754,9 +761,9 @@ export function StockTransfersContent() {
                             <div className="flex justify-end gap-2">
                                 <Button variant="outline" onClick={() => setRejectOpen(false)} className="rounded-xl">Batal</Button>
                                 <DisabledActionTooltip disabled={!canApprove} message={cannotMessage("approve")} menuKey="stock-transfers" actionKey="approve">
-                                    <Button disabled={!canApprove} variant="destructive" onClick={handleReject} className="rounded-xl">
-                                        <Ban className="w-4 h-4 mr-2" />
-                                        Tolak Transfer
+                                    <Button disabled={!canApprove || rejectLoading} variant="destructive" onClick={handleReject} className="rounded-xl">
+                                        {rejectLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Ban className="w-4 h-4 mr-2" />}
+                                        {rejectLoading ? "Memproses..." : "Tolak Transfer"}
                                     </Button>
                                 </DisabledActionTooltip>
                             </div>

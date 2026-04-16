@@ -35,6 +35,7 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [taxPercent, setTaxPercent] = useState(11);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("CASH");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [terminConfig, setTerminConfig] = useState<{ downPayment: number; installmentCount: number; interval: "WEEKLY" | "MONTHLY" } | null>(null);
   const [paymentEntries, setPaymentEntries] = useState<PaymentEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -103,6 +104,7 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
     paymentMethod, setPaymentMethod,
     paymentAmount, setPaymentAmount,
     paymentEntries, setPaymentEntries,
+    terminConfig, setTerminConfig,
     loading, setLoading,
     success, setSuccess,
     searching, setSearching,

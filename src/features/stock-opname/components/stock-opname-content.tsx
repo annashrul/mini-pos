@@ -350,10 +350,14 @@ export function StockOpnameContent() {
         fetchData({ filters: newFilters, page: 1 });
     };
 
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearchChange = (value: string) => {
         setSearch(value);
-        setPage(1);
-        fetchData({ search: value, page: 1 });
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: value, page: 1 });
+        }, 400);
     };
 
 

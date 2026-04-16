@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -325,7 +325,7 @@ export function POSPagePanels() {
                                         <div className="flex items-center justify-between mt-1">
                                             <div className="flex items-center gap-0.5">
                                                 <Button variant="outline" size="icon" className="h-6 w-6 rounded-md" onClick={() => ctx.updateQuantity(lineKey, -1)} disabled={item.quantity <= 1}><Minus className="w-2.5 h-2.5" /></Button>
-                                                <span className="text-center font-bold text-xs tabular-nums min-w-[28px]">{displayQty}</span>
+                                                <CartQtyInput value={displayQty} onChange={(qty) => ctx.setItemQuantity(lineKey, qty)} />
                                                 <Button variant="outline" size="icon" className="h-6 w-6 rounded-md" onClick={() => ctx.updateQuantity(lineKey, 1)}><Plus className="w-2.5 h-2.5" /></Button>
                                                 {hasUnit && (
                                                     <span className="text-[10px] text-muted-foreground ml-1">
@@ -412,7 +412,7 @@ export function POSPagePanels() {
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Member</label>
-                                <Input placeholder="No. HP member (opsional)..." value={ctx.customerPhone} onChange={(e) => { void ctx.handleCustomerPhoneChange(e.target.value); }} className="rounded-lg h-8 text-sm" />
+                                <CustomerPhoneInput value={ctx.customerPhone} onChange={ctx.handleCustomerPhoneChange} />
                                 {ctx.detectedCustomer && (<div className="bg-purple-50/60 rounded-lg px-3 py-2 space-y-1.5">
                                     <div className="flex items-center justify-between">
                                         <p className="text-xs font-semibold text-purple-700">{ctx.detectedCustomer.name}</p>
@@ -665,5 +665,76 @@ function TableGrid({ tables, selectedTables, totalCapacity, onToggle, onClear, o
                 </div>
             )}
         </div>
+    );
+}
+
+function CartQtyInput({ value, onChange }: { value: number; onChange: (qty: number) => void }) {
+    const [localVal, setLocalVal] = useState(String(value));
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prevValue = useRef(value);
+
+    // Sync external value changes (from +/- buttons)
+    if (prevValue.current !== value) {
+        prevValue.current = value;
+        setLocalVal(String(value));
+    }
+
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9]/g, "");
+        setLocalVal(raw);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            const num = Number(raw);
+            if (num >= 1) onChange(num);
+        }, 400);
+    }, [onChange]);
+
+    const handleBlur = useCallback(() => {
+        const num = Number(localVal);
+        if (num < 1) { setLocalVal(String(value)); return; }
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        onChange(num);
+    }, [localVal, value, onChange]);
+
+    return (
+        <input
+            type="text"
+            inputMode="numeric"
+            value={localVal}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onFocus={(e) => e.target.select()}
+            className="text-center font-bold text-xs tabular-nums w-9 h-6 rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary/50"
+        />
+    );
+}
+
+function CustomerPhoneInput({ value, onChange }: { value: string; onChange: (phone: string) => void }) {
+    const [localVal, setLocalVal] = useState(value);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prevValue = useRef(value);
+
+    if (prevValue.current !== value && value !== localVal) {
+        prevValue.current = value;
+        setLocalVal(value);
+    }
+
+    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value.replace(/[^0-9+\-() ]/g, "");
+        setLocalVal(raw);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            onChange(raw);
+        }, 500);
+    }, [onChange]);
+
+    return (
+        <Input
+            placeholder="No. HP member (opsional)..."
+            value={localVal}
+            onChange={handleChange}
+            className="rounded-lg h-8 text-sm"
+            inputMode="tel"
+        />
     );
 }

@@ -39,7 +39,7 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePicker } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown, Sun, Sunset, Moon, Clock } from "lucide-react";
+import { Check, ChevronsUpDown, Sun, Sunset, Moon, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -454,6 +454,7 @@ export function ScheduleDialog({
             Batal
           </Button>
           <Button type="submit" form="schedule-form" disabled={saving}>
+            {saving && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
             {saving ? "Menyimpan..." : "Simpan"}
           </Button>
         </DialogFooter>

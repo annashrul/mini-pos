@@ -64,6 +64,7 @@ export type PosPanelsContextValue = {
     promoMeta: { byItem: Record<string, { names: string[]; discount: number }>; freeQtyByItem: Record<string, number> };
     isCompactCart: boolean;
     updateQuantity: (lineKey: string, delta: number) => void;
+    setItemQuantity: (lineKey: string, qty: number) => void;
     removeItem: (lineKey: string) => void;
     resetPOS: () => void;
     subtotal: number;

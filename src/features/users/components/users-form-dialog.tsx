@@ -7,7 +7,7 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
-import { Lock, Mail, MapPin, Pencil, Plus, Shield, UserCircle } from "lucide-react";
+import { Loader2, Lock, Mail, MapPin, Pencil, Plus, Shield, UserCircle } from "lucide-react";
 import { useRef, useState } from "react";
 
 export function UsersFormDialog(props: {
@@ -43,10 +43,11 @@ export function UsersFormDialog(props: {
     onSubmit,
   } = props;
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) setSubmitting(false); onOpenChange(v); }}>
       <DialogContent className="rounded-2xl max-w-md">
         <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 rounded-t-2xl -mt-6 mb-2" />
         <DialogHeader>
@@ -119,11 +120,12 @@ export function UsersFormDialog(props: {
             </Button>
             <DisabledActionTooltip disabled={!canSubmit} message={cannotMessage} menuKey="users" actionKey="create">
               <Button
-                disabled={!canSubmit}
+                disabled={!canSubmit || submitting}
                 type="button"
                 onClick={() => setSubmitConfirmOpen(true)}
                 className="rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
               >
+                {submitting && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
                 {editing ? "Update" : "Simpan"}
               </Button>
             </DisabledActionTooltip>
@@ -137,7 +139,7 @@ export function UsersFormDialog(props: {
           description={editing ? "Perubahan pengguna akan disimpan." : "Pengguna baru akan ditambahkan."}
           confirmLabel={editing ? "Update" : "Simpan"}
           confirmDisabled={!canSubmit}
-          onConfirm={() => formRef.current?.requestSubmit()}
+          onConfirm={async () => { setSubmitting(true); formRef.current?.requestSubmit(); }}
           size="sm"
         />
       </DialogContent>

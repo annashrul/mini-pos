@@ -106,6 +106,12 @@ interface CreateTransactionInput {
   promoIds?: string[];
   notes?: string;
   redeemPoints?: number;
+  // Installment config (for TERMIN)
+  terminConfig?: {
+    downPayment: number;
+    installmentCount: number;
+    interval: "WEEKLY" | "MONTHLY";
+  };
 }
 
 async function resolveSessionUserId() {
@@ -198,6 +204,12 @@ export async function createTransaction(
   );
   const branchCode = normalizeCodePart(branch?.code || branch?.name, "MAIN");
   const invoiceNumber = `${companyCode}-${branchCode}-${randomInvoicePart(8)}`;
+
+  // TERMIN validation: customer is required
+  const hasTermin = input.paymentMethod === "TERMIN" || input.payments?.some((p) => p.method === "TERMIN");
+  if (hasTermin && !input.customerId) {
+    return { error: "Pembayaran termin memerlukan data customer. Pilih customer terlebih dahulu." };
+  }
 
   // Check if stock validation is enabled (branch-specific first, then global)
   let validateStockSetting = input.branchId
@@ -502,23 +514,69 @@ export async function createTransaction(
         });
         partyName = customer?.name || "Customer";
       }
-      await prisma.debt.create({
+      // Due date: default 30 days, or last installment due date
+      const tc = input.terminConfig;
+      const dueDate = new Date();
+      if (tc) {
+        if (tc.interval === "WEEKLY") dueDate.setDate(dueDate.getDate() + tc.installmentCount * 7);
+        else dueDate.setMonth(dueDate.getMonth() + tc.installmentCount);
+      } else {
+        dueDate.setDate(dueDate.getDate() + 30);
+      }
+
+      const dpAmount = tc?.downPayment ?? 0;
+      const initialPaid = dpAmount;
+      const initialRemaining = terminPayment.amount - initialPaid;
+
+      const debt = await prisma.debt.create({
         data: {
           type: "RECEIVABLE",
           referenceType: "TRANSACTION",
           referenceId: transaction.id,
-          partyType: input.customerId ? "CUSTOMER" : "OTHER",
+          partyType: "CUSTOMER",
           partyId: input.customerId || null,
           partyName,
           description: `Termin pembayaran invoice ${transaction.invoiceNumber}`,
           totalAmount: terminPayment.amount,
-          paidAmount: 0,
-          remainingAmount: terminPayment.amount,
-          status: "UNPAID",
+          paidAmount: initialPaid,
+          remainingAmount: Math.max(initialRemaining, 0),
+          status: initialRemaining <= 0 ? "PAID" : initialPaid > 0 ? "PARTIAL" : "UNPAID",
+          dueDate,
           branchId: input.branchId || null,
+          companyId,
           createdBy: userId,
+          downPayment: dpAmount > 0 ? dpAmount : null,
+          installmentCount: tc?.installmentCount ?? null,
+          installmentInterval: tc?.interval ?? null,
         },
       });
+
+      // Create installment schedule if configured
+      if (tc && tc.installmentCount > 0) {
+        const remainAfterDp = terminPayment.amount - dpAmount;
+        const perInst = Math.ceil(remainAfterDp / tc.installmentCount);
+        const installments: { debtId: string; installmentNo: number; amount: number; dueDate: Date }[] = [];
+        const now = new Date();
+        for (let i = 0; i < tc.installmentCount; i++) {
+          const instDue = new Date(now);
+          if (tc.interval === "WEEKLY") instDue.setDate(instDue.getDate() + (i + 1) * 7);
+          else instDue.setMonth(instDue.getMonth() + (i + 1));
+          installments.push({
+            debtId: debt.id,
+            installmentNo: i + 1,
+            amount: i === tc.installmentCount - 1 ? remainAfterDp - perInst * (tc.installmentCount - 1) : perInst,
+            dueDate: instDue,
+          });
+        }
+        await prisma.installment.createMany({ data: installments });
+
+        // Record DP as payment if > 0
+        if (dpAmount > 0) {
+          await prisma.debtPayment.create({
+            data: { debtId: debt.id, amount: dpAmount, method: "CASH", notes: "Down Payment (DP)", paidBy: userId },
+          });
+        }
+      }
     }
 
     // Loyalty points: earn + redeem

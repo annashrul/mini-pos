@@ -393,6 +393,16 @@ export function EmployeeSchedulesContent() {
                         <span className="text-[11px] sm:text-xs font-medium font-mono tabular-nums">{stats.unscheduledUsers}</span>
                         <span className="text-[11px] sm:text-xs hidden sm:inline">Belum Dijadwal</span>
                     </div>
+                    {stats.attendanceRate !== undefined && (
+                        <div className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full shrink-0 ring-1 ${
+                            stats.attendanceRate >= 80 ? "bg-emerald-50 text-emerald-700 ring-emerald-100" :
+                            stats.attendanceRate >= 50 ? "bg-amber-50 text-amber-700 ring-amber-100" :
+                            "bg-red-50 text-red-700 ring-red-100"
+                        }`}>
+                            <span className="text-[11px] sm:text-xs font-bold font-mono tabular-nums">{stats.attendanceRate}%</span>
+                            <span className="text-[11px] sm:text-xs hidden sm:inline">Kehadiran</span>
+                        </div>
+                    )}
                 </div>
             )}
 

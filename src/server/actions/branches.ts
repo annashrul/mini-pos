@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { branchSchema } from "@/lib/validators";
+
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
@@ -31,13 +31,9 @@ export async function getBranches(params?: { search?: string; page?: number; per
 
 export async function getAllBranches() {
   const companyId = await getCurrentCompanyIdOrNull();
-  if (companyId) {
-    return prisma.branch.findMany({
-      where: { companyId },
-      orderBy: { name: "asc" },
-    });
-  }
+  if (!companyId) return [];
   return prisma.branch.findMany({
+    where: { companyId },
     orderBy: { name: "asc" },
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
+import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -163,6 +164,10 @@ export function COAContent() {
     toggleCategory,
     handleEdit,
     handleDelete,
+    executeDelete,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+    pendingDeleteAccount,
     handleDialogClose,
     handleOpenCreate,
   } = useCoa();
@@ -447,6 +452,15 @@ export function COAContent() {
         onClose={handleDialogClose}
         account={editingAccount}
         accounts={allAccounts}
+      />
+
+      <ActionConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        kind="delete"
+        title="Hapus Akun"
+        description={`Yakin ingin menghapus akun "${pendingDeleteAccount?.name}"? Tindakan ini tidak dapat dibatalkan.`}
+        onConfirm={executeDelete}
       />
     </div>
   );

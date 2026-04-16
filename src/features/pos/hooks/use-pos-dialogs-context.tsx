@@ -56,6 +56,8 @@ export type PosDialogsContextValue = {
     changeAmount: number;
     loading: boolean;
     handlePayment: () => void;
+    terminConfig: { downPayment: number; installmentCount: number; interval: "WEEKLY" | "MONTHLY" } | null;
+    setTerminConfig: (v: { downPayment: number; installmentCount: number; interval: "WEEKLY" | "MONTHLY" } | null) => void;
     showDiscountDialog: boolean;
     setShowDiscountDialog: (v: boolean) => void;
     discountType: "percent" | "amount";

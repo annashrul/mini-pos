@@ -1,0 +1,2 @@
+// Goods receipts utilities
+export {};

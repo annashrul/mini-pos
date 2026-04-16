@@ -147,6 +147,7 @@ function POSPageContent() {
         paymentMethod, setPaymentMethod,
         paymentAmount, setPaymentAmount,
         paymentEntries, setPaymentEntries,
+        terminConfig, setTerminConfig,
         loading, setLoading,
         success, setSuccess,
         searching, setSearching,
@@ -481,6 +482,7 @@ function POSPageContent() {
     }, [activeBranchId, addToCart, addToCartWithUnit]);
 
     const updateQuantity = (id: string, d: number) => { setCart((prev) => prev.map((i) => { if ((i.lineId ?? i.productId) !== id) return i; const n = i.quantity + d; if (n <= 0) return i; if (shouldValidateStock && n > i.maxStock) { toast.error("Stok tidak cukup"); return i; } return { ...i, quantity: n, subtotal: n * i.unitPrice - i.discount }; })); };
+    const setItemQuantity = (id: string, qty: number) => { if (qty < 1) return; setCart((prev) => prev.map((i) => { if ((i.lineId ?? i.productId) !== id) return i; if (shouldValidateStock && qty > i.maxStock) { toast.error("Stok tidak cukup"); return i; } return { ...i, quantity: qty, subtotal: qty * i.unitPrice - i.discount }; })); };
     const handleUnitSelect = useCallback((unitName: string, conversionQty: number, sellingPrice: number, purchasePrice: number) => {
         if (!unitSelectorProduct) return;
         addToCartWithUnit(unitSelectorProduct, { unitName, conversionQty, sellingPrice, purchasePrice });
@@ -566,6 +568,9 @@ function POSPageContent() {
         if (!canPosAction("create")) { toast.error("Tidak punya akses pembayaran"); return; }
         if (cart.length === 0) { toast.error("Keranjang kosong"); return; }
         if (posConfig?.requireCustomer && !customerName.trim() && !detectedCustomer) { toast.error("Nama customer wajib diisi"); return; }
+        // TERMIN requires customer
+        const hasTermin = paymentMethod === "TERMIN" || paymentEntries.some((e) => e.method === "TERMIN");
+        if (hasTermin && !detectedCustomer) { toast.error("Pembayaran termin memerlukan data customer yang terdaftar"); return; }
         // Build final payments list (merge same methods)
         const mergedMap = new Map<PaymentMethodType, number>();
         for (const e of paymentEntries) mergedMap.set(e.method, (mergedMap.get(e.method) ?? 0) + e.amount);
@@ -614,6 +619,7 @@ function POSPageContent() {
             ...(pn.length > 0 ? { promoApplied: Array.from(new Set(pn)).join(", ") } : {}),
             ...(appliedPromos.length > 0 || voucherPromoId || tebusPromoIds.length > 0 ? { promoIds: Array.from(new Set([...appliedPromos.map((p) => p.promoId), ...(voucherPromoId ? [voucherPromoId] : []), ...tebusPromoIds])) } : {}),
             ...(redeemDiscount > 0 ? { redeemPoints: redeemPointsInput } : {}),
+            ...(hasTermin && terminConfig ? { terminConfig } : {}),
         };
 
         if (!isOnline) {
@@ -1287,6 +1293,7 @@ function POSPageContent() {
                 promoMeta,
                 isCompactCart,
                 updateQuantity,
+                setItemQuantity,
                 removeItem,
                 resetPOS,
                 subtotal,
@@ -1402,6 +1409,8 @@ function POSPageContent() {
                 changeAmount,
                 loading,
                 handlePayment,
+                terminConfig,
+                setTerminConfig,
                 showDiscountDialog,
                 setShowDiscountDialog,
                 discountType,
