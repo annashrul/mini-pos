@@ -78,6 +78,29 @@ export async function getPurchaseOrders(params?: {
   return { orders, total, totalPages: Math.ceil(total / perPage) };
 }
 
+export async function getPurchaseOrderStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { companyId };
+  if (branchId && branchId !== "ALL") where.branchId = branchId;
+  const counts = await prisma.purchaseOrder.groupBy({
+    by: ["status"],
+    where,
+    _count: true,
+    _sum: { totalAmount: true },
+  });
+  const countMap = new Map(counts.map((c) => [c.status, c._count]));
+  const totalAmount = counts.reduce((s, c) => s + (c._sum.totalAmount ?? 0), 0);
+  return {
+    draft: countMap.get("DRAFT") ?? 0,
+    ordered: countMap.get("ORDERED") ?? 0,
+    partial: countMap.get("PARTIAL") ?? 0,
+    received: countMap.get("RECEIVED") ?? 0,
+    closed: countMap.get("CLOSED") ?? 0,
+    cancelled: countMap.get("CANCELLED") ?? 0,
+    totalAmount,
+  };
+}
+
 export async function getPurchaseOrderById(id: string) {
   const companyId = await getCurrentCompanyId();
   return prisma.purchaseOrder.findFirst({

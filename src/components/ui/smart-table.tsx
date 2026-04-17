@@ -493,9 +493,9 @@ export function SmartTable<T>({
       </div>
 
       {/* Desktop: Table view */}
-      <div className="hidden sm:block overflow-x-auto">
+      <div className="hidden sm:block overflow-auto max-h-[calc(100vh-280px)]">
         <table className="w-full min-w-max text-sm">
-          <thead className="sticky top-0 bg-muted/50 z-10">
+          <thead className="sticky top-0 bg-muted z-20 [box-shadow:0_1px_0_0_hsl(var(--border))]">
             <tr>
               {selectable && (
                 <th className="w-10 px-3 py-2.5 text-center">

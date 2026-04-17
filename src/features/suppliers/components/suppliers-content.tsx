@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition, useMemo, useRef } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createSupplier, updateSupplier, deleteSupplier, getSuppliers } from "@/features/suppliers";
+import { createSupplier, updateSupplier, deleteSupplier, getSuppliers, getSupplierStats } from "@/features/suppliers";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
@@ -56,14 +56,7 @@ export function SuppliersContent() {
     const canDelete = canAction("delete") && canPlan("suppliers", "delete");
 
     // --- Stats ---
-    const stats = useMemo(() => {
-        const suppliers = data.suppliers;
-        const total = data.total;
-        const active = suppliers.filter((s) => s.isActive).length;
-        const inactive = suppliers.filter((s) => !s.isActive).length;
-        const withProducts = suppliers.filter((s) => s._count.products > 0).length;
-        return { total, active, inactive, withProducts };
-    }, [data.suppliers, data.total]);
+    const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, withProducts: 0 });
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string> }) => {
         startTransition(async () => {
@@ -74,8 +67,12 @@ export function SuppliersContent() {
                 perPage: params.pageSize ?? pageSize,
                 ...(f.status !== "ALL" ? { status: f.status } : {}),
             };
-            const result = await getSuppliers(query);
+            const [result, statsResult] = await Promise.all([
+                getSuppliers(query),
+                getSupplierStats(),
+            ]);
             setData(result);
+            setStats(statsResult);
         });
     };
 

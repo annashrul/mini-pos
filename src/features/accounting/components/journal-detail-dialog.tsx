@@ -18,15 +18,49 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { FileText, Calendar, User, Hash, Tag } from "lucide-react";
+import { FileText, Calendar, User, Hash, Tag, CheckCircle2, XCircle, Send, Clock, Loader2 } from "lucide-react";
 import { STATUS_CONFIG, TYPE_CONFIG } from "../utils";
 import type { JournalDetailDialogProps } from "../types";
+import { submitJournalForApproval, approveJournalEntry, rejectJournalEntry, getJournalChangeHistory } from "@/server/actions/accounting";
+import { useMenuActionAccess } from "@/features/access-control";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
 export function JournalDetailDialog({
   open,
   onClose,
   journal,
-}: JournalDetailDialogProps) {
+  onRefresh,
+}: JournalDetailDialogProps & { onRefresh?: () => void }) {
+  const { canAction } = useMenuActionAccess("accounting-journals");
+  const canApprove = canAction("approve");
+  const [rejectReason, setRejectReason] = useState("");
+  const [showReject, setShowReject] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [changeLogs, setChangeLogs] = useState<Array<{ action: string; createdAt: Date | string; user: { name: string } }>>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (open && journal) {
+      getJournalChangeHistory(journal.id).then((logs) => setChangeLogs(logs as typeof changeLogs)).catch(() => {});
+    }
+  }, [open, journal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAction = async (action: "submit" | "approve" | "reject") => {
+    if (!journal) return;
+    setActionLoading(true);
+    let result: { success?: boolean; error?: string };
+    if (action === "submit") result = await submitJournalForApproval(journal.id);
+    else if (action === "approve") result = await approveJournalEntry(journal.id);
+    else result = await rejectJournalEntry(journal.id, rejectReason);
+    if ("error" in result && result.error) toast.error(result.error);
+    else { toast.success(action === "submit" ? "Diajukan" : action === "approve" ? "Disetujui" : "Ditolak"); onRefresh?.(); onClose(); }
+    setActionLoading(false);
+    setShowReject(false);
+    setRejectReason("");
+  };
+
   if (!journal) return null;
 
   const statusCfg = STATUS_CONFIG[journal.status] || STATUS_CONFIG.DRAFT;
@@ -183,15 +217,65 @@ export function JournalDetailDialog({
             </Table>
           </div>
 
-          {/* ── Close button ───────────────────────────────────────────── */}
-          <div className="flex justify-end pt-2">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="rounded-xl border-gray-200"
-            >
-              Tutup
-            </Button>
+          {/* ── Rejection note ─────────────────────────────────────────── */}
+          {journal.rejectionNote && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-[11px] text-red-500 font-medium mb-0.5">Alasan Penolakan</p>
+              <p className="text-xs text-red-700">{journal.rejectionNote}</p>
+            </div>
+          )}
+
+          {/* ── Audit Trail ────────────────────────────────────────────── */}
+          <div>
+            <button onClick={() => setShowHistory(!showHistory)} className="text-xs text-primary hover:underline flex items-center gap-1">
+              <Clock className="w-3 h-3" /> {showHistory ? "Sembunyikan" : "Tampilkan"} Riwayat ({changeLogs.length})
+            </button>
+            {showHistory && changeLogs.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {changeLogs.map((log, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+                    <span className="font-medium text-foreground">{log.action}</span>
+                    <span>oleh {log.user.name}</span>
+                    <span className="ml-auto tabular-nums">{new Date(log.createdAt).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Reject input ───────────────────────────────────────────── */}
+          {showReject && (
+            <div className="flex items-center gap-2">
+              <Input value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Alasan penolakan..." className="rounded-xl h-9 text-xs flex-1" />
+              <Button size="sm" variant="destructive" className="rounded-xl h-9" disabled={!rejectReason.trim() || actionLoading}
+                onClick={() => handleAction("reject")}>
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Tolak"}
+              </Button>
+              <Button size="sm" variant="ghost" className="rounded-xl h-9" onClick={() => { setShowReject(false); setRejectReason(""); }}>Batal</Button>
+            </div>
+          )}
+
+          {/* ── Action buttons ─────────────────────────────────────────── */}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            {journal.status === "DRAFT" && (
+              <Button variant="outline" className="rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50" disabled={actionLoading}
+                onClick={() => handleAction("submit")}>
+                <Send className="w-4 h-4 mr-2" /> Ajukan Approval
+              </Button>
+            )}
+            {journal.status === "PENDING_APPROVAL" && canApprove && !showReject && (
+              <>
+                <Button variant="outline" className="rounded-xl text-red-600 border-red-200 hover:bg-red-50" onClick={() => setShowReject(true)}>
+                  <XCircle className="w-4 h-4 mr-2" /> Tolak
+                </Button>
+                <Button className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white" disabled={actionLoading}
+                  onClick={() => handleAction("approve")}>
+                  {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />} Setujui
+                </Button>
+              </>
+            )}
+            <Button variant="outline" onClick={onClose} className="rounded-xl border-gray-200">Tutup</Button>
           </div>
         </div>
       </DialogContent>

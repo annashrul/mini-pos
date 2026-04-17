@@ -23,7 +23,7 @@ import {
     BrainCircuit, HeartHandshake, ClipboardCheck, ArrowLeftRight,
     ChevronDown, Settings, DollarSign, ShieldCheck, FileText, MapPin, X, Zap, Landmark,
     RotateCcw, CalendarClock, CreditCard, ChefHat, CalendarDays, Armchair, Crown,
-    Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine, PackageCheck,
+    Target, TrendingUp, PieChart, BookOpen, FileSpreadsheet, Calculator, BookMarked, Layers, LockKeyhole, Combine, PackageCheck, Receipt,
 } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -66,6 +66,10 @@ const iconByMenuKey: Record<string, React.ComponentType<{ className?: string }>>
     "accounting-ledger": BookMarked,
     "accounting-reports": Layers,
     "accounting-periods": LockKeyhole,
+    "accounting-tax": Receipt,
+    "accounting-aging": Clock,
+    "accounting-recurring": CalendarClock,
+    "accounting-bank-recon": Landmark,
     tables: Armchair,
     "subscription-admin": Crown,
     tenants: Building2,

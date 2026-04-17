@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createBrand, updateBrand, deleteBrand, getBrands, bulkDeleteBrands } from "@/features/brands";
+import { createBrand, updateBrand, deleteBrand, getBrands, getBrandStats, bulkDeleteBrands } from "@/features/brands";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
@@ -50,21 +50,20 @@ export function BrandsContent() {
     const canUpdate = canAction("update") && canPlan("brands", "update");
     const canDelete = canAction("delete") && canPlan("brands", "delete");
 
-    const stats = useMemo(() => {
-        const totalBrands = data.total;
-        const withProducts = data.brands.filter((b) => b._count.products > 0).length;
-        const withoutProducts = data.brands.filter((b) => b._count.products === 0).length;
-        return { totalBrands, withProducts, withoutProducts };
-    }, [data]);
+    const [stats, setStats] = useState({ total: 0, withProducts: 0, withoutProducts: 0 });
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number }) => {
         startTransition(async () => {
-            const result = await getBrands({
-                search: params.search ?? search,
-                page: params.page ?? page,
-                perPage: params.pageSize ?? pageSize,
-            });
+            const [result, statsResult] = await Promise.all([
+                getBrands({
+                    search: params.search ?? search,
+                    page: params.page ?? page,
+                    perPage: params.pageSize ?? pageSize,
+                }),
+                getBrandStats(),
+            ]);
             setData(result);
+            setStats(statsResult);
         });
     };
 
@@ -201,7 +200,7 @@ export function BrandsContent() {
                     <div className="flex items-center gap-2 flex-wrap px-3 sm:px-5 pb-2">
                         <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">
                             <Tag className="w-3 h-3 mr-1.5" />
-                            Total: {stats.totalBrands}
+                            Total: {stats.total}
                         </Badge>
                         <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/60">
                             <Package className="w-3 h-3 mr-1.5" />

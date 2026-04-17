@@ -651,9 +651,9 @@ export async function createTransaction(
           referenceType: "TRANSACTION",
           referenceId: transaction.id,
           ...(input.branchId ? { branchId: input.branchId } : {}),
-        });
+        }).catch((err) => console.error("[AutoJournal TRANSACTION] Failed:", err?.message ?? err));
       })
-      .catch(() => {});
+      .catch((err) => console.error("[AutoJournal import] Failed:", err));
 
     // Auto-create kitchen display order (if enabled)
     import("@/server/actions/settings")

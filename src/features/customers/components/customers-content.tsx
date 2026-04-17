@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createCustomer, updateCustomer, deleteCustomer, getCustomers, bulkDeleteCustomers } from "@/features/customers";
+import { createCustomer, updateCustomer, deleteCustomer, getCustomers, getCustomerStats, bulkDeleteCustomers } from "@/features/customers";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { formatCurrency } from "@/lib/utils";
@@ -88,17 +88,7 @@ export function CustomersContent() {
     const canUpdate = canAction("update") && canPlan("customers", "update");
     const canDelete = canAction("delete") && canPlan("customers", "delete");
 
-    const stats = useMemo(() => {
-        const customers = data.customers;
-        const total = data.total;
-        const regular = customers.filter((c) => c.memberLevel === "REGULAR").length;
-        const silver = customers.filter((c) => c.memberLevel === "SILVER").length;
-        const gold = customers.filter((c) => c.memberLevel === "GOLD").length;
-        const platinum = customers.filter((c) => c.memberLevel === "PLATINUM").length;
-        const totalSpending = customers.reduce((sum, c) => sum + (c.totalSpending ?? 0), 0);
-        const totalPoints = customers.reduce((sum, c) => sum + (c.points ?? 0), 0);
-        return { total, regular, silver, gold, platinum, totalSpending, totalPoints };
-    }, [data]);
+    const [stats, setStats] = useState({ total: 0, regular: 0, silver: 0, gold: 0, platinum: 0, totalSpending: 0, totalPoints: 0 });
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
@@ -112,8 +102,12 @@ export function CustomersContent() {
                 ...(f.memberLevel !== "ALL" ? { memberLevel: f.memberLevel } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
             };
-            const result = await getCustomers(query);
+            const [result, statsResult] = await Promise.all([
+                getCustomers(query),
+                getCustomerStats(),
+            ]);
             setData(result as typeof data);
+            setStats(statsResult);
         });
     };
 

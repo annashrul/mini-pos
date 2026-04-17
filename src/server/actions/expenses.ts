@@ -62,6 +62,31 @@ export async function getExpenses(params?: {
   return { expenses, total, totalPages: Math.ceil(total / perPage) };
 }
 
+export async function getExpenseStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { companyId };
+  if (branchId && branchId !== "ALL") where.branchId = branchId;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfDay = new Date(now.toISOString().slice(0, 10) + "T00:00:00");
+
+  const [total, thisMonth, today] = await Promise.all([
+    prisma.expense.aggregate({ where, _sum: { amount: true }, _count: true }),
+    prisma.expense.aggregate({ where: { ...where, date: { gte: startOfMonth } }, _sum: { amount: true }, _count: true }),
+    prisma.expense.aggregate({ where: { ...where, date: { gte: startOfDay } }, _sum: { amount: true }, _count: true }),
+  ]);
+
+  return {
+    totalCount: total._count,
+    totalAmount: total._sum.amount ?? 0,
+    thisMonthCount: thisMonth._count,
+    thisMonthAmount: thisMonth._sum.amount ?? 0,
+    todayCount: today._count,
+    todayAmount: today._sum.amount ?? 0,
+  };
+}
+
 export async function createExpense(data: FormData) {
   await assertMenuActionAccess("expenses", "create");
   const companyId = await getCurrentCompanyId();

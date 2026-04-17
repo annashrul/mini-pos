@@ -11,6 +11,7 @@ import { PlanExpiryBanner } from "./plan-expiry-banner";
 import { PlanProvider } from "@/components/providers/plan-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Menu, Search, MapPin } from "lucide-react";
 
 const pageTitles: Record<string, string> = {
@@ -57,6 +58,10 @@ const pageTitles: Record<string, string> = {
     "/accounting/ledger": "Buku Besar",
     "/accounting/reports": "Laporan Keuangan",
     "/accounting/periods": "Tutup Buku",
+    "/accounting/tax": "Laporan Pajak",
+    "/accounting/aging": "Aging AP/AR",
+    "/accounting/recurring": "Jurnal Berulang",
+    "/accounting/bank-recon": "Rekonsiliasi Bank",
     "/tables": "Manajemen Meja",
 };
 
@@ -67,7 +72,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const isPOS = pathname === "/pos";
     const { data: session } = useSession();
     const currentRole = (session?.user as Record<string, unknown> | undefined)?.role as string;
-    const { selectedBranchName } = useBranch();
+    const { branches, selectedBranchId, selectedBranchName, setSelectedBranchId } = useBranch();
+    const isAdminRole = currentRole === "OWNER" || currentRole === "ADMIN" || currentRole === "PLATFORM_OWNER";
 
     if (isPOS) {
         return (
@@ -114,9 +120,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                             <Menu className="h-5 w-5" />
                         </Button>
 
-                        {/* Page title */}
+                        {/* Mobile: branch selector */}
+                        {branches.length > 0 && (
+                            <div className="lg:hidden">
+                                <Select value={selectedBranchId || "__all__"} onValueChange={(v) => setSelectedBranchId(v === "__all__" ? "" : v)}>
+                                    <SelectTrigger className="h-8 rounded-lg text-[11px] bg-primary/5 border-primary/10 text-primary font-medium px-2.5 gap-1 w-auto max-w-[160px]">
+                                        <MapPin className="w-3 h-3 shrink-0" />
+                                        <SelectValue placeholder="Lokasi" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {isAdminRole && <SelectItem value="__all__">Semua Lokasi</SelectItem>}
+                                        {branches.map((b) => (
+                                            <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {/* Desktop: page title + branch badge */}
                         {pageTitle && (
-                            <div className="hidden sm:flex items-center gap-2">
+                            <div className="hidden lg:flex items-center gap-2">
                                 <h2 className="text-sm font-semibold text-foreground">{pageTitle}</h2>
                                 {selectedBranchName && selectedBranchName !== "Semua Lokasi" && (
                                     <Badge variant="secondary" className="text-[10px] rounded-full px-2 py-0.5 bg-primary/5 text-primary border-primary/10 gap-1">

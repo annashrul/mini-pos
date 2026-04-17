@@ -7,3 +7,7 @@ export { JournalDetailDialog } from "./journal-detail-dialog";
 export { LedgerContent } from "./ledger-content";
 export { ReportsContent } from "./reports-content";
 export { PeriodsContent } from "./periods-content";
+export { TaxReportContent } from "./tax-report-content";
+export { AgingReportContent } from "./aging-report-content";
+export { RecurringTemplatesContent } from "./recurring-templates-content";
+export { BankReconContent } from "./bank-recon-content";

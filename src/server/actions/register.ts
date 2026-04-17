@@ -146,6 +146,12 @@ export async function registerCompany(formData: FormData) {
           { code: withCompanyCode("5-1003"), name: "Beban Gaji", categoryId: acExpense.id, isActive: true, isSystem: false, openingBalance: 0 },
           { code: withCompanyCode("5-1004"), name: "Beban Listrik & Air", categoryId: acExpense.id, isActive: true, isSystem: false, openingBalance: 0 },
           { code: withCompanyCode("5-1005"), name: "Beban Sewa", categoryId: acExpense.id, isActive: true, isSystem: false, openingBalance: 0 },
+          { code: withCompanyCode("5-1010"), name: "Beban PPh 23", categoryId: acExpense.id, isActive: true, isSystem: true, openingBalance: 0 },
+          // Tax accounts
+          { code: withCompanyCode("2-1100"), name: "PPN Keluaran", categoryId: acLiability.id, isActive: true, isSystem: true, openingBalance: 0 },
+          { code: withCompanyCode("1-1100"), name: "PPN Masukan", categoryId: acAsset.id, isActive: true, isSystem: true, openingBalance: 0 },
+          { code: withCompanyCode("2-1200"), name: "Hutang PPh 21", categoryId: acLiability.id, isActive: true, isSystem: true, openingBalance: 0 },
+          { code: withCompanyCode("2-1201"), name: "Hutang PPh 23", categoryId: acLiability.id, isActive: true, isSystem: true, openingBalance: 0 },
         ],
       });
 

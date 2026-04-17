@@ -14,6 +14,7 @@ export const fmtShort = (n: number) => {
 
 export const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: "Draft", className: "bg-gray-100 text-gray-600" },
+  PENDING_APPROVAL: { label: "Menunggu Approval", className: "bg-amber-100 text-amber-700" },
   POSTED: { label: "Posted", className: "bg-green-100 text-green-700" },
   VOID: { label: "Void", className: "bg-red-100 text-red-700" },
 };

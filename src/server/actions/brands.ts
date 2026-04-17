@@ -30,6 +30,16 @@ export async function getBrands(params?: { search?: string; page?: number; perPa
   return { brands, total, totalPages: Math.ceil(total / perPage) };
 }
 
+export async function getBrandStats() {
+  const companyId = await getCurrentCompanyId();
+  const [total, withProducts, withoutProducts] = await Promise.all([
+    prisma.brand.count({ where: { companyId } }),
+    prisma.brand.count({ where: { companyId, products: { some: {} } } }),
+    prisma.brand.count({ where: { companyId, products: { none: {} } } }),
+  ]);
+  return { total, withProducts, withoutProducts };
+}
+
 export async function createBrand(data: FormData) {
   const companyId = await getCurrentCompanyId();
   await assertMenuActionAccess("brands", "create");

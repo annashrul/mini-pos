@@ -24,6 +24,7 @@ const smartFilters: SmartFilter[] = [
         type: "select",
         options: [
             { value: "DRAFT", label: "Draft" },
+            { value: "PENDING_APPROVAL", label: "Menunggu Approval" },
             { value: "POSTED", label: "Posted" },
             { value: "VOID", label: "Void" },
         ],

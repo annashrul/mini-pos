@@ -55,6 +55,8 @@ export interface Journal {
   totalDebit: number;
   totalCredit: number;
   notes: string | null;
+  rejectionNote?: string | null;
+  approvedBy?: string | null;
   branchId: string | null;
   lines: JournalLine[];
 }

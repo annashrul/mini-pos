@@ -67,6 +67,18 @@ export async function getPromotions(params?: {
   return { promotions, total, totalPages: Math.ceil(total / perPage) };
 }
 
+export async function getPromotionStats() {
+  const companyId = await getCurrentCompanyId();
+  const now = new Date();
+  const [total, active, expired, vouchers] = await Promise.all([
+    prisma.promotion.count({ where: { companyId } }),
+    prisma.promotion.count({ where: { companyId, isActive: true, endDate: { gte: now } } }),
+    prisma.promotion.count({ where: { companyId, endDate: { lt: now } } }),
+    prisma.promotion.count({ where: { companyId, type: "VOUCHER" } }),
+  ]);
+  return { total, active, expired, vouchers };
+}
+
 export async function createPromotion(data: FormData) {
   const companyId = await getCurrentCompanyId();
   const type = data.get("type") as string;

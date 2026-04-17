@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { stockMovementSchema } from "@/lib/validators";
+import type { StockMovementType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { assertMenuActionAccess } from "@/lib/access-control";
 import { createAuditLog } from "@/lib/audit";
@@ -42,7 +42,7 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
   const where: Record<string, unknown> = { product: { companyId } };
   if (productId) where.productId = productId;
   if (branchId) where.branchId = branchId;
-  if (type && type !== "all") where.type = type;
+  if (type && type !== "ALL") where.type = type;
   if (search) {
     where.product = {
       companyId,
@@ -91,134 +91,102 @@ export async function getStockMovements(params: GetStockMovementsParams = {}) {
   };
 }
 
+export async function getStockMovementStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const branchFilter = branchId && branchId !== "ALL" ? `AND sm."branchId" = '${branchId}'` : "";
+  const results = await prisma.$queryRawUnsafe<Array<{ type: string; count: number }>>(`
+    SELECT sm.type, COUNT(*)::int AS count
+    FROM stock_movements sm
+    JOIN products p ON p.id = sm."productId"
+    WHERE (sm."companyId" = '${companyId}' OR (sm."companyId" IS NULL AND p."companyId" = '${companyId}'))
+    ${branchFilter}
+    GROUP BY sm.type
+  `);
+  const map = new Map(results.map((r) => [r.type, r.count]));
+  return {
+    inCount: map.get("IN") ?? 0,
+    outCount: map.get("OUT") ?? 0,
+    adjCount: map.get("ADJUSTMENT") ?? 0,
+    transferCount: map.get("TRANSFER") ?? 0,
+    opnameCount: map.get("OPNAME") ?? 0,
+  };
+}
+
 export async function createStockMovement(formData: FormData) {
   await assertMenuActionAccess("stock", "create");
   const companyId = await getCurrentCompanyId();
-  const data = {
-    productId: formData.get("productId") as string,
-    type: formData.get("type") as string,
-    quantity: Number(formData.get("quantity")),
-    note: (formData.get("note") as string) || null,
-  };
+
+  // Support multiple items via JSON "items" field
+  const itemsRaw = formData.get("items") as string | null;
+  const items: { productId: string; quantity: number; type?: string }[] = itemsRaw ? JSON.parse(itemsRaw) : [];
+
+  // Backward compat: single productId + quantity
+  if (items.length === 0) {
+    const pid = formData.get("productId") as string;
+    const qty = Number(formData.get("quantity"));
+    if (pid && qty > 0) items.push({ productId: pid, quantity: qty });
+  }
+
+  const globalType = (formData.get("type") as string) || "IN";
+  const note = ((formData.get("note") as string) || null);
   const branchIdsRaw = (formData.get("branchIds") as string) || "";
   const branchIds: string[] = branchIdsRaw ? JSON.parse(branchIdsRaw) : [];
-  // For backward compat, also check single branchId
   const singleBranchId = (formData.get("branchId") as string) || null;
   if (singleBranchId && branchIds.length === 0) branchIds.push(singleBranchId);
 
-  const parsed = stockMovementSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Data tidak valid" };
-  }
+  if (items.length === 0) return { error: "Pilih minimal 1 produk" };
 
   try {
     await prisma.$transaction(
       async (tx) => {
-        const product = await tx.product.findFirst({
-          where: { id: parsed.data.productId, companyId },
-        });
-        if (!product) throw new Error("Produk tidak ditemukan");
-
-        const stockChange =
-          parsed.data.type === "IN"
-            ? parsed.data.quantity
-            : parsed.data.type === "OUT"
-              ? -parsed.data.quantity
-              : 0;
-
-        if (branchIds.length > 0) {
-          await tx.$executeRaw`
-            select
-              set_config('app.stock_note', ${parsed.data.note ?? `Manual ${parsed.data.type} stok`}, true),
-              set_config('app.stock_reference', ${"MANUAL_STOCK"}, true)
-          `;
-
-          // Ensure ALL company branches have branchStock records for this product
-          // Branches without a record get initialized from product.stock
-          const allCompanyBranches = await tx.branch.findMany({
-            where: { companyId, isActive: true },
-            select: { id: true },
+        for (const item of items) {
+          const product = await tx.product.findFirst({
+            where: { id: item.productId, companyId },
           });
-          const existingStocks = await tx.branchStock.findMany({
-            where: { productId: parsed.data.productId, branchId: { in: allCompanyBranches.map((b) => b.id) } },
-            select: { branchId: true },
-          });
-          const existingSet = new Set(existingStocks.map((s) => s.branchId));
-          const missingBranches = allCompanyBranches.filter((b) => !existingSet.has(b.id));
-          if (missingBranches.length > 0) {
-            await tx.branchStock.createMany({
-              data: missingBranches.map((b) => ({
-                branchId: b.id,
-                productId: parsed.data.productId,
-                quantity: product.stock, // Initialize from global product stock
-              })),
-            });
-          }
+          if (!product) throw new Error("Produk tidak ditemukan");
+          if (item.quantity < 1) throw new Error(`Quantity minimal 1 untuk ${product.name}`);
 
-          // Per-branch operation
-          for (const bid of branchIds) {
-            const bs = await tx.branchStock.findFirst({
-              where: {
-                branchId: bid,
-                productId: parsed.data.productId,
-              },
-            });
-            // bs is guaranteed to exist now (created above if missing)
-            if (
-              parsed.data.type === "OUT" &&
-              (bs?.quantity ?? 0) < parsed.data.quantity
-            ) {
-              const branchName =
-                (
-                  await tx.branch.findUnique({
-                    where: { id: bid },
-                    select: { name: true },
-                  })
-                )?.name ?? bid;
-              throw new Error(
-                `Stok di ${branchName} tidak mencukupi (sisa: ${bs?.quantity ?? 0})`,
-              );
-            }
+          // Per-item type (fallback to global type)
+          const itemType = (item.type && ["IN", "OUT", "ADJUSTMENT"].includes(item.type) ? item.type : globalType) as StockMovementType;
+          const stockChange = itemType === "IN" ? item.quantity : itemType === "OUT" ? -item.quantity : 0;
 
-            if (parsed.data.type === "ADJUSTMENT") {
-              await tx.branchStock.update({
-                where: { id: bs!.id },
-                data: { quantity: parsed.data.quantity },
+          if (branchIds.length > 0) {
+            for (const bid of branchIds) {
+              const bs = await tx.branchStock.upsert({
+                where: { branchId_productId: { branchId: bid, productId: item.productId } },
+                update: {},
+                create: { branchId: bid, productId: item.productId, quantity: 0 },
               });
-            } else {
-              await tx.branchStock.update({
-                where: { id: bs!.id },
-                data: { quantity: { increment: stockChange } },
+
+              if (itemType === "OUT" && bs.quantity < item.quantity) {
+                const branchName = (await tx.branch.findUnique({ where: { id: bid }, select: { name: true } }))?.name ?? bid;
+                throw new Error(`Stok ${product.name} di ${branchName} tidak mencukupi (sisa: ${bs.quantity})`);
+              }
+
+              if (itemType === "ADJUSTMENT") {
+                await tx.branchStock.update({ where: { id: bs.id }, data: { quantity: item.quantity } });
+              } else {
+                await tx.branchStock.update({ where: { id: bs.id }, data: { quantity: { increment: stockChange } } });
+              }
+
+              await tx.stockMovement.create({
+                data: { productId: item.productId, type: itemType, quantity: item.quantity, note: note ?? null, reference: "MANUAL_STOCK", branchId: bid, companyId },
               });
             }
-          }
-        } else {
-          // Global operation (no branch)
-          if (
-            parsed.data.type === "OUT" &&
-            product.stock < parsed.data.quantity
-          ) {
-            throw new Error(`Stok tidak mencukupi (sisa: ${product.stock})`);
-          }
-          await tx.stockMovement.create({
-            data: {
-              productId: parsed.data.productId,
-              type: parsed.data.type,
-              quantity: parsed.data.quantity,
-              note: parsed.data.note ?? null,
-              companyId,
-            },
-          });
-          if (parsed.data.type === "ADJUSTMENT") {
-            await tx.product.update({
-              where: { id: parsed.data.productId },
-              data: { stock: parsed.data.quantity },
-            });
           } else {
-            await tx.product.update({
-              where: { id: parsed.data.productId },
-              data: { stock: { increment: stockChange } },
+            if (itemType === "OUT" && product.stock < item.quantity) {
+              throw new Error(`Stok ${product.name} tidak mencukupi (sisa: ${product.stock})`);
+            }
+            await tx.stockMovement.create({
+              data: { productId: item.productId, type: itemType, quantity: item.quantity, note: note ?? null, companyId },
             });
+          }
+
+          // Update global product stock
+          if (itemType === "ADJUSTMENT") {
+            await tx.product.update({ where: { id: item.productId }, data: { stock: item.quantity } });
+          } else {
+            await tx.product.update({ where: { id: item.productId }, data: { stock: { increment: stockChange } } });
           }
         }
       },
@@ -233,10 +201,9 @@ export async function createStockMovement(formData: FormData) {
       entity: "StockMovement",
       details: {
         data: {
-          type: parsed.data.type,
-          productId: parsed.data.productId,
-          quantity: parsed.data.quantity,
-          notes: parsed.data.note,
+          globalType,
+          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity, type: i.type ?? globalType })),
+          note,
           ...(branchIds.length > 0
             ? { branchId: branchIds.length === 1 ? branchIds[0] : branchIds }
             : {}),
@@ -245,16 +212,17 @@ export async function createStockMovement(formData: FormData) {
     }).catch(() => {});
 
     // Emit stock updated event for each branch, or globally
+    const productIds = items.map((i) => i.productId);
     if (branchIds.length > 0) {
       for (const bid of branchIds) {
-        emitEvent(
-          EVENTS.STOCK_UPDATED,
-          { productId: parsed.data.productId },
-          bid,
-        );
+        for (const pid of productIds) {
+          emitEvent(EVENTS.STOCK_UPDATED, { productId: pid }, bid);
+        }
       }
     } else {
-      emitEvent(EVENTS.STOCK_UPDATED, { productId: parsed.data.productId });
+      for (const pid of productIds) {
+        emitEvent(EVENTS.STOCK_UPDATED, { productId: pid });
+      }
     }
 
     return { success: true };

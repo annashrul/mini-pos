@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createExpense, deleteExpense, getExpenses, updateExpense, bulkDeleteExpenses } from "@/features/expenses";
+import { createExpense, deleteExpense, getExpenses, getExpenseStats, updateExpense, bulkDeleteExpenses } from "@/features/expenses";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +62,7 @@ export function ExpensesContent() {
     const [data, setData] = useState<{ expenses: Expense[]; total: number; totalPages: number }>({ expenses: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
+    const [stats, setStats] = useState({ totalCount: 0, totalAmount: 0, thisMonthCount: 0, thisMonthAmount: 0, todayCount: 0, todayAmount: 0 });
     const [editing, setEditing] = useState<Expense | null>(null);
     const expenseForm = useForm<ExpenseFormValues>({
         resolver: zodResolver(expenseSchema),
@@ -89,14 +90,18 @@ export function ExpensesContent() {
         startTransition(async () => {
             const sk = params.sortKey ?? sortKey;
             const sd = params.sortDir ?? sortDir;
-            const result = await getExpenses({
-                search: params.search ?? search,
-                page: params.page ?? page,
-                perPage: params.pageSize ?? pageSize,
-                ...(sk ? { sortBy: sk, sortDir: sd } : {}),
-                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
-            });
+            const [result, statsResult] = await Promise.all([
+                getExpenses({
+                    search: params.search ?? search,
+                    page: params.page ?? page,
+                    perPage: params.pageSize ?? pageSize,
+                    ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+                    ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+                }),
+                getExpenseStats(selectedBranchId || undefined),
+            ]);
             setData(result);
+            setStats(statsResult);
         });
     };
 
@@ -184,15 +189,9 @@ export function ExpensesContent() {
         expenseForm.reset();
     };
 
-    const totalExpense = data.expenses.reduce((sum, item) => sum + item.amount, 0);
-    const thisMonthExpense = data.expenses
-        .filter((item) => {
-            const d = new Date(item.date);
-            const now = new Date();
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        })
-        .reduce((sum, item) => sum + item.amount, 0);
-    const categoriesCount = new Set(data.expenses.map((item) => item.category.toLowerCase())).size;
+    const totalExpense = stats.totalAmount;
+    const thisMonthExpense = stats.thisMonthAmount;
+    const categoriesCount = stats.totalCount;
 
     const groupedExpenses = useMemo(() => {
         const groups: { date: string; items: Expense[] }[] = [];
@@ -205,10 +204,14 @@ export function ExpensesContent() {
         return groups;
     }, [data.expenses]);
 
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (q: string) => {
         setSearch(q);
-        setPage(1);
-        fetchData({ search: q, page: 1 });
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: q, page: 1 });
+        }, 400);
     };
 
 

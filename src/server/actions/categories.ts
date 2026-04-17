@@ -49,6 +49,16 @@ export async function getAllCategories() {
   });
 }
 
+export async function getCategoryStats() {
+  const companyId = await getCurrentCompanyId();
+  const [total, withProducts, empty] = await Promise.all([
+    prisma.category.count({ where: { companyId } }),
+    prisma.category.count({ where: { companyId, products: { some: {} } } }),
+    prisma.category.count({ where: { companyId, products: { none: {} } } }),
+  ]);
+  return { total, withProducts, empty };
+}
+
 export async function createCategory(data: FormData) {
   await assertMenuActionAccess("categories", "create");
   const parsed = categorySchema.safeParse({

@@ -1,13 +1,14 @@
 "use client";
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
-import { useState, useEffect, useRef, useTransition, useMemo } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createPurchaseOrder,
   getPurchaseOrders,
   getPurchaseOrderById,
+  getPurchaseOrderStats,
   receivePurchaseOrder,
   updatePurchaseOrderStatus,
   closePurchaseOrder,
@@ -45,11 +46,11 @@ import {
   Plus, Eye, ShoppingBasket,
   Send, XCircle, PackageCheck,
   FileText, Truck,
-  DollarSign, MapPin, Package,
+  MapPin, Package,
   Search, Loader2,
   CalendarDays,
   ClipboardList,
-  SlidersHorizontal, Check, Upload, Printer, FileDown,
+  Check, Upload, Printer, FileDown, Copy,
   Lock, AlertTriangle, FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -181,8 +182,13 @@ export function PurchasesContent() {
         ...(f.date_to ? { dateTo: f.date_to } : {}),
         ...(sk ? { sortBy: sk, sortDir: sd } : {}),
       };
-      const result = await getPurchaseOrders(query);
+      const branchForStats = f.branchId && f.branchId !== "ALL" ? f.branchId : selectedBranchId || undefined;
+      const [result, statsResult] = await Promise.all([
+        getPurchaseOrders(query),
+        getPurchaseOrderStats(branchForStats),
+      ]);
       setData(result);
+      setStats(statsResult);
     });
   }
 
@@ -395,15 +401,7 @@ export function PurchasesContent() {
     setConfirmOpen(true);
   };
 
-  // Stats bar data
-  const stats = useMemo(() => {
-    const orders = data.orders;
-    const draftCount = orders.filter((o) => o.status === "DRAFT").length;
-    const orderedCount = orders.filter((o) => o.status === "ORDERED").length;
-    const receivedCount = orders.filter((o) => o.status === "RECEIVED").length;
-    const totalAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-    return { draftCount, orderedCount, receivedCount, totalAmount };
-  }, [data.orders]);
+  const [stats, setStats] = useState({ draft: 0, ordered: 0, partial: 0, received: 0, closed: 0, cancelled: 0, totalAmount: 0 });
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearchChange = (value: string) => {
@@ -413,6 +411,11 @@ export function PurchasesContent() {
       setPage(1);
       fetchData({ search: value, page: 1 });
     }, 400);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Nomor PO disalin");
   };
 
   const handleStatusFilter = (status: string) => {
@@ -461,145 +464,31 @@ export function PurchasesContent() {
             </Button>
           </div>
         )}
-        <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); } }}>
-          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
-            <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
-            <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
-              <DialogTitle className="text-base sm:text-lg font-bold">Buat Purchase Order</DialogTitle>
-            </DialogHeader>
 
-            <DialogBody className={`space-y-3 sm:space-y-5 overflow-x-hidden px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
-              {/* Supplier, Location, Date — inline */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-xs sm:text-sm font-medium">Supplier <span className="text-red-400">*</span></Label>
-                  <Controller name="supplierId" control={poForm.control} render={({ field }) => (
-                    <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih supplier"
-                      onSearch={async (query) => suppliers.filter((s) => s.isActive && s.name.toLowerCase().includes(query.toLowerCase())).map((s) => ({ value: s.id, label: s.name }))} />
-                  )} />
-                  {poForm.formState.errors.supplierId && <p className="text-xs text-red-500">{poForm.formState.errors.supplierId.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
-                  {selectedBranchId ? (
-                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
-                      <MapPin className="w-3.5 h-3.5 shrink-0" />
-                      <span className="font-medium">{branches.find((b) => b.id === selectedBranchId)?.name ?? "—"}</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Controller name="branchIds" control={poForm.control} render={({ field }) => (
-                        <BranchMultiSelect branches={branches.filter((b) => b.isActive)} value={field.value} onChange={(v) => { field.onChange(v); poForm.setValue("items", []); }} placeholder="Pilih lokasi" />
-                      )} />
-                      {poForm.formState.errors.branchIds && <p className="text-xs text-red-500">{poForm.formState.errors.branchIds.message}</p>}
-                    </>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs sm:text-sm font-medium">Tanggal Diharapkan</Label>
-                  <Controller name="expectedDate" control={poForm.control} render={({ field }) => (
-                    <DatePicker value={field.value ?? ""} onChange={field.onChange} className="rounded-xl" />
-                  )} />
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
-                <Input {...poForm.register("notes")} className="rounded-xl h-9 sm:h-10" placeholder="Catatan tambahan..." />
-              </div>
-
-              {/* Product items */}
-              {poForm.formState.errors.items?.root && <p className="text-xs text-red-500">{poForm.formState.errors.items.root.message}</p>}
-              {poForm.formState.errors.items?.message && <p className="text-xs text-red-500">{poForm.formState.errors.items.message}</p>}
-              <ProductPicker
-                stickySearch
-                items={watchedItems.map((item) => ({
-                  productId: item.productId,
-                  productName: item.productName || "",
-                  productCode: "",
-                  productPrice: item.unitPrice,
-                  quantity: item.quantity,
-                }))}
-                onChange={(pickerItems) => {
-                  poForm.setValue("items", pickerItems.map((pi) => ({
-                    productId: pi.productId,
-                    productName: pi.productName,
-                    quantity: pi.quantity,
-                    unitPrice: pi.productPrice,
-                  })), { shouldValidate: true });
-                }}
-                branchId={selectedBranchId || undefined}
-                branchIds={effectiveBranchIds.length > 0 ? effectiveBranchIds : undefined}
-                label="Item PO"
-                required
-                usePurchasePrice
-                editablePrice
-                emptyText="Pilih produk untuk ditambahkan ke PO"
-              />
-            </DialogBody>
-
-            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0 border-t">
-              <div className="flex items-center justify-between w-full gap-2">
-                {/* Left: total */}
-                {watchedItems.length > 0 ? (
-                  <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-                    <span className="text-[10px] sm:text-sm font-medium text-emerald-700 shrink-0">Total:</span>
-                    <span className="font-mono text-sm sm:text-lg font-bold text-emerald-700 tabular-nums truncate">{formatCurrency(cartTotal)}</span>
-                    <Badge className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 border border-emerald-200 px-2">
-                      {watchedItems.length} produk
-                    </Badge>
-                  </div>
-                ) : <div />}
-                {/* Right: buttons */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
-                  <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="purchases" actionKey="create">
-                    <Button disabled={!canCreate || poForm.formState.isSubmitting} onClick={poForm.handleSubmit(handleCreatePO)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50">
-                      {poForm.formState.isSubmitting ? <Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /> : <ShoppingBasket className="w-4 h-4 sm:mr-2" />}
-                      <span>{poForm.formState.isSubmitting ? "Menyimpan..." : "Buat PO"}</span>
-                    </Button>
-                  </DisabledActionTooltip>
-                </div>
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {/* Mobile: search + filter button + stats below */}
+      {/* Search + filter pills — sticky */}
+      <div className="sticky top-0 z-20 bg-background pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
+      {/* Mobile */}
       <div className="sm:hidden space-y-2">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari PO..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
-            {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-          </div>
-          <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span className="text-xs">Filter</span>
-            {activeFilters.status !== "ALL" && <span className="absolute -top-1.5 -right-1.5 w-2 h-2 rounded-full bg-emerald-500" />}
-          </Button>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari PO..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
+          {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
         </div>
-        {/* Mobile stats */}
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          <div className="inline-flex items-center gap-1 rounded-full bg-slate-50 ring-1 ring-slate-200 px-2 py-1 shrink-0">
-            <FileText className="w-3 h-3 text-slate-500" />
-            <span className="text-[11px] font-semibold text-slate-700">{stats.draftCount}</span>
-            <span className="text-[11px] text-slate-400">Draft</span>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
-            <Send className="w-3 h-3 text-blue-500" />
-            <span className="text-[11px] font-semibold text-blue-700">{stats.orderedCount}</span>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
-            <PackageCheck className="w-3 h-3 text-emerald-500" />
-            <span className="text-[11px] font-semibold text-emerald-700">{stats.receivedCount}</span>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 ring-1 ring-amber-100 px-2 py-1 shrink-0">
-            <DollarSign className="w-3 h-3 text-amber-500" />
-            <span className="text-[11px] font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
-          </div>
+          {statusFilterPills.map((pill) => {
+            const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "ORDERED" ? stats.ordered : pill.value === "PARTIAL" ? stats.partial : pill.value === "RECEIVED" ? stats.received : pill.value === "CLOSED" ? stats.closed : pill.value === "CANCELLED" ? stats.cancelled : 0;
+            return (
+              <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all inline-flex items-center gap-1 ${activeFilters.status === pill.value
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
+                  : "bg-white border border-slate-200 text-slate-600"}`}>
+                {pill.label}
+                {count !== null && <span className={`text-[10px] font-bold ${activeFilters.status === pill.value ? "text-white/80" : "text-muted-foreground"}`}>{count}</span>}
+              </button>
+            );
+          })}
         </div>
         {/* Filter bottom sheet */}
         <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
@@ -611,11 +500,12 @@ export function PurchasesContent() {
             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
               {statusFilterPills.map((pill) => {
                 const isActive = activeFilters.status === pill.value;
+                const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "ORDERED" ? stats.ordered : pill.value === "PARTIAL" ? stats.partial : pill.value === "RECEIVED" ? stats.received : pill.value === "CLOSED" ? stats.closed : pill.value === "CANCELLED" ? stats.cancelled : 0;
                 return (
                   <button key={pill.value} onClick={() => { handleStatusFilter(pill.value); setFilterSheetOpen(false); }}
                     className={cn("w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
                       isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted")}>
-                    <span>{pill.label}</span>
+                    <span>{pill.label}{count !== null ? ` (${count})` : ""}</span>
                     {isActive && <Check className="w-4 h-4" />}
                   </button>
                 );
@@ -625,44 +515,28 @@ export function PurchasesContent() {
         </Sheet>
       </div>
 
-      {/* Desktop: search + stats + filter pills */}
+      {/* Desktop: search + filter pills with count */}
       <div className="hidden sm:flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari PO berdasarkan nomor, supplier..." className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm" />
           {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 border border-slate-200 px-3 py-1.5">
-            <FileText className="w-3 h-3 text-slate-500" />
-            <span className="text-[11px] font-semibold text-slate-700">{stats.draftCount}</span>
-            <span className="text-[11px] text-slate-500">Draft</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
-            <Send className="w-3 h-3 text-blue-500" />
-            <span className="text-[11px] font-semibold text-blue-700">{stats.orderedCount}</span>
-            <span className="text-[11px] text-blue-500">Dipesan</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
-            <PackageCheck className="w-3 h-3 text-emerald-500" />
-            <span className="text-[11px] font-semibold text-emerald-700">{stats.receivedCount}</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5">
-            <DollarSign className="w-3 h-3 text-amber-500" />
-            <span className="text-[11px] font-semibold text-amber-700">{formatCurrency(stats.totalAmount)}</span>
-          </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {statusFilterPills.map((pill) => {
+            const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "ORDERED" ? stats.ordered : pill.value === "PARTIAL" ? stats.partial : pill.value === "RECEIVED" ? stats.received : pill.value === "CLOSED" ? stats.closed : pill.value === "CANCELLED" ? stats.cancelled : 0;
+            return (
+              <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
+                className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all inline-flex items-center gap-1.5 ${activeFilters.status === pill.value
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
+                  : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                {pill.label}
+                {count !== null && <span className={`text-[10px] font-bold min-w-[16px] h-4 rounded-full inline-flex items-center justify-center ${activeFilters.status === pill.value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
-      <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
-        {statusFilterPills.map((pill) => (
-          <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${activeFilters.status === pill.value
-              ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-200/50"
-              : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-              }`}>
-            {pill.label}
-          </button>
-        ))}
       </div>
 
       {/* PO Card List */}
@@ -727,6 +601,9 @@ export function PurchasesContent() {
                       {/* Row 1: PO number + supplier */}
                       <div className="flex items-baseline gap-1.5 sm:gap-2 pr-16 sm:pr-0">
                         <span className="font-mono text-xs sm:text-sm font-bold text-foreground">{row.orderNumber}</span>
+                        <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.orderNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
+                          <Copy className="w-3 h-3 text-slate-400" />
+                        </button>
                         <span className="text-xs sm:text-sm font-medium text-foreground truncate">{supplierName}</span>
                       </div>
                       {/* Row 2: Meta info */}
@@ -820,17 +697,122 @@ export function PurchasesContent() {
         onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
         onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
       />
+      <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { poForm.reset(); } }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0">
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-t-xl sm:rounded-t-2xl shrink-0" />
+          <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-bold">Buat Purchase Order</DialogTitle>
+          </DialogHeader>
+
+          <DialogBody className={`space-y-3 sm:space-y-5 overflow-x-hidden px-4 sm:px-6 ${!canCreate ? "pointer-events-none opacity-70" : ""}`}>
+            {/* Supplier, Location, Date — inline */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs sm:text-sm font-medium">Supplier <span className="text-red-400">*</span></Label>
+                <Controller name="supplierId" control={poForm.control} render={({ field }) => (
+                  <SmartSelect value={field.value} onChange={field.onChange} placeholder="Pilih supplier"
+                    onSearch={async (query) => suppliers.filter((s) => s.isActive && s.name.toLowerCase().includes(query.toLowerCase())).map((s) => ({ value: s.id, label: s.name }))} />
+                )} />
+                {poForm.formState.errors.supplierId && <p className="text-xs text-red-500">{poForm.formState.errors.supplierId.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs sm:text-sm font-medium">Lokasi <span className="text-red-400">*</span></Label>
+                {selectedBranchId ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-medium">{branches.find((b) => b.id === selectedBranchId)?.name ?? "—"}</span>
+                  </div>
+                ) : (
+                  <>
+                    <Controller name="branchIds" control={poForm.control} render={({ field }) => (
+                      <BranchMultiSelect branches={branches.filter((b) => b.isActive)} value={field.value} onChange={(v) => { field.onChange(v); poForm.setValue("items", []); }} placeholder="Pilih lokasi" />
+                    )} />
+                    {poForm.formState.errors.branchIds && <p className="text-xs text-red-500">{poForm.formState.errors.branchIds.message}</p>}
+                  </>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs sm:text-sm font-medium">Tanggal Diharapkan</Label>
+                <Controller name="expectedDate" control={poForm.control} render={({ field }) => (
+                  <DatePicker value={field.value ?? ""} onChange={field.onChange} className="rounded-xl" />
+                )} />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label className="text-xs sm:text-sm font-medium">Catatan (opsional)</Label>
+              <Input {...poForm.register("notes")} className="rounded-xl h-9 sm:h-10" placeholder="Catatan tambahan..." />
+            </div>
+
+            {/* Product items */}
+            {poForm.formState.errors.items?.root && <p className="text-xs text-red-500">{poForm.formState.errors.items.root.message}</p>}
+            {poForm.formState.errors.items?.message && <p className="text-xs text-red-500">{poForm.formState.errors.items.message}</p>}
+            <ProductPicker
+              stickySearch
+              items={watchedItems.map((item) => ({
+                productId: item.productId,
+                productName: item.productName || "",
+                productCode: "",
+                productPrice: item.unitPrice,
+                quantity: item.quantity,
+              }))}
+              onChange={(pickerItems) => {
+                poForm.setValue("items", pickerItems.map((pi) => ({
+                  productId: pi.productId,
+                  productName: pi.productName,
+                  quantity: pi.quantity,
+                  unitPrice: pi.productPrice,
+                })), { shouldValidate: true });
+              }}
+              branchId={selectedBranchId || undefined}
+              branchIds={effectiveBranchIds.length > 0 ? effectiveBranchIds : undefined}
+              label="Item PO"
+              required
+              usePurchasePrice
+              editablePrice
+              skipBranchStockFilter
+              emptyText="Pilih produk untuk ditambahkan ke PO"
+            />
+          </DialogBody>
+
+          <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 shrink-0 border-t">
+            <div className="flex items-center justify-between w-full gap-2">
+              {/* Left: total */}
+              {watchedItems.length > 0 ? (
+                <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                  <span className="text-[10px] sm:text-sm font-medium text-emerald-700 shrink-0">Total:</span>
+                  <span className="font-mono text-sm sm:text-lg font-bold text-emerald-700 tabular-nums truncate">{formatCurrency(cartTotal)}</span>
+                  <Badge className="hidden sm:inline-flex bg-emerald-50 text-emerald-700 border border-emerald-200 px-2">
+                    {watchedItems.length} produk
+                  </Badge>
+                </div>
+              ) : <div />}
+              {/* Right: buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">Batal</Button>
+                <DisabledActionTooltip disabled={!canCreate} message={cannotMessage("create")} menuKey="purchases" actionKey="create">
+                  <Button disabled={!canCreate || poForm.formState.isSubmitting} onClick={poForm.handleSubmit(handleCreatePO)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200/50">
+                    {poForm.formState.isSubmitting ? <Loader2 className="w-4 h-4 sm:mr-2 animate-spin" /> : <ShoppingBasket className="w-4 h-4 sm:mr-2" />}
+                    <span>{poForm.formState.isSubmitting ? "Menyimpan..." : "Buat PO"}</span>
+                  </Button>
+                </DisabledActionTooltip>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
           <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 shrink-0" />
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
             <DialogTitle className="text-base sm:text-lg font-bold">Detail Purchase Order</DialogTitle>
           </DialogHeader>
           {selectedPO && (<>
             <DialogBody className="px-4 sm:px-6 space-y-3 sm:space-y-4">
-              {/* Info cards grid */}
+              {/* Info cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">No. PO</p>
@@ -856,60 +838,58 @@ export function PurchasesContent() {
               </div>
 
               {/* Items table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-slate-50 to-white">
-                      <TableHead className="text-xs font-semibold">Produk</TableHead>
-                      <TableHead className="text-center text-xs font-semibold">Order</TableHead>
-                      <TableHead className="text-center text-xs font-semibold">Diterima</TableHead>
-                      <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Selisih</TableHead>
-                      <TableHead className="text-right text-xs font-semibold">Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedPO.items.map((item) => {
-                      const gap = item.quantity - item.receivedQty;
-                      const discReason = (item as unknown as { discrepancyReason?: string }).discrepancyReason;
-                      const discNote = (item as unknown as { discrepancyNote?: string }).discrepancyNote;
-                      return (
-                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell>
-                            <p className="text-sm font-medium">{item.product.name}</p>
-                            {discReason && (
-                              <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
-                                <AlertTriangle className="w-2.5 h-2.5" />
-                                {discReason === "KURANG_KIRIM" ? "Kurang Kirim" : discReason === "RUSAK" ? "Rusak" : discReason === "RETUR" ? "Retur" : discReason}
-                                {discNote && <span className="text-muted-foreground">— {discNote}</span>}
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center text-sm tabular-nums">{item.quantity}</TableCell>
-                          <TableCell className="text-center text-sm">
-                            <Badge
-                              variant={item.receivedQty >= item.quantity ? "default" : "secondary"}
-                              className={`rounded-lg font-semibold ${item.receivedQty >= item.quantity
-                                ? "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200"
-                                : "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
-                                }`}
-                            >
-                              {item.receivedQty}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center text-sm hidden sm:table-cell">
-                            {gap > 0 ? (
-                              <Badge className="rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold">-{gap}</Badge>
-                            ) : (
-                              <span className="text-emerald-500 text-xs">✓</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-semibold tabular-nums">{formatCurrency(item.subtotal)}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <Table noWrapper>
+                <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
+                  <TableRow>
+                    <TableHead className="text-xs font-semibold">Produk</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Order</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Diterima</TableHead>
+                    <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Selisih</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedPO.items.map((item) => {
+                    const gap = item.quantity - item.receivedQty;
+                    const discReason = (item as unknown as { discrepancyReason?: string }).discrepancyReason;
+                    const discNote = (item as unknown as { discrepancyNote?: string }).discrepancyNote;
+                    return (
+                      <TableRow key={item.id} className="hover:bg-slate-50/50">
+                        <TableCell>
+                          <p className="text-sm font-medium">{item.product.name}</p>
+                          {discReason && (
+                            <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              {discReason === "KURANG_KIRIM" ? "Kurang Kirim" : discReason === "RUSAK" ? "Rusak" : discReason === "RETUR" ? "Retur" : discReason}
+                              {discNote && <span className="text-muted-foreground">— {discNote}</span>}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-sm tabular-nums">{item.quantity}</TableCell>
+                        <TableCell className="text-center text-sm">
+                          <Badge
+                            variant={item.receivedQty >= item.quantity ? "default" : "secondary"}
+                            className={`rounded-lg font-semibold ${item.receivedQty >= item.quantity
+                              ? "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200"
+                              : "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
+                              }`}
+                          >
+                            {item.receivedQty}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center text-sm hidden sm:table-cell">
+                          {gap > 0 ? (
+                            <Badge className="rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold">-{gap}</Badge>
+                          ) : (
+                            <span className="text-emerald-500 text-xs">✓</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-semibold tabular-nums">{formatCurrency(item.subtotal)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
 
               {selectedPO.status === "CLOSED" && (selectedPO as unknown as { closingNotes?: string }).closingNotes && (
                 <div className="rounded-xl border border-purple-200 bg-purple-50 p-3">
@@ -1004,7 +984,7 @@ export function PurchasesContent() {
 
       {/* Receive Dialog */}
       <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-4xl rounded-xl sm:rounded-2xl p-0 gap-0 max-h-[90vh] flex flex-col">
           <div className="h-1.5 bg-gradient-to-r from-emerald-500 via-green-500 to-lime-500 shrink-0" />
           <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 shrink-0">
             <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
@@ -1015,59 +995,58 @@ export function PurchasesContent() {
               <p className="text-xs font-mono text-muted-foreground mt-1">{selectedPO.orderNumber}</p>
             )}
           </DialogHeader>
-          {selectedPO && (
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-4 sm:pb-6 space-y-3 sm:space-y-4">
+          {selectedPO && (<>
+            <DialogBody className="px-4 sm:px-6 space-y-3">
               <p className="text-xs sm:text-sm text-muted-foreground">Masukkan jumlah barang yang diterima untuk setiap item.</p>
-              <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gradient-to-r from-slate-50 to-white">
-                      <TableHead className="text-xs font-semibold">Produk</TableHead>
-                      <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Order</TableHead>
-                      <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Sudah</TableHead>
-                      <TableHead className="text-center text-xs font-semibold">Terima</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedPO.items.map((item) => {
-                      const remaining = item.quantity - item.receivedQty;
-                      return (
-                        <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell className="text-sm font-medium">{item.product.name}</TableCell>
-                          <TableCell className="text-center text-sm tabular-nums hidden sm:table-cell">{item.quantity}</TableCell>
-                          <TableCell className="text-center text-sm hidden sm:table-cell">
-                            <Badge variant="secondary" className="rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 font-semibold">
-                              {item.receivedQty}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={remaining}
-                              value={receiveQtys[item.id] || 0}
-                              onChange={(e) => setReceiveQtys({ ...receiveQtys, [item.id]: Number(e.target.value) })}
-                              className="w-20 mx-auto rounded-xl text-center text-sm border-slate-200 focus:border-emerald-300"
-                              disabled={remaining <= 0}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setReceiveOpen(false)} className="rounded-xl">Batal</Button>
-                <DisabledActionTooltip disabled={!canReceive} message={cannotMessage("receive")}>
-                  <Button disabled={!canReceive} onClick={handleReceive} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg shadow-emerald-200/50">
-                    <PackageCheck className="w-4 h-4 mr-2" />
-                    Terima Barang
-                  </Button>
-                </DisabledActionTooltip>
-              </div>
-            </div>
-          )}
+              <Table noWrapper>
+                <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
+                  <TableRow className="bg-gradient-to-r from-slate-50 to-white">
+                    <TableHead className="text-xs font-semibold">Produk</TableHead>
+                    <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Order</TableHead>
+                    <TableHead className="text-center text-xs font-semibold hidden sm:table-cell">Sudah</TableHead>
+                    <TableHead className="text-center text-xs font-semibold">Terima</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedPO.items.map((item) => {
+                    const remaining = item.quantity - item.receivedQty;
+                    return (
+                      <TableRow key={item.id} className="hover:bg-slate-50/50">
+                        <TableCell className="text-sm font-medium">{item.product.name}</TableCell>
+                        <TableCell className="text-center text-sm tabular-nums hidden sm:table-cell">{item.quantity}</TableCell>
+                        <TableCell className="text-center text-sm hidden sm:table-cell">
+                          <Badge variant="secondary" className="rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 font-semibold">
+                            {item.receivedQty}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={remaining}
+                            value={receiveQtys[item.id] || 0}
+                            onChange={(e) => setReceiveQtys({ ...receiveQtys, [item.id]: Number(e.target.value) })}
+                            onFocus={(e) => e.target.select()}
+                            className="w-30 mx-auto rounded-xl text-right text-sm border-slate-200 focus:border-emerald-300"
+                            disabled={remaining <= 0}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </DialogBody>
+            <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <Button variant="outline" onClick={() => setReceiveOpen(false)} className="rounded-xl">Batal</Button>
+              <DisabledActionTooltip disabled={!canReceive} message={cannotMessage("receive")}>
+                <Button disabled={!canReceive} onClick={handleReceive} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg shadow-emerald-200/50">
+                  <PackageCheck className="w-4 h-4 mr-2" />
+                  Terima Barang
+                </Button>
+              </DisabledActionTooltip>
+            </DialogFooter>
+          </>)}
         </DialogContent>
       </Dialog>
 

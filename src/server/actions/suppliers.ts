@@ -41,6 +41,17 @@ export async function getAllSuppliers() {
   });
 }
 
+export async function getSupplierStats() {
+  const companyId = await getCurrentCompanyId();
+  const [total, active, inactive, withProducts] = await Promise.all([
+    prisma.supplier.count({ where: { companyId } }),
+    prisma.supplier.count({ where: { companyId, isActive: true } }),
+    prisma.supplier.count({ where: { companyId, isActive: false } }),
+    prisma.supplier.count({ where: { companyId, products: { some: {} } } }),
+  ]);
+  return { total, active, inactive, withProducts };
+}
+
 export async function createSupplier(data: FormData) {
   await assertMenuActionAccess("suppliers", "create");
   const parsed = supplierSchema.safeParse({

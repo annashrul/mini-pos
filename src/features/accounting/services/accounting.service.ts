@@ -7,17 +7,29 @@ import {
   updateAccount,
   deleteAccount,
   getAccountsByType,
+  getCoaStats,
   getJournalEntries,
   getJournalEntryById,
   createJournalEntry,
   updateJournalEntry,
   postJournalEntry,
   voidJournalEntry,
+  submitJournalForApproval,
+  approveJournalEntry,
+  rejectJournalEntry,
+  getJournalChangeHistory,
   getAccountingPeriods,
   createAccountingPeriod,
   closePeriod,
   reopenPeriod,
   lockPeriod,
+  getRecurringTemplates,
+  createRecurringTemplate,
+  deleteRecurringTemplate,
+  toggleRecurringTemplate,
+  executeRecurringJournals,
+  backfillJournals,
+  seedDefaultCOA,
 } from "@/server/actions/accounting";
 
 import {
@@ -27,6 +39,12 @@ import {
   getBalanceSheet,
   getCashFlow,
   getAccountingDashboard,
+  getTaxSummaryReport,
+  getEFakturExport,
+  getAgingReport,
+  getDrillDownEntries,
+  getPeriodClosingChecklist,
+  createClosingEntries,
 } from "@/server/actions/accounting-reports";
 
 export const accountingService = {
@@ -39,6 +57,7 @@ export const accountingService = {
   updateAccount,
   deleteAccount,
   getAccountsByType,
+  getCoaStats,
   // Journals
   getJournalEntries,
   getJournalEntryById,
@@ -46,6 +65,10 @@ export const accountingService = {
   updateJournalEntry,
   postJournalEntry,
   voidJournalEntry,
+  submitJournalForApproval,
+  approveJournalEntry,
+  rejectJournalEntry,
+  getJournalChangeHistory,
   // Reports
   getGeneralLedger,
   getTrialBalance,
@@ -53,10 +76,25 @@ export const accountingService = {
   getBalanceSheet,
   getCashFlow,
   getAccountingDashboard,
+  getTaxSummaryReport,
+  getEFakturExport,
+  getAgingReport,
+  getDrillDownEntries,
   // Periods
   getAccountingPeriods,
   createAccountingPeriod,
   closePeriod,
   reopenPeriod,
   lockPeriod,
+  getPeriodClosingChecklist,
+  createClosingEntries,
+  // Recurring
+  getRecurringTemplates,
+  createRecurringTemplate,
+  deleteRecurringTemplate,
+  toggleRecurringTemplate,
+  executeRecurringJournals,
+  // Utilities
+  backfillJournals,
+  seedDefaultCOA,
 };

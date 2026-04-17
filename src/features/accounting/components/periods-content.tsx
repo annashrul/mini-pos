@@ -4,6 +4,7 @@ import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useMenuActionAccess } from "@/features/access-control";
+import { getPeriodClosingChecklist, createClosingEntries } from "@/server/actions/accounting-reports";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,36 @@ export function PeriodsContent() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(15);
     const [search, setSearch] = useState("");
+
+    // Closing wizard
+    const [closingPeriodId, setClosingPeriodId] = useState<string | null>(null);
+    const [closingChecklist, setClosingChecklist] = useState<Awaited<ReturnType<typeof getPeriodClosingChecklist>> | null>(null);
+    const [closingLoading, setClosingLoading] = useState(false);
+
+    const openClosingWizard = async (periodId: string) => {
+        setClosingPeriodId(periodId);
+        setClosingLoading(true);
+        const result = await getPeriodClosingChecklist(periodId);
+        setClosingChecklist(result);
+        setClosingLoading(false);
+    };
+
+    const handleClosePeriod = async () => {
+        if (!closingPeriodId) return;
+        setClosingLoading(true);
+        const result = await createClosingEntries(closingPeriodId);
+        if ("error" in result) {
+            const { toast } = await import("sonner");
+            toast.error(result.error);
+        } else {
+            const { toast } = await import("sonner");
+            toast.success(`Periode ditutup. Jurnal penutup: ${result.entryNumber}`);
+            setClosingPeriodId(null);
+            setClosingChecklist(null);
+            load();
+        }
+        setClosingLoading(false);
+    };
     const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
 
     const filtered = useMemo(() => {
@@ -167,7 +198,7 @@ export function PeriodsContent() {
                                 variant="outline"
                                 disabled={!canClose}
                                 className="rounded-lg gap-1.5 text-xs h-8 border-amber-200 text-amber-700 hover:bg-amber-50"
-                                onClick={() => setConfirmAction({ id: p.id, action: "close" })}
+                                onClick={() => openClosingWizard(p.id)}
                             >
                                 <Lock className="w-3 h-3" />
                                 Tutup
@@ -316,6 +347,63 @@ export function PeriodsContent() {
                 onClose={() => setShowCreate(false)}
                 onCreated={load}
             />
+
+            {/* Closing Wizard Dialog */}
+            <Dialog open={!!closingPeriodId} onOpenChange={(v) => { if (!v) { setClosingPeriodId(null); setClosingChecklist(null); } }}>
+                <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl p-0 gap-0">
+                    <div className="h-1 bg-gradient-to-r from-amber-500 to-orange-600 shrink-0 rounded-t-xl sm:rounded-t-2xl" />
+                    <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3">
+                        <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                            <Lock className="w-5 h-5 text-amber-500" /> Tutup Periode
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
+                        {closingLoading && !closingChecklist ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mr-2" />
+                                <span className="text-sm text-muted-foreground">Memeriksa kesiapan...</span>
+                            </div>
+                        ) : closingChecklist && "checks" in closingChecklist ? (
+                            <>
+                                <div className="rounded-xl border p-3 bg-slate-50">
+                                    <p className="text-xs font-semibold text-foreground mb-0.5">{closingChecklist.period?.name}</p>
+                                    <p className="text-[11px] text-muted-foreground">{closingChecklist.period?.dateFrom} — {closingChecklist.period?.dateTo}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold">Checklist Penutupan</p>
+                                    {closingChecklist.checks.map((check) => (
+                                        <div key={check.key} className={`flex items-center gap-2 p-2.5 rounded-lg border ${check.passed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+                                            {check.passed ? (
+                                                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg></div>
+                                            ) : (
+                                                <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center shrink-0"><svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg></div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-xs font-medium ${check.passed ? "text-emerald-700" : "text-red-700"}`}>{check.label}</p>
+                                                {"count" in check && !check.passed && <p className="text-[10px] text-red-500">{check.count} jurnal belum selesai</p>}
+                                                {"missing" in check && !check.passed && <p className="text-[10px] text-red-500">{check.missing} transaksi belum dijurnal</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <Button variant="outline" className="rounded-xl" onClick={() => { setClosingPeriodId(null); setClosingChecklist(null); }}>Batal</Button>
+                                    <Button
+                                        className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white"
+                                        disabled={!closingChecklist.allPassed || closingLoading}
+                                        onClick={handleClosePeriod}
+                                    >
+                                        {closingLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" /> : <Lock className="w-4 h-4 mr-2" />}
+                                        Tutup & Buat Jurnal Penutup
+                                    </Button>
+                                </div>
+                            </>
+                        ) : closingChecklist && "error" in closingChecklist ? (
+                            <p className="text-sm text-red-600">{closingChecklist.error}</p>
+                        ) : null}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <ActionConfirmDialog
                 open={!!confirmAction}

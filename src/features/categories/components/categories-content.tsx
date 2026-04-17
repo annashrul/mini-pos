@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createCategory, updateCategory, deleteCategory, getCategories } from "@/features/categories";
+import { createCategory, updateCategory, deleteCategory, getCategories, getCategoryStats } from "@/features/categories";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { Button } from "@/components/ui/button";
@@ -48,19 +48,16 @@ export function CategoriesContent() {
     const canUpdate = canAction("update") && canPlan("categories", "update");
     const canDelete = canAction("delete") && canPlan("categories", "delete");
 
-    // --- Stats ---
-    const stats = useMemo(() => {
-        const categories = data.categories;
-        const total = data.total;
-        const withProducts = categories.filter((c) => c._count.products > 0).length;
-        const empty = categories.filter((c) => c._count.products === 0).length;
-        return { total, withProducts, empty };
-    }, [data.categories, data.total]);
+    const [stats, setStats] = useState({ total: 0, withProducts: 0, empty: 0 });
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number }) => {
         startTransition(async () => {
-            const result = await getCategories({ search: params.search ?? search, page: params.page ?? page, perPage: params.pageSize ?? pageSize });
+            const [result, statsResult] = await Promise.all([
+                getCategories({ search: params.search ?? search, page: params.page ?? page, perPage: params.pageSize ?? pageSize }),
+                getCategoryStats(),
+            ]);
             setData(result);
+            setStats(statsResult);
         });
     };
 

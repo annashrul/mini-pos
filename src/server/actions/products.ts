@@ -222,9 +222,11 @@ export async function searchProductsByBranch(params: {
   search?: string | undefined;
   page?: number | undefined;
   limit?: number | undefined;
+  /** If true, don't filter by BranchStock — show all products (useful for PO) */
+  skipBranchStockFilter?: boolean | undefined;
 }) {
   const companyId = await getCurrentCompanyId();
-  const { branchId, branchIds, categoryId, search, page = 1, limit = 10 } = params;
+  const { branchId, branchIds, categoryId, search, page = 1, limit = 10, skipBranchStockFilter = false } = params;
 
   // Resolve effective branch filter
   const effectiveIds = branchId ? [branchId] : (branchIds ?? []).filter(Boolean);
@@ -239,7 +241,8 @@ export async function searchProductsByBranch(params: {
       { barcode: { contains: search, mode: "insensitive" } },
     ];
   }
-  if (hasBranch) {
+  // Only filter by BranchStock if not skipped (e.g. POS needs stock filter, PO doesn't)
+  if (hasBranch && !skipBranchStockFilter) {
     where.branchStocks = { some: { branchId: { in: effectiveIds } } };
   }
 

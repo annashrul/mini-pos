@@ -153,7 +153,7 @@ export function COAContent() {
   const {
     allAccounts,
     search,
-    setSearch,
+    handleSearch,
     collapsedCategories,
     dialogOpen,
     editingAccount,
@@ -301,7 +301,7 @@ export function COAContent() {
         <Input
           placeholder="Cari kode atau nama akun..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           className="pl-9 sm:pl-10 rounded-xl h-9 sm:h-10 text-sm border-gray-200 focus-visible:ring-blue-500/20"
         />
       </div>

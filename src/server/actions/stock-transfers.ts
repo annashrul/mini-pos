@@ -105,6 +105,27 @@ async function validateTransferOwnership(id: string, companyId: string) {
   });
 }
 
+export async function getStockTransferStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { companyId };
+  if (branchId && branchId !== "ALL") {
+    where.OR = [{ fromBranchId: branchId }, { toBranchId: branchId }];
+  }
+  const counts = await prisma.stockTransfer.groupBy({
+    by: ["status"],
+    where,
+    _count: true,
+  });
+  const map = new Map(counts.map((c) => [c.status, c._count]));
+  return {
+    pending: map.get("PENDING") ?? 0,
+    approved: map.get("APPROVED") ?? 0,
+    inTransit: map.get("IN_TRANSIT") ?? 0,
+    received: map.get("RECEIVED") ?? 0,
+    rejected: map.get("REJECTED") ?? 0,
+  };
+}
+
 export async function getStockTransferById(id: string) {
   const companyId = await getCurrentCompanyId();
   return prisma.stockTransfer.findFirst({

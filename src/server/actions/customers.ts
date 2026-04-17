@@ -62,6 +62,30 @@ export async function getCustomers(params?: {
   return { customers, total, totalPages: Math.ceil(total / perPage) };
 }
 
+export async function getCustomerStats() {
+  const companyId = await getCurrentCompanyId();
+  const counts = await prisma.customer.groupBy({
+    by: ["memberLevel"],
+    where: { companyId },
+    _count: true,
+  });
+  const agg = await prisma.customer.aggregate({
+    where: { companyId },
+    _sum: { totalSpending: true, points: true },
+    _count: true,
+  });
+  const map = new Map(counts.map((c) => [c.memberLevel, c._count]));
+  return {
+    total: agg._count,
+    regular: map.get("REGULAR") ?? 0,
+    silver: map.get("SILVER") ?? 0,
+    gold: map.get("GOLD") ?? 0,
+    platinum: map.get("PLATINUM") ?? 0,
+    totalSpending: agg._sum.totalSpending ?? 0,
+    totalPoints: agg._sum.points ?? 0,
+  };
+}
+
 export async function createCustomer(data: FormData) {
   await assertMenuActionAccess("customers", "create");
   const companyId = await getCurrentCompanyId();

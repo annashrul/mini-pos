@@ -40,11 +40,22 @@ async function resolveSessionUserId() {
 }
 
 async function getSystemAccounts(codes: string[], companyId: string) {
+  // Account codes may have company suffix (e.g. "1-1001-ABCD"), so use startsWith match
   const accounts = await prisma.account.findMany({
-    where: { code: { in: codes }, category: { companyId } },
+    where: {
+      OR: codes.map((code) => ({ code: { startsWith: code } })),
+      category: { companyId },
+    },
   });
 
-  const map = new Map(accounts.map((a) => [a.code, a]));
+  // Map back to base code (e.g. "1-1001-ABCD" -> "1-1001")
+  const map = new Map<string, typeof accounts[number]>();
+  for (const account of accounts) {
+    const baseCode = codes.find((c) => account.code.startsWith(c));
+    if (baseCode && !map.has(baseCode)) {
+      map.set(baseCode, account);
+    }
+  }
 
   for (const code of codes) {
     if (!map.has(code)) {
@@ -55,6 +66,26 @@ async function getSystemAccounts(codes: string[], companyId: string) {
   }
 
   return map;
+}
+
+async function createJournalChangeLog(params: {
+  journalId: string;
+  action: string;
+  userId: string;
+  changes?: Record<string, { old: unknown; new: unknown }>;
+  snapshot?: Record<string, unknown>;
+}) {
+  try {
+    await prisma.journalChangeLog.create({
+      data: {
+        journalId: params.journalId,
+        action: params.action,
+        userId: params.userId,
+        changes: params.changes ? JSON.stringify(params.changes) : null,
+        snapshot: params.snapshot ? JSON.stringify(params.snapshot) : null,
+      },
+    });
+  } catch { /* non-blocking */ }
 }
 
 function generateEntryNumber(date: Date, sequence: number): string {
@@ -165,8 +196,8 @@ export async function getAccounts(params: GetAccountsParams = {}) {
 
 export async function getAccountTree() {
   const companyId = await getCurrentCompanyId();
-  // Parallelkan 2 query yang independen
-  const [categories, accounts] = await Promise.all([
+  // Parallelkan 3 query yang independen
+  const [categories, accounts, balances] = await Promise.all([
     prisma.accountCategory.findMany({
       where: { companyId },
       orderBy: { sortOrder: "asc" },
@@ -181,7 +212,19 @@ export async function getAccountTree() {
       },
       orderBy: { code: "asc" },
     }),
+    // Calculate actual balance per account from posted journals
+    prisma.$queryRaw<Array<{ accountId: string; total_debit: number; total_credit: number }>>`
+      SELECT jel."accountId", COALESCE(SUM(jel.debit), 0)::float AS total_debit, COALESCE(SUM(jel.credit), 0)::float AS total_credit
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel."journalId"
+      JOIN accounts a ON a.id = jel."accountId"
+      JOIN account_categories ac ON ac.id = a."categoryId"
+      WHERE je.status = 'POSTED' AND ac."companyId" = ${companyId}
+      GROUP BY jel."accountId"
+    `,
   ]);
+
+  const balanceMap = new Map(balances.map((b) => [b.accountId, b]));
 
   const tree = categories.map((cat) => {
     const catAccounts = accounts.filter((a) => a.categoryId === cat.id);
@@ -198,8 +241,16 @@ export async function getAccountTree() {
     function buildNode(
       account: (typeof catAccounts)[0],
     ): Record<string, unknown> {
+      const bal = balanceMap.get(account.id);
+      const normalSide = cat.normalSide;
+      // DEBIT-normal accounts: balance = opening + debit - credit
+      // CREDIT-normal accounts: balance = opening + credit - debit
+      const calculatedBalance = normalSide === "DEBIT"
+        ? account.openingBalance + (bal?.total_debit ?? 0) - (bal?.total_credit ?? 0)
+        : account.openingBalance + (bal?.total_credit ?? 0) - (bal?.total_debit ?? 0);
       return {
         ...account,
+        openingBalance: calculatedBalance,
         children: (childMap.get(account.id) || []).map(buildNode),
       };
     }
@@ -230,6 +281,33 @@ export async function getAccountById(id: string) {
   }
 
   return { account };
+}
+
+export async function getCoaStats() {
+  const companyId = await getCurrentCompanyId();
+  const results = await prisma.$queryRaw<Array<{ category: string; count: number; total_balance: number }>>`
+    SELECT ac.type AS category, COUNT(DISTINCT a.id)::int AS count,
+      COALESCE(SUM(a."openingBalance" + COALESCE(jl.total_debit, 0) - COALESCE(jl.total_credit, 0)), 0)::float AS total_balance
+    FROM accounts a
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    LEFT JOIN (
+      SELECT jel."accountId", SUM(jel.debit) AS total_debit, SUM(jel.credit) AS total_credit
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel."journalId"
+      WHERE je.status = 'POSTED'
+      GROUP BY jel."accountId"
+    ) jl ON jl."accountId" = a.id
+    WHERE ac."companyId" = ${companyId}
+    GROUP BY ac.type
+  `;
+  const map = new Map(results.map((r) => [r.category, r]));
+  const totalAccounts = results.reduce((s, r) => s + r.count, 0);
+  return {
+    totalAccounts,
+    aset: map.get("ASET")?.total_balance ?? 0,
+    kewajiban: map.get("KEWAJIBAN")?.total_balance ?? 0,
+    modal: map.get("MODAL")?.total_balance ?? 0,
+  };
 }
 
 interface CreateAccountInput {
@@ -739,12 +817,14 @@ export async function createJournalEntry(data: CreateJournalEntryInput) {
     action: "CREATE",
     entity: "JournalEntry",
     entityId: entry.id,
-    details: {
-      entryNumber,
-      totalDebit,
-      totalCredit,
-      linesCount: data.lines.length,
-    },
+    details: { entryNumber, totalDebit, totalCredit, linesCount: data.lines.length },
+  });
+
+  createJournalChangeLog({
+    journalId: entry.id,
+    action: "CREATED",
+    userId,
+    snapshot: { entryNumber, description: data.description, status: "DRAFT", totalDebit, totalCredit, lines: entry.lines },
   });
 
   revalidatePath("/accounting");
@@ -920,8 +1000,8 @@ export async function postJournalEntry(id: string) {
   if (!entry) {
     return { error: "Jurnal tidak ditemukan" };
   }
-  if (entry.status !== "DRAFT") {
-    return { error: "Hanya jurnal berstatus DRAFT yang dapat diposting" };
+  if (entry.status !== "DRAFT" && entry.status !== "PENDING_APPROVAL") {
+    return { error: "Hanya jurnal DRAFT atau PENDING_APPROVAL yang dapat diposting" };
   }
   if (Math.abs(entry.totalDebit - entry.totalCredit) > 0.01) {
     return { error: "Total debit dan kredit tidak seimbang" };
@@ -929,8 +1009,10 @@ export async function postJournalEntry(id: string) {
 
   await prisma.journalEntry.update({
     where: { id },
-    data: { status: "POSTED", updatedBy: userId },
+    data: { status: "POSTED", updatedBy: userId, approvedBy: userId, approvedAt: new Date() },
   });
+
+  createJournalChangeLog({ journalId: id, action: "POSTED", userId, changes: { status: { old: entry.status, new: "POSTED" } } });
 
   await createAuditLog({
     action: "POST",
@@ -941,6 +1023,83 @@ export async function postJournalEntry(id: string) {
 
   revalidatePath("/accounting");
   return { success: true };
+}
+
+// ─── Journal Approval Workflow ───
+
+export async function submitJournalForApproval(id: string) {
+  await assertMenuActionAccess("accounting-journals", "create");
+  const companyId = await getCurrentCompanyId();
+  const authResult = await resolveSessionUserId();
+  if ("error" in authResult) return { error: authResult.error };
+
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
+    select: { id: true, status: true, totalDebit: true, totalCredit: true, entryNumber: true },
+  });
+  if (!entry) return { error: "Jurnal tidak ditemukan" };
+  if (entry.status !== "DRAFT") return { error: "Hanya jurnal DRAFT yang dapat diajukan" };
+  if (Math.abs(entry.totalDebit - entry.totalCredit) > 0.01) return { error: "Total debit dan kredit tidak seimbang" };
+
+  await prisma.journalEntry.update({ where: { id }, data: { status: "PENDING_APPROVAL" } });
+  createJournalChangeLog({ journalId: id, action: "SUBMITTED", userId: authResult.userId, changes: { status: { old: "DRAFT", new: "PENDING_APPROVAL" } } });
+  revalidatePath("/accounting");
+  return { success: true };
+}
+
+export async function approveJournalEntry(id: string) {
+  await assertMenuActionAccess("accounting-journals", "approve");
+  const companyId = await getCurrentCompanyId();
+  const authResult = await resolveSessionUserId();
+  if ("error" in authResult) return { error: authResult.error };
+
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
+    select: { id: true, status: true, entryNumber: true },
+  });
+  if (!entry) return { error: "Jurnal tidak ditemukan" };
+  if (entry.status !== "PENDING_APPROVAL") return { error: "Hanya jurnal PENDING_APPROVAL yang dapat disetujui" };
+
+  await prisma.journalEntry.update({
+    where: { id },
+    data: { status: "POSTED", approvedBy: authResult.userId, approvedAt: new Date() },
+  });
+  createJournalChangeLog({ journalId: id, action: "APPROVED", userId: authResult.userId, changes: { status: { old: "PENDING_APPROVAL", new: "POSTED" } } });
+  revalidatePath("/accounting");
+  return { success: true };
+}
+
+export async function rejectJournalEntry(id: string, reason: string) {
+  await assertMenuActionAccess("accounting-journals", "approve");
+  const companyId = await getCurrentCompanyId();
+  const authResult = await resolveSessionUserId();
+  if ("error" in authResult) return { error: authResult.error };
+
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, branch: { companyId } },
+    select: { id: true, status: true, entryNumber: true },
+  });
+  if (!entry) return { error: "Jurnal tidak ditemukan" };
+  if (entry.status !== "PENDING_APPROVAL") return { error: "Hanya jurnal PENDING_APPROVAL yang dapat ditolak" };
+
+  await prisma.journalEntry.update({
+    where: { id },
+    data: { status: "DRAFT", rejectionNote: reason },
+  });
+  createJournalChangeLog({ journalId: id, action: "REJECTED", userId: authResult.userId, changes: { status: { old: "PENDING_APPROVAL", new: "DRAFT" }, rejectionNote: { old: null, new: reason } } });
+  revalidatePath("/accounting");
+  return { success: true };
+}
+
+export async function getJournalChangeHistory(journalId: string) {
+  const companyId = await getCurrentCompanyId();
+  const entry = await prisma.journalEntry.findFirst({ where: { id: journalId, branch: { companyId } }, select: { id: true } });
+  if (!entry) return [];
+  return prisma.journalChangeLog.findMany({
+    where: { journalId },
+    include: { user: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function voidJournalEntry(id: string, reason: string) {
@@ -1070,6 +1229,8 @@ export async function voidJournalEntry(id: string, reason: string) {
     },
   });
 
+  createJournalChangeLog({ journalId: id, action: "VOIDED", userId, changes: { status: { old: entry.status, new: "VOIDED" }, reason: { old: null, new: reason.trim() } } });
+
   revalidatePath("/accounting");
   return { success: true, reversingEntryNumber: reversingNumber };
 }
@@ -1103,30 +1264,25 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
     description: string;
     debit: number;
     credit: number;
+    taxType?: string;
+    taxAmount?: number;
+    taxBaseAmount?: number;
   }[] = [];
 
   try {
     switch (referenceType) {
       case "TRANSACTION": {
         // Fetch transaksi + semua system accounts sekaligus — parallel
+        const taxAccountCodes = ["2-1100"]; // PPN Keluaran
         const [txn, accs] = await Promise.all([
           prisma.transaction.findUnique({
             where: { id: referenceId },
             include: {
-              items: {
-                include: { product: { select: { purchasePrice: true } } },
-              },
+              items: { include: { product: { select: { purchasePrice: true } } } },
               payments: true,
             },
           }),
-          getSystemAccounts([
-            "1-1001",
-            "1-1002",
-            "1-1003",
-            "1-1004",
-            "4-1001",
-            "5-1001",
-          ], companyId),
+          getSystemAccounts(["1-1001", "1-1002", "1-1003", "1-1004", "4-1001", "5-1001", ...taxAccountCodes], companyId),
         ]);
         if (!txn) return { error: "Transaksi tidak ditemukan" };
 
@@ -1139,44 +1295,29 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
         const inventoryAccount = accs.get("1-1004")!;
         const revenueAccount = accs.get("4-1001")!;
         const cogsAccount = accs.get("5-1001")!;
+        const ppnKeluaranAccount = accs.get("2-1100");
 
+        // Debit: asset accounts (cash/bank/receivable)
         if (txn.payments && txn.payments.length > 0) {
           for (const payment of txn.payments) {
-            const targetAccount =
-              payment.method === "CASH"
-                ? cashAccount
-                : payment.method === "TERMIN"
-                  ? receivableAccount
-                  : bankAccount;
-            lines.push({
-              accountId: targetAccount.id,
-              description: `Penerimaan ${payment.method} — ${txn.invoiceNumber}`,
-              debit: payment.amount,
-              credit: 0,
-            });
+            const targetAccount = payment.method === "CASH" ? cashAccount : payment.method === "TERMIN" ? receivableAccount : bankAccount;
+            lines.push({ accountId: targetAccount.id, description: `Penerimaan ${payment.method} — ${txn.invoiceNumber}`, debit: payment.amount, credit: 0 });
           }
         } else {
-          const targetAccount =
-            txn.paymentMethod === "CASH"
-              ? cashAccount
-              : txn.paymentMethod === "TERMIN"
-                ? receivableAccount
-                : bankAccount;
-          lines.push({
-            accountId: targetAccount.id,
-            description: `Penerimaan ${txn.paymentMethod} — ${txn.invoiceNumber}`,
-            debit: txn.grandTotal,
-            credit: 0,
-          });
+          const targetAccount = txn.paymentMethod === "CASH" ? cashAccount : txn.paymentMethod === "TERMIN" ? receivableAccount : bankAccount;
+          lines.push({ accountId: targetAccount.id, description: `Penerimaan ${txn.paymentMethod} — ${txn.invoiceNumber}`, debit: txn.grandTotal, credit: 0 });
         }
 
-        lines.push({
-          accountId: revenueAccount.id,
-          description: `Pendapatan penjualan — ${txn.invoiceNumber}`,
-          debit: 0,
-          credit: txn.grandTotal,
-        });
+        // Credit: revenue (DPP) + PPN Keluaran
+        const taxAmount = txn.taxAmount || 0;
+        const dpp = txn.grandTotal - taxAmount;
+        lines.push({ accountId: revenueAccount.id, description: `Pendapatan penjualan — ${txn.invoiceNumber}`, debit: 0, credit: dpp });
 
+        if (taxAmount > 0 && ppnKeluaranAccount) {
+          lines.push({ accountId: ppnKeluaranAccount.id, description: `PPN Keluaran — ${txn.invoiceNumber}`, debit: 0, credit: taxAmount, taxType: "PPN_KELUARAN", taxAmount, taxBaseAmount: dpp });
+        }
+
+        // COGS + Inventory reduction
         let totalCogs = 0;
         for (const item of txn.items) {
           const costPrice = item.product?.purchasePrice || 0;
@@ -1184,18 +1325,8 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
           totalCogs += costPrice * baseQty;
         }
         if (totalCogs > 0) {
-          lines.push({
-            accountId: cogsAccount.id,
-            description: `HPP — ${txn.invoiceNumber}`,
-            debit: totalCogs,
-            credit: 0,
-          });
-          lines.push({
-            accountId: inventoryAccount.id,
-            description: `Pengurangan persediaan — ${txn.invoiceNumber}`,
-            debit: 0,
-            credit: totalCogs,
-          });
+          lines.push({ accountId: cogsAccount.id, description: `HPP — ${txn.invoiceNumber}`, debit: totalCogs, credit: 0 });
+          lines.push({ accountId: inventoryAccount.id, description: `Pengurangan persediaan — ${txn.invoiceNumber}`, debit: 0, credit: totalCogs });
         }
         break;
       }
@@ -1206,7 +1337,7 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             where: { id: referenceId },
             include: { supplier: { select: { name: true } } },
           }),
-          getSystemAccounts(["1-1001", "1-1004", "2-1001"], companyId),
+          getSystemAccounts(["1-1001", "1-1004", "1-1100", "2-1001"], companyId),
         ]);
         if (!po) return { error: "Purchase order tidak ditemukan" };
 
@@ -1214,30 +1345,26 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
         reference = po.orderNumber;
 
         const inventoryAccount = accs.get("1-1004")!;
+        const ppnMasukanAccount = accs.get("1-1100");
         const payableAccount = accs.get("2-1001")!;
         const cashAccount = accs.get("1-1001")!;
 
-        lines.push({
-          accountId: inventoryAccount.id,
-          description: `Persediaan masuk — ${po.orderNumber}`,
-          debit: po.totalAmount,
-          credit: 0,
-        });
+        // Assume PPN 11% on purchases (configurable via TaxConfig later)
+        const ppnRate = 0.11;
+        const dpp = Math.round(po.totalAmount / (1 + ppnRate));
+        const ppnAmount = po.totalAmount - dpp;
+
+        lines.push({ accountId: inventoryAccount.id, description: `Persediaan masuk — ${po.orderNumber}`, debit: dpp, credit: 0 });
+
+        if (ppnAmount > 0 && ppnMasukanAccount) {
+          lines.push({ accountId: ppnMasukanAccount.id, description: `PPN Masukan — ${po.orderNumber}`, debit: ppnAmount, credit: 0, taxType: "PPN_MASUKAN", taxAmount: ppnAmount, taxBaseAmount: dpp });
+        }
+
         const unpaidAmount = po.totalAmount - po.paidAmount;
         if (po.paidAmount > 0)
-          lines.push({
-            accountId: cashAccount.id,
-            description: `Pembayaran tunai — ${po.orderNumber}`,
-            debit: 0,
-            credit: po.paidAmount,
-          });
+          lines.push({ accountId: cashAccount.id, description: `Pembayaran tunai — ${po.orderNumber}`, debit: 0, credit: po.paidAmount });
         if (unpaidAmount > 0)
-          lines.push({
-            accountId: payableAccount.id,
-            description: `Hutang dagang — ${po.orderNumber}`,
-            debit: 0,
-            credit: unpaidAmount,
-          });
+          lines.push({ accountId: payableAccount.id, description: `Hutang dagang — ${po.orderNumber}`, debit: 0, credit: unpaidAmount });
         break;
       }
 
@@ -1458,6 +1585,9 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
             description: line.description,
             debit: line.debit,
             credit: line.credit,
+            taxType: line.taxType ?? null,
+            taxAmount: line.taxAmount ?? null,
+            taxBaseAmount: line.taxBaseAmount ?? null,
             sortOrder: idx,
           })),
         },
@@ -1477,11 +1607,14 @@ export async function createAutoJournal(params: CreateAutoJournalParams) {
       details: { entryNumber, referenceType, referenceId, totalDebit },
     });
 
+    createJournalChangeLog({ journalId: entry.id, action: "CREATED", userId, snapshot: { entryNumber, referenceType, referenceId, status: "POSTED", totalDebit, totalCredit } });
+
     revalidatePath("/accounting");
     return { entry };
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Gagal membuat jurnal otomatis";
+    console.error(`[createAutoJournal] ${referenceType}/${referenceId}:`, message);
     return { error: message };
   }
 }
@@ -1680,6 +1813,174 @@ export async function lockPeriod(id: string) {
 }
 
 // ============================================================
+// RECURRING JOURNAL TEMPLATES
+// ============================================================
+
+export async function getRecurringTemplates(params?: { page?: number; perPage?: number }) {
+  const companyId = await getCurrentCompanyId();
+  const page = params?.page ?? 1;
+  const perPage = params?.perPage ?? 20;
+  const [templates, total] = await Promise.all([
+    prisma.recurringJournalTemplate.findMany({
+      where: { companyId },
+      include: {
+        lines: { include: { account: { select: { code: true, name: true } } }, orderBy: { sortOrder: "asc" } },
+        branch: { select: { name: true } },
+        createdByUser: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    prisma.recurringJournalTemplate.count({ where: { companyId } }),
+  ]);
+  return { templates, total, totalPages: Math.ceil(total / perPage) };
+}
+
+export async function createRecurringTemplate(data: {
+  name: string;
+  description?: string | undefined;
+  frequency: string;
+  dayOfMonth?: number | undefined;
+  branchId?: string | undefined;
+  lines: { accountId: string; description?: string | undefined; debit: number; credit: number }[];
+}) {
+  await assertMenuActionAccess("accounting-recurring", "create");
+  const companyId = await getCurrentCompanyId();
+  const authResult = await resolveSessionUserId();
+  if ("error" in authResult) return { error: authResult.error };
+
+  if (!data.lines.length || data.lines.length < 2) return { error: "Minimal 2 baris jurnal" };
+  const totalDebit = data.lines.reduce((s, l) => s + l.debit, 0);
+  const totalCredit = data.lines.reduce((s, l) => s + l.credit, 0);
+  if (Math.abs(totalDebit - totalCredit) > 0.01) return { error: "Total debit dan kredit harus seimbang" };
+
+  // Calculate next run date
+  const now = new Date();
+  const day = data.dayOfMonth ?? 1;
+  let nextRun = new Date(now.getFullYear(), now.getMonth(), day);
+  if (nextRun <= now) {
+    if (data.frequency === "MONTHLY") nextRun.setMonth(nextRun.getMonth() + 1);
+    else if (data.frequency === "QUARTERLY") nextRun.setMonth(nextRun.getMonth() + 3);
+    else if (data.frequency === "YEARLY") nextRun.setFullYear(nextRun.getFullYear() + 1);
+  }
+
+  const template = await prisma.recurringJournalTemplate.create({
+    data: {
+      name: data.name,
+      description: data.description ?? null,
+      frequency: data.frequency,
+      dayOfMonth: day,
+      nextRunDate: nextRun,
+      companyId,
+      branchId: data.branchId ?? null,
+      createdBy: authResult.userId,
+      lines: {
+        create: data.lines.map((l, i) => ({
+          accountId: l.accountId,
+          description: l.description ?? null,
+          debit: l.debit,
+          credit: l.credit,
+          sortOrder: i,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/accounting/recurring");
+  return { success: true, id: template.id };
+}
+
+export async function deleteRecurringTemplate(id: string) {
+  await assertMenuActionAccess("accounting-recurring", "delete");
+  const companyId = await getCurrentCompanyId();
+  const template = await prisma.recurringJournalTemplate.findFirst({ where: { id, companyId } });
+  if (!template) return { error: "Template tidak ditemukan" };
+  await prisma.recurringJournalTemplate.delete({ where: { id } });
+  revalidatePath("/accounting/recurring");
+  return { success: true };
+}
+
+export async function toggleRecurringTemplate(id: string) {
+  const companyId = await getCurrentCompanyId();
+  const template = await prisma.recurringJournalTemplate.findFirst({ where: { id, companyId } });
+  if (!template) return { error: "Template tidak ditemukan" };
+  await prisma.recurringJournalTemplate.update({ where: { id }, data: { isActive: !template.isActive } });
+  revalidatePath("/accounting/recurring");
+  return { success: true };
+}
+
+export async function executeRecurringJournals() {
+  const companyId = await getCurrentCompanyId();
+  const authResult = await resolveSessionUserId();
+  if ("error" in authResult) return { error: authResult.error };
+
+  const today = new Date();
+  const templates = await prisma.recurringJournalTemplate.findMany({
+    where: { companyId, isActive: true, nextRunDate: { lte: today } },
+    include: { lines: true },
+  });
+
+  let created = 0;
+  let failed = 0;
+
+  for (const tmpl of templates) {
+    try {
+      const todayDate = new Date();
+      const prefix = `JV-${todayDate.getFullYear().toString().slice(-2)}${(todayDate.getMonth() + 1).toString().padStart(2, "0")}${todayDate.getDate().toString().padStart(2, "0")}`;
+      const last = await prisma.journalEntry.findFirst({ where: { entryNumber: { startsWith: prefix } }, orderBy: { entryNumber: "desc" }, select: { entryNumber: true } });
+      let seq = 1;
+      if (last) { const s = parseInt(last.entryNumber.split("-")[2] ?? "0"); if (!isNaN(s)) seq = s + 1; }
+      const entryNumber = generateEntryNumber(todayDate, seq);
+
+      const totalDebit = tmpl.lines.reduce((s, l) => s + l.debit, 0);
+      const totalCredit = tmpl.lines.reduce((s, l) => s + l.credit, 0);
+
+      await prisma.journalEntry.create({
+        data: {
+          entryNumber,
+          date: todayDate,
+          description: `[Recurring] ${tmpl.name}`,
+          reference: `REC-${tmpl.id.slice(0, 8)}`,
+          referenceType: "RECURRING",
+          branchId: tmpl.branchId,
+          status: "POSTED",
+          totalDebit,
+          totalCredit,
+          createdBy: authResult.userId,
+          lines: {
+            create: tmpl.lines.map((l, i) => ({
+              accountId: l.accountId,
+              description: l.description,
+              debit: l.debit,
+              credit: l.credit,
+              sortOrder: i,
+            })),
+          },
+        },
+      });
+
+      // Advance next run date
+      const next = new Date(tmpl.nextRunDate);
+      if (tmpl.frequency === "MONTHLY") next.setMonth(next.getMonth() + 1);
+      else if (tmpl.frequency === "QUARTERLY") next.setMonth(next.getMonth() + 3);
+      else if (tmpl.frequency === "YEARLY") next.setFullYear(next.getFullYear() + 1);
+
+      await prisma.recurringJournalTemplate.update({
+        where: { id: tmpl.id },
+        data: { lastRunDate: todayDate, nextRunDate: next },
+      });
+      created++;
+    } catch {
+      failed++;
+    }
+  }
+
+  revalidatePath("/accounting");
+  return { created, failed, total: templates.length };
+}
+
+// ============================================================
 // SEED DEFAULT COA
 // ============================================================
 
@@ -1772,6 +2073,37 @@ export async function seedDefaultCOA() {
       categoryType: "EXPENSE",
       description: "Beban gaji karyawan",
     },
+    // Tax accounts
+    {
+      code: "2-1100",
+      name: "PPN Keluaran",
+      categoryType: "LIABILITY",
+      description: "PPN yang dipungut dari penjualan",
+    },
+    {
+      code: "1-1100",
+      name: "PPN Masukan",
+      categoryType: "ASSET",
+      description: "PPN yang dibayar atas pembelian",
+    },
+    {
+      code: "2-1200",
+      name: "Hutang PPh 21",
+      categoryType: "LIABILITY",
+      description: "PPh 21 yang dipotong dari gaji",
+    },
+    {
+      code: "2-1201",
+      name: "Hutang PPh 23",
+      categoryType: "LIABILITY",
+      description: "PPh 23 atas jasa/sewa",
+    },
+    {
+      code: "5-1010",
+      name: "Beban PPh 23",
+      categoryType: "EXPENSE",
+      description: "Beban pajak PPh 23",
+    },
   ];
 
   await prisma.$transaction(
@@ -1795,4 +2127,62 @@ export async function seedDefaultCOA() {
     categoriesCreated: categories.length,
     accountsCreated: systemAccounts.length,
   };
+}
+
+// ============================================================
+// BACKFILL JOURNALS — create missing journals for existing transactions
+// ============================================================
+
+export async function backfillJournals() {
+  const companyId = await getCurrentCompanyId();
+
+  // Find all transactions that don't have a journal yet
+  const existingRefs = await prisma.journalEntry.findMany({
+    where: { branch: { companyId } },
+    select: { reference: true },
+  });
+  const refSet = new Set(existingRefs.map((r) => r.reference).filter(Boolean));
+
+  // Transactions
+  const transactions = await prisma.transaction.findMany({
+    where: { companyId, status: "COMPLETED" },
+    select: { id: true, invoiceNumber: true },
+  });
+  let created = 0;
+  let failed = 0;
+
+  for (const txn of transactions) {
+    if (refSet.has(txn.invoiceNumber)) continue;
+    try {
+      await createAutoJournal({ referenceType: "TRANSACTION", referenceId: txn.id });
+      created++;
+    } catch { failed++; }
+  }
+
+  // Expenses
+  const expenses = await prisma.expense.findMany({
+    where: { companyId },
+    select: { id: true },
+  });
+  for (const exp of expenses) {
+    try {
+      await createAutoJournal({ referenceType: "EXPENSE", referenceId: exp.id });
+      created++;
+    } catch { failed++; }
+  }
+
+  // Purchase Orders (received)
+  const pos = await prisma.purchaseOrder.findMany({
+    where: { companyId, status: { in: ["RECEIVED", "PARTIAL", "CLOSED"] } },
+    select: { id: true },
+  });
+  for (const po of pos) {
+    try {
+      await createAutoJournal({ referenceType: "PURCHASE", referenceId: po.id });
+      created++;
+    } catch { failed++; }
+  }
+
+  revalidatePath("/accounting");
+  return { created, failed, message: `Backfill selesai: ${created} jurnal dibuat, ${failed} gagal` };
 }

@@ -83,6 +83,24 @@ export async function getStockOpnames(params: GetStockOpnamesParams = {}) {
   };
 }
 
+export async function getStockOpnameStats(branchId?: string) {
+  const companyId = await getCurrentCompanyId();
+  const where: Record<string, unknown> = { companyId };
+  if (branchId && branchId !== "ALL") where.branchId = branchId;
+  const counts = await prisma.stockOpname.groupBy({
+    by: ["status"],
+    where,
+    _count: true,
+  });
+  const map = new Map(counts.map((c) => [c.status, c._count]));
+  return {
+    draft: map.get("DRAFT") ?? 0,
+    inProgress: map.get("IN_PROGRESS") ?? 0,
+    completed: map.get("COMPLETED") ?? 0,
+    cancelled: map.get("CANCELLED") ?? 0,
+  };
+}
+
 export async function getStockOpnameById(id: string) {
   const companyId = await getCurrentCompanyId();
   return prisma.stockOpname.findFirst({
@@ -326,12 +344,24 @@ export async function cancelStockOpname(id: string) {
   }
 }
 
-/** Load all active products with branch stock for opname form */
-export async function getProductsForOpname(branchId?: string) {
+/** Load active products with branch stock for opname form (paginated) */
+export async function getProductsForOpname(params?: {
+  branchId?: string | undefined;
+  search?: string | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
+}) {
   const companyId = await getCurrentCompanyId();
+  const { branchId, search, page = 1, limit = 30 } = params || {};
   const where: Record<string, unknown> = { isActive: true, companyId };
   if (branchId) {
     where.branchStocks = { some: { branchId } };
+  }
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { code: { contains: search, mode: "insensitive" } },
+    ];
   }
 
   const products = await prisma.product.findMany({
@@ -344,12 +374,20 @@ export async function getProductsForOpname(branchId?: string) {
       ...(branchId ? { branchStocks: { where: { branchId }, select: { quantity: true }, take: 1 } } : {}),
     },
     orderBy: { name: "asc" },
+    skip: (page - 1) * limit,
+    take: limit + 1,
   });
 
-  return products.map((p) => {
-    const bs = branchId ? ((p as Record<string, unknown>).branchStocks as Array<{ quantity: number }> | undefined)?.[0] : null;
-    return { id: p.id, name: p.name, code: p.code, systemStock: bs?.quantity ?? p.stock };
-  });
+  const hasMore = products.length > limit;
+  const sliced = hasMore ? products.slice(0, limit) : products;
+
+  return {
+    items: sliced.map((p) => {
+      const bs = branchId ? ((p as Record<string, unknown>).branchStocks as Array<{ quantity: number }> | undefined)?.[0] : null;
+      return { id: p.id, name: p.name, code: p.code, systemStock: bs?.quantity ?? p.stock };
+    }),
+    hasMore,
+  };
 }
 
 /** Create opname and set actual stock in one call — supports multiple branches */

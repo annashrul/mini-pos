@@ -1,8 +1,8 @@
 "use client";
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
-import { useEffect, useState, useTransition, useMemo, useRef } from "react";
-import { deletePromotion, getPromotions } from "@/features/promotions";
+import { useEffect, useState, useTransition, useRef } from "react";
+import { deletePromotion, getPromotions, getPromotionStats } from "@/features/promotions";
 import { useMenuActionAccess } from "@/features/access-control";
 import { useBranch } from "@/components/providers/branch-provider";
 import { formatCurrency } from "@/lib/utils";
@@ -66,31 +66,26 @@ export function PromotionsContent() {
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
-    const stats = useMemo(() => {
-        const now = new Date();
-        const promos = data.promotions;
-        return {
-            total: data.total,
-            active: promos.filter((p) => p.isActive && new Date(p.endDate) >= now).length,
-            expired: promos.filter((p) => new Date(p.endDate) < now).length,
-            vouchers: promos.filter((p) => p.type === "VOUCHER").length,
-        };
-    }, [data]);
+    const [stats, setStats] = useState({ total: 0, active: 0, expired: 0, vouchers: 0 });
 
     const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
             const f = params.filters ?? activeFilters;
             const sk = params.sortKey ?? sortKey;
             const sd = params.sortDir ?? sortDir;
-            const result = await getPromotions({
-                search: params.search ?? search,
-                ...(f.type !== "ALL" ? { type: f.type } : {}),
-                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
-                page: params.page ?? page,
-                perPage: params.pageSize ?? pageSize,
-                ...(sk ? { sortBy: sk, sortDir: sd } : {}),
-            });
+            const [result, statsResult] = await Promise.all([
+                getPromotions({
+                    search: params.search ?? search,
+                    ...(f.type !== "ALL" ? { type: f.type } : {}),
+                    ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+                    page: params.page ?? page,
+                    perPage: params.pageSize ?? pageSize,
+                    ...(sk ? { sortBy: sk, sortDir: sd } : {}),
+                }),
+                getPromotionStats(),
+            ]);
             setData(result as never);
+            setStats(statsResult);
         });
     };
 
@@ -122,10 +117,14 @@ export function PromotionsContent() {
         setConfirmOpen(true);
     };
 
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (value: string) => {
         setSearch(value);
-        setPage(1);
-        fetchData({ search: value, page: 1 });
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = setTimeout(() => {
+            setPage(1);
+            fetchData({ search: value, page: 1 });
+        }, 400);
     };
 
     const handleFilterType = (type: string) => {

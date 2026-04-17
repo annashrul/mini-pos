@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useBranch } from "@/components/providers/branch-provider";
 import { accountingService } from "../services";
@@ -65,12 +65,22 @@ export function useCoa() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rawAccounts = Array.isArray(accountsResult) ? accountsResult : (accountsResult as any).accounts ?? [];
         setAllAccounts(rawAccounts.map(mapPrismaAccountToAccount));
+        loadStats();
       } catch {
         toast.error("Gagal memuat data akun");
       } finally {
         setInitialLoad(false);
         setLoading(false);
       }
+  };
+
+  // Search debounce
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    // Client-side filter — no server call needed, but debounce for performance
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => { /* filteredTree useMemo auto-updates */ }, 200);
   };
 
   useEffect(() => {
@@ -99,18 +109,15 @@ export function useCoa() {
       .filter((cat) => cat.accounts.length > 0);
   }, [tree, search]);
 
-  const stats = useMemo(() => {
-    const totals: Record<string, number> = {};
-    allAccounts.forEach((a) => {
-      totals[a.category] = (totals[a.category] || 0) + a.balance;
-    });
-    return {
-      totalAccounts: allAccounts.length,
-      aset: totals["ASET"] || 0,
-      kewajiban: totals["KEWAJIBAN"] || 0,
-      modal: totals["MODAL"] || 0,
-    };
-  }, [allAccounts]);
+  const [stats, setStats] = useState({ totalAccounts: 0, aset: 0, kewajiban: 0, modal: 0 });
+
+  // Load stats from server
+  const loadStats = async () => {
+    try {
+      const result = await accountingService.getCoaStats();
+      setStats(result);
+    } catch { /* ignore */ }
+  };
 
   const toggleCategory = (cat: string) => {
     setCollapsedCategories((prev) => {
@@ -163,6 +170,7 @@ export function useCoa() {
     allAccounts,
     search,
     setSearch,
+    handleSearch,
     collapsedCategories,
     dialogOpen,
     editingAccount,

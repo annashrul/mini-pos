@@ -1099,3 +1099,383 @@ export async function getAccountingDashboard(branchId?: string) {
   );
   return cached();
 }
+
+// ============================================================
+// TAX SUMMARY REPORT
+// ============================================================
+
+export async function getTaxSummaryReport(params: { dateFrom: string; dateTo: string; branchId?: string }) {
+  const companyId = await getCurrentCompanyId();
+  const { dateFrom, dateTo, branchId } = params;
+  const branchFilter = branchId && branchId !== "ALL" ? `AND je."branchId" = '${branchId}'` : "";
+
+  const results = await prisma.$queryRawUnsafe<Array<{ tax_type: string; total_tax: number; total_dpp: number; count: number }>>(`
+    SELECT
+      jel."taxType" AS tax_type,
+      COALESCE(SUM(COALESCE(jel."taxAmount", 0)), 0)::float AS total_tax,
+      COALESCE(SUM(COALESCE(jel."taxBaseAmount", 0)), 0)::float AS total_dpp,
+      COUNT(*)::int AS count
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel."journalId"
+    JOIN accounts a ON a.id = jel."accountId"
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    WHERE je.status = 'POSTED'
+      AND jel."taxType" IS NOT NULL
+      AND je.date >= '${dateFrom}'
+      AND je.date <= '${dateTo}'
+      AND ac."companyId" = '${companyId}'
+      ${branchFilter}
+    GROUP BY jel."taxType"
+  `);
+
+  const map = new Map(results.map((r) => [r.tax_type, r]));
+  const ppnKeluaran = map.get("PPN_KELUARAN")?.total_tax ?? 0;
+  const ppnMasukan = map.get("PPN_MASUKAN")?.total_tax ?? 0;
+  const ppnKurangBayar = ppnKeluaran - ppnMasukan;
+
+  // Detail per journal entry
+  const details = await prisma.$queryRawUnsafe<Array<{
+    entry_number: string; date: string; description: string; reference: string;
+    tax_type: string; tax_amount: number; dpp: number; reference_type: string;
+  }>>(`
+    SELECT
+      je."entryNumber" AS entry_number, je.date::text, je.description,
+      COALESCE(je.reference, '') AS reference,
+      jel."taxType" AS tax_type,
+      COALESCE(jel."taxAmount", 0)::float AS tax_amount,
+      COALESCE(jel."taxBaseAmount", 0)::float AS dpp,
+      COALESCE(je."referenceType", 'MANUAL') AS reference_type
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel."journalId"
+    JOIN accounts a ON a.id = jel."accountId"
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    WHERE je.status = 'POSTED'
+      AND jel."taxType" IS NOT NULL
+      AND je.date >= '${dateFrom}'
+      AND je.date <= '${dateTo}'
+      AND ac."companyId" = '${companyId}'
+      ${branchFilter}
+    ORDER BY je.date ASC
+  `);
+
+  return {
+    period: { dateFrom, dateTo },
+    ppnKeluaran,
+    ppnMasukan,
+    ppnKurangBayar,
+    pph21: map.get("PPH21")?.total_tax ?? 0,
+    pph23: map.get("PPH23")?.total_tax ?? 0,
+    details,
+  };
+}
+
+export async function getEFakturExport(params: { dateFrom: string; dateTo: string }) {
+  const companyId = await getCurrentCompanyId();
+  const { dateFrom, dateTo } = params;
+
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    date: string; invoice: string; dpp: number; ppn: number; supplier_or_customer: string; reference_type: string;
+  }>>(`
+    SELECT
+      je.date::text, COALESCE(je.reference, je."entryNumber") AS invoice,
+      COALESCE(jel."taxBaseAmount", 0)::float AS dpp,
+      COALESCE(jel."taxAmount", 0)::float AS ppn,
+      COALESCE(je.description, '') AS supplier_or_customer,
+      COALESCE(je."referenceType", 'MANUAL') AS reference_type
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel."journalId"
+    JOIN accounts a ON a.id = jel."accountId"
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    WHERE je.status = 'POSTED'
+      AND jel."taxType" IN ('PPN_KELUARAN', 'PPN_MASUKAN')
+      AND je.date >= '${dateFrom}' AND je.date <= '${dateTo}'
+      AND ac."companyId" = '${companyId}'
+    ORDER BY je.date ASC
+  `);
+
+  // Format CSV sesuai template e-Faktur DJP
+  const csvLines = ["FK,KD_JENIS_TRANSAKSI,FG_PENGGANTI,NOMOR_FAKTUR,MASA_PAJAK,TAHUN_PAJAK,TANGGAL_FAKTUR,DPP,PPN,KETERANGAN"];
+  rows.forEach((r) => {
+    const d = new Date(r.date);
+    const masa = (d.getMonth() + 1).toString();
+    const tahun = d.getFullYear().toString();
+    const tgl = `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+    csvLines.push(`FK,01,0,${r.invoice},${masa},${tahun},${tgl},${Math.round(r.dpp)},${Math.round(r.ppn)},"${r.supplier_or_customer.replace(/"/g, '""')}"`);
+  });
+
+  return { csv: csvLines.join("\n"), filename: `efaktur-${dateFrom}-${dateTo}.csv` };
+}
+
+// ============================================================
+// AP/AR AGING REPORT
+// ============================================================
+
+export async function getAgingReport(params: { type: "PAYABLE" | "RECEIVABLE"; branchId?: string; asOfDate?: string }) {
+  const companyId = await getCurrentCompanyId();
+  const { type, branchId, asOfDate } = params;
+  const asOf = asOfDate ? `'${asOfDate}'::date` : "CURRENT_DATE";
+  const branchFilter = branchId && branchId !== "ALL" ? `AND d."branchId" = '${branchId}'` : "";
+
+  const rows = await prisma.$queryRawUnsafe<Array<{
+    id: string; party_name: string; party_type: string; total_amount: number;
+    paid_amount: number; remaining_amount: number; due_date: string | null;
+    created_at: string; aging_bucket: string; days_past_due: number;
+    reference_type: string; description: string;
+  }>>(`
+    SELECT
+      d.id, d."partyName" AS party_name, d."partyType" AS party_type,
+      d."totalAmount"::float AS total_amount, d."paidAmount"::float AS paid_amount,
+      d."remainingAmount"::float AS remaining_amount,
+      d."dueDate"::text AS due_date, d."createdAt"::text AS created_at,
+      COALESCE(d."referenceType", '') AS reference_type,
+      COALESCE(d.description, '') AS description,
+      CASE
+        WHEN d."dueDate" IS NULL THEN 'NO_DUE_DATE'
+        WHEN d."dueDate" >= ${asOf} THEN 'CURRENT'
+        WHEN d."dueDate" >= ${asOf} - INTERVAL '30 days' THEN '1_30'
+        WHEN d."dueDate" >= ${asOf} - INTERVAL '60 days' THEN '31_60'
+        WHEN d."dueDate" >= ${asOf} - INTERVAL '90 days' THEN '61_90'
+        ELSE 'OVER_90'
+      END AS aging_bucket,
+      GREATEST(0, EXTRACT(DAY FROM ${asOf} - d."dueDate"))::int AS days_past_due
+    FROM debts d
+    WHERE d.type = '${type}'
+      AND d.status IN ('UNPAID', 'PARTIAL')
+      AND d."companyId" = '${companyId}'
+      ${branchFilter}
+    ORDER BY d."dueDate" ASC NULLS LAST
+  `);
+
+  // Summary by bucket
+  const buckets = { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90: 0, noDueDate: 0 };
+  for (const row of rows) {
+    const amt = row.remaining_amount;
+    if (row.aging_bucket === "CURRENT") buckets.current += amt;
+    else if (row.aging_bucket === "1_30") buckets.days1to30 += amt;
+    else if (row.aging_bucket === "31_60") buckets.days31to60 += amt;
+    else if (row.aging_bucket === "61_90") buckets.days61to90 += amt;
+    else if (row.aging_bucket === "OVER_90") buckets.over90 += amt;
+    else buckets.noDueDate += amt;
+  }
+  const total = buckets.current + buckets.days1to30 + buckets.days31to60 + buckets.days61to90 + buckets.over90 + buckets.noDueDate;
+
+  // Group by party
+  const byPartyMap = new Map<string, typeof buckets & { partyName: string; total: number }>();
+  for (const row of rows) {
+    const key = row.party_name;
+    if (!byPartyMap.has(key)) byPartyMap.set(key, { partyName: key, current: 0, days1to30: 0, days31to60: 0, days61to90: 0, over90: 0, noDueDate: 0, total: 0 });
+    const entry = byPartyMap.get(key)!;
+    const amt = row.remaining_amount;
+    if (row.aging_bucket === "CURRENT") entry.current += amt;
+    else if (row.aging_bucket === "1_30") entry.days1to30 += amt;
+    else if (row.aging_bucket === "31_60") entry.days31to60 += amt;
+    else if (row.aging_bucket === "61_90") entry.days61to90 += amt;
+    else if (row.aging_bucket === "OVER_90") entry.over90 += amt;
+    else entry.noDueDate += amt;
+    entry.total += amt;
+  }
+
+  return {
+    type,
+    asOfDate: asOfDate || new Date().toISOString().slice(0, 10),
+    summary: { ...buckets, total },
+    details: rows,
+    byParty: Array.from(byPartyMap.values()).sort((a, b) => b.total - a.total),
+  };
+}
+
+// ============================================================
+// REPORT DRILL-DOWN
+// ============================================================
+
+export async function getDrillDownEntries(params: { accountId: string; dateFrom?: string; dateTo?: string; branchId?: string; page?: number; perPage?: number }) {
+  const companyId = await getCurrentCompanyId();
+  const { accountId, dateFrom, dateTo, branchId, page = 1, perPage = 20 } = params;
+  const branchFilter = branchId && branchId !== "ALL" ? `AND je."branchId" = '${branchId}'` : "";
+  const dateFilter = dateFrom && dateTo ? `AND je.date >= '${dateFrom}' AND je.date <= '${dateTo}'` : dateFrom ? `AND je.date >= '${dateFrom}'` : dateTo ? `AND je.date <= '${dateTo}'` : "";
+
+  const [rows, countResult] = await Promise.all([
+    prisma.$queryRawUnsafe<Array<{
+      journal_id: string; entry_number: string; date: string; description: string;
+      reference: string; reference_type: string; debit: number; credit: number;
+    }>>(`
+      SELECT je.id AS journal_id, je."entryNumber" AS entry_number, je.date::text,
+        je.description, COALESCE(je.reference, '') AS reference,
+        COALESCE(je."referenceType", 'MANUAL') AS reference_type,
+        jel.debit::float, jel.credit::float
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel."journalId"
+      JOIN accounts a ON a.id = jel."accountId"
+      JOIN account_categories ac ON ac.id = a."categoryId"
+      WHERE jel."accountId" = '${accountId}'
+        AND je.status = 'POSTED'
+        AND ac."companyId" = '${companyId}'
+        ${dateFilter} ${branchFilter}
+      ORDER BY je.date DESC, je."createdAt" DESC
+      LIMIT ${perPage} OFFSET ${(page - 1) * perPage}
+    `),
+    prisma.$queryRawUnsafe<[{ total: number }]>(`
+      SELECT COUNT(*)::int AS total
+      FROM journal_entry_lines jel
+      JOIN journal_entries je ON je.id = jel."journalId"
+      JOIN accounts a ON a.id = jel."accountId"
+      JOIN account_categories ac ON ac.id = a."categoryId"
+      WHERE jel."accountId" = '${accountId}'
+        AND je.status = 'POSTED'
+        AND ac."companyId" = '${companyId}'
+        ${dateFilter} ${branchFilter}
+    `),
+  ]);
+
+  return { entries: rows, total: Number(countResult[0]?.total ?? 0), totalPages: Math.ceil(Number(countResult[0]?.total ?? 0) / perPage) };
+}
+
+// ============================================================
+// PERIOD-END CLOSING
+// ============================================================
+
+export async function getPeriodClosingChecklist(periodId: string) {
+  const companyId = await getCurrentCompanyId();
+
+  const period = await prisma.accountingPeriod.findFirst({
+    where: { id: periodId, companyId },
+  });
+  if (!period) return { error: "Periode tidak ditemukan" };
+
+  const dateFrom = period.startDate.toISOString().slice(0, 10);
+  const dateTo = period.endDate.toISOString().slice(0, 10);
+
+  // Check 1: No draft journals in period
+  const draftCount = await prisma.journalEntry.count({
+    where: { status: { in: ["DRAFT", "PENDING_APPROVAL"] }, date: { gte: period.startDate, lte: period.endDate }, branch: { companyId } },
+  });
+
+  // Check 2: Trial balance is balanced
+  const tbResult = await prisma.$queryRawUnsafe<[{ total_debit: number; total_credit: number }]>(`
+    SELECT
+      COALESCE(SUM(jel.debit), 0)::float AS total_debit,
+      COALESCE(SUM(jel.credit), 0)::float AS total_credit
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel."journalId"
+    JOIN accounts a ON a.id = jel."accountId"
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    WHERE je.status = 'POSTED' AND je.date <= '${dateTo}' AND ac."companyId" = '${companyId}'
+  `);
+  const tbDiff = Math.abs((tbResult[0]?.total_debit ?? 0) - (tbResult[0]?.total_credit ?? 0));
+
+  // Check 3: All transactions have journals
+  const txnWithoutJournal = await prisma.$queryRawUnsafe<[{ count: number }]>(`
+    SELECT COUNT(*)::int AS count FROM transactions t
+    WHERE t."companyId" = '${companyId}' AND t.status = 'COMPLETED'
+      AND t."createdAt" >= '${dateFrom}' AND t."createdAt" <= '${dateTo} 23:59:59'
+      AND NOT EXISTS (SELECT 1 FROM journal_entries je WHERE je."referenceType" = 'TRANSACTION' AND je."referenceId" = t.id)
+  `);
+
+  const checks = [
+    { key: "no_draft_journals", label: "Tidak ada jurnal Draft/Pending", passed: draftCount === 0, count: draftCount },
+    { key: "trial_balance_balanced", label: "Neraca Saldo seimbang", passed: tbDiff < 0.01, difference: tbDiff },
+    { key: "all_transactions_journaled", label: "Semua transaksi sudah dijurnal", passed: (txnWithoutJournal[0]?.count ?? 0) === 0, missing: txnWithoutJournal[0]?.count ?? 0 },
+  ];
+
+  return { period: { id: period.id, name: period.name, dateFrom, dateTo, status: period.status }, checks, allPassed: checks.every((c) => c.passed) };
+}
+
+export async function createClosingEntries(periodId: string) {
+  const companyId = await getCurrentCompanyId();
+  const { auth } = await import("@/lib/auth");
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { error: "Unauthorized" };
+
+  const period = await prisma.accountingPeriod.findFirst({ where: { id: periodId, companyId } });
+  if (!period) return { error: "Periode tidak ditemukan" };
+  if (period.status !== "OPEN") return { error: "Periode harus berstatus OPEN" };
+
+  const dateFrom = period.startDate.toISOString().slice(0, 10);
+  const dateTo = period.endDate.toISOString().slice(0, 10);
+
+  // Get net income (revenue - expense) for the period
+  const incomeRows = await prisma.$queryRawUnsafe<Array<{ account_id: string; account_code: string; account_name: string; cat_type: string; amount: number }>>(`
+    SELECT a.id AS account_id, a.code AS account_code, a.name AS account_name, ac.type AS cat_type,
+      CASE
+        WHEN ac.type = 'REVENUE' THEN (COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0))::float
+        WHEN ac.type = 'EXPENSE' THEN (COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0))::float
+      END AS amount
+    FROM accounts a
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    LEFT JOIN journal_entry_lines jel ON jel."accountId" = a.id
+    LEFT JOIN journal_entries je ON je.id = jel."journalId" AND je.status = 'POSTED' AND je.date >= '${dateFrom}' AND je.date <= '${dateTo}'
+    WHERE ac.type IN ('REVENUE', 'EXPENSE') AND a."isActive" = true AND ac."companyId" = '${companyId}'
+    GROUP BY a.id, a.code, a.name, ac.type
+    HAVING CASE WHEN ac.type = 'REVENUE' THEN COALESCE(SUM(jel.credit), 0) - COALESCE(SUM(jel.debit), 0) ELSE COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0) END > 0
+  `);
+
+  if (incomeRows.length === 0) return { error: "Tidak ada revenue/expense untuk ditutup" };
+
+  // Find retained earnings account (3-1002)
+  const retainedEarnings = await prisma.account.findFirst({
+    where: { code: { startsWith: "3-1002" }, category: { companyId } },
+  });
+  if (!retainedEarnings) return { error: "Akun Laba Ditahan (3-1002) tidak ditemukan" };
+
+  // Build closing journal lines
+  const closingLines: { accountId: string; description: string; debit: number; credit: number }[] = [];
+  let totalRevenue = 0;
+  let totalExpense = 0;
+
+  for (const row of incomeRows) {
+    if (row.cat_type === "REVENUE" && row.amount > 0) {
+      closingLines.push({ accountId: row.account_id, description: `Tutup ${row.account_name}`, debit: row.amount, credit: 0 });
+      totalRevenue += row.amount;
+    } else if (row.cat_type === "EXPENSE" && row.amount > 0) {
+      closingLines.push({ accountId: row.account_id, description: `Tutup ${row.account_name}`, debit: 0, credit: row.amount });
+      totalExpense += row.amount;
+    }
+  }
+
+  const netIncome = totalRevenue - totalExpense;
+  if (netIncome > 0) {
+    closingLines.push({ accountId: retainedEarnings.id, description: "Laba periode berjalan", debit: 0, credit: netIncome });
+  } else if (netIncome < 0) {
+    closingLines.push({ accountId: retainedEarnings.id, description: "Rugi periode berjalan", debit: Math.abs(netIncome), credit: 0 });
+  }
+
+  // Create the closing journal
+  const today = new Date();
+  const prefix = `JV-${today.getFullYear().toString().slice(-2)}${(today.getMonth() + 1).toString().padStart(2, "0")}${today.getDate().toString().padStart(2, "0")}`;
+  const last = await prisma.journalEntry.findFirst({ where: { entryNumber: { startsWith: prefix } }, orderBy: { entryNumber: "desc" }, select: { entryNumber: true } });
+  let seq = 1;
+  if (last) { const s = parseInt(last.entryNumber.split("-")[2] ?? "0"); if (!isNaN(s)) seq = s + 1; }
+  const entryNumber = `${prefix}-${String(seq).padStart(4, "0")}`;
+
+  const totalDebit = closingLines.reduce((s, l) => s + l.debit, 0);
+  const totalCredit = closingLines.reduce((s, l) => s + l.credit, 0);
+
+  await prisma.$transaction([
+    prisma.journalEntry.create({
+      data: {
+        entryNumber,
+        date: period.endDate,
+        description: `Jurnal Penutup — ${period.name}`,
+        reference: `CLOSING-${period.name}`,
+        referenceType: "CLOSING",
+        branchId: null,
+        periodId,
+        status: "POSTED",
+        totalDebit,
+        totalCredit,
+        createdBy: userId,
+        notes: `Auto-generated closing entry for period ${period.name}`,
+        lines: { create: closingLines.map((l, i) => ({ ...l, sortOrder: i })) },
+      },
+    }),
+    prisma.accountingPeriod.update({
+      where: { id: periodId },
+      data: { status: "CLOSED", closedBy: userId, closedAt: new Date() },
+    }),
+  ]);
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/accounting");
+  return { success: true, entryNumber, netIncome };
+}
