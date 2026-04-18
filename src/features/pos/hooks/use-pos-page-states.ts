@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import type { Branch, CartItem, ProductSearchResult } from "@/types";
 import type { ReceiptConfig } from "@/lib/receipt-config";
 import type {
@@ -55,7 +56,9 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [posConfig, setPosConfig] = useState<PosConfig | null>(null);
   const [closingShiftLoading, setClosingShiftLoading] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const qp = useQueryParams({ filters: { category: "", tab: "products", view: "products" } });
+  const [selectedCategory, setSelectedCategoryLocal] = useState(qp.filters.category || "");
+  const setSelectedCategory = (v: string) => { setSelectedCategoryLocal(v); qp.setFilter("category", v || null); };
   const [browseItems, setBrowseItems] = useState<ProductSearchResult[]>(initCache?.items ?? []);
   const [browsePage, setBrowsePage] = useState(initCache?.page ?? 1);
   const [browseHasMore, setBrowseHasMore] = useState(initCache?.hasMore ?? true);
@@ -64,7 +67,8 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [customerPhone, setCustomerPhone] = useState("");
   const [selectedTables, setSelectedTables] = useState<{ id: string; number: number; name: string | null; capacity: number }[]>([]);
   const [tables, setTables] = useState<{ id: string; number: number; name: string | null; capacity: number; status: string; section: string | null }[]>([]);
-  const [leftPanelTab, setLeftPanelTab] = useState<"products" | "bundles" | "tables">("products");
+  const [leftPanelTab, setLeftPanelTabLocal] = useState<"products" | "bundles" | "tables">((qp.filters.tab as "products" | "bundles" | "tables") || "products");
+  const setLeftPanelTab = (v: "products" | "bundles" | "tables") => { setLeftPanelTabLocal(v); qp.setFilter("tab", v === "products" ? null : v); };
   const [bundles, setBundles] = useState<any[]>([]);
   const [detectedCustomer, setDetectedCustomer] = useState<DetectedCustomer | null>(null);
   const [appliedPromos, setAppliedPromos] = useState<{ promoId: string; promoName: string; type: string; discountAmount: number; appliedTo: string }[]>([]);
@@ -80,7 +84,8 @@ export function usePosPageStates(initCache?: PosProductCacheEntry) {
   const [pointsEarnedResult, setPointsEarnedResult] = useState(0);
   const [posActionAccess, setPosActionAccess] = useState<Record<string, boolean> | null>(null);
   const [productTab] = useState<"favorites" | "category">("category");
-  const [mobileView, setMobileView] = useState<"products" | "cart" | "payment">("products");
+  const [mobileView, setMobileViewLocal] = useState<"products" | "cart" | "payment">((qp.filters.view as "products" | "cart" | "payment") || "products");
+  const setMobileView = (v: "products" | "cart" | "payment") => { setMobileViewLocal(v); qp.setFilter("view", v === "products" ? null : v); };
   const [productSyncing, setProductSyncing] = useState(false);
 
   return {

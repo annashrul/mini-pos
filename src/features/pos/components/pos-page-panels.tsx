@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -13,6 +13,18 @@ import { AlertTriangle, ArrowLeft, Check, ChevronDown, CloudOff, History, Keyboa
 import { usePosPanelsContext } from "../hooks";
 import { BarcodeScannerDialog } from "./barcode-scanner-dialog";
 import { ProButton } from "@/components/ui/pro-gate";
+
+function CategoryButton({ name, isActive, onClick }: { id: string; name: string; isActive: boolean; onClick: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (isActive && ref.current) {
+      ref.current.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [isActive]);
+  return (
+    <button ref={ref} onClick={onClick} className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${isActive ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>{name}</button>
+  );
+}
 
 export function POSPagePanels() {
     const ctx = usePosPanelsContext();
@@ -140,7 +152,7 @@ export function POSPagePanels() {
                                         Semua
                                     </button>
                                     {ctx.categories.map((c) => (
-                                        <button key={c.id} onClick={() => ctx.handleCategoryClick(c.id)} className={`text-[11px] px-3 py-1.5 rounded-full transition-all border whitespace-nowrap shrink-0 ${ctx.selectedCategory === c.id ? "bg-primary text-primary-foreground border-primary" : "border-border/50 text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>{c.name}</button>
+                                        <CategoryButton key={c.id} id={c.id} name={c.name} isActive={ctx.selectedCategory === c.id} onClick={() => ctx.handleCategoryClick(c.id)} />
                                     ))}
                                 </div>
                                 <ScrollBar orientation="horizontal" />
@@ -236,45 +248,65 @@ export function POSPagePanels() {
                         <ScrollArea ref={ctx.productScrollRef} className="flex-1 min-h-0 overflow-hidden px-3 pb-3">
                             {productLayout === "grid" ? (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-2 gap-2 pt-2" style={ctx.isDesktop ? { gridTemplateColumns: `repeat(${ctx.productGridCols}, minmax(0, 1fr))` } : undefined}>
-                                    {ctx.browseItems.map((p) => (
-                                        <button key={p.id} onClick={() => ctx.addToCart(p)} className="text-left rounded-lg sm:rounded-xl border border-border/40 hover:border-primary/50 hover:shadow-sm transition-all group bg-white active:scale-[0.97] overflow-hidden">
-                                            {p.imageUrl ? (
-                                                <div className="relative aspect-[4/3] sm:aspect-square w-full bg-muted/10">
-                                                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="(max-width: 1024px) 33vw, 20vw" />
-                                                </div>
-                                            ) : (
-                                                <div className="aspect-[4/3] sm:aspect-square w-full bg-muted/20 flex items-center justify-center">
-                                                    <span className="text-lg sm:text-2xl font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
-                                                </div>
-                                            )}
+                                    {ctx.browseItems.map((p) => {
+                                        const outOfStock = ctx.shouldValidateStock && p.stock <= 0;
+                                        return (
+                                        <button key={p.id} onClick={() => { if (!outOfStock) ctx.addToCart(p); }} disabled={outOfStock} className={cn("text-left rounded-lg sm:rounded-xl border border-border/40 transition-all group overflow-hidden", outOfStock ? "opacity-50 cursor-not-allowed bg-muted/30" : "hover:border-primary/50 hover:shadow-sm bg-white active:scale-[0.97]")}>
+                                            <div className="relative">
+                                                {p.imageUrl ? (
+                                                    <div className="relative aspect-[4/3] sm:aspect-square w-full bg-muted/10">
+                                                        <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="(max-width: 1024px) 33vw, 20vw" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="aspect-[4/3] sm:aspect-square w-full bg-muted/20 flex items-center justify-center">
+                                                        <span className="text-lg sm:text-2xl font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
+                                                    </div>
+                                                )}
+                                                {outOfStock && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                                                        <span className="bg-red-500 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full">Habis</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="p-1.5 sm:p-2">
-                                                <p className="text-[10px] sm:text-[11px] font-medium truncate group-hover:text-primary transition-colors leading-tight">{p.name}</p>
-                                                <p className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5">Stok: {p.stock}</p>
+                                                <p className={cn("text-[10px] sm:text-[11px] font-medium truncate transition-colors leading-tight", outOfStock ? "text-muted-foreground" : "group-hover:text-primary")}>{p.name}</p>
+                                                <p className={cn("text-[8px] sm:text-[9px] mt-0.5", outOfStock ? "text-red-500 font-medium" : "text-muted-foreground")}>Stok: {p.stock}</p>
                                                 <p className="text-[11px] sm:text-xs text-primary font-bold mt-0.5 tabular-nums">{formatCurrency(p.sellingPrice)}</p>
                                             </div>
                                         </button>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="space-y-1 pt-2">
-                                    {ctx.browseItems.map((p) => (
-                                        <button key={p.id} onClick={() => ctx.addToCart(p)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border/40 hover:border-primary/50 hover:bg-accent/30 transition-all group bg-white active:scale-[0.99] text-left">
-                                            {p.imageUrl ? (
-                                                <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-muted/10 shrink-0">
-                                                    <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="56px" />
-                                                </div>
-                                            ) : (
-                                                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted/20 flex items-center justify-center shrink-0">
-                                                    <span className="text-base sm:text-lg font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
-                                                </div>
-                                            )}
+                                    {ctx.browseItems.map((p) => {
+                                        const outOfStock = ctx.shouldValidateStock && p.stock <= 0;
+                                        return (
+                                        <button key={p.id} onClick={() => { if (!outOfStock) ctx.addToCart(p); }} disabled={outOfStock} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border/40 transition-all group text-left", outOfStock ? "opacity-50 cursor-not-allowed bg-muted/30" : "hover:border-primary/50 hover:bg-accent/30 bg-white active:scale-[0.99]")}>
+                                            <div className="relative shrink-0">
+                                                {p.imageUrl ? (
+                                                    <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-muted/10">
+                                                        <Image src={p.imageUrl} alt={p.name} fill className="object-cover" sizes="56px" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-muted/20 flex items-center justify-center">
+                                                        <span className="text-base sm:text-lg font-bold text-muted-foreground/20">{p.name.charAt(0)}</span>
+                                                    </div>
+                                                )}
+                                                {outOfStock && (
+                                                    <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/10">
+                                                        <span className="bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">Habis</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-xs sm:text-sm font-medium truncate group-hover:text-primary transition-colors">{p.name}</p>
-                                                <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">{p.code} · Stok: {p.stock}</p>
+                                                <p className={cn("text-xs sm:text-sm font-medium truncate transition-colors", outOfStock ? "text-muted-foreground" : "group-hover:text-primary")}>{p.name}</p>
+                                                <p className={cn("text-[10px] sm:text-[11px] mt-0.5", outOfStock ? "text-red-500 font-medium" : "text-muted-foreground")}>{p.code} · Stok: {p.stock}</p>
                                             </div>
                                             <p className="text-xs sm:text-sm text-primary font-bold tabular-nums shrink-0">{formatCurrency(p.sellingPrice)}</p>
                                         </button>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                             {ctx.browseHasMore && (<div ref={ctx.productSentinelRef} className="flex justify-center py-4">{ctx.browseLoading && <Loader2 className="w-5 h-5 animate-spin text-primary/40" />}</div>)}{ctx.browseItems.length === 0 && !ctx.browseLoading && (<div className="py-10 text-center text-xs text-muted-foreground">Tidak ada produk ditemukan</div>)}{!ctx.browseHasMore && ctx.browseItems.length > 0 && (<p className="text-center text-[10px] text-muted-foreground/50 py-3">Semua produk ditampilkan</p>)}</ScrollArea>
@@ -289,7 +321,7 @@ export function POSPagePanels() {
                 {ctx.isDesktop && (<div role="separator" aria-orientation="vertical" onMouseDown={ctx.startResizeLeftPanel} className={cn("hidden lg:flex w-1.5 cursor-col-resize shrink-0 items-center justify-center bg-border/20 hover:bg-primary/20 transition-colors", ctx.isResizingLeftPanel && "bg-primary/30")}><div className="h-14 w-[2px] rounded-full bg-muted-foreground/40" /></div>)}
                 <div ref={ctx.centerPanelRef} className={cn("flex-1 flex flex-col min-w-0 bg-[#F1F5F9]", "md:min-w-[300px] lg:min-w-[380px]", "w-full lg:w-auto", "absolute inset-0 md:relative md:inset-auto", "pb-16 lg:pb-0", ctx.mobileView === "cart" ? "z-10 flex" : "z-0 hidden md:flex")}>
                     <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-border/40 lg:hidden"><Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => ctx.setMobileView("products")}><ArrowLeft className="w-4 h-4" /></Button><h2 className="font-bold text-sm">Keranjang</h2><div className="flex gap-1"><ProButton menuKey="pos" actionKey="discount" onClick={() => ctx.setShowDiscountDialog(true)} className="h-8 w-8 rounded-lg inline-flex items-center justify-center hover:bg-accent"><Tag className="w-4 h-4" /></ProButton><ProButton menuKey="pos" actionKey="history" onClick={() => { void ctx.loadHistory(); }} className="h-8 w-8 rounded-lg inline-flex items-center justify-center hover:bg-accent"><History className="w-4 h-4" /></ProButton></div></div>
-                    <div className="px-3 sm:px-5 py-2 sm:py-3 bg-white border-b border-border/40"><div className="relative"><Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/50" /><Input ref={ctx.barcodeInputRef} placeholder="Scan barcode / cari produk..." value={ctx.searchQuery} onChange={(e) => ctx.handleBarcodeInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && ctx.searchResults.length > 0) { const first = ctx.searchResults[0]; if (first) ctx.addToCart(first); } }} className="pl-10 sm:pl-12 pr-12 h-10 lg:h-12 rounded-xl text-sm sm:text-base border-2 border-border/50 focus:border-primary/50 bg-muted/20" autoFocus />{ctx.searching ? <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-primary/40" /> : <button onClick={() => setScannerOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-primary/60 hover:text-primary hover:bg-primary/10 transition-colors" title="Scan barcode dengan kamera"><ScanBarcode className="w-4 h-4 sm:w-5 sm:h-5" /></button>}</div>{ctx.searchResults.length > 0 && (<div className="mt-2 border border-border/50 rounded-xl overflow-hidden max-h-[240px] overflow-y-auto bg-white divide-y divide-border/20">{ctx.searchResults.map((p) => (<button key={p.id} onClick={() => ctx.addToCart(p)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/40 transition-colors text-left"><div><p className="font-medium text-sm">{p.name}</p><p className="text-xs text-muted-foreground">{p.code} &middot; {p.category.name} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary tabular-nums">{formatCurrency(p.sellingPrice)}</p></button>))}</div>)}</div>
+                    <div className="px-3 sm:px-5 py-2 sm:py-3 bg-white border-b border-border/40"><div className="relative"><Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/50" /><Input ref={ctx.barcodeInputRef} placeholder="Scan barcode / cari produk..." value={ctx.searchQuery} onChange={(e) => ctx.handleBarcodeInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && ctx.searchResults.length > 0) { const first = ctx.searchResults.find((r) => !ctx.shouldValidateStock || r.stock > 0) ?? ctx.searchResults[0]; if (first && (!ctx.shouldValidateStock || first.stock > 0)) ctx.addToCart(first); } }} className="pl-10 sm:pl-12 pr-12 h-10 lg:h-12 rounded-xl text-sm sm:text-base border-2 border-border/50 focus:border-primary/50 bg-muted/20" autoFocus />{ctx.searching ? <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-primary/40" /> : <button onClick={() => setScannerOpen(true)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-primary/60 hover:text-primary hover:bg-primary/10 transition-colors" title="Scan barcode dengan kamera"><ScanBarcode className="w-4 h-4 sm:w-5 sm:h-5" /></button>}</div>{ctx.searchResults.length > 0 && (<div className="mt-2 border border-border/50 rounded-xl overflow-hidden max-h-[240px] overflow-y-auto bg-white divide-y divide-border/20">{ctx.searchResults.map((p) => { const oos = ctx.shouldValidateStock && p.stock <= 0; return (<button key={p.id} onClick={() => { if (!oos) ctx.addToCart(p); }} disabled={oos} className={cn("w-full flex items-center justify-between px-4 py-3 transition-colors text-left", oos ? "opacity-50 cursor-not-allowed bg-muted/20" : "hover:bg-accent/40")}><div><p className="font-medium text-sm">{p.name}{oos && <span className="ml-2 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded-full">Habis</span>}</p><p className={cn("text-xs mt-0.5", oos ? "text-red-500" : "text-muted-foreground")}>{p.code} &middot; {p.category.name} &middot; Stok: {p.stock}</p></div><p className="font-bold text-primary tabular-nums">{formatCurrency(p.sellingPrice)}</p></button>); })}</div>)}</div>
                     {(ctx.negativeMarginItems.length > 0 || ctx.lowStockItems.length > 0) && (<div className="px-5 py-1.5 flex gap-2">{ctx.negativeMarginItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 rounded-md text-[11px] text-red-500"><AlertTriangle className="w-3 h-3" />Margin negatif: {ctx.negativeMarginItems.map((i) => i.productName).join(", ")}</div>}{ctx.lowStockItems.length > 0 && <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 rounded-md text-[11px] text-orange-500"><AlertTriangle className="w-3 h-3" />Stok menipis</div>}</div>)}
                     <div className="flex-1 flex flex-col min-h-0 px-3 sm:px-1 py-2 sm:py-3"><div className="bg-white rounded-xl sm:rounded-2xl border border-border/40 flex-1 flex flex-col overflow-hidden shadow-sm"><div className="px-3 sm:px-5 py-2 sm:py-3 border-b border-border/30 flex items-center justify-between shrink-0"><div className="flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-primary" /><span className="font-semibold text-xs sm:text-sm">Keranjang</span>{ctx.totalItems > 0 && <Badge className="bg-primary/10 text-primary rounded-full text-xs px-2 h-5">{ctx.totalItems} item</Badge>}</div>{(ctx.cart.length > 0 || ctx.heldTransactions.length > 0) && (<div className="flex gap-1.5">{ctx.heldTransactions.length > 0 && (<Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:bg-primary/10 rounded-lg" onClick={() => ctx.setShowHeldDialog(true)}>Lihat Hold ({ctx.heldTransactions.length})</Button>)}{ctx.cart.length > 0 && (<><ProButton menuKey="pos" actionKey="hold" onClick={ctx.holdTransaction} className="h-7 text-xs text-orange-500 hover:bg-orange-50 rounded-lg inline-flex items-center gap-1 px-2"><Pause className="w-3 h-3" />Hold</ProButton><Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg" onClick={ctx.resetPOS}>Clear</Button></>)}</div>)}</div><ScrollArea className="flex-1 min-h-0 overflow-hidden">{ctx.cart.length === 0 ? (<div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground/40"><ShoppingCart className="w-14 h-14 mb-3" /><p className="font-medium">Keranjang kosong</p><p className="text-xs mt-1">Scan barcode atau pilih produk</p>{ctx.heldTransactions.length > 0 && (<Button variant="outline" size="sm" className="mt-4 rounded-lg" onClick={() => ctx.setShowHeldDialog(true)}>Lihat Transaksi Hold ({ctx.heldTransactions.length})</Button>)}</div>) : (<div className="p-3 space-y-1">{ctx.cart.map((item, idx) => {
                         const itemPromo = ctx.promoMeta.byItem[item.productId];

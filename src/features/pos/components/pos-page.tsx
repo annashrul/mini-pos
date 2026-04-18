@@ -649,6 +649,8 @@ function POSPageContent() {
             setSuccess(r.invoiceNumber!);
             setPointsEarnedResult(r.pointsEarned || 0);
             localStorage.removeItem(STORAGE_KEY);
+            // Refresh product list to update stock after checkout
+            loadProducts("all", selectedCategory || undefined, 1, true);
             // Mark selected tables as OCCUPIED
             if (selectedTables.length > 0) {
                 import("@/server/actions/tables").then(({ occupyTable }) => {
@@ -1351,6 +1353,7 @@ function POSPageContent() {
                 setLeftPanelTab,
                 bundles,
                 addBundleToCart,
+                shouldValidateStock,
             }}>
                 <POSPagePanels />
             </PosPanelsProvider>

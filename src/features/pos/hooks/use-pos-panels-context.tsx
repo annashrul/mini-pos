@@ -107,6 +107,7 @@ export type PosPanelsContextValue = {
     setLeftPanelTab: (v: "products" | "bundles" | "tables") => void;
     bundles: any[];
     addBundleToCart: (bundle: any) => void;
+    shouldValidateStock: boolean;
 };
 
 const PosPanelsContext = createContext<PosPanelsContextValue | null>(null);
