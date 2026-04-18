@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -37,9 +38,8 @@ export function CategoriesContent() {
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
     const [pendingSubmitValues, setPendingSubmitValues] = useState<CategoryFormValues | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 10 });
+    const { page, pageSize, search } = qp;
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("categories");
@@ -61,12 +61,9 @@ export function CategoriesContent() {
         });
     };
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
         fetchData({});
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [page, pageSize, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const form = useForm<CategoryFormValues>({
         resolver: zodResolver(categoryFormSchema),
@@ -226,8 +223,8 @@ export function CategoriesContent() {
                         )}
                     </div>
                 )} titleIcon={<FolderTree className="w-4 h-4 text-emerald-500" />}
-                searchPlaceholder="Cari kategori..." onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }} onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                searchPlaceholder="Cari kategori..." searchValue={search} onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)} onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 afterFilters={
                     <div className="grid grid-cols-3 gap-2 sm:gap-3 px-3 sm:px-5 pb-2">
                         <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">

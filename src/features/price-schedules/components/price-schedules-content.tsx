@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useState, useTransition, useRef } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
     getPriceSchedules,
     getPriceScheduleStats,
@@ -125,11 +126,10 @@ export function PriceSchedulesContent() {
         productsAffected: 0,
     });
     const [branches, setBranches] = useState<Branch[]>([]);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [statusFilter, setStatusFilter] = useState("ALL");
-    const [branchFilter, setBranchFilter] = useState("ALL");
+    const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL", branch: "ALL" } });
+    const { page, pageSize, search, filters } = qp;
+    const statusFilter = filters.status ?? "ALL";
+    const branchFilter = filters.branch ?? "ALL";
     const [dialogOpen, setDialogOpen] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
@@ -169,12 +169,13 @@ export function PriceSchedulesContent() {
 
     const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
+        if (!didFetchRef.current) {
+            didFetchRef.current = true;
+            fetchStats();
+            getAllBranches().then((b) => setBranches(b as Branch[]));
+        }
         fetchData({});
-        fetchStats();
-        getAllBranches().then((b) => setBranches(b as Branch[]));
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [page, pageSize, search, statusFilter, branchFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleDelete = async (id: string) => {
         if (!canDelete) {
@@ -447,9 +448,10 @@ export function PriceSchedulesContent() {
                 title="Jadwal Harga"
                 titleIcon={<CalendarClock className="w-4 h-4 text-violet-600" />}
                 searchPlaceholder="Cari produk..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); fetchData({ page: 1, pageSize: ps }); }}
+                searchValue={search}
+                onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(ps) => qp.setParams({ pageSize: ps, page: 1 })}
                 filters={[
                     {
                         key: "status", label: "Status", type: "select", options: [
@@ -469,12 +471,7 @@ export function PriceSchedulesContent() {
                 ]}
                 activeFilters={{ status: statusFilter, branch: branchFilter }}
                 onFilterChange={(f) => {
-                    const s = f.status ?? "ALL";
-                    const b = f.branch ?? "ALL";
-                    setStatusFilter(s);
-                    setBranchFilter(b);
-                    setPage(1);
-                    fetchData({ status: s, branch: b, page: 1 });
+                    qp.setFilters({ status: f.status ?? "ALL", branch: f.branch ?? "ALL" });
                 }}
                 planMenuKey="price-schedules" exportModule="price-schedules"
                 emptyIcon={<CalendarClock className="w-10 h-10 text-muted-foreground/30" />}

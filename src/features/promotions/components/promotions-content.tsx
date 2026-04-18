@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useState, useTransition, useRef } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { deletePromotion, getPromotions, getPromotionStats } from "@/features/promotions";
 import { useMenuActionAccess } from "@/features/access-control";
 import { useBranch } from "@/components/providers/branch-provider";
@@ -47,10 +48,9 @@ export function PromotionsContent() {
     const [data, setData] = useState<{ promotions: Promotion[]; total: number; totalPages: number }>({ promotions: [], total: 0, totalPages: 0 });
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Promotion | null>(null);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ type: "ALL" });
+    const qp = useQueryParams({ pageSize: 10, filters: { type: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
+    const [searchInput, setSearchInput] = useState(search);
     const [sortKey] = useState("");
     const [sortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
@@ -89,14 +89,11 @@ export function PromotionsContent() {
         });
     };
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
         if (!branchReady) return;
-        if (didFetchRef.current && prevBranchRef.current === selectedBranchId) return;
-        didFetchRef.current = true;
         prevBranchRef.current = selectedBranchId;
         fetchData({});
-    }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const openForm = (promo: Promotion | null) => {
         if (promo ? !canUpdate : !canCreate) { toast.error(cannotMessage(promo ? "update" : "create")); return; }
@@ -119,19 +116,13 @@ export function PromotionsContent() {
 
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (value: string) => {
-        setSearch(value);
+        setSearchInput(value);
         if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = setTimeout(() => {
-            setPage(1);
-            fetchData({ search: value, page: 1 });
-        }, 400);
+        searchDebounceRef.current = setTimeout(() => { qp.setSearch(value); }, 400);
     };
 
     const handleFilterType = (type: string) => {
-        const newFilters = { ...activeFilters, type };
-        setActiveFilters(newFilters);
-        setPage(1);
-        fetchData({ filters: newFilters, page: 1 });
+        qp.setFilter("type", type === "ALL" ? null : type);
     };
 
     const renderValue = (row: Promotion) => {
@@ -219,7 +210,7 @@ export function PromotionsContent() {
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
+                        <Input placeholder="Cari promo..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
                         {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
                     </div>
                     <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
@@ -280,7 +271,7 @@ export function PromotionsContent() {
             <div className="hidden sm:flex items-center justify-between gap-4">
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Cari promo..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-10" />
+                    <Input placeholder="Cari promo..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-10" />
                     {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -443,8 +434,8 @@ export function PromotionsContent() {
                 totalPages={data.totalPages}
                 totalItems={data.total}
                 pageSize={pageSize}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
             />
 
             {/* Promo Form Dialog */}

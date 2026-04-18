@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,9 +40,8 @@ export function BrandsContent() {
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
     const [pendingSubmitValues, setPendingSubmitValues] = useState<BrandFormValues | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 10 });
+    const { page, pageSize, search } = qp;
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("brands");
@@ -67,12 +67,9 @@ export function BrandsContent() {
         });
     };
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
         fetchData({});
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [page, pageSize, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const form = useForm<BrandFormValues>({
         resolver: zodResolver(brandFormSchema),
@@ -193,9 +190,10 @@ export function BrandsContent() {
                 )}
                 titleIcon={<div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"><Tag className="w-4 h-4 text-white" /></div>}
                 searchPlaceholder="Cari brand..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                searchValue={search}
+                onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 afterFilters={
                     <div className="flex items-center gap-2 flex-wrap px-3 sm:px-5 pb-2">
                         <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] sm:text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200/60">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import {
@@ -145,7 +146,9 @@ function productMobileRender(p: ProductProfit) {
 
 export function ProfitDashboardContent() {
     const { selectedBranchId } = useBranch();
-    const [period, setPeriod] = useState<Period>("month");
+    const qp = useQueryParams({ filters: { period: "month" } });
+    const period = (qp.filters.period || "month") as Period;
+    const setPeriod = (p: Period) => qp.setFilter("period", p);
     const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
     const [loading, setLoading] = useState(true);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { getAgingReport } from "@/server/actions/accounting-reports";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,10 +28,12 @@ const BUCKET_CONFIG = [
 ];
 
 export function AgingReportContent() {
-  const [type, setType] = useState<"PAYABLE" | "RECEIVABLE">("RECEIVABLE");
+  const qp = useQueryParams({ filters: { type: "RECEIVABLE" } });
+  const type = (qp.filters.type || "RECEIVABLE") as "PAYABLE" | "RECEIVABLE";
+  const setType = (t: "PAYABLE" | "RECEIVABLE") => qp.setFilter("type", t);
+  const search = qp.search;
   const [data, setData] = useState<AgingData | null>(null);
   const [loading, startTransition] = useTransition();
-  const [search, setSearch] = useState("");
   const { selectedBranchId, branchReady } = useBranch();
   const prevBranchRef = useRef(selectedBranchId);
 
@@ -64,11 +67,12 @@ export function AgingReportContent() {
     totals: [{ label: "Grand Total", value: formatCurrency(data?.summary.total ?? 0) }],
   });
 
+  const [searchInput, setSearchInput] = useState(search);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearch = (value: string) => {
-    setSearch(value);
+    setSearchInput(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {}, 300);
+    searchDebounceRef.current = setTimeout(() => { qp.setSearch(value); }, 400);
   };
 
   return (
@@ -137,7 +141,7 @@ export function AgingReportContent() {
           </div>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input value={search} onChange={(e) => handleSearch(e.target.value)} placeholder="Cari nama..." className="pl-9 rounded-xl h-9 text-xs" />
+            <Input value={searchInput} onChange={(e) => handleSearch(e.target.value)} placeholder="Cari nama..." className="pl-9 rounded-xl h-9 text-xs" />
           </div>
         </div>
       </div>

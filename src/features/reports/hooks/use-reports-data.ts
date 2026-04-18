@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
   getSalesReport,
   getTopProductsReport,
@@ -51,8 +52,14 @@ export function useReportsData() {
   const [categorySales, setCategorySales] = useState<CategorySalesReport[]>([]);
   const [supplierSales, setSupplierSales] = useState<SupplierSalesReport[]>([]);
   const [cashierSales, setCashierSales] = useState<CashierSalesReport[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const qp = useQueryParams({ filters: { dateFrom: "", dateTo: "" } });
+  const dateFrom = qp.filters.dateFrom || "";
+  const dateTo = qp.filters.dateTo || "";
+  const setDateFrom = (v: string) => qp.setFilter("dateFrom", v || null);
+  const setDateTo = (v: string) => qp.setFilter("dateTo", v || null);
+  const setDateRange = (from: string, to: string) => {
+    qp.setParams({ dateFrom: from || null, dateTo: to || null });
+  };
   const [isFiltering, startTransition] = useTransition();
 
   const fetchAll = (from?: string, to?: string) => {
@@ -99,7 +106,7 @@ export function useReportsData() {
   useEffect(() => {
     if (!branchReady) return;
     fetchAll(dateFrom, dateTo);
-  }, [selectedBranchId, branchReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedBranchId, branchReady, dateFrom, dateTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasData = dailySales.length > 0 || monthlySales.length > 0 || profitLoss.revenue > 0;
 
@@ -118,6 +125,7 @@ export function useReportsData() {
     dateTo,
     setDateFrom,
     setDateTo,
+    setDateRange,
     isFiltering,
     hasData,
     applyDateFilter,

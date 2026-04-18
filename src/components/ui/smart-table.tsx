@@ -64,6 +64,7 @@ export interface SmartTableProps<T> {
 
   // Search
   searchPlaceholder?: string;
+  searchValue?: string;
   onSearch: (query: string) => void;
 
   // Pagination
@@ -138,6 +139,7 @@ export function SmartTable<T>({
   pageSize,
   loading,
   searchPlaceholder = "Cari...",
+  searchValue: searchValueProp,
   onSearch,
   onPageChange,
   onPageSizeChange,
@@ -169,7 +171,13 @@ export function SmartTable<T>({
   afterFilters,
   planMenuKey,
 }: SmartTableProps<T>) {
-  const [searchValue, setSearchValue] = useState("");
+  const [searchValue, setSearchValue] = useState(searchValueProp ?? "");
+  // Sync search value from URL params on navigation/refresh
+  useEffect(() => {
+    if (searchValueProp !== undefined && searchValueProp !== searchValue) {
+      setSearchValue(searchValueProp);
+    }
+  }, [searchValueProp]); // eslint-disable-line react-hooks/exhaustive-deps
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [tempFilters, setTempFilters] = useState<Record<string, string>>(activeFilters);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());

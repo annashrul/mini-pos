@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
@@ -75,10 +76,8 @@ const paymentConfig: Record<string, { label: string; icon: typeof Banknote; colo
 
 export function TransactionsContent() {
   const [data, setData] = useState<TransactionsData>({ transactions: [], total: 0, totalPages: 0, currentPage: 1 });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
+  const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL" } });
+  const { page, pageSize, search, filters: activeFilters } = qp;
   const { selectedBranchId, branchReady } = useBranch();
   const prevBranchRef = useRef(selectedBranchId);
   const [sortKey, setSortKey] = useState<string>("");
@@ -98,39 +97,33 @@ export function TransactionsContent() {
 
   const [stats, setStats] = useState({ total: 0, completed: 0, voided: 0, refunded: 0, totalRevenue: 0 });
 
-  const fetchData = (params: { search?: string; page?: number; pageSize?: number; filters?: Record<string, string>; sortKey?: string; sortDir?: "asc" | "desc" }) => {
+  const fetchData = useCallback((params?: { sortKey?: string; sortDir?: "asc" | "desc" }) => {
     startTransition(async () => {
-      const f = params.filters ?? activeFilters;
-      const sk = params.sortKey ?? sortKey;
-      const sd = params.sortDir ?? sortDir;
+      const sk = params?.sortKey ?? sortKey;
+      const sd = params?.sortDir ?? sortDir;
       const query = {
-        search: params.search ?? search,
-        page: params.page ?? page,
-        limit: params.pageSize ?? pageSize,
-        ...(f.status !== "ALL" ? { status: f.status } : {}),
-        ...(f.date_from ? { dateFrom: f.date_from } : {}),
-        ...(f.date_to ? { dateTo: f.date_to } : {}),
+        search,
+        page,
+        limit: pageSize,
+        ...(activeFilters.status && activeFilters.status !== "ALL" ? { status: activeFilters.status } : {}),
+        ...(activeFilters.date_from ? { dateFrom: activeFilters.date_from } : {}),
+        ...(activeFilters.date_to ? { dateTo: activeFilters.date_to } : {}),
         ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
         ...(sk ? { sortBy: sk, sortDir: sd } : {}),
       };
       const result = await getTransactions(query);
       setData(result);
     });
-  };
+  }, [search, page, pageSize, activeFilters, selectedBranchId, sortKey, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshStats = () => { getTransactionStats(selectedBranchId || undefined).then(setStats); };
 
   useEffect(() => {
     if (!branchReady) return;
     refreshStats();
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    fetchData();
+  }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.status, activeFilters.date_from, activeFilters.date_to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewDetail = async (id: string) => {
     const tx = await getTransactionById(id);
@@ -143,7 +136,7 @@ export function TransactionsContent() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
     const result = await voidTransaction(actionTxId, reason);
     if (result.error) toast.error(result.error);
-    else { toast.success("Transaksi berhasil di-void"); setVoidDialogOpen(false); setReason(""); fetchData({}); refreshStats(); }
+    else { toast.success("Transaksi berhasil di-void"); setVoidDialogOpen(false); setReason(""); fetchData(); refreshStats(); }
   };
 
   const handleRefund = async () => {
@@ -151,7 +144,7 @@ export function TransactionsContent() {
     if (!reason.trim()) { toast.error("Alasan wajib diisi"); return; }
     const result = await refundTransaction(actionTxId, reason);
     if (result.error) toast.error(result.error);
-    else { toast.success("Transaksi berhasil di-refund"); setRefundDialogOpen(false); setReason(""); fetchData({}); refreshStats(); }
+    else { toast.success("Transaksi berhasil di-refund"); setRefundDialogOpen(false); setReason(""); fetchData(); refreshStats(); }
   };
 
   const getCashierName = (row: TransactionRow) => (row as unknown as { user?: { name?: string } }).user?.name ?? row.userId;
@@ -405,15 +398,16 @@ export function TransactionsContent() {
           </div>
         }
         searchPlaceholder="Cari invoice, kasir..."
-        onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+        searchValue={search}
+        onSearch={(q) => qp.setSearch(q)}
+        onPageChange={(p) => qp.setPage(p)}
+        onPageSizeChange={(s) => qp.setPageSize(s)}
         sortKey={sortKey}
         sortDir={sortDir}
-        onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
+        onSort={(key, dir) => { setSortKey(key); setSortDir(dir); fetchData({ sortKey: key, sortDir: dir }); }}
         filters={filters}
         activeFilters={activeFilters}
-        onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+        onFilterChange={(f) => qp.setFilters(f)}
         rowKey={(r) => r.id}
         planMenuKey="transactions" exportModule="transactions" exportBranchId={selectedBranchId || undefined}
         emptyIcon={<Receipt className="w-10 h-10 text-muted-foreground/30" />}
@@ -790,7 +784,7 @@ export function TransactionsContent() {
         open={importOpen}
         onOpenChange={setImportOpen}
         branchId={selectedBranchId || undefined}
-        onImported={() => { setPage(1); fetchData({ page: 1 }); refreshStats(); }}
+        onImported={() => { qp.setPage(1); fetchData(); refreshStats(); }}
       />
     </div>
   );

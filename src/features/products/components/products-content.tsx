@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { deleteProduct, getProducts, getProductStats, bulkDeleteProducts } from "@/features/products";
 import { useMenuActionAccess } from "@/features/access-control";
 import { getAllCategories } from "@/features/categories";
@@ -37,15 +38,8 @@ export function ProductsContent() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-    categoryId: "ALL",
-    brandId: "ALL",
-    status: "ALL",
-    stockStatus: "ALL",
-  });
+  const qp = useQueryParams({ pageSize: 10, filters: { categoryId: "ALL", brandId: "ALL", status: "ALL", stockStatus: "ALL" } });
+  const { page, pageSize, search, filters: activeFilters } = qp;
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<string>("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -84,8 +78,20 @@ export function ProductsContent() {
 
   useEffect(() => {
     startTransition(async () => {
+      const f = activeFilters;
+      const query = {
+        search,
+        page,
+        limit: pageSize,
+        ...(f.categoryId !== "ALL" ? { categoryId: f.categoryId } : {}),
+        ...(f.brandId !== "ALL" ? { brandId: f.brandId } : {}),
+        ...(f.status !== "ALL" ? { status: f.status } : {}),
+        ...(f.stockStatus !== "ALL" ? { stockStatus: f.stockStatus } : {}),
+        ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+        ...(sortKey ? { sortBy: sortKey, sortDir } : {}),
+      };
       const [productsData, categoriesData, brandsData, suppliersData, branchesData, statsData] = await Promise.all([
-        getProducts(selectedBranchId ? { branchId: selectedBranchId } : {}),
+        getProducts(query),
         getAllCategories(),
         getBrands({ perPage: 1000 }),
         getSuppliers({ perPage: 1000 }),
@@ -99,7 +105,7 @@ export function ProductsContent() {
       setBranches(branchesData);
       setStats(statsData);
     });
-  }, [selectedBranchId]);
+  }, [selectedBranchId, page, pageSize, search, activeFilters.categoryId, activeFilters.brandId, activeFilters.status, activeFilters.stockStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const fetchDataWithStats = (params: Record<string, unknown> = {}) => fetchData({ ...params, refreshStats: true } as Parameters<typeof fetchData>[0]);
 
   const openCreateDialog = () => {
@@ -490,15 +496,16 @@ export function ProductsContent() {
         title="Daftar Produk"
         titleIcon={<Package className="w-4 h-4 text-indigo-500" />}
         searchPlaceholder="Cari produk..."
-        onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+        searchValue={search}
+        onSearch={(q) => { qp.setSearch(q); }}
+        onPageChange={(p) => qp.setPage(p)}
+        onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
         sortKey={sortKey}
         sortDir={sortDir}
-        onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
+        onSort={(key, dir) => { setSortKey(key); setSortDir(dir); qp.setPage(1); }}
         filters={filters}
         activeFilters={activeFilters}
-        onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+        onFilterChange={(f) => { qp.setFilters(f); }}
         selectable
         selectedRows={selectedRows}
         onSelectionChange={setSelectedRows}

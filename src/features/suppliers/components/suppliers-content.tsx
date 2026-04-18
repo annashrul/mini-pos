@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -43,10 +44,8 @@ export function SuppliersContent() {
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
     const [pendingSubmitValues, setPendingSubmitValues] = useState<SupplierFormValues | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
+    const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("suppliers");
@@ -76,12 +75,9 @@ export function SuppliersContent() {
         });
     };
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
         fetchData({});
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [page, pageSize, search, activeFilters.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const form = useForm<SupplierFormValues>({
         resolver: zodResolver(supplierFormSchema),
@@ -294,11 +290,12 @@ export function SuppliersContent() {
                     </div>
                 )} titleIcon={<Truck className="w-4 h-4 text-amber-500" />}
                 searchPlaceholder="Cari supplier..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                searchValue={search}
+                onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 filters={filters} activeFilters={activeFilters}
-                onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                onFilterChange={(f) => { qp.setFilters(f); }}
                 afterFilters={
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 px-3 sm:px-5 pb-2">
                         <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 border border-slate-200/60">

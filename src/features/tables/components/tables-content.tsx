@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition, useCallback, useRef } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { ProButton } from "@/components/ui/pro-gate";
@@ -135,8 +136,11 @@ export function TablesContent() {
     const [tables, setTables] = useState<TableRecord[]>([]);
     const [stats, setStats] = useState<Stats>({ total: 0, active: 0, available: 0, occupied: 0, reserved: 0, cleaning: 0 });
     const [sections, setSections] = useState<string[]>([]);
-    const [search, setSearch] = useState("");
-    const [activeSection, setActiveSection] = useState<string>("Semua");
+    const qp = useQueryParams({ filters: { section: "Semua" } });
+    const search = qp.search;
+    const [searchInput, setSearchInput] = useState(search);
+    const activeSection = qp.filters.section || "Semua";
+    const setActiveSection = (s: string) => qp.setFilter("section", s === "Semua" ? null : s);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [draftSection, setDraftSection] = useState("Semua");
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -194,9 +198,10 @@ export function TablesContent() {
     }, [selectedBranchId]);
 
     const handleSearch = (value: string) => {
-        setSearch(value);
+        setSearchInput(value);
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
+            qp.setSearch(value);
             fetchData({ search: value });
         }, 300);
     };
@@ -376,7 +381,7 @@ export function TablesContent() {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Cari meja..."
-                                    value={search}
+                                    value={searchInput}
                                     onChange={(e) => handleSearch(e.target.value)}
                                     className="pl-9 rounded-xl h-9"
                                 />
@@ -431,7 +436,7 @@ export function TablesContent() {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Cari nomor, nama, atau bagian meja..."
-                                    value={search}
+                                    value={searchInput}
                                     onChange={(e) => handleSearch(e.target.value)}
                                     className="pl-9 rounded-xl h-10"
                                 />

@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useTransition, useCallback, useRef } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
     getWeekSchedule,
     getMonthSchedule,
@@ -82,10 +83,29 @@ function getMondayOfWeek(date: Date): Date {
 }
 
 export function EmployeeSchedulesContent() {
-    const [view, setView] = useState<"week" | "month">("week");
-    const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMondayOfWeek(new Date()));
-    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-    const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
+    const now = new Date();
+    const qp = useQueryParams({
+        filters: {
+            view: "week",
+            weekStart: getMondayOfWeek(now).toISOString().slice(0, 10),
+            year: String(now.getFullYear()),
+            month: String(now.getMonth() + 1),
+        },
+    });
+    const view = (qp.filters.view || "week") as "week" | "month";
+    const setView = (v: "week" | "month") => qp.setFilter("view", v);
+    const [currentWeekStart, setCurrentWeekStartLocal] = useState<Date>(() => {
+        const ws = qp.filters.weekStart;
+        return ws ? new Date(ws + "T00:00:00") : getMondayOfWeek(now);
+    });
+    const setCurrentWeekStart = (d: Date) => {
+        setCurrentWeekStartLocal(d);
+        qp.setFilter("weekStart", d.toISOString().slice(0, 10));
+    };
+    const currentYear = Number(qp.filters.year) || now.getFullYear();
+    const setCurrentYear = (y: number) => qp.setFilter("year", String(y));
+    const currentMonth = Number(qp.filters.month) || (now.getMonth() + 1);
+    const setCurrentMonth = (m: number) => qp.setFilter("month", String(m));
 
     const [weekData, setWeekData] = useState<WeekData | null>(null);
     const [monthData, setMonthData] = useState<MonthData | null>(null);
@@ -148,17 +168,17 @@ export function EmployeeSchedulesContent() {
     }, [branchReady, view, fetchWeek, fetchMonth, selectedBranchId]);
 
     // Navigation
-    function goToPrevWeek() { setCurrentWeekStart((d) => subWeeks(d, 1)); }
-    function goToNextWeek() { setCurrentWeekStart((d) => addWeeks(d, 1)); }
+    function goToPrevWeek() { setCurrentWeekStart(subWeeks(currentWeekStart, 1)); }
+    function goToNextWeek() { setCurrentWeekStart(addWeeks(currentWeekStart, 1)); }
     function goToToday() { setCurrentWeekStart(getMondayOfWeek(new Date())); }
 
     function goToPrevMonth() {
-        if (currentMonth === 1) { setCurrentYear((y) => y - 1); setCurrentMonth(12); }
-        else setCurrentMonth((m) => m - 1);
+        if (currentMonth === 1) { setCurrentYear(currentYear - 1); setCurrentMonth(12); }
+        else setCurrentMonth(currentMonth - 1);
     }
     function goToNextMonth() {
-        if (currentMonth === 12) { setCurrentYear((y) => y + 1); setCurrentMonth(1); }
-        else setCurrentMonth((m) => m + 1);
+        if (currentMonth === 12) { setCurrentYear(currentYear + 1); setCurrentMonth(1); }
+        else setCurrentMonth(currentMonth + 1);
     }
 
     // Cell click handlers

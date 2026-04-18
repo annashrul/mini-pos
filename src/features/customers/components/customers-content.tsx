@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -72,12 +73,8 @@ export function CustomersContent() {
     const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
     const [pendingSubmitValues, setPendingSubmitValues] = useState<CustomerFormValues | null>(null);
     const [confirmLoading, setConfirmLoading] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-        memberLevel: "ALL",
-    });
+    const qp = useQueryParams({ pageSize: 10, filters: { memberLevel: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -111,12 +108,9 @@ export function CustomersContent() {
         });
     };
 
-    const didFetchRef = useRef(false);
     useEffect(() => {
-        if (didFetchRef.current) return;
-        didFetchRef.current = true;
         fetchData({});
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [page, pageSize, search, activeFilters.memberLevel]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const form = useForm<CustomerFormValues>({
         resolver: zodResolver(customerFormSchema),
@@ -352,15 +346,16 @@ export function CustomersContent() {
                 title="Daftar Customer"
                 titleIcon={<Users className="w-4 h-4 text-rose-500" />}
                 searchPlaceholder="Cari customer..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                searchValue={search}
+                onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 sortKey={sortKey}
                 sortDir={sortDir}
-                onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
+                onSort={(key, dir) => { setSortKey(key); setSortDir(dir); qp.setPage(1); }}
                 filters={filters}
                 activeFilters={activeFilters}
-                onFilterChange={(f) => { setActiveFilters(f); setPage(1); fetchData({ filters: f, page: 1 }); }}
+                onFilterChange={(f) => { qp.setFilters(f); }}
                 afterFilters={
                     <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-3 sm:px-5 pb-2">
                         <Badge variant="secondary" className="rounded-full px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">

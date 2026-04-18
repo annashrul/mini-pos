@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, useMemo } from "react";
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useBranch } from "@/components/providers/branch-provider";
 import { getClosingReportList, getClosingReport, recloseShift } from "@/server/actions/closing-report";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -66,11 +67,11 @@ type ClosingReportData = Awaited<ReturnType<typeof getClosingReport>>;
 
 export function ClosingReportsContent() {
   const [data, setData] = useState<{ shifts: ShiftRow[]; total: number; totalPages: number }>({ shifts: [], total: 0, totalPages: 0 });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const qp = useQueryParams({ pageSize: 10, filters: { dateFrom: "", dateTo: "" } });
+  const { page, pageSize, search, filters } = qp;
+  const dateFrom = filters.dateFrom || "";
+  const dateTo = filters.dateTo || "";
+  const [searchInput, setSearchInput] = useState(search);
   const [loading, startTransition] = useTransition();
   const { selectedBranchId, branchReady } = useBranch();
   const prevBranchRef = useRef(selectedBranchId);
@@ -103,35 +104,28 @@ export function ClosingReportsContent() {
     };
   }, [data]);
 
-  const fetchData = (params: { search?: string; page?: number; pageSize?: number; dateFrom?: string; dateTo?: string }) => {
+  const fetchData = useCallback(() => {
     startTransition(async () => {
-      const df = params.dateFrom ?? dateFrom;
-      const dt = params.dateTo ?? dateTo;
       const result = await getClosingReportList({
-        search: params.search ?? search,
-        page: params.page ?? page,
-        perPage: params.pageSize ?? pageSize,
-        ...(df ? { dateFrom: df } : {}),
-        ...(dt ? { dateTo: dt } : {}),
+        search,
+        page,
+        perPage: pageSize,
+        ...(dateFrom ? { dateFrom } : {}),
+        ...(dateTo ? { dateTo } : {}),
         ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
       });
       setData(result as typeof data);
     });
-  };
+  }, [search, page, pageSize, dateFrom, dateTo, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: auto-refresh on closing/reclosing events
-  useClosingRealtime(() => fetchData({}), selectedBranchId || undefined);
+  useClosingRealtime(() => fetchData(), selectedBranchId || undefined);
 
   useEffect(() => {
     if (!branchReady) return;
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    fetchData();
+  }, [branchReady, selectedBranchId, page, pageSize, search, dateFrom, dateTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDetail = async (shiftId: string, isAllowReopen = false) => {
     setDetailAllowReopen(isAllowReopen);
@@ -158,7 +152,7 @@ export function ClosingReportsContent() {
     if (result.error) { toast.error(result.error); return; }
     toast.success("Shift berhasil di-reclosing");
     setRecloseOpen(false);
-    fetchData({});
+    fetchData();
     if (detailOpen && report?.shift.id === recloseShiftId) {
       const r = await getClosingReport(recloseShiftId);
       setReport(r);
@@ -231,9 +225,8 @@ export function ClosingReportsContent() {
   };
 
   const handleSearchChange = (value: string) => {
-    setSearch(value);
-    setPage(1);
-    fetchData({ search: value, page: 1 });
+    setSearchInput(value);
+    qp.setSearch(value);
   };
 
   return (
@@ -286,7 +279,7 @@ export function ClosingReportsContent() {
             <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 animate-spin" />
           )}
           <Input
-            value={search}
+            value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Cari kasir..."
             className="pl-10 pr-10 h-11 rounded-xl border-border/40 bg-white shadow-sm focus-visible:ring-teal-200 focus-visible:border-teal-300"
@@ -297,7 +290,7 @@ export function ClosingReportsContent() {
           <DateRangePicker
             from={dateFrom}
             to={dateTo}
-            onChange={(f, t) => { setDateFrom(f); setDateTo(t); setPage(1); fetchData({ dateFrom: f, dateTo: t, page: 1 }); }}
+            onChange={(f, t) => { qp.setParams({ dateFrom: f || null, dateTo: t || null, page: 1 }); }}
             placeholder="Filter periode"
             className="rounded-xl shrink-0"
           />
@@ -339,10 +332,7 @@ export function ClosingReportsContent() {
                 onClick={() => {
                   setTempDateFrom("");
                   setTempDateTo("");
-                  setDateFrom("");
-                  setDateTo("");
-                  setPage(1);
-                  fetchData({ dateFrom: "", dateTo: "", page: 1 });
+                  qp.setParams({ dateFrom: null, dateTo: null, page: 1 });
                   setFilterSheetOpen(false);
                 }}
               >
@@ -351,10 +341,7 @@ export function ClosingReportsContent() {
               <Button
                 className="flex-1 rounded-xl h-10 text-sm shadow-md"
                 onClick={() => {
-                  setDateFrom(tempDateFrom);
-                  setDateTo(tempDateTo);
-                  setPage(1);
-                  fetchData({ dateFrom: tempDateFrom, dateTo: tempDateTo, page: 1 });
+                  qp.setParams({ dateFrom: tempDateFrom || null, dateTo: tempDateTo || null, page: 1 });
                   setFilterSheetOpen(false);
                 }}
               >
@@ -511,8 +498,8 @@ export function ClosingReportsContent() {
         totalPages={data.totalPages}
         totalItems={data.total}
         pageSize={pageSize}
-        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+        onPageChange={(p) => qp.setPage(p)}
+        onPageSizeChange={(s) => qp.setPageSize(s)}
       />
 
       {/* Detail Report Dialog */}

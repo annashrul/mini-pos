@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { createUser, updateUser, deleteUser, getUsers, getActiveRoles, getUserStats, bulkDeleteUsers } from "@/features/users";
 import { getBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -47,11 +48,12 @@ export function UsersContent() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(12);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 12, filters: { role: "ALL", branchId: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
+    const setPage = qp.setPage;
+    const setPageSize = qp.setPageSize;
+    const [searchInput, setSearchInput] = useState(search);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ role: "ALL", branchId: "ALL" });
     const [loading, startTransition] = useTransition();
     const { canAction, cannotMessage } = useMenuActionAccess("users");
     const canCreate = canAction("create");
@@ -146,10 +148,10 @@ export function UsersContent() {
 
     /* ---------- Search handler ---------- */
     const handleSearch = (value: string) => {
-        setSearch(value);
+        setSearchInput(value);
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            setPage(1);
+            qp.setSearch(value);
             fetchData({ search: value, page: 1 });
         }, 300);
     };
@@ -157,8 +159,7 @@ export function UsersContent() {
     /* ---------- Role filter handler ---------- */
     const handleRoleFilter = (roleKey: string) => {
         const newFilters = { ...activeFilters, role: roleKey };
-        setActiveFilters(newFilters);
-        setPage(1);
+        qp.setFilters(newFilters);
         fetchData({ filters: newFilters, page: 1 });
     };
 
@@ -167,7 +168,7 @@ export function UsersContent() {
             <UsersHeader canCreate={canCreate} cannotMessage={cannotMessage} onCreate={openCreateDialog} onImport={() => setImportOpen(true)} />
 
             <UsersFilters
-                search={search}
+                search={searchInput}
                 loading={loading}
                 effectiveRole={effectiveFilters.role || ""}
                 roleOptions={roleOptions}

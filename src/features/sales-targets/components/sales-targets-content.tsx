@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import {
@@ -70,9 +71,16 @@ function fmtCompact(value: number): string {
 export function SalesTargetsContent() {
     const { selectedBranchId } = useBranch();
     const branchId = selectedBranchId || undefined;
-    const [tab, setTab] = useState<TabKey>("leaderboard");
+    const qp = useQueryParams({ filters: { tab: "leaderboard", period: "MONTHLY" } });
+    const urlTab = (qp.filters.tab || "leaderboard") as TabKey;
+    const [tab, setTabLocal] = useState<TabKey>(urlTab);
+    useEffect(() => { setTabLocal(urlTab); }, [urlTab]);
+    const setTab = (t: TabKey) => { setTabLocal(t); qp.setFilter("tab", t); };
     const [tabSheetOpen, setTabSheetOpen] = useState(false);
-    const [periodType, setPeriodType] = useState<PeriodType>("MONTHLY");
+    const urlPeriod = (qp.filters.period || "MONTHLY") as PeriodType;
+    const [periodType, setPeriodTypeLocal] = useState<PeriodType>(urlPeriod);
+    useEffect(() => { setPeriodTypeLocal(urlPeriod); }, [urlPeriod]);
+    const setPeriodType = (p: PeriodType) => { setPeriodTypeLocal(p); qp.setFilter("period", p); };
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [targets, setTargets] = useState<Awaited<ReturnType<typeof getSalesTargets>>>([]);
     const [badges, setBadges] = useState<Awaited<ReturnType<typeof getBadges>>>([]);
@@ -542,6 +550,7 @@ export function SalesTargetsContent() {
                         onOpenChange={setShowSetTarget}
                         onSuccess={() => {
                             setShowSetTarget(false);
+                            if (tab !== "targets") setTab("targets");
                             loadTargets();
                         }}
                     />

@@ -2,14 +2,14 @@
 
 import { Button } from "@/components/ui/button";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { ScrollText, ChevronDown, ChevronUp, Plus, Pencil, Trash2 } from "lucide-react";
+import { ScrollText, ChevronsDownUp, ChevronsUpDown, Plus, Pencil, Trash2 } from "lucide-react";
 
 export function AuditLogsHeader(props: {
   stats: { total: number; create: number; update: number; delete: number };
-  onExpandAll: () => void;
-  onCollapseAll: () => void;
+  isAllExpanded: boolean;
+  onToggleExpandAll: () => void;
 }) {
-  const { stats, onExpandAll, onCollapseAll } = props;
+  const { stats, isAllExpanded, onToggleExpandAll } = props;
 
   return (
     <div className="space-y-4">
@@ -25,11 +25,9 @@ export function AuditLogsHeader(props: {
         </div>
         <div className="hidden sm:flex items-center gap-2">
           <ExportMenu module="audit-logs" />
-          <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={onExpandAll}>
-            <ChevronDown className="w-3.5 h-3.5 mr-1" /> Buka Semua
-          </Button>
-          <Button variant="ghost" size="sm" className="rounded-lg text-xs" onClick={onCollapseAll}>
-            <ChevronUp className="w-3.5 h-3.5 mr-1" /> Tutup Semua
+          <Button variant="outline" size="sm" className="rounded-xl text-xs gap-1.5" onClick={onToggleExpandAll}>
+            {isAllExpanded ? <ChevronsDownUp className="w-3.5 h-3.5" /> : <ChevronsUpDown className="w-3.5 h-3.5" />}
+            {isAllExpanded ? "Tutup Semua" : "Buka Semua"}
           </Button>
         </div>
       </div>
@@ -55,4 +53,3 @@ export function AuditLogsHeader(props: {
     </div>
   );
 }
-

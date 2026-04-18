@@ -4,14 +4,14 @@ import { useCallback, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Button } from "@/components/ui/button";
 import {
     Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
-import { Download, Printer, CalendarDays, Loader2, SlidersHorizontal, Check, BarChart3 } from "lucide-react";
+import { Download, Printer, CalendarDays, SlidersHorizontal, Check, BarChart3 } from "lucide-react";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { exportToCSV, printReport } from "@/lib/export";
 import { useReportsData } from "../hooks";
@@ -64,11 +64,8 @@ export function ReportsContent() {
         cashierSales,
         dateFrom,
         dateTo,
-        setDateFrom,
-        setDateTo,
+        setDateRange,
         isFiltering,
-        applyDateFilter,
-        resetDateFilter,
     } = useReportsData();
 
     const handleExportDaily = () => {
@@ -100,10 +97,8 @@ export function ReportsContent() {
     };
 
     const applyMobileFilter = () => {
-        setDateFrom(draftDateFrom);
-        setDateTo(draftDateTo);
+        setDateRange(draftDateFrom, draftDateTo);
         setFilterSheetOpen(false);
-        applyDateFilter();
     };
 
 
@@ -127,8 +122,14 @@ export function ReportsContent() {
                         </p>
                     </div>
                 </div>
-                {/* Desktop: export/print buttons */}
-                <div className="hidden sm:flex gap-2">
+                {/* Desktop: date range + export/print buttons */}
+                <div className="hidden sm:flex items-center gap-2">
+                    <DateRangePicker
+                        from={dateFrom}
+                        to={dateTo}
+                        onChange={(f, t) => { setDateRange(f, t); }}
+                        presets
+                    />
                     <ExportMenu module="reports" />
                     <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={handlePrintProfitLoss}>
                         <Printer className="w-3.5 h-3.5 mr-1.5" /> Print P&L
@@ -179,29 +180,7 @@ export function ReportsContent() {
                 </Sheet>
             </div>
 
-            {/* Desktop: Date Range Filter */}
-            <Card className="hidden sm:block rounded-2xl shadow-sm border border-border/40 bg-white/80 backdrop-blur-sm">
-                <CardContent className="p-4">
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
-                            <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
-                            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Periode</span>
-                        </div>
-                        <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Dari tanggal" className="w-[180px]" />
-                        <span className="text-xs text-muted-foreground font-medium">s/d</span>
-                        <DatePicker value={dateTo} onChange={setDateTo} placeholder="Sampai tanggal" className="w-[180px]" />
-                        <Button size="sm" className="rounded-xl h-8 px-5 text-xs font-semibold shadow-sm" onClick={applyDateFilter} disabled={isFiltering}>
-                            {isFiltering ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : null}
-                            Terapkan
-                        </Button>
-                        {(dateFrom || dateTo) && (
-                            <Button size="sm" variant="ghost" className="rounded-xl h-8 text-xs text-muted-foreground hover:text-foreground" onClick={resetDateFilter}>
-                                Reset
-                            </Button>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Desktop date filter removed — now in header */}
 
             {
                 isFiltering ? <ReportsSkeleton /> : <>

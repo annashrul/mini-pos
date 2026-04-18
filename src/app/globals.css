@@ -192,3 +192,18 @@
     background-color: var(--muted-foreground);
   }
 }
+
+/* Week Picker — highlight entire week row on hover */
+[data-week-picker] table tbody tr:hover td {
+  background-color: hsl(var(--accent)) !important;
+  border-radius: 0 !important;
+}
+[data-week-picker] table tbody tr:hover td:first-child {
+  border-radius: 0.375rem 0 0 0.375rem !important;
+}
+[data-week-picker] table tbody tr:hover td:last-child {
+  border-radius: 0 0.375rem 0.375rem 0 !important;
+}
+[data-week-picker] table tbody tr:hover td button {
+  background: transparent !important;
+}

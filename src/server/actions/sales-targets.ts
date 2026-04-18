@@ -89,7 +89,12 @@ export async function getSalesTargets(params?: GetSalesTargetsParams) {
   await assertMenuActionAccess("sales-targets", "view");
   const companyId = await getCurrentCompanyId();
 
-  const where: Record<string, unknown> = { user: { companyId } };
+  const where: Record<string, unknown> = {
+    OR: [
+      { user: { companyId } },
+      { userId: null, branch: { companyId } },
+    ],
+  };
   if (params?.type) where.type = params.type;
   if (params?.period) where.period = params.period;
   if (params?.userId) where.userId = params.userId;

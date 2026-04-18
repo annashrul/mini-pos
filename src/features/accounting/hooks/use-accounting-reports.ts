@@ -2,14 +2,23 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { accountingService } from "../services";
 import type { Tab, TrialBalanceData, IncomeStatementData, BalanceSheetData, CashFlowData } from "../types";
 
 export function useAccountingReports() {
-  const [tab, setTab] = useState<Tab>("trial-balance");
-  const [dateFrom, setDateFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split("T")[0]!);
-  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().split("T")[0]!);
+  const defaultDateFrom = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; })();
+  const defaultDateTo = new Date().toISOString().split("T")[0]!;
+  const qp = useQueryParams({ filters: { tab: "trial-balance", dateFrom: defaultDateFrom, dateTo: defaultDateTo, asOfDate: defaultDateTo } });
+
+  const tab = (qp.filters.tab || "trial-balance") as Tab;
+  const setTab = (t: Tab) => qp.setFilter("tab", t);
+  const dateFrom = qp.filters.dateFrom || defaultDateFrom;
+  const setDateFrom = (v: string) => qp.setFilter("dateFrom", v || null);
+  const dateTo = qp.filters.dateTo || defaultDateTo;
+  const setDateTo = (v: string) => qp.setFilter("dateTo", v || null);
+  const asOfDate = qp.filters.asOfDate || defaultDateTo;
+  const setAsOfDate = (v: string) => qp.setFilter("asOfDate", v || null);
   const { selectedBranchId } = useBranch();
 
   return {

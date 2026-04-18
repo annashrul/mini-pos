@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { accountingService } from "../services";
 import type { AccountSimple, LedgerData } from "../types";
 
@@ -15,12 +16,16 @@ function getDefaultDateRange() {
 }
 
 export function useLedger() {
-  const defaults = getDefaultDateRange();
+  const defaultDates = getDefaultDateRange();
+  const qp = useQueryParams({ filters: { accountId: "", dateFrom: defaultDates.from, dateTo: defaultDates.to } });
   const [accounts, setAccounts] = useState<AccountSimple[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const selectedAccountId = qp.filters.accountId || "";
+  const setSelectedAccountId = (id: string) => qp.setFilter("accountId", id || null);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState(defaults.from);
-  const [dateTo, setDateTo] = useState(defaults.to);
+  const dateFrom = qp.filters.dateFrom || defaultDates.from;
+  const dateTo = qp.filters.dateTo || defaultDates.to;
+  const setDateFrom = (v: string) => qp.setFilter("dateFrom", v || null);
+  const setDateTo = (v: string) => qp.setFilter("dateTo", v || null);
   const [ledger, setLedger] = useState<LedgerData | null>(null);
   const [loading, startTransition] = useTransition();
   const [initialLoad, setInitialLoad] = useState(true);

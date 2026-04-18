@@ -3,6 +3,7 @@
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { usePlanAccess } from "@/hooks/use-plan-access";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useMenuActionAccess } from "@/features/access-control";
 import { getPeriodClosingChecklist, createClosingEntries } from "@/server/actions/accounting-reports";
 import { Button } from "@/components/ui/button";
@@ -52,9 +53,10 @@ export function PeriodsContent() {
     const canReopen = canAction("update") && canPlan("accounting-periods", "reopen");
     const canLock = canAction("update") && canPlan("accounting-periods", "lock");
 
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(15);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 15, filters: { status: "ALL" } });
+    const { page, pageSize, search } = qp;
+    const setPage = qp.setPage;
+    const setPageSize = qp.setPageSize;
 
     // Closing wizard
     const [closingPeriodId, setClosingPeriodId] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export function PeriodsContent() {
         }
         setClosingLoading(false);
     };
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
+    const activeFilters = qp.filters;
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -289,12 +291,13 @@ export function PeriodsContent() {
                 title="Daftar Periode"
                 titleIcon={<Calendar className="w-4 h-4 text-amber-600" />}
                 searchPlaceholder="Cari periode..."
-                onSearch={(q) => { setSearch(q); setPage(1); }}
+                searchValue={search}
+                onSearch={(q) => qp.setSearch(q)}
                 onPageChange={setPage}
                 onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
                 filters={filters}
                 activeFilters={activeFilters}
-                onFilterChange={(f) => { setActiveFilters(f); setPage(1); }}
+                onFilterChange={(f) => qp.setFilters(f)}
                 planMenuKey="accounting-periods" exportModule="periods"
                 emptyIcon={<Calendar className="w-6 h-6 text-muted-foreground/40" />}
                 emptyTitle={isPending ? "Memuat periode..." : "Belum Ada Periode"}

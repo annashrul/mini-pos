@@ -42,6 +42,7 @@ function DatePicker({
         <Calendar
           mode="single"
           selected={selectedDate}
+          {...(selectedDate ? { defaultMonth: selectedDate } : {})}
           onSelect={(date) => onChange(date ? format(date, "yyyy-MM-dd") : "")}
           initialFocus
         />

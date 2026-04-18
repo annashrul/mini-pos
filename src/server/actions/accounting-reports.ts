@@ -1104,10 +1104,12 @@ export async function getAccountingDashboard(branchId?: string) {
 // TAX SUMMARY REPORT
 // ============================================================
 
-export async function getTaxSummaryReport(params: { dateFrom: string; dateTo: string; branchId?: string }) {
+export async function getTaxSummaryReport(params: { dateFrom: string; dateTo: string; branchId?: string; taxType?: string; search?: string; page?: number; perPage?: number; sortBy?: string; sortDir?: string }) {
   const companyId = await getCurrentCompanyId();
-  const { dateFrom, dateTo, branchId } = params;
+  const { dateFrom, dateTo, branchId, taxType, search, page = 1, perPage = 10, sortDir = "desc" } = params;
   const branchFilter = branchId && branchId !== "ALL" ? `AND je."branchId" = '${branchId}'` : "";
+  const typeFilter = taxType && taxType !== "ALL" ? `AND jel."taxType" = '${taxType}'` : "";
+  const searchFilter = search ? `AND (je."entryNumber" ILIKE '%${search}%' OR je.description ILIKE '%${search}%' OR je.reference ILIKE '%${search}%')` : "";
 
   const results = await prisma.$queryRawUnsafe<Array<{ tax_type: string; total_tax: number; total_dpp: number; count: number }>>(`
     SELECT
@@ -1155,8 +1157,28 @@ export async function getTaxSummaryReport(params: { dateFrom: string; dateTo: st
       AND je.date <= '${dateTo}'
       AND ac."companyId" = '${companyId}'
       ${branchFilter}
-    ORDER BY je.date ASC
+      ${typeFilter}
+      ${searchFilter}
+    ORDER BY je.date ${sortDir === "asc" ? "ASC" : "DESC"}
+    LIMIT ${perPage} OFFSET ${(page - 1) * perPage}
   `);
+
+  const countResult = await prisma.$queryRawUnsafe<[{ total: number }]>(`
+    SELECT COUNT(*)::int AS total
+    FROM journal_entry_lines jel
+    JOIN journal_entries je ON je.id = jel."journalId"
+    JOIN accounts a ON a.id = jel."accountId"
+    JOIN account_categories ac ON ac.id = a."categoryId"
+    WHERE je.status = 'POSTED'
+      AND jel."taxType" IS NOT NULL
+      AND je.date >= '${dateFrom}'
+      AND je.date <= '${dateTo}'
+      AND ac."companyId" = '${companyId}'
+      ${branchFilter}
+      ${typeFilter}
+      ${searchFilter}
+  `);
+  const total = Number(countResult[0]?.total ?? 0);
 
   return {
     period: { dateFrom, dateTo },
@@ -1166,6 +1188,8 @@ export async function getTaxSummaryReport(params: { dateFrom: string; dateTo: st
     pph21: map.get("PPH21")?.total_tax ?? 0,
     pph23: map.get("PPH23")?.total_tax ?? 0,
     details,
+    total,
+    totalPages: Math.ceil(total / perPage),
   };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef, useMemo } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { getBranchPrices, setBranchPrice, removeBranchPrice, copyBranchPrices } from "@/features/branch-prices";
 import { getAllBranches } from "@/features/branches";
 import { useMenuActionAccess } from "@/features/access-control";
@@ -34,10 +35,11 @@ export function BranchPricesContent() {
     const [branches, setBranches] = useState<Branch[]>([]);
     const [data, setData] = useState<{ items: BranchPriceItem[]; total: number; totalPages: number }>({ items: [], total: 0, totalPages: 0 });
     const [fallbackBranchId, setFallbackBranchId] = useState("");
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 20 });
+    const { page, pageSize, search } = qp;
+    const setPage = qp.setPage;
+    const [searchInput, setSearchInput] = useState(search);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
     const [loading, startTransition] = useTransition();
     const [editOpen, setEditOpen] = useState(false);
     const [editItem, setEditItem] = useState<BranchPriceItem | null>(null);
@@ -99,7 +101,7 @@ export function BranchPricesContent() {
         if (prevBranchRef.current === selectedBranchId) return; // skip if same
         prevBranchRef.current = selectedBranchId;
         if (selectedBranchId) {
-            setPage(1); setSearch("");
+            setPage(1); qp.setSearch("");
             fetchData({ branchId: selectedBranchId, search: "", page: 1 });
         }
     }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,13 +223,13 @@ export function BranchPricesContent() {
 
             {/* Search */}
             <BranchPricesSearch
-                value={search}
+                value={searchInput}
                 loading={loading}
                 onChange={(v) => {
-                    setSearch(v);
+                    setSearchInput(v);
                     if (debounceRef.current) clearTimeout(debounceRef.current);
                     debounceRef.current = setTimeout(() => {
-                        setPage(1);
+                        qp.setSearch(v);
                         fetchData({ search: v, page: 1 });
                     }, 300);
                 }}
@@ -251,7 +253,7 @@ export function BranchPricesContent() {
                 totalItems={data.total}
                 pageSize={pageSize}
                 onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ page: 1 }); }}
+                onPageSizeChange={(s) => { qp.setPageSize(s); fetchData({ page: 1 }); }}
             />
 
             {/* Edit Price Dialog */}

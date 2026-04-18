@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -165,11 +166,11 @@ export function DebtsContent() {
     // ---- state ----
     const [data, setData] = useState<{ debts: DebtItem[]; total: number; totalPages: number }>({ debts: [], total: 0, totalPages: 0 });
     const [summary, setSummary] = useState<DebtSummary>({ totalPayableRemaining: 0, totalReceivableRemaining: 0, overdueCount: 0, unpaidPayableCount: 0, unpaidReceivableCount: 0 });
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] = useState("ALL");
-    const [statusFilter, setStatusFilter] = useState("ALL");
+    const qp = useQueryParams({ pageSize: 10, filters: { type: "ALL", status: "ALL" } });
+    const { page, pageSize, search, filters } = qp;
+    const typeFilter = filters.type ?? "ALL";
+    const statusFilter = filters.status ?? "ALL";
+    const [searchInput, setSearchInput] = useState(search);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
     const [draftType, setDraftType] = useState("ALL");
     const [draftStatus, setDraftStatus] = useState("ALL");
@@ -212,7 +213,6 @@ export function DebtsContent() {
     // branch
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
-    const didFetchRef = useRef(false);
 
     // ---- data fetching ----
 
@@ -249,41 +249,26 @@ export function DebtsContent() {
         if (!branchReady) return;
         if (prevBranchRef.current !== selectedBranchId) {
             prevBranchRef.current = selectedBranchId;
-            setPage(1);
-            fetchData({ page: 1 });
-        } else if (!didFetchRef.current) {
-            didFetchRef.current = true;
-            fetchData({});
+            qp.setPage(1);
         }
-    }, [selectedBranchId, branchReady]); // eslint-disable-line react-hooks/exhaustive-deps
+        fetchData({});
+    }, [selectedBranchId, branchReady, page, pageSize, search, typeFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ---- handlers ----
 
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (value: string) => {
-        setSearch(value);
+        setSearchInput(value);
         if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = setTimeout(() => {
-            setPage(1);
-            fetchData({ search: value, page: 1 });
-        }, 400);
+        searchDebounceRef.current = setTimeout(() => { qp.setSearch(value); }, 400);
     };
 
     const handleTypeFilter = (value: string) => {
-        setTypeFilter(value);
-        setPage(1);
-        fetchData({ typeFilter: value, page: 1 });
+        qp.setFilter("type", value === "ALL" ? null : value);
     };
 
     const handleStatusFilter = (value: string) => {
-        setStatusFilter(value);
-        setPage(1);
-        fetchData({ statusFilter: value, page: 1 });
-    };
-
-    const handlePageChange = (p: number) => {
-        setPage(p);
-        fetchData({ page: p });
+        qp.setFilter("status", value === "ALL" ? null : value);
     };
 
     // ---- create / edit ----
@@ -459,7 +444,7 @@ export function DebtsContent() {
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-                    <Input placeholder="Cari nama, deskripsi..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-9 text-sm" />
+                    <Input placeholder="Cari nama, deskripsi..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-9 text-sm" />
                 </div>
                 <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => { setDraftType(typeFilter); setDraftStatus(statusFilter); setFilterSheetOpen(true); }}>
                     <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -590,7 +575,7 @@ export function DebtsContent() {
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-                    <Input placeholder="Cari nama pihak, deskripsi..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-10" />
+                    <Input placeholder="Cari nama pihak, deskripsi..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-10" />
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {typeFilterOptions.map((opt) => (
@@ -842,8 +827,8 @@ export function DebtsContent() {
                     totalPages={data.totalPages}
                     totalItems={data.total}
                     pageSize={pageSize}
-                    onPageChange={(p) => handlePageChange(p)}
-                    onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ page: 1 }); }}
+                    onPageChange={(p) => qp.setPage(p)}
+                    onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 />
             )}
 

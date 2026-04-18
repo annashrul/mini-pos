@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -71,9 +72,9 @@ export function ExpensesContent() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState("");
     const [pendingConfirmAction, setPendingConfirmAction] = useState<null | (() => Promise<void>)>(null);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 10 });
+    const { page, pageSize, search } = qp;
+    const [searchInput, setSearchInput] = useState(search);
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
     const [sortKey] = useState<string>("");
     const [sortDir] = useState<"asc" | "desc">("asc");
@@ -109,12 +110,10 @@ export function ExpensesContent() {
         if (!branchReady) return;
         if (prevBranchRef.current !== selectedBranchId) {
             prevBranchRef.current = selectedBranchId;
-            setPage(1);
-            fetchData({ page: 1 });
-        } else {
-            fetchData({});
+            qp.setPage(1);
         }
-    }, [selectedBranchId, branchReady]); // eslint-disable-line react-hooks/exhaustive-deps
+        fetchData({});
+    }, [selectedBranchId, branchReady, page, pageSize, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const onFormSubmit = async (values: ExpenseFormValues) => {
         if (editing ? !canUpdate : !canCreate) return;
@@ -206,12 +205,9 @@ export function ExpensesContent() {
 
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
     const handleSearch = (q: string) => {
-        setSearch(q);
+        setSearchInput(q);
         if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = setTimeout(() => {
-            setPage(1);
-            fetchData({ search: q, page: 1 });
-        }, 400);
+        searchDebounceRef.current = setTimeout(() => { qp.setSearch(q); }, 400);
     };
 
 
@@ -310,7 +306,7 @@ export function ExpensesContent() {
                         <Input
                             placeholder="Cari pengeluaran..."
                             className="pl-9 pr-9 rounded-xl h-10 border-border/40"
-                            defaultValue={search}
+                            defaultValue={searchInput}
                             onChange={(e) => handleSearch(e.target.value)}
                         />
                     </div>
@@ -446,8 +442,8 @@ export function ExpensesContent() {
                         totalPages={data.totalPages}
                         totalItems={data.total}
                         pageSize={pageSize}
-                        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                        onPageChange={(p) => qp.setPage(p)}
+                        onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                     />
                 </div>
             </div>

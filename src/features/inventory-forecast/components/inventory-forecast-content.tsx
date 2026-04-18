@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import {
@@ -199,13 +200,12 @@ export function InventoryForecastContent() {
 
   const [allProducts, setAllProducts] = useState<ForecastProduct[]>([]);
   const [summary, setSummary] = useState<ForecastSummary | null>(null);
-  const [search, setSearch] = useState("");
+  const qp = useQueryParams({ pageSize: 10 });
+  const { page: currentPage, pageSize, search, filters: activeFilters } = qp;
+  const [searchInput, setSearchInput] = useState(search);
   const [riskFilter, setRiskFilter] = useState<RiskLevel | "ALL">("ALL");
   const [sortBy, setSortBy] = useState<string>("daysLeft");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   const [selectedProduct, setSelectedProduct] = useState<ForecastProduct | null>(null);
   const [activeTab, setActiveTab] = useState<TabView>("forecast");
 
@@ -244,7 +244,7 @@ export function InventoryForecastContent() {
   }, [allProducts, currentPage, pageSize]);
 
   // Reset page when data changes
-  useEffect(() => { setCurrentPage(1); }, [effectiveRiskFilter, search, sortBy, sortDir]);
+  useEffect(() => { qp.setPage(1); }, [effectiveRiskFilter, search, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pieData = summary ? [
     { name: "Kritis", value: summary.criticalCount, fill: PIE_COLORS.CRITICAL },
@@ -254,7 +254,7 @@ export function InventoryForecastContent() {
   ].filter(d => d.value > 0) : [];
 
   const handleFilterChange = (filters: Record<string, string>) => {
-    setActiveFilters(filters);
+    qp.setFilters(filters);
     if (filters.riskLevel) {
       setRiskFilter(filters.riskLevel as RiskLevel);
     } else {
@@ -422,9 +422,10 @@ export function InventoryForecastContent() {
           pageSize={pageSize}
           loading={isPending}
           searchPlaceholder="Cari produk..."
-          onSearch={setSearch}
-          onPageChange={setCurrentPage}
-          onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+          searchValue={searchInput}
+          onSearch={(q) => { setSearchInput(q); qp.setSearch(q); }}
+          onPageChange={(p) => qp.setPage(p)}
+          onPageSizeChange={(size) => qp.setParams({ pageSize: size, page: 1 })}
           sortKey={sortBy}
           sortDir={sortDir}
           onSort={handleSort}

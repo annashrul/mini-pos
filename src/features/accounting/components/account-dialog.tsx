@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,30 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SmartSelect } from "@/components/ui/smart-select";
 import { Switch } from "@/components/ui/switch";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
 import { accountingService } from "../services";
 import { ACCOUNT_TYPES, CATEGORY_OPTIONS } from "../utils";
@@ -65,7 +45,6 @@ export function AccountDialog({
   account,
   accounts,
 }: AccountDialogProps) {
-  const [parentOpen, setParentOpen] = useState(false);
   const [saving, startSaving] = useTransition();
   const { selectedBranchId } = useBranch();
 
@@ -271,24 +250,16 @@ export function AccountDialog({
                   control={control}
                   name="category"
                   render={({ field }) => (
-                    <Select
+                    <SmartSelect
                       value={field.value}
-                      onValueChange={(v) => {
-                        field.onChange(v);
-                        setValue("parentId", "");
-                      }}
-                    >
-                      <SelectTrigger className="rounded-xl border-gray-200">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={(v) => { field.onChange(v); setValue("parentId", ""); }}
+                      placeholder="Pilih kategori"
+                      onSearch={async (query) =>
+                        CATEGORY_OPTIONS.filter((o) => !query || o.label.toLowerCase().includes(query.toLowerCase()))
+                          .map((o) => ({ value: o.value, label: o.label }))
+                      }
+                      initialOptions={CATEGORY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                    />
                   )}
                 />
                 {errors.category && (
@@ -306,18 +277,16 @@ export function AccountDialog({
                   control={control}
                   name="type"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="rounded-xl border-gray-200">
-                        <SelectValue placeholder="Pilih tipe" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {typeOptions.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SmartSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pilih tipe"
+                      onSearch={async (query) =>
+                        typeOptions.filter((t) => !query || t.toLowerCase().includes(query.toLowerCase()))
+                          .map((t) => ({ value: t, label: t }))
+                      }
+                      initialOptions={typeOptions.map((t) => ({ value: t, label: t }))}
+                    />
                   )}
                 />
               </div>
@@ -333,69 +302,17 @@ export function AccountDialog({
                 control={control}
                 name="parentId"
                 render={({ field }) => (
-                  <Popover open={parentOpen} onOpenChange={setParentOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-between rounded-xl border-gray-200 font-normal hover:bg-gray-50"
-                      >
-                        {field.value
-                          ? parentCandidates.find((a) => a.id === field.value)
-                              ?.name || "Pilih akun induk"
-                          : "Tidak ada (root)"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Cari akun..." />
-                        <CommandList>
-                          <CommandEmpty>Tidak ditemukan</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value=""
-                              onSelect={() => {
-                                field.onChange("");
-                                setParentOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  !field.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              Tidak ada (root)
-                            </CommandItem>
-                            {parentCandidates.map((a) => (
-                              <CommandItem
-                                key={a.id}
-                                value={`${a.code} ${a.name}`}
-                                onSelect={() => {
-                                  field.onChange(a.id);
-                                  setParentOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value === a.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                <span className="font-mono text-xs text-gray-500 mr-2">
-                                  {a.code}
-                                </span>
-                                {a.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <SmartSelect
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    placeholder="Tidak ada (root)"
+                    onSearch={async (query) =>
+                      parentCandidates
+                        .filter((a) => !query || a.code.toLowerCase().includes(query.toLowerCase()) || a.name.toLowerCase().includes(query.toLowerCase()))
+                        .map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))
+                    }
+                    initialOptions={parentCandidates.map((a) => ({ value: a.id, label: `${a.code} — ${a.name}` }))}
+                  />
                 )}
               />
             </div>

@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
   getGoodsReceipts,
   getGoodsReceiptById,
@@ -50,9 +51,9 @@ export function GoodsReceiptsContent() {
   const [stats, setStats] = useState<StatsData>({ total: 0, today: 0, thisMonth: 0 });
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedGR, setSelectedGR] = useState<GoodsReceiptDetail | null>(null);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const qp = useQueryParams({ pageSize: 10 });
+  const { page, pageSize, search } = qp;
+  const [searchInput, setSearchInput] = useState(search);
   const [loading, startTransition] = useTransition();
   const { canAction } = useMenuActionAccess("goods-receipts");
   const { canAction: canPlan } = usePlanAccess();
@@ -85,15 +86,10 @@ export function GoodsReceiptsContent() {
 
   useEffect(() => {
     if (!branchReady) return;
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      setSelectedIds(new Set());
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    setSelectedIds(new Set());
+    fetchData({});
+  }, [branchReady, selectedBranchId, page, pageSize, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewDetail = async (id: string) => {
     const gr = await getGoodsReceiptById(id);
@@ -108,12 +104,9 @@ export function GoodsReceiptsContent() {
   };
 
   const handleSearchChange = (value: string) => {
-    setSearch(value);
+    setSearchInput(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchData({ search: value, page: 1 });
-    }, 400);
+    searchDebounceRef.current = setTimeout(() => { qp.setSearch(value); }, 400);
   };
 
   const handleDelete = async () => {
@@ -215,7 +208,7 @@ export function GoodsReceiptsContent() {
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari GR..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
+            <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari GR..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
             {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
           </div>
         </div>
@@ -242,7 +235,7 @@ export function GoodsReceiptsContent() {
       <div className="hidden sm:flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari berdasarkan nomor GR, PO, supplier..." className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm" />
+          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari berdasarkan nomor GR, PO, supplier..." className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm" />
           {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
         </div>
         <div className="flex items-center gap-1.5">
@@ -380,8 +373,8 @@ export function GoodsReceiptsContent() {
         totalPages={data.totalPages}
         totalItems={data.total}
         pageSize={pageSize}
-        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+        onPageChange={(p) => qp.setPage(p)}
+        onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
       />
 
       {/* Bulk Action */}

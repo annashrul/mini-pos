@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { useBranch } from "@/components/providers/branch-provider";
@@ -21,7 +21,11 @@ export function CustomerIntelligenceContent() {
     const router = useRouter();
 
     const tabParam = searchParams.get("tab");
-    const activeTab: TabValue = VALID_TABS.includes(tabParam as TabValue) ? (tabParam as TabValue) : "repeat";
+    const urlTab: TabValue = VALID_TABS.includes(tabParam as TabValue) ? (tabParam as TabValue) : "repeat";
+    const [activeTab, setActiveTabLocal] = useState<TabValue>(urlTab);
+
+    // Sync from URL on navigation (back/forward)
+    useEffect(() => { setActiveTabLocal(urlTab); }, [urlTab]);
 
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef<string | null | undefined>(undefined);
@@ -48,6 +52,7 @@ export function CustomerIntelligenceContent() {
 
     const handleTabChange = useCallback((tab: string) => {
         const newTab = tab as TabValue;
+        setActiveTabLocal(newTab);
         const params = new URLSearchParams(searchParams.toString());
         params.set("tab", newTab);
         router.replace(`?${params.toString()}`, { scroll: false });

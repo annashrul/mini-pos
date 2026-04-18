@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
     accessControlService,
     updateRoleActionPermission,
@@ -69,8 +70,11 @@ export function AccessControlContent() {
         () => appRoles.filter((role) => role.isActive).map((role) => role.key),
         [appRoles]
     );
-    const [selectedRole, setSelectedRole] = useState(roleKeys[0] ?? data.roles[0] ?? "SUPER_ADMIN");
-    const [searchQuery, setSearchQuery] = useState("");
+    const qp = useQueryParams({ filters: { role: roleKeys[0] ?? data.roles[0] ?? "SUPER_ADMIN" } });
+    const selectedRole = qp.filters.role || (roleKeys[0] ?? "SUPER_ADMIN");
+    const setSelectedRole = (r: string) => qp.setFilter("role", r);
+    const searchQuery = qp.search;
+    const setSearchQuery = qp.setSearch;
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["Utama", "Master Data"]));
     const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());

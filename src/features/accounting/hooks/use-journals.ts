@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useBranch } from "@/components/providers/branch-provider";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { accountingService } from "../services";
 import type { Journal, JournalsData } from "../types";
 
@@ -12,12 +13,10 @@ export function useJournals() {
     total: 0,
     totalPages: 0,
   });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const { page, pageSize, search, filters, setPage, setPageSize, setSearch, setFilters } = useQueryParams({
+    pageSize: 15,
+    filters: { status: "ALL", dateFrom: "", dateTo: "" },
+  });
   const [formOpen, setFormOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedJournal, setSelectedJournal] = useState<Journal | null>(null);
@@ -25,12 +24,16 @@ export function useJournals() {
   const [initialLoad, setInitialLoad] = useState(true);
   const { selectedBranchId } = useBranch();
 
-  const fetchData = async (params?: { page?: number }) => {
+  const status = filters.status || "ALL";
+  const dateFrom = filters.dateFrom || "";
+  const dateTo = filters.dateTo || "";
+
+  const fetchData = async () => {
     setLoading(true);
     try {
       const result = await accountingService.getJournalEntries({
         search,
-        page: params?.page ?? page,
+        page,
         perPage: pageSize,
         ...(status !== "ALL" ? { status } : {}),
         ...(dateFrom ? { dateFrom } : {}),
@@ -51,6 +54,7 @@ export function useJournals() {
           totalDebit: e.totalDebit,
           totalCredit: e.totalCredit,
           notes: e.notes,
+          rejectionNote: ((e as Record<string, unknown>).rejectionNote as string | null) ?? null,
           branchId: e.branchId,
           lines: e.lines.map((l) => ({
             id: l.id,
@@ -90,35 +94,20 @@ export function useJournals() {
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
-    setPage(1);
   };
 
-  const handleStatusChange = (value: string) => {
-    setStatus(value);
-    setPage(1);
-  };
-
-  /* ── SmartTable filter support ────────────────────────────────────── */
-  const activeFilters: Record<string, string> = {
-    status,
-    dateFrom,
-    dateTo,
-  };
-
-  const handleFilterChange = (filters: Record<string, string>) => {
-    const newStatus = filters.status ?? "ALL";
-    const newDateFrom = filters.dateFrom ?? "";
-    const newDateTo = filters.dateTo ?? "";
-
-    if (newStatus !== status) setStatus(newStatus);
-    if (newDateFrom !== dateFrom) setDateFrom(newDateFrom);
-    if (newDateTo !== dateTo) setDateTo(newDateTo);
-    setPage(1);
+  const handleFilterChange = (f: Record<string, string>) => {
+    setFilters(f);
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
-    setPage(1);
+  };
+
+  const activeFilters: Record<string, string> = {
+    status,
+    dateFrom,
+    dateTo,
   };
 
   return {
@@ -137,15 +126,13 @@ export function useJournals() {
     activeFilters,
     setPage,
     setSearch,
-    setDateFrom,
-    setDateTo,
     setFormOpen,
     setDetailOpen,
     handleRowClick,
     handleFormClose,
     handleSearchChange,
-    handleStatusChange,
     handleFilterChange,
     handlePageSizeChange,
+    fetchData,
   };
 }

@@ -2,7 +2,8 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useBranch } from "@/components/providers/branch-provider";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import {
     getGiftCards,
     getGiftCardStats,
@@ -107,13 +108,8 @@ export function GiftCardsContent() {
         totalRedeemed: 0,
         expiringSoon: 0,
     });
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-        status: "ALL",
-        branchId: selectedBranchId || "ALL",
-    });
+    const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [loading, startTransition] = useTransition();
@@ -152,17 +148,18 @@ export function GiftCardsContent() {
             const f = params.filters ?? activeFilters;
             const sk = params.sortKey ?? sortKey;
             const sd = params.sortDir ?? sortDir;
+            const effectiveBranchId = (f.branchId && f.branchId !== "ALL") ? f.branchId : selectedBranchId || undefined;
             const query = {
                 search: params.search ?? search,
                 page: params.page ?? page,
                 perPage: params.pageSize ?? pageSize,
-                ...(f.status !== "ALL" ? { status: f.status } : {}),
-                ...(f.branchId !== "ALL" ? { branchId: f.branchId } : {}),
+                ...(f.status && f.status !== "ALL" ? { status: f.status } : {}),
+                ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
             };
             const [result, statsResult] = await Promise.all([
                 getGiftCards(query),
-                getGiftCardStats(f.branchId !== "ALL" ? f.branchId : undefined),
+                getGiftCardStats(effectiveBranchId),
             ]);
             setData(
                 result as unknown as {
@@ -175,24 +172,23 @@ export function GiftCardsContent() {
         });
     };
 
+    const didFetchRef = useRef(false);
     useEffect(() => {
+        if (!didFetchRef.current) {
+            didFetchRef.current = true;
+            getBranches({ perPage: 100 }).then((res) => {
+                if (res.branches) {
+                    setBranchOptions(
+                        res.branches.map((b: { id: string; name: string }) => ({
+                            value: b.id,
+                            label: b.name,
+                        }))
+                    );
+                }
+            });
+        }
         fetchData({});
-        // Load branches for filter
-        getBranches({ perPage: 100 }).then((res) => {
-            if (res.branches) {
-                setBranchOptions(
-                    res.branches.map((b: { id: string; name: string }) => ({
-                        value: b.id,
-                        label: b.name,
-                    }))
-                );
-            }
-        });
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        setActiveFilters((prev) => ({ ...prev, branchId: selectedBranchId || "ALL" }));
-    }, [selectedBranchId]);
+    }, [selectedBranchId, page, pageSize, search, activeFilters.status, activeFilters.branchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const openDetail = async (row: GiftCardRow) => {
         const result = await getGiftCardById(row.id);
@@ -554,34 +550,21 @@ export function GiftCardsContent() {
                 title="Daftar Gift Card"
                 titleIcon={<CreditCard className="w-4 h-4 text-violet-500" />}
                 searchPlaceholder="Cari kode gift card..."
-                onSearch={(q) => {
-                    setSearch(q);
-                    setPage(1);
-                    fetchData({ search: q, page: 1 });
-                }}
-                onPageChange={(p) => {
-                    setPage(p);
-                    fetchData({ page: p });
-                }}
-                onPageSizeChange={(s) => {
-                    setPageSize(s);
-                    setPage(1);
-                    fetchData({ pageSize: s, page: 1 });
-                }}
+                searchValue={search}
+                onSearch={(q) => { qp.setSearch(q); }}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
                 sortKey={sortKey}
                 sortDir={sortDir}
                 onSort={(key, dir) => {
                     setSortKey(key);
                     setSortDir(dir);
-                    setPage(1);
-                    fetchData({ page: 1, sortKey: key, sortDir: dir });
+                    qp.setPage(1);
                 }}
                 filters={filters}
                 activeFilters={activeFilters}
                 onFilterChange={(f) => {
-                    setActiveFilters(f);
-                    setPage(1);
-                    fetchData({ filters: f, page: 1 });
+                    qp.setFilters(f);
                 }}
                 rowKey={(row) => row.id}
                 planMenuKey="gift-cards" exportModule="gift-cards"

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { openShift, closeShift, getShifts, getActiveShift } from "@/features/shifts";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
@@ -33,9 +34,8 @@ export function ShiftsContent() {
     const [activeShift, setActiveShift] = useState<ActiveShiftData>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [closeDialog, setCloseDialog] = useState(false);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 10 });
+    const { page, pageSize, search } = qp;
     const [sortKey, setSortKey] = useState<string>("");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [loading, startTransition] = useTransition();
@@ -46,34 +46,40 @@ export function ShiftsContent() {
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
 
-    const fetchData = (params: { search?: string; page?: number; pageSize?: number; sortKey?: string; sortDir?: "asc" | "desc" }) => {
+    const fetchData = useCallback((params?: { sortKey?: string; sortDir?: "asc" | "desc" }) => {
         startTransition(async () => {
-            const sk = params.sortKey ?? sortKey;
-            const sd = params.sortDir ?? sortDir;
+            const sk = params?.sortKey ?? sortKey;
+            const sd = params?.sortDir ?? sortDir;
             const query = {
-                search: params.search ?? search,
-                page: params.page ?? page,
-                perPage: params.pageSize ?? pageSize,
+                search,
+                page,
+                perPage: pageSize,
                 ...(sk ? { sortBy: sk, sortDir: sd } : {}),
                 ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
             };
             const result = await getShifts(query);
             setData(result);
         });
-    };
+    }, [search, page, pageSize, selectedBranchId, sortKey, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    useClosingRealtime(() => fetchData({}), selectedBranchId || undefined);
+    useClosingRealtime(() => fetchData(), selectedBranchId || undefined);
 
     useEffect(() => {
         if (!branchReady) return;
-        if (prevBranchRef.current !== selectedBranchId) { prevBranchRef.current = selectedBranchId; fetchData({ page: 1 }); } else {
-            startTransition(async () => {
-                const [shiftsData, activeShiftData] = await Promise.all([getShifts(), getActiveShift()]);
-                setData(shiftsData);
-                setActiveShift(activeShiftData);
-            });
-        }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+        prevBranchRef.current = selectedBranchId;
+        startTransition(async () => {
+            const query = {
+                search,
+                page,
+                perPage: pageSize,
+                ...(sortKey ? { sortBy: sortKey, sortDir: sortDir } : {}),
+                ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
+            };
+            const [shiftsData, activeShiftData] = await Promise.all([getShifts(query), getActiveShift()]);
+            setData(shiftsData);
+            setActiveShift(activeShiftData);
+        });
+    }, [branchReady, selectedBranchId, page, pageSize, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleOpenShift = async (formData: FormData) => {
         if (!canOpenShift) { toast.error(cannotMessage("create")); return; }
@@ -83,7 +89,7 @@ export function ShiftsContent() {
         } else {
             toast.success("Shift berhasil dibuka");
             setOpenDialog(false);
-            fetchData({});
+            fetchData();
             // Reload to get active shift
             window.location.reload();
         }
@@ -99,7 +105,7 @@ export function ShiftsContent() {
             toast.success("Shift berhasil ditutup");
             setCloseDialog(false);
             setActiveShift(null);
-            fetchData({});
+            fetchData();
         }
     };
 
@@ -276,12 +282,13 @@ export function ShiftsContent() {
                 title="Riwayat Shift"
                 titleIcon={<Clock className="w-4 h-4 text-muted-foreground" />}
                 searchPlaceholder="Cari shift..."
-                onSearch={(q) => { setSearch(q); setPage(1); fetchData({ search: q, page: 1 }); }}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                searchValue={search}
+                onSearch={(q) => qp.setSearch(q)}
+                onPageChange={(p) => qp.setPage(p)}
+                onPageSizeChange={(s) => qp.setPageSize(s)}
                 sortKey={sortKey}
                 sortDir={sortDir}
-                onSort={(key, dir) => { setSortKey(key); setSortDir(dir); setPage(1); fetchData({ page: 1, sortKey: key, sortDir: dir }); }}
+                onSort={(key, dir) => { setSortKey(key); setSortDir(dir); fetchData({ sortKey: key, sortDir: dir }); }}
                 rowKey={(row) => row.id}
                 planMenuKey="shifts" exportModule="shifts"
                 emptyIcon={<Clock className="w-10 h-10 text-muted-foreground/30" />}

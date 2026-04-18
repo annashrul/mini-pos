@@ -529,7 +529,7 @@ export async function ensureAccessSeeded() {
   });
   const existingKeySet = new Set(existingMenus.map((m) => m.key));
 
-  // Seed missing menus
+  // Seed missing menus + re-sync permissions for all menus
   const missingMenus = menuDefinitions.filter((m) => !existingKeySet.has(m.key));
   if (missingMenus.length > 0) {
     await seedMenus(missingMenus);
@@ -543,6 +543,19 @@ export async function ensureAccessSeeded() {
   });
   if (menusWithNewActions.length > 0) {
     await seedMenus(menusWithNewActions);
+  }
+
+  // Ensure all existing menus have role permissions (fix for newly added menus that missed seeding)
+  if (missingMenus.length === 0 && menusWithNewActions.length === 0) {
+    // Quick check: find menus without any role permissions
+    const menusWithoutPerms = await prisma.appMenu.findMany({
+      where: { roleMenus: { none: {} } },
+      select: { key: true },
+    });
+    if (menusWithoutPerms.length > 0) {
+      const toSeed = menuDefinitions.filter((m) => menusWithoutPerms.some((mp) => mp.key === m.key));
+      if (toSeed.length > 0) await seedMenus(toSeed);
+    }
   }
 }
 

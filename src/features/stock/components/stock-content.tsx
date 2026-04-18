@@ -3,6 +3,7 @@
 import { ProButton } from "@/components/ui/pro-gate";
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition, useMemo } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -82,15 +83,12 @@ export function StockContent() {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
+  const qp = useQueryParams({ pageSize: 10, filters: { type: "ALL" } });
+  const { page, pageSize, search, filters: activeFilters } = qp;
+  const [searchInput, setSearchInput] = useState(search);
   const stockForm = useForm<StockFormValues>({
     resolver: zodResolver(stockFormSchema),
     defaultValues: { branchIds: [], items: [], note: "" },
-  });
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({
-    type: "ALL",
   });
   const [sortKey] = useState<string>("");
   const [sortDir] = useState<"asc" | "desc">("desc");
@@ -136,14 +134,9 @@ export function StockContent() {
 
   useEffect(() => {
     if (!branchReady) return;
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [branchReady, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    fetchData({});
+  }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
@@ -216,20 +209,13 @@ export function StockContent() {
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearch = (q: string) => {
-    setSearch(q);
+    setSearchInput(q);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchData({ search: q, page: 1 });
-    }, 400);
+    searchDebounceRef.current = setTimeout(() => { qp.setSearch(q); }, 400);
   };
 
-
   const handleTypeFilter = (type: string) => {
-    const newFilters = { ...activeFilters, type };
-    setActiveFilters(newFilters);
-    setPage(1);
-    fetchData({ filters: newFilters, page: 1 });
+    qp.setFilters({ ...activeFilters, type });
   };
 
   const TYPE_PILLS = [
@@ -293,7 +279,7 @@ export function StockContent() {
               <Input
                 placeholder="Cari produk..."
                 className="pl-9 pr-9 rounded-xl h-9 text-sm border-border/40"
-                defaultValue={search}
+                value={searchInput}
                 onChange={(e) => handleSearch(e.target.value)}
               />
             </div>
@@ -461,8 +447,8 @@ export function StockContent() {
             totalPages={data.totalPages}
             totalItems={data.total}
             pageSize={pageSize}
-            onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-            onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+            onPageChange={(p) => qp.setPage(p)}
+            onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
           />
         </div>
       </div>

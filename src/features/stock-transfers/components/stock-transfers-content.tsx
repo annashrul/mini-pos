@@ -2,6 +2,7 @@
 
 import { usePlanAccess } from "@/hooks/use-plan-access";
 import { useState, useEffect, useRef, useTransition } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -74,10 +75,9 @@ export function StockTransfersContent() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransferDetail | null>(null);
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ status: "ALL" });
+  const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL" } });
+  const { page, pageSize, search, filters: activeFilters } = qp;
+  const [searchInput, setSearchInput] = useState(search);
   const [sortKey] = useState<string>("");
   const [sortDir] = useState<"asc" | "desc">("asc");
   const [loading, startTransition] = useTransition();
@@ -141,14 +141,9 @@ export function StockTransfersContent() {
 
   useEffect(() => {
     if (!branchReady) return;
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    fetchData({});
+  }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleViewDetail = async (id: string) => {
     const transfer = await getStockTransferById(id);
@@ -239,12 +234,9 @@ export function StockTransfersContent() {
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearchChange = (value: string) => {
-    setSearch(value);
+    setSearchInput(value);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setPage(1);
-      fetchData({ search: value, page: 1 });
-    }, 400);
+    searchDebounceRef.current = setTimeout(() => { qp.setSearch(value); }, 400);
   };
 
   const copyToClipboard = (text: string) => {
@@ -253,10 +245,7 @@ export function StockTransfersContent() {
   };
 
   const handleStatusPill = (status: string) => {
-    const newFilters = { ...activeFilters, status };
-    setActiveFilters(newFilters);
-    setPage(1);
-    fetchData({ filters: newFilters, page: 1 });
+    qp.setFilters({ ...activeFilters, status });
   };
 
   return (
@@ -388,7 +377,7 @@ export function StockTransfersContent() {
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari transfer..." className="pl-9 rounded-xl h-9 text-sm" />
+            <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari transfer..." className="pl-9 rounded-xl h-9 text-sm" />
           </div>
           <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
             <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -438,7 +427,7 @@ export function StockTransfersContent() {
       <div className="hidden sm:flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari nomor transfer, cabang..." className="pl-9 rounded-xl h-10 text-sm" />
+          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari nomor transfer, cabang..." className="pl-9 rounded-xl h-10 text-sm" />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           {STATUS_PILLS.map((pill) => {
@@ -580,8 +569,8 @@ export function StockTransfersContent() {
         totalPages={data.totalPages}
         totalItems={data.total}
         pageSize={pageSize}
-        onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-        onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+        onPageChange={(p) => qp.setPage(p)}
+        onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
       />
 
       {/* Detail Dialog */}

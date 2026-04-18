@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useTransition, useMemo, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { getAuditLogs } from "@/features/audit-logs";
 import { useBranch } from "@/components/providers/branch-provider";
 import { format } from "date-fns";
@@ -16,13 +17,14 @@ type AuditLogRow = AuditLogsResult["logs"][number];
 
 export function AuditLogsContent() {
     const [data, setData] = useState<AuditLogsResult>({ logs: [], total: 0, totalPages: 0 });
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(15);
-    const [search, setSearch] = useState("");
+    const qp = useQueryParams({ pageSize: 15, filters: { entity: "ALL", action: "ALL" } });
+    const { page, pageSize, search, filters: activeFilters } = qp;
+    const setPage = qp.setPage;
+    const [searchInput, setSearchInput] = useState(search);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [activeFilters, setActiveFilters] = useState<Record<string, string>>({ entity: "ALL", action: "ALL" });
     const [loading, startTransition] = useTransition();
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const isAllExpanded = data.logs.length > 0 && expandedIds.size >= data.logs.length;
 
     const { selectedBranchId, branchReady } = useBranch();
     const prevBranchRef = useRef(selectedBranchId);
@@ -46,14 +48,9 @@ export function AuditLogsContent() {
 
     useEffect(() => {
         if (!branchReady) return;
-        if (prevBranchRef.current !== selectedBranchId) {
-            prevBranchRef.current = selectedBranchId;
-            setPage(1);
-            fetchData({ page: 1 });
-        } else {
-            fetchData({});
-        }
-    }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+        prevBranchRef.current = selectedBranchId;
+        fetchData({});
+    }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.entity, activeFilters.action]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const stats = useMemo(() => {
         const logs = data.logs;
@@ -73,21 +70,29 @@ export function AuditLogsContent() {
         });
     };
 
-    const expandAll = () => setExpandedIds(new Set(data.logs.map((l) => l.id)));
-    const collapseAll = () => setExpandedIds(new Set());
+    const toggleExpandAll = () => {
+        if (isAllExpanded) {
+            setExpandedIds(new Set());
+            qp.setFilter("expanded", null);
+        } else {
+            setExpandedIds(new Set(data.logs.map((l) => l.id)));
+            qp.setFilter("expanded", "all");
+        }
+    };
+
+    // Sync expanded state from URL on data load
+    useEffect(() => {
+        if (qp.filters.expanded === "all" && data.logs.length > 0) {
+            setExpandedIds(new Set(data.logs.map((l) => l.id)));
+        }
+    }, [data.logs]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleFilterChange = (key: string, value: string) => {
-        const f = { ...activeFilters, [key]: value };
-        setActiveFilters(f);
-        setPage(1);
-        fetchData({ filters: f, page: 1 });
+        qp.setFilters({ ...activeFilters, [key]: value });
     };
 
     const handleFilterBatch = (updates: Record<string, string>) => {
-        const f = { ...activeFilters, ...updates };
-        setActiveFilters(f);
-        setPage(1);
-        fetchData({ filters: f, page: 1 });
+        qp.setFilters({ ...activeFilters, ...updates });
     };
 
 
@@ -108,16 +113,15 @@ export function AuditLogsContent() {
 
     return (
         <div className="space-y-5">
-            <AuditLogsHeader stats={stats} onExpandAll={expandAll} onCollapseAll={collapseAll} />
+            <AuditLogsHeader stats={stats} isAllExpanded={isAllExpanded} onToggleExpandAll={toggleExpandAll} />
 
             <AuditLogsFilters
-                search={search}
+                search={searchInput}
                 onSearchChange={(v) => {
-                    setSearch(v);
+                    setSearchInput(v);
                     if (debounceRef.current) clearTimeout(debounceRef.current);
                     debounceRef.current = setTimeout(() => {
-                        setPage(1);
-                        fetchData({ search: v, page: 1 });
+                        qp.setSearch(v);
                     }, 300);
                 }}
                 filters={activeFilters}
@@ -141,8 +145,8 @@ export function AuditLogsContent() {
                 totalPages={data.totalPages}
                 totalItems={data.total}
                 pageSize={pageSize}
-                onPageChange={(p) => { setPage(p); fetchData({ page: p }); }}
-                onPageSizeChange={(s) => { setPageSize(s); setPage(1); fetchData({ pageSize: s, page: 1 }); }}
+                onPageChange={(p) => setPage(p)}
+                onPageSizeChange={(s) => qp.setParams({ pageSize: s, page: 1 })}
             />
         </div>
     );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import { useQueryParams } from "@/hooks/use-query-params";
 import { useBranch } from "@/components/providers/branch-provider";
 import { useMenuActionAccess } from "@/features/access-control";
 import { usePlanAccess } from "@/hooks/use-plan-access";
@@ -88,10 +89,8 @@ export function ReturnsContent() {
     pendingCount: 0,
     totalRefundAmount: 0,
   });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [search, setSearch] = useState("");
-  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const qp = useQueryParams({ pageSize: 10, filters: { status: "ALL", type: "ALL" } });
+  const { page, pageSize, search, filters: activeFilters } = qp;
   const { selectedBranchId, branchReady } = useBranch();
   const prevBranchRef = useRef(selectedBranchId);
   const [loading, startTransition] = useTransition();
@@ -105,27 +104,17 @@ export function ReturnsContent() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedReturnId, setSelectedReturnId] = useState<string>("");
 
-  const fetchData = (params?: {
-    search?: string;
-    page?: number;
-    pageSize?: number;
-    filters?: Record<string, string>;
-  }) => {
+  const fetchData = useCallback(() => {
     startTransition(async () => {
-      const s = params?.search ?? search;
-      const p = params?.page ?? page;
-      const ps = params?.pageSize ?? pageSize;
-      const f = params?.filters ?? activeFilters;
-
       const [returnsResult, statsResult] = await Promise.all([
         getReturns({
-          search: s,
-          page: p,
-          perPage: ps,
-          ...(f.status ? { status: f.status } : {}),
-          ...(f.type ? { type: f.type } : {}),
-          ...(f.dateFrom ? { dateFrom: f.dateFrom } : {}),
-          ...(f.dateTo ? { dateTo: f.dateTo } : {}),
+          search,
+          page,
+          perPage: pageSize,
+          ...(activeFilters.status && activeFilters.status !== "ALL" ? { status: activeFilters.status } : {}),
+          ...(activeFilters.type && activeFilters.type !== "ALL" ? { type: activeFilters.type } : {}),
+          ...(activeFilters.dateFrom ? { dateFrom: activeFilters.dateFrom } : {}),
+          ...(activeFilters.dateTo ? { dateTo: activeFilters.dateTo } : {}),
           ...(selectedBranchId ? { branchId: selectedBranchId } : {}),
         }),
         getReturnStats(selectedBranchId || undefined),
@@ -134,41 +123,18 @@ export function ReturnsContent() {
       setData(returnsResult);
       setStats(statsResult);
     });
-  };
+  }, [search, page, pageSize, activeFilters, selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!branchReady) return;
-    if (prevBranchRef.current !== selectedBranchId) {
-      prevBranchRef.current = selectedBranchId;
-      setPage(1);
-      fetchData({ page: 1 });
-    } else {
-      fetchData({});
-    }
-  }, [selectedBranchId]); // eslint-disable-line react-hooks/exhaustive-deps
+    prevBranchRef.current = selectedBranchId;
+    fetchData();
+  }, [branchReady, selectedBranchId, page, pageSize, search, activeFilters.status, activeFilters.type, activeFilters.dateFrom, activeFilters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-    fetchData({ search: value, page: 1 });
-  };
-
-  const handlePageChange = (p: number) => {
-    setPage(p);
-    fetchData({ page: p });
-  };
-
-  const handlePageSizeChange = (ps: number) => {
-    setPageSize(ps);
-    setPage(1);
-    fetchData({ pageSize: ps, page: 1 });
-  };
-
-  const handleFilterChange = (filters: Record<string, string>) => {
-    setActiveFilters(filters);
-    setPage(1);
-    fetchData({ filters, page: 1 });
-  };
+  const handleSearch = (value: string) => qp.setSearch(value);
+  const handlePageChange = (p: number) => qp.setPage(p);
+  const handlePageSizeChange = (ps: number) => qp.setPageSize(ps);
+  const handleFilterChange = (f: Record<string, string>) => qp.setFilters(f);
 
   const openDetail = (id: string) => {
     setSelectedReturnId(id);
@@ -177,13 +143,13 @@ export function ReturnsContent() {
 
   const handleReturnCreated = () => {
     setNewReturnOpen(false);
-    fetchData({ page: 1 });
+    fetchData();
     toast.success("Return berhasil dibuat");
   };
 
   const handleReturnUpdated = () => {
     setDetailOpen(false);
-    fetchData({});
+    fetchData();
   };
 
   const smartFilters: SmartFilter[] = [
@@ -448,6 +414,7 @@ export function ReturnsContent() {
         pageSize={pageSize}
         loading={loading}
         searchPlaceholder="Cari nomor return, invoice, customer..."
+        searchValue={search}
         onSearch={handleSearch}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
