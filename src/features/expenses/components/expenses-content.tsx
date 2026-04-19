@@ -17,7 +17,9 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
-import { CalendarDays, Loader2, MapPin, Pencil, Plus, ReceiptText, Search, Trash2, TrendingDown, Upload, Wallet } from "lucide-react";
+import { CalendarDays, Loader2, MapPin, MoreVertical, Pencil, Plus, ReceiptText, Trash2, TrendingDown, Upload, Wallet } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -300,16 +302,7 @@ export function ExpensesContent() {
             <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
                 {/* Search bar & bulk actions */}
                 <div className="flex items-center justify-between gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border/20">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
-                        <Input
-                            placeholder="Cari pengeluaran..."
-                            className="pl-9 pr-9 rounded-xl h-10 border-border/40"
-                            defaultValue={searchInput}
-                            onChange={(e) => handleSearch(e.target.value)}
-                        />
-                    </div>
+                    <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari pengeluaran..." loading={loading} className="flex-1 max-w-sm" />
                     {selectedRows.size > 0 && (
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500">{selectedRows.size} dipilih</span>
@@ -381,49 +374,91 @@ export function ExpensesContent() {
                                             const branchName = (expense as unknown as { branch?: { name: string } | null }).branch?.name;
 
                                             return (
-                                                <div key={expense.id} className="rounded-lg sm:rounded-xl border border-border/30 bg-white hover:shadow-sm transition-all group px-2.5 py-2 sm:px-4 sm:py-3 flex items-center gap-2 sm:gap-4">
-                                                    {/* Checkbox */}
-                                                    <Checkbox checked={selectedRows.has(expense.id)} onCheckedChange={() => toggleRow(expense.id)} className="shrink-0" />
-
-                                                    {/* Category color dot (mobile) / circle (desktop) */}
-                                                    <div className={`hidden sm:flex w-9 h-9 rounded-full bg-gradient-to-br ${gradient} items-center justify-center shrink-0 shadow-sm`}>
-                                                        <Wallet className="w-4 h-4 text-white" />
-                                                    </div>
-                                                    <div className={`sm:hidden w-2 h-2 rounded-full bg-gradient-to-br ${gradient} shrink-0`} />
-
-                                                    {/* Content */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between gap-1">
-                                                            <p className="text-xs sm:text-sm font-semibold text-slate-800 truncate">{expense.description}</p>
-                                                            <span className="text-[11px] sm:text-sm font-bold font-mono tabular-nums text-rose-600 shrink-0">
-                                                                {formatCurrency(expense.amount)}
-                                                            </span>
+                                                <div key={expense.id} className="rounded-lg sm:rounded-xl border border-border/30 bg-white hover:shadow-sm transition-all group">
+                                                    {/* ===== Mobile card ===== */}
+                                                    <div className="sm:hidden px-2.5 py-2">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm mt-0.5`}>
+                                                                <Wallet className="w-3.5 h-3.5 text-white" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-start justify-between gap-1">
+                                                                    <p className="text-xs font-semibold text-slate-800 truncate">{expense.description}</p>
+                                                                    <span className="text-[11px] font-bold font-mono tabular-nums text-rose-600 shrink-0">
+                                                                        {formatCurrency(expense.amount)}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between mt-1">
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-600 text-[9px] px-1.5 py-0 border-0 font-medium">
+                                                                            {expense.category}
+                                                                        </Badge>
+                                                                        {branchName && (
+                                                                            <span className="flex items-center gap-0.5 text-[9px] text-slate-400">
+                                                                                <MapPin className="w-2.5 h-2.5" />{branchName}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <DropdownMenu>
+                                                                        <DropdownMenuTrigger asChild>
+                                                                            <button className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted shrink-0">
+                                                                                <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                                                                            </button>
+                                                                        </DropdownMenuTrigger>
+                                                                        <DropdownMenuContent align="end" className="rounded-xl w-40">
+                                                                            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="expenses" actionKey="update">
+                                                                                <DropdownMenuItem disabled={!canUpdate} onClick={() => openEditDialog(expense)} className="text-xs gap-2">
+                                                                                    <Pencil className="w-3.5 h-3.5" /> Edit
+                                                                                </DropdownMenuItem>
+                                                                            </DisabledActionTooltip>
+                                                                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="expenses" actionKey="delete">
+                                                                                <DropdownMenuItem disabled={!canDelete} onClick={() => handleDelete(expense.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                                                                    <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                                                                </DropdownMenuItem>
+                                                                            </DisabledActionTooltip>
+                                                                        </DropdownMenuContent>
+                                                                    </DropdownMenu>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5 flex-wrap">
-                                                            <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-600 text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0 border-0 font-medium">
-                                                                {expense.category}
-                                                            </Badge>
-                                                            {branchName && (
-                                                                <span className="flex items-center gap-0.5 text-[9px] sm:text-[11px] text-slate-400">
-                                                                    <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                                                                    {branchName}
+                                                    </div>
+
+                                                    {/* ===== Desktop card ===== */}
+                                                    <div className="hidden sm:flex px-4 py-3 items-center gap-4">
+                                                        <Checkbox checked={selectedRows.has(expense.id)} onCheckedChange={() => toggleRow(expense.id)} className="shrink-0" />
+                                                        <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+                                                            <Wallet className="w-4 h-4 text-white" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between gap-1">
+                                                                <p className="text-sm font-semibold text-slate-800 truncate">{expense.description}</p>
+                                                                <span className="text-sm font-bold font-mono tabular-nums text-rose-600 shrink-0">
+                                                                    {formatCurrency(expense.amount)}
                                                                 </span>
-                                                            )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-600 text-[11px] px-2 py-0 border-0 font-medium">
+                                                                    {expense.category}
+                                                                </Badge>
+                                                                {branchName && (
+                                                                    <span className="flex items-center gap-0.5 text-[11px] text-slate-400">
+                                                                        <MapPin className="w-3 h-3" />{branchName}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    </div>
-
-                                                    {/* Actions */}
-                                                    <div className="flex items-center gap-0.5 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                                        <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="expenses" actionKey="update">
-                                                            <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(expense)}>
-                                                                <Pencil className="w-3 h-3" />
-                                                            </Button>
-                                                        </DisabledActionTooltip>
-                                                        <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="expenses" actionKey="delete">
-                                                            <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(expense.id)}>
-                                                                <Trash2 className="w-3 h-3" />
-                                                            </Button>
-                                                        </DisabledActionTooltip>
+                                                        <div className="flex items-center gap-0.5 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="expenses" actionKey="update">
+                                                                <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(expense)}>
+                                                                    <Pencil className="w-3 h-3" />
+                                                                </Button>
+                                                            </DisabledActionTooltip>
+                                                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="expenses" actionKey="delete">
+                                                                <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(expense.id)}>
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </Button>
+                                                            </DisabledActionTooltip>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );

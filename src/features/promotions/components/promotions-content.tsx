@@ -13,11 +13,11 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    Sheet, SheetContent, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, Search, Loader2, SlidersHorizontal, Check, MapPin } from "lucide-react";
+import { FilterBottomSheet } from "@/components/ui/filter-bottom-sheet";
+import { SearchInput } from "@/components/ui/search-input";
+import { Plus, Pencil, Trash2, Percent, Tag, Gift, Ticket, Package, CalendarDays, Sparkles, Clock, CheckCircle2, XCircle, SlidersHorizontal, MapPin, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { PaginationControl } from "@/components/ui/pagination-control";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -208,43 +208,30 @@ export function PromotionsContent() {
             {/* Mobile: search + filter button + stats below */}
             <div className="sm:hidden space-y-2">
                 <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input placeholder="Cari promo..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-9 text-sm" />
-                        {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-                    </div>
-                    <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
-                        <SlidersHorizontal className="w-3.5 h-3.5" />
-                        <span className="text-xs">Filter</span>
-                        {activeFilters.type !== "ALL" && (
-                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center">1</span>
+                    <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari promo..." loading={loading} className="flex-1" size="sm" />
+                    <button
+                        onClick={() => setFilterSheetOpen(true)}
+                        className={cn("relative h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center transition-colors",
+                            activeFilters.type && activeFilters.type !== "ALL" ? "border-violet-300 bg-violet-50 text-violet-600" : "border-slate-200 bg-white text-muted-foreground hover:bg-slate-50")}
+                    >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        {activeFilters.type && activeFilters.type !== "ALL" && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center">1</span>
                         )}
-                    </Button>
-                    <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-                        <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-6 pt-0" showCloseButton={false}>
-                            <div className="flex justify-center pt-3 pb-2">
-                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-                            </div>
-                            <SheetHeader className="p-0 pb-4">
-                                <SheetTitle className="text-base font-bold">Filter Tipe Promo</SheetTitle>
-                            </SheetHeader>
-                            <div className="space-y-1">
-                                {typeFilterOptions.map((opt) => {
-                                    const isActive = activeFilters.type === opt.value;
-                                    return (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => { handleFilterType(opt.value); setFilterSheetOpen(false); }}
-                                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
-                                        >
-                                            <span>{opt.label}</span>
-                                            {isActive && <Check className="w-4 h-4" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </SheetContent>
-                    </Sheet>
+                    </button>
+                    <FilterBottomSheet
+                        open={filterSheetOpen}
+                        onOpenChange={setFilterSheetOpen}
+                        title="Filter Tipe Promo"
+                        immediate
+                        sections={[{
+                            key: "type",
+                            label: "Tipe Promo",
+                            options: typeFilterOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+                        }]}
+                        values={{ type: activeFilters.type as string || "ALL" }}
+                        onApply={(v) => handleFilterType(v.type || "ALL")}
+                    />
                 </div>
                 {/* Mobile: Stats below search */}
                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -269,11 +256,7 @@ export function PromotionsContent() {
 
             {/* Desktop: search left + pills right, 1 row */}
             <div className="hidden sm:flex items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Cari promo..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 rounded-xl h-10" />
-                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-                </div>
+                <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari promo..." loading={loading} className="flex-1 max-w-sm" />
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {typeFilterOptions.map((opt) => (
                         <button key={opt.value} onClick={() => handleFilterType(opt.value)}
@@ -344,44 +327,55 @@ export function PromotionsContent() {
                             return (
                                 <div key={row.id} className={`rounded-lg sm:rounded-xl border bg-white hover:shadow-md transition-all group border-l-4 ${t?.borderColor || "border-l-slate-300"}`}>
                                     {/* Mobile */}
-                                    <div className="sm:hidden px-2.5 py-2 space-y-1">
-                                        <div className="flex items-center justify-between gap-1">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <TypeIcon className={`w-3.5 h-3.5 shrink-0 ${t?.iconBg ? t.iconBg.split(" ")[1] : "text-slate-500"}`} />
-                                                <p className="text-xs font-bold text-foreground truncate">{row.name}</p>
+                                    <div className="sm:hidden px-3 py-2.5">
+                                        <div className="flex items-center gap-2.5 mb-1.5">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${t?.iconBg || "bg-slate-100 text-slate-500"}`}>
+                                                <TypeIcon className="w-3.5 h-3.5" />
                                             </div>
-                                            <div className="flex items-center gap-1 shrink-0">
+                                            <div className="flex-1 min-w-0 pr-14">
+                                                <p className="text-xs font-bold text-foreground truncate">{row.name}</p>
+                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                    <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
+                                                        {t?.label || row.type}
+                                                    </Badge>
+                                                    <div className="text-[10px]">{renderValue(row)}</div>
+                                                </div>
+                                            </div>
+                                            <div className="absolute top-2 right-2">
                                                 {renderStatus(row)}
                                             </div>
                                         </div>
                                         <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground flex-wrap">
-                                                <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 ${t?.gradient || "bg-slate-500 text-white"}`}>
-                                                    {t?.label || row.type}
-                                                </Badge>
+                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                                                 {row.branch && (
-                                                    <span className="flex items-center gap-0.5 text-[10px] text-blue-600">
+                                                    <span className="flex items-center gap-0.5 text-blue-600">
                                                         <MapPin className="w-2.5 h-2.5" />{row.branch.name}
                                                     </span>
                                                 )}
-                                                <span className="font-mono tabular-nums">
+                                                <span className="inline-flex items-center gap-0.5">
+                                                    <CalendarDays className="w-2.5 h-2.5" />
                                                     {format(new Date(row.startDate), "dd/MM")} → {format(new Date(row.endDate), "dd/MM")}
                                                 </span>
-                                                {isExpired && <span className="text-[8px] font-medium text-red-500 bg-red-50 px-1 rounded">Exp</span>}
                                             </div>
-                                            <div className="flex items-center gap-1">
-                                                <div className="text-[11px]">{renderValue(row)}</div>
-                                                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="promotions" actionKey="update">
-                                                    <Button disabled={!canUpdate} variant="ghost" size="icon-xs" className="rounded-md hover:bg-blue-50 hover:text-blue-600" onClick={() => openForm(row)}>
-                                                        <Pencil className="w-3 h-3" />
-                                                    </Button>
-                                                </DisabledActionTooltip>
-                                                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="promotions" actionKey="delete">
-                                                    <Button disabled={!canDelete} variant="ghost" size="icon-xs" className="rounded-md text-red-500 hover:bg-red-50" onClick={() => handleDelete(row.id)}>
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </Button>
-                                                </DisabledActionTooltip>
-                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted shrink-0">
+                                                        <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="rounded-xl w-40">
+                                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="promotions" actionKey="update">
+                                                        <DropdownMenuItem disabled={!canUpdate} onClick={() => openForm(row)} className="text-xs gap-2">
+                                                            <Pencil className="w-3.5 h-3.5" /> Edit
+                                                        </DropdownMenuItem>
+                                                    </DisabledActionTooltip>
+                                                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="promotions" actionKey="delete">
+                                                        <DropdownMenuItem disabled={!canDelete} onClick={() => handleDelete(row.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                                        </DropdownMenuItem>
+                                                    </DisabledActionTooltip>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                         </div>
                                     </div>
                                     {/* Desktop */}

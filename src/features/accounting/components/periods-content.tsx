@@ -27,7 +27,9 @@ import {
     ShieldAlert,
     Calendar,
     BookOpenCheck,
+    MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMemo, useState } from "react";
 import { Controller } from "react-hook-form";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -195,41 +197,21 @@ export function PeriodsContent() {
                 <div className="flex items-center justify-end gap-2">
                     {p.status === "OPEN" && (
                         <DisabledActionTooltip disabled={!canClose} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="close">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!canClose}
-                                className="rounded-lg gap-1.5 text-xs h-8 border-amber-200 text-amber-700 hover:bg-amber-50"
-                                onClick={() => openClosingWizard(p.id)}
-                            >
-                                <Lock className="w-3 h-3" />
-                                Tutup
+                            <Button size="sm" variant="outline" disabled={!canClose} className="rounded-lg gap-1.5 text-xs h-8 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => openClosingWizard(p.id)}>
+                                <Lock className="w-3 h-3" /> Tutup
                             </Button>
                         </DisabledActionTooltip>
                     )}
                     {p.status === "CLOSED" && (
                         <>
                             <DisabledActionTooltip disabled={!canReopen} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="reopen">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!canReopen}
-                                    className="rounded-lg gap-1.5 text-xs h-8 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                    onClick={() => setConfirmAction({ id: p.id, action: "reopen" })}
-                                >
-                                    <Unlock className="w-3 h-3" />
-                                    Buka
+                                <Button size="sm" variant="outline" disabled={!canReopen} className="rounded-lg gap-1.5 text-xs h-8 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => setConfirmAction({ id: p.id, action: "reopen" })}>
+                                    <Unlock className="w-3 h-3" /> Buka
                                 </Button>
                             </DisabledActionTooltip>
                             <DisabledActionTooltip disabled={!canLock} message={cannotMessage("update")} menuKey="accounting-periods" actionKey="lock">
-                                <Button
-                                    size="sm"
-                                    disabled={!canLock}
-                                    className="rounded-lg gap-1.5 text-xs h-8 bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                                    onClick={() => setConfirmAction({ id: p.id, action: "lock" })}
-                                >
-                                    <ShieldAlert className="w-3 h-3" />
-                                    Kunci
+                                <Button size="sm" disabled={!canLock} className="rounded-lg gap-1.5 text-xs h-8 bg-red-600 hover:bg-red-700 text-white shadow-sm" onClick={() => setConfirmAction({ id: p.id, action: "lock" })}>
+                                    <ShieldAlert className="w-3 h-3" /> Kunci
                                 </Button>
                             </DisabledActionTooltip>
                         </>
@@ -329,16 +311,31 @@ export function PeriodsContent() {
                             {new Date(row.startDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })} —{" "}
                             {new Date(row.endDate).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
                         </div>
-                        {row.status === "OPEN" && (
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-lg gap-1.5 text-xs h-7 border-amber-200 text-amber-700 hover:bg-amber-50 mt-0.5"
-                                onClick={(e) => { e.stopPropagation(); setConfirmAction({ id: row.id, action: "close" }); }}
-                            >
-                                <Lock className="w-3 h-3" />
-                                Tutup
-                            </Button>
+                        {(row.status === "OPEN" || row.status === "CLOSED") && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="rounded-xl w-44">
+                                    {row.status === "OPEN" && (
+                                        <DropdownMenuItem onClick={() => openClosingWizard(row.id)} className="text-xs gap-2 text-amber-700">
+                                            <Lock className="w-3.5 h-3.5" /> Tutup Periode
+                                        </DropdownMenuItem>
+                                    )}
+                                    {row.status === "CLOSED" && (
+                                        <>
+                                            <DropdownMenuItem onClick={() => setConfirmAction({ id: row.id, action: "reopen" })} className="text-xs gap-2 text-emerald-700">
+                                                <Unlock className="w-3.5 h-3.5" /> Buka Kembali
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setConfirmAction({ id: row.id, action: "lock" })} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                                <ShieldAlert className="w-3.5 h-3.5" /> Kunci Permanen
+                                            </DropdownMenuItem>
+                                        </>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                     </div>
                 )}

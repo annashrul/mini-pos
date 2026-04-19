@@ -32,15 +32,17 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FilterBottomSheet } from "@/components/ui/filter-bottom-sheet";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Plus, Eye, ClipboardCheck,
   CheckCircle2, XCircle, Save,
   FileEdit, Loader2, Copy,
   Package, TrendingUp, TrendingDown,
   Search, CalendarDays, MapPin,
-  Check, Upload,
+  Upload, MoreVertical, SlidersHorizontal,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
@@ -405,13 +407,15 @@ export function StockOpnameContent() {
             <ClipboardCheck className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
           </div>
           <div>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Stock Opname</h1>
+
             <div className="flex items-center gap-2.5">
-              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">Stock Opname</h1>
+              <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Penyesuaian stok berdasarkan penghitungan fisik</p>
               <Badge variant="secondary" className="rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 text-xs font-medium px-2.5">
                 {data.total} opname
               </Badge>
             </div>
-            <p className="text-muted-foreground text-xs sm:text-sm mt-0.5">Penyesuaian stok berdasarkan penghitungan fisik</p>
+
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-2">
@@ -578,72 +582,73 @@ export function StockOpnameContent() {
       </div>
 
       {/* Search + filter pills — sticky */}
-      <div className="sticky top-0 z-20 bg-background pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
-      {/* Mobile */}
-      <div className="sm:hidden space-y-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari opname..." className="pl-9 rounded-xl h-9 text-sm border-slate-200" />
-        </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {statusPills.map((pill) => {
-            const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "IN_PROGRESS" ? stats.inProgress : pill.value === "COMPLETED" ? stats.completed : pill.value === "CANCELLED" ? stats.cancelled : 0;
-            return (
-              <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all inline-flex items-center gap-1 ${activeFilters.status === pill.value
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
-                  : "bg-white border border-slate-200 text-slate-600"}`}>
-                {pill.label}
-                {count !== null && <span className={`text-[10px] font-bold ${activeFilters.status === pill.value ? "text-white/80" : "text-muted-foreground"}`}>{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-          <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
-            <div className="shrink-0">
-              <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
-              <SheetHeader className="px-4 pb-3 pt-0"><SheetTitle className="text-base font-bold">Filter Status</SheetTitle></SheetHeader>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
-              {statusPills.map((pill) => {
-                const isActive = activeFilters.status === pill.value;
-                const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "IN_PROGRESS" ? stats.inProgress : pill.value === "COMPLETED" ? stats.completed : pill.value === "CANCELLED" ? stats.cancelled : 0;
-                return (
-                  <button key={pill.value} onClick={() => { handleStatusFilter(pill.value); setFilterSheetOpen(false); }}
-                    className={cn("w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
-                      isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted")}>
-                    <span>{pill.label}{count !== null ? ` (${count})` : ""}</span>
-                    {isActive && <Check className="w-4 h-4" />}
-                  </button>
-                );
-              })}
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+      <div className="sticky top-0 z-20 pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
+        {/* Mobile */}
+        <div className="sm:hidden space-y-2">
+          <div className="flex items-center gap-2">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari nomor opname..." loading={loading} className="flex-1 max-w-sm" size="sm" />
 
-      {/* Desktop */}
-      <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari nomor opname..." className="pl-10 rounded-xl h-10 text-sm border-slate-200" />
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {statusPills.map((pill) => {
-            const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "IN_PROGRESS" ? stats.inProgress : pill.value === "COMPLETED" ? stats.completed : pill.value === "CANCELLED" ? stats.cancelled : 0;
-            return (
-              <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all inline-flex items-center gap-1.5 ${activeFilters.status === pill.value
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
-                  : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                {pill.label}
-                {count !== null && <span className={`text-[10px] font-bold min-w-[16px] h-4 rounded-full inline-flex items-center justify-center ${activeFilters.status === pill.value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>}
+            <button
+              onClick={() => setFilterSheetOpen(true)}
+              className={cn("relative h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center transition-colors",
+                activeFilters.status && activeFilters.status !== "ALL" ? "border-amber-300 bg-amber-50 text-amber-600" : "border-slate-200 bg-white text-muted-foreground hover:bg-slate-50")}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              {activeFilters.status && activeFilters.status !== "ALL" && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+              )}
+            </button>
+          </div>
+          {activeFilters.status && activeFilters.status !== "ALL" && (
+            <div className="flex items-center gap-1.5">
+              <Badge className={cn(statusConfig[activeFilters.status as string]?.classes, "gap-1 text-[10px] px-2 py-0.5")}>
+                {statusConfig[activeFilters.status as string]?.icon}
+                {statusConfig[activeFilters.status as string]?.label}
+              </Badge>
+              <button onClick={() => handleStatusFilter("ALL")} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            </div>
+          )}
+          <FilterBottomSheet
+            open={filterSheetOpen}
+            onOpenChange={setFilterSheetOpen}
+            title="Filter Status"
+            immediate
+            sections={[{
+              key: "status",
+              label: "Status",
+              options: statusPills.map((pill) => ({
+                value: pill.value,
+                label: pill.label,
+                count: pill.value === "ALL" ? undefined : pill.value === "DRAFT" ? stats.draft : pill.value === "IN_PROGRESS" ? stats.inProgress : pill.value === "COMPLETED" ? stats.completed : stats.cancelled,
+                borderColor: statusConfig[pill.value]?.borderColor,
+              })),
+            }]}
+            values={{ status: activeFilters.status as string || "ALL" }}
+            onApply={(v) => handleStatusFilter((v.status || "ALL") as StatusFilterValue)}
+          />
         </div>
-      </div>
+
+        {/* Desktop */}
+        <div className="hidden sm:flex items-center justify-between gap-4">
+          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari nomor opname..." loading={loading} className="flex-1 max-w-sm" />
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {statusPills.map((pill) => {
+              const count = pill.value === "ALL" ? null : pill.value === "DRAFT" ? stats.draft : pill.value === "IN_PROGRESS" ? stats.inProgress : pill.value === "COMPLETED" ? stats.completed : pill.value === "CANCELLED" ? stats.cancelled : 0;
+              return (
+                <button key={pill.value} onClick={() => handleStatusFilter(pill.value)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all inline-flex items-center gap-1.5 ${activeFilters.status === pill.value
+                    ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-200/50"
+                    : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                  {pill.label}
+                  {count !== null && <span className={`text-[10px] font-bold min-w-[16px] h-4 rounded-full inline-flex items-center justify-center ${activeFilters.status === pill.value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Card List */}
@@ -675,7 +680,7 @@ export function StockOpnameContent() {
           </div>
         ) : (
           /* Opname card grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
+          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3">
             {data.opnames.map((opname) => {
               const cfg = statusConfig[opname.status];
               const info = getDiscrepancyInfo(opname);
@@ -686,85 +691,89 @@ export function StockOpnameContent() {
                   key={opname.id}
                   className={`group relative rounded-xl border border-slate-200/60 bg-white border-l-4 ${cfg?.borderColor || "border-l-slate-300"} shadow-sm hover:shadow-md transition-all duration-200`}
                 >
-                  <div className="p-3 sm:p-4 space-y-2 sm:space-y-0">
-                    {/* Mobile: stacked layout */}
-                    <div className="sm:hidden space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                  {/* ===== Mobile card ===== */}
+                  <div className="sm:hidden p-3" onClick={() => handleViewDetail(opname.id)}>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} flex items-center justify-center shadow-sm shrink-0`}>
+                        <ClipboardCheck className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0 pr-14">
+                        <div className="flex items-center gap-1.5">
                           <span className="font-mono text-xs font-bold text-slate-800">{opname.opnameNumber}</span>
                           <button onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }} className="p-0.5 rounded hover:bg-slate-100">
                             <Copy className="w-2.5 h-2.5 text-slate-400" />
                           </button>
                         </div>
-                        <Badge className={`${cfg?.classes || ""} gap-1 px-2 py-0.5 text-[10px] font-medium shadow-none`}>
-                          {cfg?.icon || null}
-                          {cfg?.label || null}
-                        </Badge>
+                        <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3 shrink-0" />{opname.branch?.name || "Semua Cabang"}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5" />
-                          {opname.branch?.name || "Semua"}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="w-2.5 h-2.5" />
-                          {format(date, "dd MMM yy", { locale: idLocale })}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Package className="w-2.5 h-2.5" />
-                          {info.itemCount}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 pt-1">
-                        <Button variant="ghost" size="xs" className="rounded-lg hover:bg-amber-50 hover:text-amber-700" onClick={() => handleViewDetail(opname.id)}>
-                          <Eye className="w-3 h-3 mr-1" /> Lihat
-                        </Button>
-                        {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
-                          <Button disabled={!canUpdate} variant="ghost" size="xs" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleCancel(opname.id)}>
-                            <XCircle className="w-3 h-3 mr-1" /> Batal
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Desktop: horizontal layout */}
-                    <div className="hidden sm:flex items-center gap-4">
-                      <Badge className={`${cfg?.classes || ""} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
+                      <Badge className={`${cfg?.classes || ""} gap-1 px-2 py-0.5 text-[10px] font-medium shadow-none absolute top-2 right-2`}>
                         {cfg?.icon || null}
                         {cfg?.label || null}
                       </Badge>
-                      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} shadow-md`}>
-                        <ClipboardCheck className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-[11px] text-slate-500">
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{format(date, "dd MMM yy", { locale: idLocale })}</span>
+                        <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" />{info.itemCount} item</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-sm font-bold text-slate-800">{opname.opnameNumber}</span>
-                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
-                            <Copy className="w-3 h-3 text-slate-400" />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
                           </button>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{opname.branch?.name || "Semua Cabang"}</span>
-                          <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3 text-slate-400" />{format(date, "dd MMM yyyy", { locale: idLocale })}<span className="text-slate-300 ml-0.5">({formatDistanceToNow(date, { addSuffix: true, locale: idLocale })})</span></span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                            <Package className="w-3 h-3 text-slate-400" />{info.itemCount} item
-                          </span>
-                        </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl w-44">
+                          <DropdownMenuItem onClick={() => handleViewDetail(opname.id)} className="text-xs gap-2">
+                            <Eye className="w-3.5 h-3.5" /> Lihat Detail
+                          </DropdownMenuItem>
+                          {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
+                            <DropdownMenuItem disabled={!canUpdate} onClick={() => handleCancel(opname.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                              <XCircle className="w-3.5 h-3.5" /> Batalkan
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  {/* ===== Desktop card ===== */}
+                  <div className="hidden sm:flex p-4 items-center gap-4">
+                    <Badge className={`${cfg?.classes || ""} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
+                      {cfg?.icon || null}
+                      {cfg?.label || null}
+                    </Badge>
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${cfg?.gradientBg || "from-slate-400 to-slate-500"} shadow-md`}>
+                      <ClipboardCheck className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-sm font-bold text-slate-800">{opname.opnameNumber}</span>
+                        <button onClick={(e) => { e.stopPropagation(); copyToClipboard(opname.opnameNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
+                          <Copy className="w-3 h-3 text-slate-400" />
+                        </button>
                       </div>
-                      <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
-                        <Button variant="ghost" size="icon-sm" className="rounded-lg hover:bg-amber-50 hover:text-amber-700" onClick={() => handleViewDetail(opname.id)}>
-                          <Eye className="w-3.5 h-3.5" />
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{opname.branch?.name || "Semua Cabang"}</span>
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3 text-slate-400" />{format(date, "dd MMM yyyy", { locale: idLocale })}<span className="text-slate-300 ml-0.5">({formatDistanceToNow(date, { addSuffix: true, locale: idLocale })})</span></span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          <Package className="w-3 h-3 text-slate-400" />{info.itemCount} item
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                      <Button variant="ghost" size="icon-sm" className="rounded-lg hover:bg-amber-50 hover:text-amber-700" onClick={() => handleViewDetail(opname.id)}>
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
+                        <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => handleCancel(opname.id)}>
+                          <XCircle className="w-3.5 h-3.5" />
                         </Button>
-                        {(opname.status === "DRAFT" || opname.status === "IN_PROGRESS") && (
-                          <Button disabled={!canUpdate} variant="ghost" size="icon-sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => handleCancel(opname.id)}>
-                            <XCircle className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -815,30 +824,51 @@ export function StockOpnameContent() {
           <DialogBody className="px-4 sm:px-6">
             {selectedOpname && (
               <div className="space-y-3 sm:space-y-5">
-                {/* Summary */}
+                {/* Summary cards */}
                 {selectedOpname.items.length > 0 && (
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-                    <div className="bg-slate-50 border border-slate-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                    <div className="bg-slate-50 border border-slate-100 rounded-lg sm:rounded-xl p-1.5 sm:p-3 text-center">
                       <p className="text-sm sm:text-lg font-bold text-slate-700">{detailSummary.total}</p>
                       <p className="text-[8px] sm:text-[10px] text-slate-400 font-medium uppercase">Item</p>
                     </div>
-                    <div className="bg-amber-50 border border-amber-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg sm:rounded-xl p-1.5 sm:p-3 text-center">
                       <p className="text-sm sm:text-lg font-bold text-amber-700">{detailSummary.withDiff}</p>
                       <p className="text-[8px] sm:text-[10px] text-amber-500 font-medium uppercase">Selisih</p>
                     </div>
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg sm:rounded-xl p-1.5 sm:p-3 text-center">
                       <p className="text-sm sm:text-lg font-bold text-emerald-600">{detailSummary.surplus}</p>
                       <p className="text-[8px] sm:text-[10px] text-emerald-500 font-medium uppercase">Lebih</p>
                     </div>
-                    <div className="bg-red-50 border border-red-100 rounded-lg sm:rounded-xl p-2 sm:p-3 text-center">
+                    <div className="bg-red-50 border border-red-100 rounded-lg sm:rounded-xl p-1.5 sm:p-3 text-center">
                       <p className="text-sm sm:text-lg font-bold text-red-600">{detailSummary.deficit}</p>
                       <p className="text-[8px] sm:text-[10px] text-red-400 font-medium uppercase">Kurang</p>
                     </div>
                   </div>
                 )}
 
-                {/* Info */}
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-500">
+                {/* Mobile: compact info */}
+                <div className="sm:hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Lokasi</p>
+                    <p className="text-xs font-medium flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" />{selectedOpname.branch?.name || "Semua"}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Tanggal</p>
+                    <p className="text-xs">{format(new Date(selectedOpname.startedAt), "dd MMM yyyy, HH:mm", { locale: idLocale })}</p>
+                  </div>
+                  {selectedOpname.notes && (
+                    <>
+                      <div className="h-px bg-slate-100" />
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-medium mb-0.5">Catatan</p>
+                        <p className="text-xs text-foreground">{selectedOpname.notes}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Desktop: info pills */}
+                <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1 bg-slate-50 rounded-full px-2 py-1 ring-1 ring-slate-100">
                     <MapPin className="w-3 h-3" /> {selectedOpname.branch?.name || "Semua"}
                   </span>
@@ -873,19 +903,25 @@ export function StockOpnameContent() {
                         const actualStock = editedItems[item.productId] ?? item.actualStock;
                         const diff = actualStock - item.systemStock;
                         return (
-                          <div key={item.id} className="rounded-lg border border-slate-200/60 p-2.5 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-medium text-slate-700 truncate flex-1">{item.product.name}</span>
+                          <div key={item.id} className={cn("rounded-lg border p-2.5",
+                            diff > 0 ? "border-emerald-200 bg-emerald-50/30" : diff < 0 ? "border-red-200 bg-red-50/30" : "border-slate-200/60 bg-white")}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-slate-700 truncate">{item.product.name}</p>
+                                <p className="text-[10px] text-slate-400 font-mono">{item.product.code}</p>
+                              </div>
                               {diff !== 0 && (
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${diff > 0 ? "text-emerald-600 bg-emerald-50" : "text-red-600 bg-red-50"}`}>
+                                <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ml-2",
+                                  diff > 0 ? "text-emerald-600 bg-emerald-100" : "text-red-600 bg-red-100")}>
                                   {diff > 0 ? "+" : ""}{diff}
                                 </span>
                               )}
+                              {diff === 0 && <span className="text-emerald-500 text-xs font-bold shrink-0 ml-2">✓</span>}
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="flex-1">
                                 <span className="text-[10px] text-slate-400">Sistem</span>
-                                <p className="text-xs font-semibold text-slate-600">{item.systemStock}</p>
+                                <p className="text-xs font-bold text-slate-600 tabular-nums">{item.systemStock}</p>
                               </div>
                               <div className="flex-1">
                                 <span className="text-[10px] text-slate-400">Aktual</span>
@@ -893,9 +929,9 @@ export function StockOpnameContent() {
                                   <Input type="number" min={0} value={actualStock}
                                     onChange={(e) => setEditedItems({ ...editedItems, [item.productId]: Number(e.target.value) })}
                                     onFocus={(e) => e.target.select()}
-                                    className="w-full h-8 rounded-lg text-center text-xs border-slate-200" />
+                                    className="w-full h-7 rounded-lg text-center text-xs font-bold border-slate-200 focus:border-amber-400" />
                                 ) : (
-                                  <p className="text-xs font-semibold">{item.actualStock}</p>
+                                  <p className="text-xs font-bold tabular-nums">{item.actualStock}</p>
                                 )}
                               </div>
                             </div>
@@ -905,51 +941,51 @@ export function StockOpnameContent() {
                     </div>
 
                     {/* Desktop: table */}
-                    {/* <div className="hidden sm:block border border-slate-200/80 rounded-xl overflow-hidden shadow-sm overflow-x-auto"> */}
-                    <Table noWrapper>
-                      <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
-                        <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
-                          <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kode</TableHead>
-                          <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Produk</TableHead>
-                          <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sistem</TableHead>
-                          <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Aktual</TableHead>
-                          <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Selisih</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedOpname.items.map((item) => {
-                          const actualStock = editedItems[item.productId] ?? item.actualStock;
-                          const diff = actualStock - item.systemStock;
-                          return (
-                            <TableRow key={item.id} className="group hover:bg-amber-50/30 transition-colors">
-                              <TableCell><span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5 text-slate-600">{item.product.code}</span></TableCell>
-                              <TableCell className="text-sm font-medium text-slate-700">{item.product.name}</TableCell>
-                              <TableCell className="text-right text-sm text-slate-600 font-medium">{item.systemStock}</TableCell>
-                              <TableCell className="text-right">
-                                {isEditable ? (
-                                  <Input type="number" min={0} value={actualStock}
-                                    onChange={(e) => setEditedItems({ ...editedItems, [item.productId]: Number(e.target.value) })}
-                                    onFocus={(e) => e.target.select()}
-                                    className="w-20 mx-auto rounded-xl text-right text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30" />
-                                ) : (
-                                  <span className="text-sm font-medium">{item.actualStock}</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {diff > 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5 border border-emerald-100"><TrendingUp className="w-3 h-3" />+{diff}</span>
-                                ) : diff < 0 ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 rounded-full px-2.5 py-0.5 border border-red-100"><TrendingDown className="w-3 h-3" />{diff}</span>
-                                ) : (
-                                  <span className="text-xs text-slate-400">0</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                    {/* </div> */}
+                    <div className="hidden sm:block">
+                      <Table noWrapper>
+                        <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
+                          <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/50">
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kode</TableHead>
+                            <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Produk</TableHead>
+                            <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sistem</TableHead>
+                            <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Aktual</TableHead>
+                            <TableHead className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">Selisih</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedOpname.items.map((item) => {
+                            const actualStock = editedItems[item.productId] ?? item.actualStock;
+                            const diff = actualStock - item.systemStock;
+                            return (
+                              <TableRow key={item.id} className="group hover:bg-amber-50/30 transition-colors">
+                                <TableCell><span className="font-mono text-xs bg-slate-100 rounded px-1.5 py-0.5 text-slate-600">{item.product.code}</span></TableCell>
+                                <TableCell className="text-sm font-medium text-slate-700">{item.product.name}</TableCell>
+                                <TableCell className="text-right text-sm text-slate-600 font-medium">{item.systemStock}</TableCell>
+                                <TableCell className="text-right">
+                                  {isEditable ? (
+                                    <Input type="number" min={0} value={actualStock}
+                                      onChange={(e) => setEditedItems({ ...editedItems, [item.productId]: Number(e.target.value) })}
+                                      onFocus={(e) => e.target.select()}
+                                      className="w-20 mx-auto rounded-xl text-right text-sm border-slate-200 focus:border-amber-400 focus:ring-amber-400/30" />
+                                  ) : (
+                                    <span className="text-sm font-medium">{item.actualStock}</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {diff > 0 ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5 border border-emerald-100"><TrendingUp className="w-3 h-3" />+{diff}</span>
+                                  ) : diff < 0 ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 rounded-full px-2.5 py-0.5 border border-red-100"><TrendingDown className="w-3 h-3" />{diff}</span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">0</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </>
                 )}
               </div>
@@ -958,20 +994,20 @@ export function StockOpnameContent() {
 
           {/* Footer - sticky */}
           <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
-            <div className="flex items-center justify-between w-full gap-2">
-              <Button variant="outline" onClick={() => setDetailOpen(false)} className="rounded-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDetailOpen(false)} className="rounded-xl text-xs sm:text-sm order-2 sm:order-1">
                 Tutup
               </Button>
               {isEditable && (
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Button disabled={!canUpdate} variant="outline" onClick={handleSaveItems} className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50">
-                    <Save className="w-4 h-4 mr-1.5" /> Simpan
+                <div className="flex items-center gap-1.5 sm:gap-2 order-1 sm:order-2">
+                  <Button disabled={!canUpdate} variant="outline" size="sm" onClick={handleSaveItems} className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 text-xs sm:text-sm flex-1 sm:flex-none">
+                    <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Simpan
                   </Button>
-                  <Button disabled={!canUpdate} variant="outline" onClick={() => handleCancel(selectedOpname!.id)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50">
-                    <XCircle className="w-4 h-4 mr-1.5" /> Batal
+                  <Button disabled={!canUpdate} variant="outline" size="sm" onClick={() => handleCancel(selectedOpname!.id)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 text-xs sm:text-sm flex-1 sm:flex-none">
+                    <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Batal
                   </Button>
-                  <Button disabled={!canApprove} onClick={handleComplete} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-md shadow-emerald-200/40">
-                    <CheckCircle2 className="w-4 h-4 mr-1.5" /> Selesai
+                  <Button disabled={!canApprove} size="sm" onClick={handleComplete} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-md shadow-emerald-200/40 text-xs sm:text-sm flex-1 sm:flex-none">
+                    <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Selesai
                   </Button>
                 </div>
               )}

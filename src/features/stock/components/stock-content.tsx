@@ -25,8 +25,11 @@ import { BranchMultiSelect } from "@/components/ui/branch-multi-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, BoxesIcon, ArrowDownLeft, ArrowUpRight, RefreshCw, ArrowLeftRight, ClipboardCheck,
-  Search, Loader2, CalendarDays, MapPin, Upload,
+  Loader2, CalendarDays, MapPin, Upload, SlidersHorizontal, XCircle,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
+import { FilterBottomSheet } from "@/components/ui/filter-bottom-sheet";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -83,6 +86,7 @@ export function StockContent() {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const qp = useQueryParams({ pageSize: 10, filters: { type: "ALL" } });
   const { page, pageSize, search, filters: activeFilters } = qp;
   const [searchInput, setSearchInput] = useState(search);
@@ -240,7 +244,9 @@ export function StockContent() {
             <h1 className="text-lg sm:text-2xl font-bold text-foreground tracking-tight">Manajemen Stok</h1>
             <p className="text-muted-foreground text-xs sm:text-sm flex items-center gap-2">
               Kelola pergerakan stok produk
-              <Badge variant="secondary" className="text-xs font-normal">{data.total} pergerakan</Badge>
+              <Badge variant="secondary" className="rounded-full bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 border border-cyan-200 text-xs font-medium">
+                {data.total} Pergerakan
+              </Badge>
             </p>
           </div>
         </div>
@@ -269,27 +275,30 @@ export function StockContent() {
       </div>
 
       {/* Movement List */}
-      <div className="rounded-xl sm:rounded-2xl border border-border/30 bg-white shadow-sm">
+      <div className="">
         {/* Search bar + Stats — sticky */}
-        <div className="p-3 sm:p-4 border-b border-border/20 space-y-2 sm:space-y-0 sticky top-0 z-10 bg-white rounded-t-xl sm:rounded-t-2xl">
+        <div className="  sticky top-1 z-10 ">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="relative flex-1 sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
-              <Input
-                placeholder="Cari produk..."
-                className="pl-9 pr-9 rounded-xl h-9 text-sm border-border/40"
-                value={searchInput}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
-            </div>
+            <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari berdasarkan produk..." loading={loading} className="flex-1 max-w-sm" />
+
+            {/* Mobile: filter button */}
+            <button
+              onClick={() => setFilterSheetOpen(true)}
+              className={cn("sm:hidden relative h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center transition-colors",
+                activeFilters.type && activeFilters.type !== "ALL" ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-border/40 bg-white text-muted-foreground hover:bg-slate-50")}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              {activeFilters.type && activeFilters.type !== "ALL" && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-500 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+              )}
+            </button>
             {/* Desktop: filter pills with count */}
             <div className="hidden sm:flex items-center gap-1.5 ml-auto">
               {TYPE_PILLS.map((pill) => {
                 const count = pill.value === "ALL" ? stats.inCount + stats.outCount + stats.adjCount + stats.transferCount + stats.opnameCount : pill.value === "IN" ? stats.inCount : pill.value === "OUT" ? stats.outCount : pill.value === "ADJUSTMENT" ? stats.adjCount : pill.value === "TRANSFER" ? stats.transferCount : pill.value === "OPNAME" ? stats.opnameCount : 0;
                 return (
                   <button key={pill.value} onClick={() => handleTypeFilter(pill.value)}
-                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all inline-flex items-center gap-1.5 ${activeFilters.type === pill.value
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold  transition-all inline-flex items-center gap-1.5 ${activeFilters.type === pill.value
                       ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50"
                       : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
                     {pill.label}
@@ -299,25 +308,42 @@ export function StockContent() {
               })}
             </div>
           </div>
-          {/* Mobile: filter pills below search */}
-          <div className="sm:hidden flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-            {TYPE_PILLS.map((pill) => {
-              const count = pill.value === "ALL" ? stats.inCount + stats.outCount + stats.adjCount + stats.transferCount + stats.opnameCount : pill.value === "IN" ? stats.inCount : pill.value === "OUT" ? stats.outCount : pill.value === "ADJUSTMENT" ? stats.adjCount : pill.value === "TRANSFER" ? stats.transferCount : pill.value === "OPNAME" ? stats.opnameCount : 0;
-              return (
-                <button key={pill.value} onClick={() => handleTypeFilter(pill.value)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all inline-flex items-center gap-1 ${activeFilters.type === pill.value
-                    ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-200/50"
-                    : "bg-white border border-slate-200 text-slate-600"}`}>
-                  {pill.label}
-                  {count !== null && <span className={`text-[10px] font-bold ${activeFilters.type === pill.value ? "text-white/80" : "text-muted-foreground"}`}>{count}</span>}
+          {/* Mobile: filter button + active indicator */}
+          <div className="sm:hidden space-y-1.5">
+            {activeFilters.type && activeFilters.type !== "ALL" && (
+              <div className="flex items-center gap-1.5">
+                <Badge className={cn(typeConfig[activeFilters.type as string]?.color, "gap-1 text-[10px] px-2 py-0.5")}>
+                  {typeConfig[activeFilters.type as string]?.label}
+                </Badge>
+                <button onClick={() => handleTypeFilter("ALL")} className="text-muted-foreground hover:text-foreground">
+                  <XCircle className="w-3.5 h-3.5" />
                 </button>
-              );
-            })}
+              </div>
+            )}
           </div>
+          {/* Mobile: filter bottomsheet */}
+          <FilterBottomSheet
+            open={filterSheetOpen}
+            onOpenChange={setFilterSheetOpen}
+            title="Filter Tipe"
+            immediate
+            sections={[{
+              key: "type",
+              label: "Tipe",
+              options: TYPE_PILLS.map((pill) => ({
+                value: pill.value,
+                label: pill.label,
+                count: pill.value === "ALL" ? undefined : pill.value === "IN" ? stats.inCount : pill.value === "OUT" ? stats.outCount : pill.value === "ADJUSTMENT" ? stats.adjCount : pill.value === "TRANSFER" ? stats.transferCount : stats.opnameCount,
+                borderColor: typeConfig[pill.value]?.borderColor,
+              })),
+            }]}
+            values={{ type: activeFilters.type as string || "ALL" }}
+            onApply={(v) => handleTypeFilter(v.type || "ALL")}
+          />
         </div>
 
         {/* Grouped movement list */}
-        <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
+        <div className="mt-4">
           {loading && data.movements.length === 0 ? (
             <div className="space-y-6">
               {Array.from({ length: 2 }).map((_, gi) => (
@@ -382,52 +408,69 @@ export function StockContent() {
                           : "text-amber-700";
 
                       return (
-                        <div
-                          key={movement.id}
-                          className={`rounded-xl border border-border/30 border-l-4 ${cfg.borderColor} bg-white hover:shadow-sm transition-all group px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4`}
-                        >
-                          {/* Left: type icon */}
-                          <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${cfg.bgColor} flex items-center justify-center shrink-0 shadow-sm`}>
-                            <IconComp className="w-4 h-4" />
-                          </div>
-
-                          {/* Middle: product info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{productMeta.name}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Badge className={`${cfg.color} gap-1 px-2 py-0 text-[11px]`}>
-                                {cfg.label}
-                              </Badge>
-                              {movement.note && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-[11px] text-muted-foreground truncate max-w-[100px] sm:max-w-[150px] cursor-help">
-                                        {movement.note.length > 30 ? `${movement.note.slice(0, 30)}...` : movement.note}
-                                      </span>
-                                    </TooltipTrigger>
-                                    {movement.note.length > 30 && (
-                                      <TooltipContent><p className="max-w-xs">{movement.note}</p></TooltipContent>
-                                    )}
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                              {branchName && (
-                                <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                                  <MapPin className="w-3 h-3" />
-                                  {branchName}
-                                </span>
-                              )}
+                        <div key={movement.id} className={`rounded-xl border border-border/30 border-l-4 ${cfg.borderColor} bg-white hover:shadow-sm transition-all group`}>
+                          {/* ===== Mobile card ===== */}
+                          <div className="sm:hidden px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${cfg.bgColor} flex items-center justify-center shrink-0 shadow-sm`}>
+                                <IconComp className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[13px] font-semibold text-slate-800 truncate">{productMeta.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Badge className={`${cfg.color} gap-0.5 px-1.5 py-0 text-[10px]`}>{cfg.label}</Badge>
+                                  {branchName && (
+                                    <span className="text-[10px] text-slate-400 truncate flex items-center gap-0.5">
+                                      <MapPin className="w-2.5 h-2.5" />{branchName}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={`text-sm font-bold font-mono tabular-nums ${qtyColor}`}>{qtySign}{movement.quantity}</span>
+                                <p className="text-[10px] text-muted-foreground">{formatRelativeTime(movement.createdAt)}</p>
+                              </div>
                             </div>
+                            {movement.note && (
+                              <p className="text-[11px] text-muted-foreground mt-1.5 pl-[42px] truncate">{movement.note}</p>
+                            )}
                           </div>
 
-                          {/* Right: quantity & time */}
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="text-right">
-                              <span className={`text-base font-bold font-mono tabular-nums ${qtyColor}`}>
-                                {qtySign}{movement.quantity}
-                              </span>
-                              <p className="text-[11px] text-muted-foreground">{formatRelativeTime(movement.createdAt)}</p>
+                          {/* ===== Desktop card ===== */}
+                          <div className="hidden sm:flex px-4 py-3 items-center gap-4">
+                            <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${cfg.bgColor} flex items-center justify-center shrink-0 shadow-sm`}>
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{productMeta.name}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge className={`${cfg.color} gap-1 px-2 py-0 text-[11px]`}>{cfg.label}</Badge>
+                                {movement.note && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="text-[11px] text-muted-foreground truncate max-w-[150px] cursor-help">
+                                          {movement.note.length > 30 ? `${movement.note.slice(0, 30)}...` : movement.note}
+                                        </span>
+                                      </TooltipTrigger>
+                                      {movement.note.length > 30 && (
+                                        <TooltipContent><p className="max-w-xs">{movement.note}</p></TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {branchName && (
+                                  <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                                    <MapPin className="w-3 h-3" />{branchName}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-right">
+                                <span className={`text-base font-bold font-mono tabular-nums ${qtyColor}`}>{qtySign}{movement.quantity}</span>
+                                <p className="text-[11px] text-muted-foreground">{formatRelativeTime(movement.createdAt)}</p>
+                              </div>
                             </div>
                           </div>
                         </div>

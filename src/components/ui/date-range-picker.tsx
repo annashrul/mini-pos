@@ -211,14 +211,14 @@ export function DateRangePicker({
       <Button
         variant="outline"
         className={cn(
-          "justify-start text-left font-normal gap-2 w-full",
+          "justify-start text-left gap-2 w-full",
           !hasValue && "text-muted-foreground",
           hasValue && "pr-8",
         )}
         onClick={isMobile ? () => setOpen(true) : undefined}
       >
         <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-50" />
-        <span className="truncate text-xs">{label}</span>
+        <span className="truncate">{label} aaa</span>
       </Button>
       {hasValue && (
         <button
@@ -284,13 +284,13 @@ export function DateRangePicker({
           <Button
             variant="outline"
             className={cn(
-              "justify-start text-left font-normal gap-2 w-full",
+              "justify-start text-left  gap-2 w-full rounded-xl",
               !hasValue && "text-muted-foreground",
               hasValue && "pr-8",
             )}
           >
-            <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-50" />
-            <span className="truncate text-xs">{label}</span>
+            <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{label}</span>
           </Button>
         </PopoverTrigger>
         {hasValue && (

@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { formatDate } from "@/lib/utils";
-import { Calendar, MapPin, Pencil, ShoppingCart, Trash2, Users } from "lucide-react";
+import { Calendar, MapPin, MoreVertical, Pencil, ShoppingCart, Trash2, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { User } from "@/types";
 
 export function UsersGrid(props: {
@@ -72,26 +73,37 @@ export function UsersGrid(props: {
         const isSelected = selectedIds?.has(user.id) ?? false;
         return (
         <div key={user.id} className={`rounded-xl border bg-white hover:shadow-md transition-all group p-5 relative ${isSelected ? "border-primary ring-2 ring-primary/20" : "border-border/40"}`}>
-          <div className="absolute top-3 right-3 flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+          {/* Mobile: dropdown */}
+          <div className="absolute top-3 right-3 sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted">
+                  <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl w-44">
+                <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="users" actionKey="update">
+                  <DropdownMenuItem disabled={!canUpdate} onClick={() => onEdit(user)} className="text-xs gap-2">
+                    <Pencil className="w-3.5 h-3.5" /> Edit Pengguna
+                  </DropdownMenuItem>
+                </DisabledActionTooltip>
+                <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="users" actionKey="delete">
+                  <DropdownMenuItem disabled={!canDelete} onClick={() => onDelete(user.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                    <Trash2 className="w-3.5 h-3.5" /> Hapus
+                  </DropdownMenuItem>
+                </DisabledActionTooltip>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {/* Desktop: direct buttons */}
+          <div className="absolute top-3 right-3 hidden sm:flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="users" actionKey="update">
-              <Button
-                disabled={!canUpdate}
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                onClick={() => onEdit(user)}
-              >
+              <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors" onClick={() => onEdit(user)}>
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
             </DisabledActionTooltip>
             <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="users" actionKey="delete">
-              <Button
-                disabled={!canDelete}
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                onClick={() => onDelete(user.id)}
-              >
+              <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors" onClick={() => onDelete(user.id)}>
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </DisabledActionTooltip>

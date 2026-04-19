@@ -14,8 +14,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Landmark, Plus, Loader2, CheckCircle2, CalendarDays, ArrowLeftRight,
+  Landmark, Plus, Loader2, CheckCircle2, CalendarDays, ArrowLeftRight, MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -144,11 +145,30 @@ export function BankReconContent() {
                   {Math.abs(diff) > 0.01 && <span className="text-red-500 font-medium">Selisih: {formatCurrency(diff)}</span>}
                 </div>
                 {item.status === "IN_PROGRESS" && (
-                  <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100">
-                    <Button variant="ghost" size="sm" className="h-7 rounded-lg text-xs text-cyan-600 hover:bg-cyan-50" onClick={() => handleAutoMatch(item.id)}>
+                  <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+                    {/* Mobile: dropdown */}
+                    <div className="sm:hidden">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted">
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl w-44">
+                          <DropdownMenuItem onClick={() => handleAutoMatch(item.id)} className="text-xs gap-2 text-cyan-600">
+                            <ArrowLeftRight className="w-3.5 h-3.5" /> Auto-Match
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleComplete(item.id)} className="text-xs gap-2 text-emerald-600">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Selesaikan
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    {/* Desktop: direct buttons */}
+                    <Button variant="ghost" size="sm" className="hidden sm:inline-flex h-7 rounded-lg text-xs text-cyan-600 hover:bg-cyan-50" onClick={() => handleAutoMatch(item.id)}>
                       <ArrowLeftRight className="w-3 h-3 mr-1" /> Auto-Match
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 rounded-lg text-xs text-emerald-600 hover:bg-emerald-50" onClick={() => handleComplete(item.id)}>
+                    <Button variant="ghost" size="sm" className="hidden sm:inline-flex h-7 rounded-lg text-xs text-emerald-600 hover:bg-emerald-50" onClick={() => handleComplete(item.id)}>
                       <CheckCircle2 className="w-3 h-3 mr-1" /> Selesai
                     </Button>
                   </div>

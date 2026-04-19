@@ -12,9 +12,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { exportToPDF, exportToCSV, exportToExcel, type DocumentConfig } from "@/lib/document-export";
 import {
-  Clock, Loader2, FileDown, Users, Search,
+  Clock, Loader2, FileDown, Users,
   FileText, FileSpreadsheet, AlertTriangle,
 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { useBranch } from "@/components/providers/branch-provider";
 
 type AgingData = Awaited<ReturnType<typeof getAgingReport>>;
@@ -139,10 +140,7 @@ export function AgingReportContent() {
               </button>
             ))}
           </div>
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input value={searchInput} onChange={(e) => handleSearch(e.target.value)} placeholder="Cari nama..." className="pl-9 rounded-xl h-9 text-xs" />
-          </div>
+          <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari nama..." className="flex-1 max-w-sm" size="sm" />
         </div>
       </div>
 

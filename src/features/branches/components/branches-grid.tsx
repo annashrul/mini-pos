@@ -2,8 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
-import { Building2, CheckCircle2, MapPin, Pencil, Phone, Plus, Trash2, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, MapPin, MoreVertical, Pencil, Phone, Plus, Trash2, XCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Branch } from "@/types";
 
 export function BranchesGrid(props: {
@@ -104,26 +105,37 @@ export function BranchesGrid(props: {
                                     </div>
                                 </div>
 
-                                <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                {/* Mobile: dropdown */}
+                                <div className="sm:hidden">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <button className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                                <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="rounded-xl w-44">
+                                            <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branches" actionKey="update">
+                                                <DropdownMenuItem disabled={!canUpdate} onClick={() => onEdit(branch)} className="text-xs gap-2">
+                                                    <Pencil className="w-3.5 h-3.5" /> Edit Cabang
+                                                </DropdownMenuItem>
+                                            </DisabledActionTooltip>
+                                            <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branches" actionKey="delete">
+                                                <DropdownMenuItem disabled={!canDelete} onClick={() => onDelete(branch.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                                    <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                                </DropdownMenuItem>
+                                            </DisabledActionTooltip>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                                {/* Desktop: direct buttons */}
+                                <div className="hidden sm:flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branches" actionKey="update">
-                                        <Button
-                                            disabled={!canUpdate}
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                            onClick={() => onEdit(branch)}
-                                        >
+                                        <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => onEdit(branch)}>
                                             <Pencil className="w-3.5 h-3.5" />
                                         </Button>
                                     </DisabledActionTooltip>
                                     <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branches" actionKey="delete">
-                                        <Button
-                                            disabled={!canDelete}
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                                            onClick={() => onDelete(branch.id)}
-                                        >
+                                        <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => onDelete(branch.id)}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>
                                     </DisabledActionTooltip>

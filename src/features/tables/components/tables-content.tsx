@@ -27,6 +27,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -71,7 +72,6 @@ import {
     LayoutGrid,
     SlidersHorizontal,
     Check,
-    Search,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
@@ -377,16 +377,7 @@ export function TablesContent() {
                     <>
                         {/* Mobile: search + filter button side by side */}
                         <div className="sm:hidden flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Cari meja..."
-                                    value={searchInput}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    className="pl-9 rounded-xl h-9"
-                                />
-                                {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-                            </div>
+                            <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari meja..." loading={loading} className="flex-1" size="sm" />
                             <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => { setDraftSection(activeSection); setFilterSheetOpen(true); }}>
                                 <SlidersHorizontal className="w-3.5 h-3.5" />
                                 <span className="text-xs">Filter</span>
@@ -432,16 +423,7 @@ export function TablesContent() {
                         </div>
                         {/* Desktop: search left + pills right */}
                         <div className="hidden sm:flex items-center justify-between gap-4">
-                            <div className="relative flex-1 max-w-sm">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Cari nomor, nama, atau bagian meja..."
-                                    value={searchInput}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    className="pl-9 rounded-xl h-10"
-                                />
-                                {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-                            </div>
+                            <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari nomor, nama, atau bagian meja..." loading={loading} className="flex-1 max-w-sm" />
                             <div className="flex items-center gap-2 flex-wrap justify-end">
                                 {sectionOptions.map(sec => (
                                     <Button
@@ -760,7 +742,7 @@ function TableCard({
             {/* Dropdown trigger */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <button className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 h-5 w-5 sm:h-6 sm:w-6 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white shadow-sm z-10">
+                    <button className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 h-5 w-5 sm:h-6 sm:w-6 rounded-md flex items-center justify-center lg:opacity-0 lg:group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white shadow-sm z-10">
                         <MoreVertical className="w-3 h-3 text-muted-foreground" />
                     </button>
                 </DropdownMenuTrigger>

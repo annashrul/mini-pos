@@ -16,7 +16,8 @@ import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import type { SmartColumn, SmartFilter } from "@/components/ui/smart-table";
 import { SmartTable } from "@/components/ui/smart-table";
-import { Plus, Pencil, Trash2, Package, Upload, PackageCheck, AlertTriangle, PackageX, Layers, Barcode, Tag, Truck } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, Upload, PackageCheck, AlertTriangle, PackageX, Layers, Barcode, Tag, Truck, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { usePlanAccess } from "@/hooks/use-plan-access";
@@ -465,27 +466,47 @@ export function ProductsContent() {
         columns={columns}
         totalItems={data.total}
         mobileRender={(row) => (
-          <div className="flex items-start gap-3">
+          <div className="flex items-center gap-2.5">
             {row.imageUrl ? (
-              <Image src={row.imageUrl} alt={row.name} width={40} height={40} className="w-10 h-10 rounded-xl object-cover shrink-0 border-2 border-border/40 shadow-sm" />
+              <Image src={row.imageUrl} alt={row.name} width={44} height={44} className="w-11 h-11 rounded-xl object-cover shrink-0 border border-border/40 shadow-sm" />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center shrink-0 shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center shrink-0 shadow-sm">
                 <span className="text-sm font-bold text-white">{row.name.charAt(0).toUpperCase()}</span>
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-sm truncate text-foreground">{row.name}</p>
-                {renderStatusBadge(row)}
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-xs truncate text-foreground">{row.name}</p>
+                {!row.isActive && renderStatusBadge(row)}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {row.code} &middot; {row.category.name}{row.brand ? ` \u00b7 ${row.brand.name}` : ""}
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                {row.code} · {row.category.name}{row.brand ? ` · ${row.brand.name}` : ""}
               </p>
-              <p className="text-xs mt-1">
-                <span className="font-semibold text-indigo-600">{formatCurrency(row.sellingPrice)}</span>
-                <span className="text-muted-foreground"> &middot; Stok: </span>
-                {renderStockBadge(row)}
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="font-bold text-indigo-600 tabular-nums">{formatCurrency(row.sellingPrice)}</span>
+                  {renderStockBadge(row)}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl w-40">
+                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="products" actionKey="update">
+                      <DropdownMenuItem disabled={!canUpdate} onClick={() => openEditDialog(row)} className="text-xs gap-2">
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </DropdownMenuItem>
+                    </DisabledActionTooltip>
+                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="products" actionKey="delete">
+                      <DropdownMenuItem disabled={!canDelete} onClick={() => handleDelete(row.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                        <Trash2 className="w-3.5 h-3.5" /> Hapus
+                      </DropdownMenuItem>
+                    </DisabledActionTooltip>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
           </div>
         )}

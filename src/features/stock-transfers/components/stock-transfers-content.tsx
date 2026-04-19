@@ -22,7 +22,6 @@ import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { ProductPicker } from "@/components/ui/product-picker";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SmartSelect } from "@/components/ui/smart-select";
 import {
@@ -33,13 +32,15 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FilterBottomSheet } from "@/components/ui/filter-bottom-sheet";
+import { SearchInput } from "@/components/ui/search-input";
 import {
   Plus, Eye, ArrowRightLeft, ArrowRight,
   CheckCircle2, XCircle, PackageCheck,
   Clock, ShieldCheck, Truck, PackageOpen, Ban, Package,
-  Search, Loader2, CalendarDays, MapPin, SlidersHorizontal, Check, Upload, Copy,
+  Loader2, CalendarDays, MapPin, SlidersHorizontal, Upload, Copy, MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -371,79 +372,73 @@ export function StockTransfersContent() {
       </div>
 
       {/* Search + filter pills — sticky */}
-      <div className="sticky top-0 z-20 bg-background pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
-      {/* Mobile */}
-      <div className="sm:hidden space-y-2">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari transfer..." className="pl-9 rounded-xl h-9 text-sm" />
-          </div>
-          <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span className="text-xs">Filter</span>
-            {activeFilters.status !== "ALL" && <span className="absolute -top-1.5 -right-1.5 w-2 h-2 rounded-full bg-purple-500" />}
-          </Button>
-        </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {STATUS_PILLS.map((pill) => {
-            const count = pill.value === "ALL" ? null : pill.value === "PENDING" ? stats.pending : pill.value === "APPROVED" ? stats.approved : pill.value === "RECEIVED" ? stats.received : pill.value === "REJECTED" ? stats.rejected : 0;
-            return (
-              <button key={pill.value} onClick={() => handleStatusPill(pill.value)}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all inline-flex items-center gap-1 ${activeFilters.status === pill.value
-                  ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
-                  : "bg-white border border-slate-200 text-slate-600"}`}>
-                {pill.label}
-                {count !== null && <span className={`text-[10px] font-bold ${activeFilters.status === pill.value ? "text-white/80" : "text-muted-foreground"}`}>{count}</span>}
-              </button>
-            );
-          })}
-        </div>
-        <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-          <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
-            <div className="shrink-0">
-              <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-muted-foreground/20" /></div>
-              <SheetHeader className="px-4 pb-3 pt-0"><SheetTitle className="text-base font-bold">Filter Status</SheetTitle></SheetHeader>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
-              {STATUS_PILLS.map((pill) => {
-                const isActive = activeFilters.status === pill.value;
-                const count = pill.value === "ALL" ? null : pill.value === "PENDING" ? stats.pending : pill.value === "APPROVED" ? stats.approved : pill.value === "RECEIVED" ? stats.received : pill.value === "REJECTED" ? stats.rejected : 0;
-                return (
-                  <button key={pill.value} onClick={() => { handleStatusPill(pill.value); setFilterSheetOpen(false); }}
-                    className={cn("w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all",
-                      isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted")}>
-                    <span>{pill.label}{count !== null ? ` (${count})` : ""}</span>
-                    {isActive && <Check className="w-4 h-4" />}
-                  </button>
-                );
-              })}
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
+      <div className="sticky top-0 z-20  -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
+        {/* Mobile */}
+        <div className="sm:hidden space-y-2">
+          <div className="flex items-center gap-2">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari nomor opname..." loading={loading} className="flex-1 max-w-sm" size="sm" />
 
-      {/* Desktop: search + filter pills with count */}
-      <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari nomor transfer, cabang..." className="pl-9 rounded-xl h-10 text-sm" />
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {STATUS_PILLS.map((pill) => {
-            const count = pill.value === "ALL" ? null : pill.value === "PENDING" ? stats.pending : pill.value === "APPROVED" ? stats.approved : pill.value === "RECEIVED" ? stats.received : pill.value === "REJECTED" ? stats.rejected : 0;
-            return (
-              <button key={pill.value} onClick={() => handleStatusPill(pill.value)}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all inline-flex items-center gap-1.5 ${activeFilters.status === pill.value
-                  ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-                {pill.label}
-                {count !== null && <span className={`text-[10px] font-bold min-w-[16px] h-4 rounded-full inline-flex items-center justify-center ${activeFilters.status === pill.value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>}
+            <button
+              onClick={() => setFilterSheetOpen(true)}
+              className={cn("relative h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center transition-colors",
+                activeFilters.status && activeFilters.status !== "ALL" ? "border-purple-300 bg-purple-50 text-purple-600" : "border-slate-200 bg-white text-muted-foreground hover:bg-slate-50")}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              {activeFilters.status && activeFilters.status !== "ALL" && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-purple-500 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+              )}
+            </button>
+          </div>
+          {activeFilters.status && activeFilters.status !== "ALL" && (
+            <div className="flex items-center gap-1.5">
+              <Badge className={cn(statusConfig[activeFilters.status as string]?.color, "gap-1 text-[10px] px-2 py-0.5")}>
+                {(() => { const I = statusConfig[activeFilters.status as string]?.icon; return I ? <I className="w-2.5 h-2.5" /> : null; })()}
+                {statusConfig[activeFilters.status as string]?.label}
+              </Badge>
+              <button onClick={() => handleStatusPill("ALL")} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            </div>
+          )}
+          <FilterBottomSheet
+            open={filterSheetOpen}
+            onOpenChange={setFilterSheetOpen}
+            title="Filter Status"
+            immediate
+            sections={[{
+              key: "status",
+              label: "Status",
+              options: STATUS_PILLS.map((pill) => ({
+                value: pill.value,
+                label: pill.label,
+                count: pill.value === "ALL" ? undefined : pill.value === "PENDING" ? stats.pending : pill.value === "APPROVED" ? stats.approved : pill.value === "RECEIVED" ? stats.received : stats.rejected,
+                borderColor: statusConfig[pill.value]?.borderColor,
+              })),
+            }]}
+            values={{ status: activeFilters.status as string || "ALL" }}
+            onApply={(v) => handleStatusPill(v.status || "ALL")}
+          />
         </div>
-      </div>
+
+        {/* Desktop: search + filter pills with count */}
+        <div className="hidden sm:flex items-center justify-between gap-4">
+          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari no transfer..." loading={loading} className="flex-1 max-w-sm" />
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {STATUS_PILLS.map((pill) => {
+              const count = pill.value === "ALL" ? null : pill.value === "PENDING" ? stats.pending : pill.value === "APPROVED" ? stats.approved : pill.value === "RECEIVED" ? stats.received : pill.value === "REJECTED" ? stats.rejected : 0;
+              return (
+                <button key={pill.value} onClick={() => handleStatusPill(pill.value)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all inline-flex items-center gap-1.5 ${activeFilters.status === pill.value
+                    ? "bg-gradient-to-r from-purple-500 to-violet-600 text-white shadow-md shadow-purple-200/50"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                  {pill.label}
+                  {count !== null && <span className={`text-[10px] font-bold min-w-[16px] h-4 rounded-full inline-flex items-center justify-center ${activeFilters.status === pill.value ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Transfer Card List */}
@@ -468,92 +463,116 @@ export function StockTransfersContent() {
         )}
 
         {!loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
+          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3">
             {data.transfers.map((row) => {
               const cfg = statusConfig[row.status] || { label: row.status, color: "bg-slate-100 text-slate-700", icon: Clock, borderColor: "border-l-slate-400", gradientBg: "from-slate-400 to-gray-500" };
               const IconComp = cfg.icon;
 
               return (
-                <div
-                  key={row.id}
-                  className={`group relative bg-white rounded-xl border border-slate-200/60 border-l-4 ${cfg.borderColor} shadow-sm hover:shadow-md transition-all duration-200`}
-                >
-                  <div className="p-3 sm:p-4">
-                    {/* Mobile: stacked */}
-                    <div className="sm:hidden space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
+                <div key={row.id} className={`group relative bg-white rounded-xl border border-slate-200/60 border-l-4 ${cfg.borderColor} shadow-sm hover:shadow-md transition-all duration-200`}>
+                  {/* ===== Mobile card ===== */}
+                  <div className="sm:hidden p-3" onClick={() => handleViewDetail(row.id)}>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${cfg.gradientBg} flex items-center justify-center shadow-sm shrink-0`}>
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0 pr-14">
+                        <div className="flex items-center gap-1.5">
                           <span className="font-mono text-xs font-bold text-foreground">{row.transferNumber}</span>
                           <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.transferNumber); }} className="p-0.5 rounded hover:bg-slate-100">
                             <Copy className="w-2.5 h-2.5 text-slate-400" />
                           </button>
                         </div>
-                        <Badge className={`${cfg.color} gap-1 px-2 py-0.5 text-[10px] font-medium shadow-none`}>
-                          <IconComp className="w-2.5 h-2.5" />{cfg.label}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground truncate">{row.fromBranch.name}</span>
-                        <ArrowRight className="w-3 h-3 shrink-0 text-purple-400" />
-                        <span className="font-medium text-foreground truncate">{row.toBranch.name}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                          <span>{format(new Date(row.requestedAt), "dd MMM yy", { locale: idLocale })}</span>
-                          <span>{row._count.items} item</span>
-                        </div>
-                        <Button variant="ghost" size="xs" className="rounded-lg hover:bg-purple-50 hover:text-purple-600" onClick={() => handleViewDetail(row.id)}>
-                          <Eye className="w-3 h-3 mr-1" /> Detail
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Desktop: horizontal */}
-                    <div className="hidden sm:flex items-center gap-3">
-                      <Badge className={`${cfg.color} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
-                        <IconComp className="w-3 h-3" />{cfg.label}
-                      </Badge>
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradientBg} flex items-center justify-center shadow-sm shrink-0`}>
-                        <ArrowRightLeft className="w-4.5 h-4.5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-sm font-bold text-foreground">{row.transferNumber}</span>
-                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.transferNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
-                            <Copy className="w-3 h-3 text-slate-400" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0 text-violet-500" />
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
                           <span className="font-medium text-foreground truncate">{row.fromBranch.name}</span>
                           <ArrowRight className="w-3 h-3 shrink-0 text-purple-400" />
                           <span className="font-medium text-foreground truncate">{row.toBranch.name}</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="w-3 h-3" />{format(new Date(row.requestedAt), "dd MMM yy", { locale: idLocale })}</span>
-                          <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600"><Package className="w-3 h-3 text-slate-400" />{row._count.items} item</span>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
-                        <Button variant="ghost" size="icon-sm" className="rounded-lg hover:bg-purple-50 hover:text-purple-600" onClick={() => handleViewDetail(row.id)}>
-                          <Eye className="w-3.5 h-3.5" />
-                        </Button>
-                        {row.status === "PENDING" && (
-                          <>
-                            <Button disabled={!canApprove} variant="ghost" size="icon-sm" className="rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => handleApprove(row.id)}>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button disabled={!canApprove} variant="ghost" size="icon-sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => openRejectDialog(row.id)}>
-                              <XCircle className="w-3.5 h-3.5" />
-                            </Button>
-                          </>
-                        )}
-                        {row.status === "APPROVED" && (
-                          <Button disabled={!canReceive} variant="ghost" size="icon-sm" className="rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => handleReceive(row.id)}>
-                            <PackageCheck className="w-3.5 h-3.5" />
+                      <Badge className={`${cfg.color} gap-1 px-2 py-0.5 text-[10px] font-medium shadow-none absolute top-2 right-2`}>
+                        <IconComp className="w-2.5 h-2.5" />{cfg.label}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{format(new Date(row.requestedAt), "dd MMM yy", { locale: idLocale })}</span>
+                        <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" />{row._count.items} item</span>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl w-44">
+                          <DropdownMenuItem onClick={() => handleViewDetail(row.id)} className="text-xs gap-2">
+                            <Eye className="w-3.5 h-3.5" /> Detail
+                          </DropdownMenuItem>
+                          {row.status === "PENDING" && (
+                            <>
+                              <DropdownMenuItem disabled={!canApprove} onClick={() => handleApprove(row.id)} className="text-xs gap-2 text-emerald-600">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
+                              </DropdownMenuItem>
+                              <DropdownMenuItem disabled={!canApprove} onClick={() => openRejectDialog(row.id)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                <XCircle className="w-3.5 h-3.5" /> Tolak
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {row.status === "APPROVED" && (
+                            <DropdownMenuItem disabled={!canReceive} onClick={() => handleReceive(row.id)} className="text-xs gap-2 text-blue-600">
+                              <PackageCheck className="w-3.5 h-3.5" /> Terima
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  {/* ===== Desktop card ===== */}
+                  <div className="hidden sm:flex p-4 items-center gap-3">
+                    <Badge className={`${cfg.color} gap-1.5 rounded-bl-xl rounded-tr-xl rounded-tl-none rounded-br-none px-3 py-1 text-[11px] font-medium shadow-none absolute top-0 right-0 z-[1]`}>
+                      <IconComp className="w-3 h-3" />{cfg.label}
+                    </Badge>
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradientBg} flex items-center justify-center shadow-sm shrink-0`}>
+                      <ArrowRightLeft className="w-4.5 h-4.5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-sm font-bold text-foreground">{row.transferNumber}</span>
+                        <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.transferNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
+                          <Copy className="w-3 h-3 text-slate-400" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <MapPin className="w-3 h-3 shrink-0 text-violet-500" />
+                        <span className="font-medium text-foreground truncate">{row.fromBranch.name}</span>
+                        <ArrowRight className="w-3 h-3 shrink-0 text-purple-400" />
+                        <span className="font-medium text-foreground truncate">{row.toBranch.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="w-3 h-3" />{format(new Date(row.requestedAt), "dd MMM yy", { locale: idLocale })}</span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 border border-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600"><Package className="w-3 h-3 text-slate-400" />{row._count.items} item</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity shrink-0">
+                      <Button variant="ghost" size="icon-sm" className="rounded-lg hover:bg-purple-50 hover:text-purple-600" onClick={() => handleViewDetail(row.id)}>
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      {row.status === "PENDING" && (
+                        <>
+                          <Button disabled={!canApprove} variant="ghost" size="icon-sm" className="rounded-lg text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => handleApprove(row.id)}>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                      </div>
+                          <Button disabled={!canApprove} variant="ghost" size="icon-sm" className="rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => openRejectDialog(row.id)}>
+                            <XCircle className="w-3.5 h-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      {row.status === "APPROVED" && (
+                        <Button disabled={!canReceive} variant="ghost" size="icon-sm" className="rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => handleReceive(row.id)}>
+                          <PackageCheck className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -621,8 +640,37 @@ export function StockTransfersContent() {
                   </div>
                 </div>
 
-                {/* Info pills */}
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground">
+                {/* Mobile: compact info */}
+                <div className="sm:hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Diminta</p>
+                    <p className="text-xs">{format(new Date(selectedTransfer.requestedAt), "dd MMM yyyy, HH:mm", { locale: idLocale })}</p>
+                  </div>
+                  {selectedTransfer.approvedAt && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Disetujui</p>
+                      <p className="text-xs text-blue-600 font-medium">{format(new Date(selectedTransfer.approvedAt), "dd MMM yyyy", { locale: idLocale })}</p>
+                    </div>
+                  )}
+                  {selectedTransfer.receivedAt && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Diterima</p>
+                      <p className="text-xs text-emerald-600 font-medium">{format(new Date(selectedTransfer.receivedAt), "dd MMM yyyy", { locale: idLocale })}</p>
+                    </div>
+                  )}
+                  {selectedTransfer.notes && (
+                    <>
+                      <div className="h-px bg-slate-100" />
+                      <div>
+                        <p className="text-[10px] text-muted-foreground font-medium mb-0.5">Catatan</p>
+                        <p className="text-xs text-foreground">{selectedTransfer.notes}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Desktop: info pills */}
+                <div className="hidden sm:flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1 bg-slate-50 rounded-full px-2 py-1 ring-1 ring-slate-100">
                     <CalendarDays className="w-3 h-3" /> {format(new Date(selectedTransfer.requestedAt), "dd MMM yyyy HH:mm", { locale: idLocale })}
                   </span>
@@ -647,19 +695,30 @@ export function StockTransfersContent() {
                   </div>
                   {/* Mobile: card list */}
                   <div className="sm:hidden space-y-1.5">
-                    {selectedTransfer.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-slate-200/60 px-3 py-2">
-                        <span className="text-xs font-medium truncate flex-1">{item.productName}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant="secondary" className="rounded-md text-[10px] font-semibold">{item.quantity}</Badge>
-                          {item.receivedQty > 0 && (
-                            <Badge className={`rounded-md text-[10px] font-semibold ${item.receivedQty >= item.quantity ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                              ✓{item.receivedQty}
-                            </Badge>
-                          )}
+                    {selectedTransfer.items.map((item) => {
+                      const isFull = item.receivedQty >= item.quantity;
+                      return (
+                        <div key={item.id} className={cn("rounded-lg border p-2.5 flex items-center gap-3",
+                          item.receivedQty > 0 ? (isFull ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50/30") : "border-slate-200/60 bg-white")}>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">{item.productName}</p>
+                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                              <span>Qty: <strong className="text-foreground">{item.quantity}</strong></span>
+                              {item.receivedQty > 0 && (
+                                <span>Terima: <strong className={isFull ? "text-emerald-600" : "text-amber-600"}>{item.receivedQty}</strong></span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            {item.receivedQty > 0 ? (
+                              isFull ? <span className="text-emerald-500 text-sm font-bold">✓</span> : <Badge className="rounded-md bg-amber-100 text-amber-700 text-[9px] font-bold px-1.5">{item.receivedQty}/{item.quantity}</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="rounded-md text-[10px] font-semibold">{item.quantity}</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   {/* Desktop: table */}
                   <div className="hidden sm:block">
@@ -697,23 +756,23 @@ export function StockTransfersContent() {
           </DialogBody>
 
           <DialogFooter className="px-4 sm:px-6 py-3 sm:py-4 shrink-0 border-t">
-            <div className="flex items-center justify-between w-full gap-2">
-              <Button variant="outline" onClick={() => setDetailOpen(false)} className="rounded-xl">Tutup</Button>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDetailOpen(false)} className="rounded-xl text-xs sm:text-sm order-2 sm:order-1">Tutup</Button>
               {selectedTransfer && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 order-1 sm:order-2">
                   {selectedTransfer.status === "PENDING" && (
                     <>
-                      <Button disabled={!canApprove} variant="destructive" onClick={() => { setDetailOpen(false); openRejectDialog(selectedTransfer.id); }} className="rounded-xl">
-                        <XCircle className="w-4 h-4 mr-1.5" /> Tolak
+                      <Button disabled={!canApprove} variant="destructive" size="sm" onClick={() => { setDetailOpen(false); openRejectDialog(selectedTransfer.id); }} className="rounded-xl text-xs sm:text-sm flex-1 sm:flex-none">
+                        <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Tolak
                       </Button>
-                      <Button disabled={!canApprove} onClick={() => handleApprove(selectedTransfer.id)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white">
-                        <CheckCircle2 className="w-4 h-4 mr-1.5" /> Setujui
+                      <Button disabled={!canApprove} size="sm" onClick={() => handleApprove(selectedTransfer.id)} className="rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white text-xs sm:text-sm flex-1 sm:flex-none">
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Setujui
                       </Button>
                     </>
                   )}
                   {selectedTransfer.status === "APPROVED" && (
-                    <Button disabled={!canReceive} onClick={() => handleReceive(selectedTransfer.id)} className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                      <PackageCheck className="w-4 h-4 mr-1.5" /> Terima
+                    <Button disabled={!canReceive} size="sm" onClick={() => handleReceive(selectedTransfer.id)} className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs sm:text-sm flex-1 sm:flex-none">
+                      <PackageCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" /> Terima
                     </Button>
                   )}
                 </div>

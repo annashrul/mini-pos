@@ -33,19 +33,19 @@ export function AuditLogsHeader(props: {
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-medium">
+        <div className="inline-flex items-center gap-1.5 bg-slate-100/80 text-slate-600 rounded-full px-3 py-1.5 text-xs font-bold">
           <ScrollText className="w-3.5 h-3.5" />
           <span className="font-mono tabular-nums">{stats.total}</span> Total Log
         </div>
-        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-100">
+        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-emerald-100">
           <Plus className="w-3.5 h-3.5" />
           <span className="font-mono tabular-nums">{stats.create}</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-blue-100">
+        <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-blue-100">
           <Pencil className="w-3.5 h-3.5" />
           <span className="font-mono tabular-nums">{stats.update}</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-red-100">
+        <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-500 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-red-100">
           <Trash2 className="w-3.5 h-3.5" />
           <span className="font-mono tabular-nums">{stats.delete}</span>
         </div>

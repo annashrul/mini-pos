@@ -15,7 +15,7 @@ import { useMenuActionAccess } from "@/features/access-control";
 import { Button } from "@/components/ui/button";
 import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
 import { ExportMenu } from "@/components/ui/export-menu";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BulkActionBar } from "@/components/ui/bulk-action-bar";
 import {
@@ -31,9 +31,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Eye, PackageCheck,
-  Truck, Search, Loader2,
+  Truck,
   CalendarDays, ClipboardList,
-  MapPin, Package, Printer, Trash2, FileDown, FileSpreadsheet, FileText, Copy,
+  MapPin, Package, Printer, Trash2, FileDown, FileSpreadsheet, FileText, Copy, MoreVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { printDocument, exportToPDF, exportToCSV, exportToExcel } from "@/lib/document-export";
@@ -202,60 +202,53 @@ export function GoodsReceiptsContent() {
       </div>
 
       {/* Search + stats — sticky */}
-      <div className="sticky top-0 z-20 bg-background pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
-      {/* Mobile */}
-      <div className="sm:hidden space-y-2">
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari GR..." className="pl-9 rounded-xl border-slate-200 bg-white h-9 text-sm" />
-            {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
+      <div className="sticky top-0 z-20 pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6 pt-1 space-y-3">
+        {/* Mobile */}
+        <div className="sm:hidden space-y-2">
+          <div className="flex items-center gap-1.5">
+            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari GR..." loading={loading} className="flex-1" size="sm" />
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+            <div className="inline-flex items-center gap-1 rounded-full bg-cyan-50 ring-1 ring-cyan-200 px-2 py-1 shrink-0">
+              <PackageCheck className="w-3 h-3 text-cyan-500" />
+              <span className="text-[11px] font-semibold text-cyan-700">{stats.total}</span>
+              <span className="text-[11px] text-cyan-400">Total</span>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
+              <CalendarDays className="w-3 h-3 text-emerald-500" />
+              <span className="text-[11px] font-semibold text-emerald-700">{stats.today}</span>
+              <span className="text-[11px] text-emerald-400">Hari ini</span>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
+              <Package className="w-3 h-3 text-blue-500" />
+              <span className="text-[11px] font-semibold text-blue-700">{stats.thisMonth}</span>
+              <span className="text-[11px] text-blue-400">Bulan ini</span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          <div className="inline-flex items-center gap-1 rounded-full bg-cyan-50 ring-1 ring-cyan-200 px-2 py-1 shrink-0">
-            <PackageCheck className="w-3 h-3 text-cyan-500" />
-            <span className="text-[11px] font-semibold text-cyan-700">{stats.total}</span>
-            <span className="text-[11px] text-cyan-400">Total</span>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 ring-1 ring-emerald-100 px-2 py-1 shrink-0">
-            <CalendarDays className="w-3 h-3 text-emerald-500" />
-            <span className="text-[11px] font-semibold text-emerald-700">{stats.today}</span>
-            <span className="text-[11px] text-emerald-400">Hari ini</span>
-          </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 ring-1 ring-blue-100 px-2 py-1 shrink-0">
-            <Package className="w-3 h-3 text-blue-500" />
-            <span className="text-[11px] font-semibold text-blue-700">{stats.thisMonth}</span>
-            <span className="text-[11px] text-blue-400">Bulan ini</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Desktop: search + stats */}
-      <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={searchInput} onChange={(e) => handleSearchChange(e.target.value)} placeholder="Cari berdasarkan nomor GR, PO, supplier..." className="pl-10 rounded-xl border-slate-200 bg-white h-10 text-sm" />
-          {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-cyan-50 border border-cyan-200 px-3 py-1.5">
-            <PackageCheck className="w-3 h-3 text-cyan-500" />
-            <span className="text-[11px] font-semibold text-cyan-700">{stats.total}</span>
-            <span className="text-[11px] text-cyan-500">Total</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
-            <CalendarDays className="w-3 h-3 text-emerald-500" />
-            <span className="text-[11px] font-semibold text-emerald-700">{stats.today}</span>
-            <span className="text-[11px] text-emerald-500">Hari ini</span>
-          </div>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
-            <Package className="w-3 h-3 text-blue-500" />
-            <span className="text-[11px] font-semibold text-blue-700">{stats.thisMonth}</span>
-            <span className="text-[11px] text-blue-500">Bulan ini</span>
+        {/* Desktop: search + stats */}
+        <div className="hidden sm:flex items-center justify-between gap-4">
+          <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="Cari berdasarkan nomor GR, PO, supplier..." loading={loading} className="flex-1 max-w-sm" />
+
+          <div className="flex items-center gap-1.5">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-cyan-50 border border-cyan-200 px-3 py-1.5">
+              <PackageCheck className="w-3 h-3 text-cyan-500" />
+              <span className="text-[11px] font-bold text-cyan-700">{stats.total}</span>
+              <span className="text-[11px] font-bold text-cyan-500">Total</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5">
+              <CalendarDays className="w-3 h-3 text-emerald-500" />
+              <span className="text-[11px] font-bold text-emerald-700">{stats.today}</span>
+              <span className="text-[11px] font-bold text-emerald-500">Hari ini</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5">
+              <Package className="w-3 h-3 text-blue-500" />
+              <span className="text-[11px] font-bold text-blue-700">{stats.thisMonth}</span>
+              <span className="text-[11px] font-bold text-blue-500">Bulan ini</span>
+            </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Card List */}
@@ -285,7 +278,7 @@ export function GoodsReceiptsContent() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
+          <div className="space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-3">
             {data.receipts.map((row) => {
               const d = new Date(row.receivedAt);
               const isSelected = selectedIds.has(row.id);
@@ -297,58 +290,76 @@ export function GoodsReceiptsContent() {
                     isSelected ? "border-primary ring-1 ring-primary/20 bg-primary/5" : "border-slate-200/60"
                   )}
                 >
-                  <div className="p-3 sm:p-4 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-3">
-                    {/* Checkbox */}
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleOne(row.id)}
-                      className="shrink-0 hidden sm:flex"
-                    />
+                  {/* ===== Mobile card ===== */}
+                  <div className="sm:hidden p-3" onClick={() => handleViewDetail(row.id)}>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-100 to-blue-200 text-cyan-600 flex items-center justify-center shadow-sm shrink-0">
+                        <PackageCheck className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold text-foreground">{row.receiptNumber}</span>
+                          <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.receiptNumber); }} className="p-0.5 rounded hover:bg-slate-100">
+                            <Copy className="w-2.5 h-2.5 text-slate-400" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                          <Truck className="w-3 h-3 shrink-0" />{row.purchaseOrder.supplier.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{format(d, "dd MMM yy", { locale: idLocale })}</span>
+                        <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" />{row._count.items} item</span>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                            <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl w-44">
+                          <DropdownMenuItem onClick={() => handleViewDetail(row.id)} className="text-xs gap-2">
+                            <Eye className="w-3.5 h-3.5" /> Detail
+                          </DropdownMenuItem>
+                          {canDelete && (
+                            <DropdownMenuItem onClick={() => { setDeleteTargetId(row.id); setDeleteConfirmOpen(true); }} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                              <Trash2 className="w-3.5 h-3.5" /> Hapus
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
 
-                    {/* Icon */}
-                    <div className="hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-200 text-cyan-600 items-center justify-center shadow-sm shrink-0">
+                  {/* ===== Desktop card ===== */}
+                  <div className="hidden sm:flex p-4 items-center gap-3">
+                    <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(row.id)} className="shrink-0" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-100 to-blue-200 text-cyan-600 flex items-center justify-center shadow-sm shrink-0">
                       <PackageCheck className="w-4.5 h-4.5" />
                     </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
-                      <div className="flex items-baseline gap-1.5 sm:gap-2">
-                        <span className="font-mono text-xs sm:text-sm font-bold text-foreground">{row.receiptNumber}</span>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-sm font-bold text-foreground">{row.receiptNumber}</span>
                         <button onClick={(e) => { e.stopPropagation(); copyToClipboard(row.receiptNumber); }} className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-slate-100">
                           <Copy className="w-3 h-3 text-slate-400" />
                         </button>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[11px] sm:text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <ClipboardList className="w-3 h-3" />
-                          {row.purchaseOrder.orderNumber}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Truck className="w-3 h-3" />
-                          {row.purchaseOrder.supplier.name}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="w-3 h-3" />
-                          {format(d, "dd MMM yy", { locale: idLocale })}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><ClipboardList className="w-3 h-3" />{row.purchaseOrder.orderNumber}</span>
+                        <span className="inline-flex items-center gap-1"><Truck className="w-3 h-3" />{row.purchaseOrder.supplier.name}</span>
+                        <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />{format(d, "dd MMM yy", { locale: idLocale })}</span>
                         {row.branch && (
-                          <span className="hidden sm:inline-flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {row.branch.name}
-                          </span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{row.branch.name}</span>
                         )}
-                        <span className="inline-flex items-center gap-1">
-                          <Package className="w-3 h-3" />
-                          {row._count.items} item
-                        </span>
+                        <span className="inline-flex items-center gap-1"><Package className="w-3 h-3" />{row._count.items} item</span>
                       </div>
                       {row.receivedByName && (
                         <p className="text-[11px] text-muted-foreground">Diterima oleh: <span className="font-medium text-foreground">{row.receivedByName}</span></p>
                       )}
                     </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 sm:shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-slate-100" onClick={() => handleViewDetail(row.id)} title="Detail">
                         <Eye className="w-3.5 h-3.5 text-slate-500" />
                       </Button>
@@ -397,8 +408,49 @@ export function GoodsReceiptsContent() {
           </DialogHeader>
           {selectedGR && (<>
             <DialogBody className="px-4 sm:px-6 space-y-3 sm:space-y-4">
-              {/* Info cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              {/* Mobile: compact info */}
+              <div className="sm:hidden space-y-2.5">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">No. GR</p>
+                    <p className="font-mono font-bold text-xs text-foreground">{selectedGR.receiptNumber}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Ref. PO</p>
+                    <p className="font-mono font-bold text-xs text-foreground">{selectedGR.purchaseOrder.orderNumber}</p>
+                  </div>
+                  <div className="h-px bg-slate-100" />
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Supplier</p>
+                    <p className="text-xs font-medium flex items-center gap-1"><Truck className="w-3 h-3 text-cyan-500" />{selectedGR.purchaseOrder.supplier.name}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Tanggal</p>
+                    <p className="text-xs">{format(new Date(selectedGR.receivedAt), "dd MMM yyyy, HH:mm", { locale: idLocale })}</p>
+                  </div>
+                  {selectedGR.branch && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Lokasi</p>
+                      <p className="text-xs font-medium flex items-center gap-1"><MapPin className="w-3 h-3 text-blue-500" />{selectedGR.branch.name}</p>
+                    </div>
+                  )}
+                  {selectedGR.receivedByName && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Diterima</p>
+                      <p className="text-xs font-medium">{selectedGR.receivedByName}</p>
+                    </div>
+                  )}
+                </div>
+                {selectedGR.notes && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-[10px] text-muted-foreground font-medium mb-1">Catatan</p>
+                    <p className="text-xs text-foreground">{selectedGR.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop: info cards grid */}
+              <div className="hidden sm:grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-3">
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">No. GR</p>
                   <p className="font-mono font-bold text-sm text-foreground">{selectedGR.receiptNumber}</p>
@@ -434,59 +486,86 @@ export function GoodsReceiptsContent() {
                   </div>
                 )}
               </div>
-
               {selectedGR.notes && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="hidden sm:block rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] text-muted-foreground font-medium mb-1">Catatan</p>
                   <p className="text-xs text-foreground">{selectedGR.notes}</p>
                 </div>
               )}
 
-              {/* Items table */}
-              <Table noWrapper>
-                <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
-                  <TableRow className="bg-gradient-to-r from-slate-50 to-white">
-                    <TableHead className="text-xs font-semibold">Produk</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Order</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Diterima</TableHead>
-                    <TableHead className="text-center text-xs font-semibold">Selisih</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedGR.items.map((item) => {
-                    const gap = item.quantityOrdered - item.quantityReceived;
-                    return (
-                      <TableRow key={item.id} className="hover:bg-slate-50/50">
-                        <TableCell className="text-sm font-medium">{item.productName}</TableCell>
-                        <TableCell className="text-center text-sm tabular-nums">{item.quantityOrdered}</TableCell>
-                        <TableCell className="text-center text-sm">
-                          <Badge className={`rounded-lg font-semibold ${item.quantityReceived >= item.quantityOrdered
-                            ? "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200"
-                            : "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
-                            }`}>
-                            {item.quantityReceived}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          {gap > 0 ? (
-                            <Badge className="rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold">-{gap}</Badge>
-                          ) : (
-                            <span className="text-emerald-500 text-xs">✓</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              {/* Mobile: items as cards */}
+              <div className="sm:hidden space-y-1.5">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Daftar Item</p>
+                {selectedGR.items.map((item) => {
+                  const gap = item.quantityOrdered - item.quantityReceived;
+                  const isFull = item.quantityReceived >= item.quantityOrdered;
+                  return (
+                    <div key={item.id} className={cn("rounded-lg border p-2.5 flex items-center gap-3", isFull ? "border-emerald-200 bg-emerald-50/30" : "border-amber-200 bg-amber-50/30")}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{item.productName}</p>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                          <span>Order: <strong className="text-foreground">{item.quantityOrdered}</strong></span>
+                          <span>Terima: <strong className={isFull ? "text-emerald-600" : "text-amber-600"}>{item.quantityReceived}</strong></span>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {gap > 0 ? (
+                          <Badge className="rounded-lg bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold px-1.5">-{gap}</Badge>
+                        ) : (
+                          <span className="text-emerald-500 text-sm font-bold">✓</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
+              {/* Desktop: items table */}
+              <div className="hidden sm:block">
+                <Table noWrapper>
+                  <TableHeader className="sticky top-[-10px] z-10 bg-white [box-shadow:0_1px_0_0_#e5e7eb]">
+                    <TableRow className="bg-gradient-to-r from-slate-50 to-white">
+                      <TableHead className="text-xs font-semibold">Produk</TableHead>
+                      <TableHead className="text-center text-xs font-semibold">Order</TableHead>
+                      <TableHead className="text-center text-xs font-semibold">Diterima</TableHead>
+                      <TableHead className="text-center text-xs font-semibold">Selisih</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedGR.items.map((item) => {
+                      const gap = item.quantityOrdered - item.quantityReceived;
+                      return (
+                        <TableRow key={item.id} className="hover:bg-slate-50/50">
+                          <TableCell className="text-sm font-medium">{item.productName}</TableCell>
+                          <TableCell className="text-center text-sm tabular-nums">{item.quantityOrdered}</TableCell>
+                          <TableCell className="text-center text-sm">
+                            <Badge className={`rounded-lg font-semibold ${item.quantityReceived >= item.quantityOrdered
+                              ? "bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200"
+                              : "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
+                              }`}>
+                              {item.quantityReceived}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-sm">
+                            {gap > 0 ? (
+                              <Badge className="rounded-lg bg-red-50 text-red-600 border border-red-200 font-semibold">-{gap}</Badge>
+                            ) : (
+                              <span className="text-emerald-500 text-xs">✓</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </DialogBody>
 
             <DialogFooter className="px-4 sm:px-6 pb-4 sm:pb-6 justify-between items-center">
               {/* Total - left */}
               <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground font-medium">Total Diterima</p>
-                <p className="font-mono text-base font-bold tabular-nums text-foreground">
+                <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">Total Diterima</p>
+                <p className="font-mono text-sm sm:text-base font-bold tabular-nums text-foreground">
                   {selectedGR.items.reduce((s, i) => s + i.quantityReceived, 0)} pcs
                 </p>
               </div>
@@ -494,8 +573,8 @@ export function GoodsReceiptsContent() {
               <div className="flex items-center gap-2 shrink-0">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="rounded-xl">
-                      <FileDown className="w-4 h-4 mr-2" /> Export
+                    <Button variant="outline" size="sm" className="rounded-xl text-xs sm:text-sm">
+                      <FileDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" /> Export
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">

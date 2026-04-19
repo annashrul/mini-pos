@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DisabledActionTooltip } from "@/components/ui/disabled-action-tooltip";
 import { cn, formatCurrency } from "@/lib/utils";
-import { ArrowRight, DollarSign, Package, Pencil, X } from "lucide-react";
+import { ArrowRight, DollarSign, MoreVertical, Package, Pencil, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export interface BranchPriceItemRow {
   productId: string;
@@ -91,20 +92,27 @@ export function BranchPricesList(props: {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex gap-1 shrink-0">
-                  <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
-                    <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => onEdit(item)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  </DisabledActionTooltip>
-                  {item.hasCustomPrice && (
-                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branch-prices" actionKey="delete">
-                      <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => onRemove(item.productId)}>
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-8 w-8 rounded-xl flex items-center justify-center hover:bg-muted shrink-0">
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-xl w-44">
+                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
+                      <DropdownMenuItem disabled={!canUpdate} onClick={() => onEdit(item)} className="text-xs gap-2">
+                        <Pencil className="w-3.5 h-3.5" /> Edit Harga
+                      </DropdownMenuItem>
                     </DisabledActionTooltip>
-                  )}
-                </div>
+                    {item.hasCustomPrice && (
+                      <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branch-prices" actionKey="delete">
+                        <DropdownMenuItem disabled={!canDelete} onClick={() => onRemove(item.productId)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                          <X className="w-3.5 h-3.5" /> Hapus Harga Cabang
+                        </DropdownMenuItem>
+                      </DisabledActionTooltip>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="flex items-center gap-2 justify-between">
                 <div className="bg-slate-50/80 rounded-lg px-3 py-1.5 flex-1">
@@ -181,25 +189,13 @@ export function BranchPricesList(props: {
 
               <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="branch-prices" actionKey="update">
-                  <Button
-                    disabled={!canUpdate}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                    onClick={() => onEdit(item)}
-                  >
+                  <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => onEdit(item)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
                 </DisabledActionTooltip>
                 {item.hasCustomPrice && (
                   <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="branch-prices" actionKey="delete">
-                    <Button
-                      disabled={!canDelete}
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors"
-                      onClick={() => onRemove(item.productId)}
-                    >
+                    <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => onRemove(item.productId)}>
                       <X className="w-3.5 h-3.5" />
                     </Button>
                   </DisabledActionTooltip>

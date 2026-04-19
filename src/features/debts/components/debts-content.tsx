@@ -7,14 +7,15 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { getDebts, getDebtById, createDebt, updateDebt, deleteDebt, addDebtPayment, getDebtSummary } from "@/features/debts";
-import { cn, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActionConfirmDialog } from "@/components/ui/action-confirm-dialog";
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FilterBottomSheet } from "@/components/ui/filter-bottom-sheet";
+import { SearchInput } from "@/components/ui/search-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +27,6 @@ import {
     Loader2,
     Pencil,
     Plus,
-    Search,
     Trash2,
     Wallet,
     AlertTriangle,
@@ -35,10 +35,10 @@ import {
     CreditCard,
     Banknote,
     SlidersHorizontal,
-    Check,
-    ChevronDown,
     Upload,
+    MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -172,10 +172,6 @@ export function DebtsContent() {
     const statusFilter = filters.status ?? "ALL";
     const [searchInput, setSearchInput] = useState(search);
     const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-    const [draftType, setDraftType] = useState("ALL");
-    const [draftStatus, setDraftStatus] = useState("ALL");
-    const [typeExpanded, setTypeExpanded] = useState(true);
-    const [statusExpanded, setStatusExpanded] = useState(true);
     const [loading, startTransition] = useTransition();
 
     // dialogs
@@ -441,12 +437,8 @@ export function DebtsContent() {
             {/* Mobile: search + filter + stats */}
             <div className="sm:hidden space-y-2">
             <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-                    <Input placeholder="Cari nama, deskripsi..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-9 text-sm" />
-                </div>
-                <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => { setDraftType(typeFilter); setDraftStatus(statusFilter); setFilterSheetOpen(true); }}>
+                <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari nama, deskripsi..." loading={loading} className="flex-1" size="sm" />
+                <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => setFilterSheetOpen(true)}>
                     <SlidersHorizontal className="w-3.5 h-3.5" />
                     <span className="text-xs">Filter</span>
                     {(typeFilter !== "ALL" || statusFilter !== "ALL") && (
@@ -455,101 +447,16 @@ export function DebtsContent() {
                         </span>
                     )}
                 </Button>
-                <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-                    <SheetContent side="bottom" className="rounded-t-2xl p-0 max-h-[80vh] flex flex-col" showCloseButton={false}>
-                        {/* Header */}
-                        <div className="shrink-0">
-                            <div className="flex justify-center pt-3 pb-2">
-                                <div className="w-10 h-1 rounded-full bg-muted-foreground/20" />
-                            </div>
-                            <SheetHeader className="px-4 pb-3 pt-0">
-                                <SheetTitle className="text-base font-bold">Filter</SheetTitle>
-                            </SheetHeader>
-                        </div>
-
-                        {/* Body - scrollable */}
-                        <div className="flex-1 overflow-y-auto px-4 space-y-3">
-                            {/* Tipe */}
-                            <div>
-                                <button
-                                    onClick={() => setTypeExpanded(!typeExpanded)}
-                                    className="w-full flex items-center justify-between py-2"
-                                >
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tipe</p>
-                                    <div className="flex items-center gap-1.5">
-                                        {draftType !== "ALL" && (
-                                            <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5">
-                                                {typeFilterOptions.find((o) => o.value === draftType)?.label}
-                                            </span>
-                                        )}
-                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", typeExpanded && "rotate-180")} />
-                                    </div>
-                                </button>
-                                {typeExpanded && (
-                                    <div className="space-y-1">
-                                        {typeFilterOptions.map((opt) => {
-                                            const isActive = draftType === opt.value;
-                                            return (
-                                                <button
-                                                    key={opt.value}
-                                                    onClick={() => setDraftType(opt.value)}
-                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
-                                                >
-                                                    <span>{opt.label}</span>
-                                                    {isActive && <Check className="w-4 h-4" />}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            {/* Status */}
-                            <div>
-                                <button
-                                    onClick={() => setStatusExpanded(!statusExpanded)}
-                                    className="w-full flex items-center justify-between py-2"
-                                >
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</p>
-                                    <div className="flex items-center gap-1.5">
-                                        {draftStatus !== "ALL" && (
-                                            <span className="text-[11px] font-medium text-foreground bg-muted rounded-full px-2 py-0.5">
-                                                {statusFilterOptions.find((o) => o.value === draftStatus)?.label}
-                                            </span>
-                                        )}
-                                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", statusExpanded && "rotate-180")} />
-                                    </div>
-                                </button>
-                                {statusExpanded && (
-                                    <div className="space-y-1">
-                                        {statusFilterOptions.map((opt) => {
-                                            const isActive = draftStatus === opt.value;
-                                            return (
-                                                <button
-                                                    key={opt.value}
-                                                    onClick={() => setDraftStatus(opt.value)}
-                                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive ? "bg-foreground text-background" : "bg-muted/40 text-foreground hover:bg-muted"}`}
-                                                >
-                                                    <span>{opt.label}</span>
-                                                    {isActive && <Check className="w-4 h-4" />}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Footer - fixed */}
-                        <SheetFooter className="shrink-0 border-t px-4 py-3 flex-row gap-2">
-                            <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => { setDraftType("ALL"); setDraftStatus("ALL"); }}>
-                                Reset
-                            </Button>
-                            <Button className="flex-1 rounded-xl h-10 text-sm shadow-md" onClick={() => { handleTypeFilter(draftType); handleStatusFilter(draftStatus); setFilterSheetOpen(false); }}>
-                                Terapkan Filter
-                            </Button>
-                        </SheetFooter>
-                    </SheetContent>
-                </Sheet>
+                <FilterBottomSheet
+                    open={filterSheetOpen}
+                    onOpenChange={setFilterSheetOpen}
+                    sections={[
+                        { key: "type", label: "Tipe", options: typeFilterOptions.map((o) => ({ value: o.value, label: o.label })) },
+                        { key: "status", label: "Status", options: statusFilterOptions.map((o) => ({ value: o.value, label: o.label })) },
+                    ]}
+                    values={{ type: typeFilter, status: statusFilter }}
+                    onApply={(v) => { handleTypeFilter(v.type || "ALL"); handleStatusFilter(v.status || "ALL"); }}
+                />
             </div>
             {/* Mobile: stats below search */}
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -572,11 +479,7 @@ export function DebtsContent() {
 
             {/* Desktop: search left + pills right, 1 row */}
             <div className="hidden sm:flex items-center justify-between gap-4">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-                    <Input placeholder="Cari nama pihak, deskripsi..." value={searchInput} onChange={(e) => handleSearch(e.target.value)} className="pl-9 pr-9 rounded-xl h-10" />
-                </div>
+                <SearchInput value={searchInput} onChange={handleSearch} placeholder="Cari nama pihak, deskripsi..." loading={loading} className="flex-1 max-w-sm" />
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                     {typeFilterOptions.map((opt) => (
                         <button key={opt.value} onClick={() => handleTypeFilter(opt.value)}
@@ -660,153 +563,114 @@ export function DebtsContent() {
                             const pct = progressPercent(debt);
 
                             return (
-                                <div
-                                    key={debt.id}
-                                    className={`rounded-xl border bg-white hover:shadow-md transition-all group p-3 sm:p-4 border-l-4 ${isPayable ? "border-l-red-500" : "border-l-emerald-500"
-                                        }`}
-                                >
-                                    <div className="flex items-start sm:items-center gap-2 sm:gap-4">
-                                        {/* Left: Type Icon */}
-                                        <div
-                                            className={`flex items-center justify-center w-9 h-9 sm:w-11 sm:h-11 rounded-xl shrink-0 ${isPayable
-                                                ? "bg-gradient-to-br from-red-100 to-red-50 text-red-600"
-                                                : "bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600"
-                                                }`}
-                                        >
-                                            {isPayable ? (
-                                                <ArrowDownCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            ) : (
-                                                <ArrowUpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                                            )}
+                                <div key={debt.id} className={`rounded-xl border bg-white hover:shadow-md transition-all group border-l-4 ${isPayable ? "border-l-red-500" : "border-l-emerald-500"}`}>
+                                    {/* ===== Mobile card ===== */}
+                                    <div className="sm:hidden p-3" onClick={() => openDetailDialog(debt)}>
+                                        <div className="flex items-center gap-2.5 mb-2">
+                                            <div className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${isPayable ? "bg-gradient-to-br from-red-100 to-red-50 text-red-600" : "bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600"}`}>
+                                                {isPayable ? <ArrowDownCircle className="w-3.5 h-3.5" /> : <ArrowUpCircle className="w-3.5 h-3.5" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-bold text-foreground truncate">{debt.partyName}</p>
+                                                    <Badge className={`text-[8px] font-medium px-1.5 py-0 rounded-full border-0 shrink-0 ${isPayable ? "bg-gradient-to-r from-red-500 to-rose-500 text-white" : "bg-gradient-to-r from-emerald-500 to-green-500 text-white"}`}>
+                                                        {isPayable ? "Hutang" : "Piutang"}
+                                                    </Badge>
+                                                </div>
+                                                <p className={`text-[11px] font-bold font-mono tabular-nums mt-0.5 ${isPayable ? "text-red-600" : "text-emerald-600"}`}>
+                                                    {formatCurrency(debt.totalAmount)}
+                                                    {debt.remainingAmount > 0 && debt.remainingAmount < debt.totalAmount && (
+                                                        <span className="text-muted-foreground font-normal ml-1">· Sisa {formatCurrency(debt.remainingAmount)}</span>
+                                                    )}
+                                                </p>
+                                            </div>
                                         </div>
+                                        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mb-2">
+                                            <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-slate-200"}`} style={{ width: `${pct}%` }} />
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                                                <Badge variant="outline" className={`text-[9px] font-medium rounded-full px-1.5 py-0 ${statusInfo.className}`}>
+                                                    <StatusIcon className="w-2.5 h-2.5 mr-0.5" />{statusInfo.label}
+                                                </Badge>
+                                                {debt.dueDate && (
+                                                    <span className={`inline-flex items-center gap-0.5 ${isOverdue(debt) ? "text-red-500" : ""}`}>
+                                                        <CalendarDays className="w-2.5 h-2.5" />
+                                                        {format(new Date(debt.dueDate), "dd MMM yy", { locale: idLocale })}
+                                                        {isOverdue(debt) && <span className="text-[8px] font-bold text-red-500 bg-red-50 px-1 rounded">Lewat</span>}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <button className="h-6 w-6 rounded-md flex items-center justify-center hover:bg-muted shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                        <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+                                                    </button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="rounded-xl w-40">
+                                                    <DropdownMenuItem onClick={() => openDetailDialog(debt)} className="text-xs gap-2">
+                                                        <Eye className="w-3.5 h-3.5" /> Detail
+                                                    </DropdownMenuItem>
+                                                    <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="debts" actionKey="update">
+                                                        <DropdownMenuItem disabled={!canUpdate} onClick={() => openEditDialog(debt)} className="text-xs gap-2">
+                                                            <Pencil className="w-3.5 h-3.5" /> Edit
+                                                        </DropdownMenuItem>
+                                                    </DisabledActionTooltip>
+                                                    <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="debts" actionKey="delete">
+                                                        <DropdownMenuItem disabled={!canDelete} onClick={() => handleDelete(debt)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                                                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                                                        </DropdownMenuItem>
+                                                    </DisabledActionTooltip>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </div>
 
-                                        {/* Middle: Info */}
+                                    {/* ===== Desktop card ===== */}
+                                    <div className="hidden sm:flex p-4 items-center gap-4">
+                                        <div className={`flex items-center justify-center w-11 h-11 rounded-xl shrink-0 ${isPayable ? "bg-gradient-to-br from-red-100 to-red-50 text-red-600" : "bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600"}`}>
+                                            {isPayable ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />}
+                                        </div>
                                         <div className="flex-1 min-w-0 space-y-1">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <p className="text-sm font-bold text-foreground truncate">{debt.partyName}</p>
-                                                <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${isPayable
-                                                    ? "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-sm shadow-red-200"
-                                                    : "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm shadow-emerald-200"
-                                                    }`}>
+                                                <Badge className={`text-[10px] font-medium px-2 py-0 rounded-full border-0 shrink-0 ${isPayable ? "bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-sm shadow-red-200" : "bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-sm shadow-emerald-200"}`}>
                                                     {isPayable ? "Hutang" : "Piutang"}
                                                 </Badge>
                                             </div>
-                                            {/* Mobile: amount inline */}
-                                            <div className="sm:hidden">
-                                                <p className={`text-sm font-bold font-mono tabular-nums ${isPayable ? "text-red-600" : "text-emerald-600"}`}>
-                                                    {formatCurrency(debt.totalAmount)}
-                                                </p>
-                                                {debt.remainingAmount > 0 && (
-                                                    <p className="text-[10px] text-muted-foreground font-mono tabular-nums">
-                                                        Sisa {formatCurrency(debt.remainingAmount)}
-                                                    </p>
-                                                )}
-                                                <div className="w-full mt-1">
-                                                    <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-slate-200"}`}
-                                                            style={{ width: `${pct}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {debt.description && (
-                                                <p className="text-xs text-muted-foreground truncate">{debt.description}</p>
-                                            )}
+                                            {debt.description && <p className="text-xs text-muted-foreground truncate">{debt.description}</p>}
                                             {debt.dueDate && (
-                                                <div className={`flex items-center gap-1.5 text-xs ${isOverdue(debt) ? "text-red-500" : "text-muted-foreground"
-                                                    }`}>
-                                                    <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isOverdue(debt) ? "text-red-400" : "text-muted-foreground/60"
-                                                        }`} />
-                                                    <span className="font-mono tabular-nums text-[11px] sm:text-xs">
-                                                        {format(new Date(debt.dueDate), "dd MMM yyyy", { locale: idLocale })}
-                                                    </span>
-                                                    {isOverdue(debt) && (
-                                                        <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Lewat</span>
-                                                    )}
+                                                <div className={`flex items-center gap-1.5 text-xs ${isOverdue(debt) ? "text-red-500" : "text-muted-foreground"}`}>
+                                                    <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${isOverdue(debt) ? "text-red-400" : "text-muted-foreground/60"}`} />
+                                                    <span className="font-mono tabular-nums text-xs">{format(new Date(debt.dueDate), "dd MMM yyyy", { locale: idLocale })}</span>
+                                                    {isOverdue(debt) && <span className="text-[10px] font-medium text-red-500 bg-red-50 px-1.5 py-0.5 rounded ml-0.5">Lewat</span>}
                                                 </div>
                                             )}
-                                            {/* Mobile: status + actions row */}
-                                            <div className="flex sm:hidden items-center gap-2 pt-1">
-                                                <Badge variant="outline" className={`text-[10px] font-medium rounded-full px-2 ${statusInfo.className}`}>
-                                                    <StatusIcon className="w-3 h-3 mr-0.5" />
-                                                    {statusInfo.label}
-                                                </Badge>
-                                                <div className="flex gap-0.5 ml-auto">
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-amber-50 hover:text-amber-600" onClick={() => openDetailDialog(debt)}>
-                                                        <Eye className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                    <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditDialog(debt)}>
-                                                        <Pencil className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                    <Button disabled={!canDelete} variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(debt)}>
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
                                         </div>
-
-                                        {/* Right: Amount + Progress + Status + Actions (desktop only) */}
-                                        <div className="hidden sm:flex items-center gap-4 shrink-0">
+                                        <div className="flex items-center gap-4 shrink-0">
                                             <div className="text-right space-y-1.5">
-                                                <p className={`text-lg font-bold font-mono tabular-nums ${isPayable ? "text-red-600" : "text-emerald-600"
-                                                    }`}>
-                                                    {formatCurrency(debt.totalAmount)}
-                                                </p>
-                                                {/* Progress bar */}
+                                                <p className={`text-lg font-bold font-mono tabular-nums ${isPayable ? "text-red-600" : "text-emerald-600"}`}>{formatCurrency(debt.totalAmount)}</p>
                                                 <div className="w-24">
                                                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full transition-all ${pct >= 100
-                                                                ? "bg-emerald-500"
-                                                                : pct > 0
-                                                                    ? "bg-amber-500"
-                                                                    : "bg-slate-200"
-                                                                }`}
-                                                            style={{ width: `${pct}%` }}
-                                                        />
+                                                        <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct > 0 ? "bg-amber-500" : "bg-slate-200"}`} style={{ width: `${pct}%` }} />
                                                     </div>
                                                 </div>
-                                                {debt.remainingAmount > 0 && (
-                                                    <p className="text-[11px] text-muted-foreground font-mono tabular-nums">
-                                                        Sisa {formatCurrency(debt.remainingAmount)}
-                                                    </p>
-                                                )}
+                                                {debt.remainingAmount > 0 && <p className="text-[11px] text-muted-foreground font-mono tabular-nums">Sisa {formatCurrency(debt.remainingAmount)}</p>}
                                             </div>
-                                            <div>
-                                                <Badge variant="outline" className={`text-[11px] font-medium rounded-full px-2.5 ${statusInfo.className}`}>
-                                                    <StatusIcon className="w-3 h-3 mr-1" />
-                                                    {statusInfo.label}
-                                                </Badge>
-                                            </div>
+                                            <Badge variant="outline" className={`text-[11px] font-medium rounded-full px-2.5 ${statusInfo.className}`}>
+                                                <StatusIcon className="w-3 h-3 mr-1" />{statusInfo.label}
+                                            </Badge>
                                             <div className="flex gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors"
-                                                    onClick={() => openDetailDialog(debt)}
-                                                >
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors" onClick={() => openDetailDialog(debt)}>
                                                     <Eye className="w-3.5 h-3.5" />
                                                 </Button>
                                                 <DisabledActionTooltip disabled={!canUpdate} message={cannotMessage("update")} menuKey="debts" actionKey="update">
-                                                    <Button
-                                                        disabled={!canUpdate}
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                                        onClick={() => openEditDialog(debt)}
-                                                    >
+                                                    <Button disabled={!canUpdate} variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors" onClick={() => openEditDialog(debt)}>
                                                         <Pencil className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </DisabledActionTooltip>
                                                 <DisabledActionTooltip disabled={!canDelete} message={cannotMessage("delete")} menuKey="debts" actionKey="delete">
-                                                    <Button
-                                                        disabled={!canDelete}
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                                                        onClick={() => handleDelete(debt)}
-                                                    >
+                                                    <Button disabled={!canDelete} variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors" onClick={() => handleDelete(debt)}>
                                                         <Trash2 className="w-3.5 h-3.5" />
                                                     </Button>
                                                 </DisabledActionTooltip>

@@ -19,14 +19,16 @@ import {
   Landmark,
   TrendingUp,
   Receipt,
-  Search,
   Plus,
   Pencil,
   Trash2,
   Loader2,
   BookOpen,
+  MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SearchInput } from "@/components/ui/search-input";
 import { useCoa } from "../hooks";
 import { CATEGORY_CONFIG, CATEGORY_ORDER } from "../utils";
 import type { Account } from "../types";
@@ -108,28 +110,39 @@ function AccountRow({
           {formatCurrency(account.balance)}
         </span>
 
+        {/* Mobile: dropdown */}
+        <div className="sm:hidden ml-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted">
+                <MoreVertical className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl w-44">
+              <DisabledActionTooltip disabled={!canUpdate} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="update">
+                <DropdownMenuItem disabled={!canUpdate} onClick={() => onEdit(account)} className="text-xs gap-2">
+                  <Pencil className="w-3.5 h-3.5" /> Edit Akun
+                </DropdownMenuItem>
+              </DisabledActionTooltip>
+              <DisabledActionTooltip disabled={!canDelete} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="delete">
+                <DropdownMenuItem disabled={!canDelete} onClick={() => onDelete(account)} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                  <Trash2 className="w-3.5 h-3.5" /> Hapus
+                </DropdownMenuItem>
+              </DisabledActionTooltip>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {/* Desktop: direct buttons */}
         <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 ml-1">
           <DisabledActionTooltip disabled={!canUpdate} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="update">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg hover:bg-blue-50"
-              onClick={() => onEdit(account)}
-              disabled={!canUpdate}
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-blue-50" onClick={() => onEdit(account)} disabled={!canUpdate}>
               <Pencil className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500" />
             </Button>
           </DisabledActionTooltip>
           <DisabledActionTooltip disabled={!canDelete} message="Anda tidak memiliki akses" menuKey="accounting-coa" actionKey="delete">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg hover:bg-red-50"
-              onClick={() => onDelete(account)}
-              disabled={!canDelete}
-          >
-            <Trash2 className="w-3.5 h-3.5 text-gray-400 group-hover:text-red-500" />
-          </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-red-50" onClick={() => onDelete(account)} disabled={!canDelete}>
+              <Trash2 className="w-3.5 h-3.5 text-gray-400 group-hover:text-red-500" />
+            </Button>
           </DisabledActionTooltip>
         </div>
       </div>
@@ -296,15 +309,7 @@ export function COAContent() {
       </div>
 
       {/* ── Search ─────────────────────────────────────────────────────── */}
-      <div className="relative sm:max-w-sm">
-        <Search className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <Input
-          placeholder="Cari kode atau nama akun..."
-          value={search}
-          onChange={(e) => handleSearch(e.target.value)}
-          className="pl-9 sm:pl-10 rounded-xl h-9 sm:h-10 text-sm border-gray-200 focus-visible:ring-blue-500/20"
-        />
-      </div>
+      <SearchInput value={search} onChange={handleSearch} placeholder="Cari kode atau nama akun..." className="sm:max-w-sm" />
 
       {/* ── Stats Bar ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">

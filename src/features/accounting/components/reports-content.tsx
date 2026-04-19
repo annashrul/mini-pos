@@ -26,7 +26,6 @@ import {
     PieChart,
     Wallet,
     SlidersHorizontal,
-    Search,
     Check,
     CalendarDays,
 } from "lucide-react";
@@ -37,6 +36,7 @@ import {
     useBalanceSheet,
     useCashFlow,
 } from "../hooks";
+import { SearchInput } from "@/components/ui/search-input";
 import { formatAccountingCurrency } from "../utils";
 import type { Tab } from "../types";
 
@@ -200,16 +200,7 @@ function TrialBalanceTab({ date, setDate, branchId }: {
             {/* Mobile */}
             <div className="sm:hidden space-y-3">
                 <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input
-                            type="text"
-                            placeholder="Cari akun..."
-                            value={q}
-                            onChange={(e) => setQ(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-9"
-                        />
-                    </div>
+                    <SearchInput value={q} onChange={setQ} placeholder="Cari akun..." className="flex-1" size="sm" />
                     <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5" onClick={() => { setDraftTrialPreset(trialPresetKey); setDraftTrialDate(date); setTrialSheetOpen(true); }}>
                         <CalendarDays className="w-3.5 h-3.5" />
                         <span className="text-xs">{trialPresets.find(p => p.key === trialPresetKey)?.label ?? "Custom"}</span>
@@ -280,16 +271,7 @@ function TrialBalanceTab({ date, setDate, branchId }: {
             <Card className="hidden sm:block rounded-2xl border-0 shadow-sm bg-white">
                 <CardContent className="px-5 py-4 space-y-3">
                     <div className="flex items-center justify-between gap-4">
-                        <div className="relative flex-1 max-w-sm">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari kode atau nama akun..."
-                                value={q}
-                                onChange={(e) => setQ(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all h-10"
-                            />
-                        </div>
+                        <SearchInput value={q} onChange={setQ} placeholder="Cari kode atau nama akun..." className="flex-1 max-w-sm" />
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
                             {trialPresets.map((p) => (
                                 <button key={p.key} type="button" onClick={() => handleTrialPreset(p)}

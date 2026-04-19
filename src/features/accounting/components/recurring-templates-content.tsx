@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   CalendarClock, Plus, Play, Pause, Trash2, Loader2,
-  CalendarDays, RefreshCw, Zap,
+  CalendarDays, RefreshCw, Zap, MoreVertical,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -173,7 +174,26 @@ export function RecurringTemplatesContent() {
                     </div>
                     {tmpl.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{tmpl.description}</p>}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  {/* Mobile: dropdown */}
+                  <div className="sm:hidden shrink-0">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-muted">
+                          <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl w-44">
+                        <DropdownMenuItem onClick={() => handleToggle(tmpl.id)} className="text-xs gap-2">
+                          {tmpl.isActive ? <><Pause className="w-3.5 h-3.5 text-amber-500" /> Nonaktifkan</> : <><Play className="w-3.5 h-3.5 text-emerald-500" /> Aktifkan</>}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setDeleteTargetId(tmpl.id); setDeleteConfirmOpen(true); }} className="text-xs gap-2 text-red-600 focus:text-red-600">
+                          <Trash2 className="w-3.5 h-3.5" /> Hapus
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  {/* Desktop: direct buttons */}
+                  <div className="hidden sm:flex items-center gap-1 shrink-0">
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => handleToggle(tmpl.id)} title={tmpl.isActive ? "Nonaktifkan" : "Aktifkan"}>
                       {tmpl.isActive ? <Pause className="w-3.5 h-3.5 text-amber-500" /> : <Play className="w-3.5 h-3.5 text-emerald-500" />}
                     </Button>

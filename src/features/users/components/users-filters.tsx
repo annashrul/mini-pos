@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Check, Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { Check, SlidersHorizontal } from "lucide-react";
 
 export function UsersFilters(props: {
   search: string;
@@ -36,16 +36,7 @@ export function UsersFilters(props: {
     <>
       {/* Mobile: search + filter button + bottom sheet */}
       <div className="sm:hidden flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari user..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 rounded-xl h-9 text-sm"
-          />
-          {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-        </div>
+        <SearchInput value={search} onChange={onSearchChange} placeholder="Cari user..." loading={loading} className="flex-1" size="sm" />
         <Button variant="outline" size="sm" className="shrink-0 rounded-xl h-9 gap-1.5 relative" onClick={() => { setDraftRole(effectiveRole); setFilterSheetOpen(true); }}>
           <SlidersHorizontal className="w-3.5 h-3.5" />
           <span className="text-xs">Filter</span>
@@ -95,16 +86,7 @@ export function UsersFilters(props: {
 
       {/* Desktop: search left + pills right */}
       <div className="hidden sm:flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari user..."
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9 rounded-xl h-10"
-          />
-          {loading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />}
-        </div>
+        <SearchInput value={search} onChange={onSearchChange} placeholder="Cari user..." loading={loading} className="flex-1 max-w-sm" />
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {isInitialLoad ? (
             // Skeleton pills
