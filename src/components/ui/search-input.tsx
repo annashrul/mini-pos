@@ -22,7 +22,7 @@ export function SearchInput({
   size = "default",
 }: SearchInputProps) {
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative w-full", className)}>
       <Search className={cn(
         "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
         size === "sm" ? "w-3.5 h-3.5" : "w-4 h-4",

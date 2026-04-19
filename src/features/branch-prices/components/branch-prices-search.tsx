@@ -15,7 +15,7 @@ export function BranchPricesSearch(props: {
       onChange={onChange}
       placeholder="Cari nama produk atau kode..."
       loading={loading}
-      className="flex-1 max-w-sm"
+      className="flex-1 sm:max-w-sm"
     />
   );
 }

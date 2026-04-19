@@ -217,7 +217,7 @@ export function BranchPricesContent() {
         cannotMessage={cannotMessage}
         onOpenCopy={() => setCopyOpen(true)}
       />
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         {/* Search */}
         <BranchPricesSearch
           value={searchInput}
